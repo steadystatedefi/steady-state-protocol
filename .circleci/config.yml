@@ -1,0 +1,108 @@
+version: 2.1
+orbs:
+  node: circleci/node@4.3.0
+defaults: &defaults
+  docker:
+    - image: cimg/node:16.6
+jobs:
+  cancel_draft_build:
+    description: Stop if a draft build
+    docker:
+      - image: vitalinfo/circleci-cancel-draft
+    steps:
+      - run: cancel-draft-build
+  compile_all:
+    <<: *defaults
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore yarn package cache
+          keys:
+            - yarn-packages-{{ checksum "yarn.lock" }}
+      - run: yarn install --immutable
+      - run: yarn run compile
+      - save_cache:
+          name: Save yarn package cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - persist_to_workspace:
+          root: ~/
+          paths: .
+  finish_all:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/
+  test_main:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/
+      - run: yarn run test
+  test_extra:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/
+#      - run: yarn run test-
+          
+  test_deploy:
+    <<: *defaults
+    description: Deployment and build tests
+    steps:
+      - attach_workspace:
+          at: ~/
+      - run: yarn run solhint
+      - run: yarn run test-deploy:fork
+      - run: yarn run test-deploy:fork:test-incremental
+      - run: yarn run build:package
+          
+  npm-publish:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/
+      - run: yarn run build:package
+      - run: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+      - run: git config --global user.email "$CIRCLE_USERNAME@steadystate.finance"
+      - run: git config --global user.name $CIRCLE_USERNAME
+      - run: npm version --force 1.0.0-$CIRCLE_SHA1
+      - run: npm publish
+workflows:
+  test:
+    jobs:
+      - cancel_draft_build:
+          filters:
+            branches:
+              ignore: /main/
+          context: cancel-draft
+      - compile_all
+      - test_main:
+          requires:
+            - compile_all
+          context:
+            - alchemy-secret
+      - test_extra:
+          requires:
+            - compile_all
+          context:
+            - alchemy-secret
+      - test_deploy:
+          requires:
+            - compile_all
+          context:
+            - alchemy-secret
+      - finish_all:
+          requires:
+            - test_main
+            - test_extra
+            - test_deploy
+      - npm-publish:
+          requires:
+            - finish_all
+          filters:
+            branches:
+              only: /develop/
+          context:
+            - npm-secret
