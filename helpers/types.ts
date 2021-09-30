@@ -55,9 +55,6 @@ const tokenSymbols: iAssetBase<string> = {
   USD: '',
 };
 
-type testAssets = 'WETH' | 'DAI' | 'USDT' | 'USDC' | 'WBTC';
-type testOnlyAssets = 'none';
-
 export type iAssetsWithoutUSD<T> = Omit<iAssetBase<T>, 'USD'>;
 export type iAssetsWithoutUSDOpt<T> = OmitOpt<iAssetBase<T>, 'USD'>;
 
@@ -96,7 +93,7 @@ export interface IMocksConfig {
   UsdAddress: tEthereumAddress;
 }
 
-export interface ICommonConfiguration {
+export interface IRuntimeConfig {
   MarketId: string;
   ProviderId: number;
 
