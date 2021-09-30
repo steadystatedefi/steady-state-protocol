@@ -5,6 +5,8 @@ export enum ConfigNames {
   Full = 'Full'
 }
 
+export const loadTestConfig = () => loadRuntimeConfig(ConfigNames.Test);
+
 export const loadRuntimeConfig = (configName: ConfigNames): IRuntimeConfig => {
   switch (configName) {
     // case ConfigNames.Test:
