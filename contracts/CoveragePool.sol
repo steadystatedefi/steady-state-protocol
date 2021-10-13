@@ -7,13 +7,6 @@ import './interfaces/IProtocolPayIn.sol';
 import './interfaces/IVirtualReserve.sol';
 import './PoolToken.sol';
 
-/// Keeping this in the same file for now for ease of reference
-/// @dev Interface specified
-interface IPool {
-  //function getPoolToken() external view returns (address);
-  function deposit(uint256 amount) external;
-}
-
 /// @dev CoveragePool contract that keeps track of depositors
 /// Ideally, this should eventually be more generic
 /// This only supports one bucket, eventually there will be multiple risk buckets

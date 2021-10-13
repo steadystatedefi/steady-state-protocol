@@ -6,4 +6,8 @@ pragma solidity ^0.8.4;
 interface IVirtualReserve {
   /// @dev deposit will be called by the owning pool, transferring the USDX tokens. Does not keep track of owners
   function deposit(address owner, uint256 amount) external;
+
+  //TODO: Access control
+  /// @dev Certain depistors can deposit
+  function setAllowedCollateralizationRatio(address depositor, uint256 ratio) external;
 }
