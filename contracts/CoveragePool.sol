@@ -41,7 +41,7 @@ contract CoveragePool {
     protocol = _protocol;
     maxCoverage = _maxCoverage;
     premiumRate = _prem;
-    USDX = _usdx;
+    USDX = IERC20(_usdx);
     rewardToken = IERC20(_reward);
     blockCreated = block.number;
     blockExpiry = _expiry;
@@ -49,6 +49,7 @@ contract CoveragePool {
   }
 
   /// ====== PROTOCOL FUNCTIONS ====== ////
+  /*
   function isProtocolSolvent() external view returns (bool) {
     TokenAmount[] balances = protocolInfo.balanceOf(protocol);
     for (uint256 i = 0; i < balances.length; i++) {
@@ -60,6 +61,7 @@ contract CoveragePool {
     }
     return false;
   }
+  */
 
   /// ====== DEPOSITOR FUNCTIONS ====== ///
 
