@@ -26,7 +26,7 @@ const stepCatalog = new Map<
 
 stepCatalog.set('full', []);
 
-const defaultParams = async (params: IDeployStepParams) => ({ config: params.config, verify: params.verify });
+const defaultParams = async (params: IDeployStepParams) => ({ cfg: params.config, verify: params.verify });
 
 export function deployTask(
   name: string,
@@ -41,7 +41,7 @@ export function deployTask(
 
   addStep(deployType, description, name, paramsFn);
   return task(name, description)
-    .addParam('config', `Configuration name: ${Object.values(ConfigNames)}`)
+    .addParam('cfg', `Configuration name: ${Object.values(ConfigNames)}`)
     .addFlag('verify', `Verify contracts via Etherscan API.`);
 }
 
