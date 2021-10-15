@@ -1,4 +1,4 @@
-import { CoveragePoolFactory, PriceOracleFactory } from "../types";
+import * as types from "../types";
 import { Signer } from "ethers";
 import { Contract, ContractFactory } from "@ethersproject/contracts";
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
@@ -10,7 +10,7 @@ interface Deployable<TArgs extends any[] = any[], TResult extends Contract = Con
   attach(address: string): TResult;
 }
 
-type Constructor<TDeployArgs extends any[], TResult extends Contract> = new (...args: any[]) => Deployable<TDeployArgs, TResult>;
+type Constructor<TDeployArgs extends any[], TResult extends Contract> = new (signer: Signer) => Deployable<TDeployArgs, TResult>;
 
 export interface NamedDeployable<TArgs extends any[] = any[], TResult extends Contract = Contract> {
   deploy(...args: TArgs): Promise<TResult>;
@@ -83,8 +83,8 @@ const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArg
 };
 
 export const Factories = {
-  CoveragePoolFactory: wrap(CoveragePoolFactory),
-  PriceOracle: wrap(PriceOracleFactory),
+  CoveragePoolFactory: wrap(types.CoveragePoolFactory),
+  PriceOracle: wrap(types.PriceOracleFactory),
 }
 
 const nameByFactory = (() => {
