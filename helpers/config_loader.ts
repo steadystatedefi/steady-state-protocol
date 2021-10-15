@@ -7,8 +7,10 @@ export enum ConfigNames {
 
 export const loadTestConfig = () => loadRuntimeConfig(ConfigNames.Test);
 
-export const loadRuntimeConfig = (configName: ConfigNames): IRuntimeConfig => {
+export const loadRuntimeConfig = (configName: ConfigNames): (IRuntimeConfig | undefined) => {
   switch (configName) {
+    case ConfigNames.Full:
+      return undefined;
     case ConfigNames.Test:
       return undefined;
     //   return TestConfig;

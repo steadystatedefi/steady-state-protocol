@@ -12,7 +12,7 @@ task('deploy-full', 'Deploy full enviroment')
   .addFlag('strict', 'Fail on warnings')
   .addFlag('verify', 'Verify contracts at Etherscan')
   .addOptionalParam('skip', 'Skip steps with less or equal index', 0, types.int)
-  .setAction(async ({ incremental, secure, strict, verify, skip: skipN, ignorecalc: ignoreCalc }, DRE) => {
+  .setAction(async ({ incremental, secure, strict, verify, skip: skipN }, DRE) => {
     const CONFIG_NAME = ConfigNames.Full;
     await DRE.run('set-DRE');
 
@@ -43,7 +43,7 @@ task('deploy-full', 'Deploy full enviroment')
       const trackVerify = true;
 
       for (const step of await getDeploySteps('full', {
-        config: CONFIG_NAME,
+        cfg: CONFIG_NAME,
         verify: trackVerify,
       })) {
         const stepId = '0' + step.seqId;
@@ -60,12 +60,12 @@ task('deploy-full', 'Deploy full enviroment')
       console.log('\n======================================================================');
       console.log('97 Access test');
       console.log('======================================================================\n');
-      await DRE.run('full:access-test', { config: CONFIG_NAME });
+      await DRE.run('full:access-test', { cfg: CONFIG_NAME });
 
       console.log('\n======================================================================');
       console.log('98 Smoke tests');
       console.log('======================================================================\n');
-      await DRE.run('full:smoke-test', { config: CONFIG_NAME, ignoreCalc });
+      await DRE.run('full:smoke-test', { cfg: CONFIG_NAME });
 
       {
         const [entryMap, instanceCount, multiCount] = printContracts((await getFirstSigner()).address);
@@ -102,7 +102,7 @@ task('deploy-full', 'Deploy full enviroment')
         console.log('\n======================================================================');
         console.log('99. Finalize');
         console.log('======================================================================\n');
-        await DRE.run('full:deploy-finalize', { config: CONFIG_NAME, register: success });
+        await DRE.run('full:deploy-finalize', { cfg: CONFIG_NAME, register: success });
       } catch (err) {
         console.log('Error during finalization & renouncement');
         console.error(err);
@@ -133,12 +133,12 @@ task('deploy-full', 'Deploy full enviroment')
     }
 
     // console.log('Write UI config');
-    // await DRE.run('full:write-ui-config', { config: CONFIG_NAME });
+    // await DRE.run('full:write-ui-config', { cfg: CONFIG_NAME });
 
     console.log('\nDeployment has finished');
 
     if (verify) {
       console.log('N. Verify all contracts');
-      await DRE.run('verify-all-contracts', { config: CONFIG_NAME });
+      await DRE.run('verify-all-contracts', { cfg: CONFIG_NAME });
     }
   });

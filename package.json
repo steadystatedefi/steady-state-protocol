@@ -26,7 +26,7 @@
     "test-example": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/example.spec.ts",
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 hardhat coverage --network coverage --testfiles \"test-suites/test-main/*.spec.ts\"",
     "test-deploy:fork": "MAINNET_FORK=true hardhat deploy-full",
-    "test-deploy:fork:test-incremental": "MAINNET_FORK=true hardhat deploy:test-incremental",
+    "test-deploy:fork:incremental": "MAINNET_FORK=true hardhat deploy:test-incremental",
     "deploy:main:fork": "npm run compile && MAINNET_FORK=true hardhat deploy-full",
     "deploy:ropsten": "npm run compile && npm run hardhat:ropsten deploy-full",
     "deploy:kovan": "npm run compile && npm run hardhat:kovan deploy-full",

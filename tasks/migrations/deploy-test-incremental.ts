@@ -13,7 +13,8 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
   cleanupJsonDb(DRE.network.name);
   // cleanupUiConfig();
 
-  if (!MAINNET_FORK || DRE.network.name == eEthereumNetwork.hardhat) {
+  console.log(MAINNET_FORK, DRE.network.name);
+  if (!MAINNET_FORK || DRE.network.name !== eEthereumNetwork.hardhat) {
     console.log('Can only run on fork or hardhat');
     exit(1);
   }
@@ -83,7 +84,7 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
     }
 
     console.log('Smoke test');
-    await DRE.run('full:smoke-test', { config: CONFIG_NAME });
+    await DRE.run('full:smoke-test', { cfg: CONFIG_NAME });
   } catch (err) {
     console.error(err);
     exit(1);

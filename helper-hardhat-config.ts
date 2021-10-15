@@ -6,8 +6,6 @@ import {
   iParamsPerNetwork,
 } from './helpers/types';
 
-require('dotenv').config();
-
 export const NETWORKS_RPC_URL: iParamsPerNetwork<string> = {
   [eEthereumNetwork.kovan]: ALCHEMY_KEY
     ? `https://eth-kovan.alchemyapi.io/v2/${ALCHEMY_KEY}`

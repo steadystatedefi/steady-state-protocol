@@ -7,8 +7,6 @@ import { eEthereumNetwork, eNetwork, ePolygonNetwork } from './helpers/types';
 import { EVM_CHAINID, COV_CHAINID, SKIP_LOAD, HARDFORK, DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_MUL, MNEMONIC, MNEMONIC_PATH, MAINNET_FORK, COINMARKETCAP_KEY, ETHERSCAN_KEY } from './helpers/env-utils';
 import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS } from './helper-hardhat-config';
 
-require('dotenv').config();
-
 import 'hardhat-tracer';
 import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
@@ -53,7 +51,7 @@ const getCommonNetworkConfig = (networkName: eNetwork, networkId: number) => ({
 
 const mainnetFork = MAINNET_FORK
   ? {
-      blockNumber: 13283829,
+      blockNumber: 13283830,
       // blockNumber: 12914827,
       url: NETWORKS_RPC_URL['main'],
     }
