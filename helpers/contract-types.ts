@@ -44,7 +44,6 @@ const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArg
         throw new Error('deployer is required');
       }
       const name = this.name();
-      console.log(name, f, d);
       const c = await new f(d).deploy(...args);
       addContractToJsonDb(name, c, name !== undefined, args);
 
