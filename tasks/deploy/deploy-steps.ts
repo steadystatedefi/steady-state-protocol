@@ -4,7 +4,7 @@ import path from 'path';
 import { ConfigNames } from '../../helpers/config_loader';
 
 export interface IDeployStepParams {
-  config: string;
+  cfg: string;
   verify: boolean;
 }
 
@@ -26,7 +26,7 @@ const stepCatalog = new Map<
 
 stepCatalog.set('full', []);
 
-const defaultParams = async (params: IDeployStepParams) => ({ cfg: params.config, verify: params.verify });
+const defaultParams = async (params: IDeployStepParams) => ({ cfg: params.cfg, verify: params.verify });
 
 export function deployTask(
   name: string,

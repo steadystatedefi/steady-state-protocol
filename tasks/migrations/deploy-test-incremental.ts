@@ -25,7 +25,7 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
     const trackVerify = false;
 
     const steps = await getDeploySteps('full', {
-      config: CONFIG_NAME,
+      cfg: CONFIG_NAME,
       verify: trackVerify,
     });
 

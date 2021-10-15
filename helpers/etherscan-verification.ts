@@ -5,8 +5,6 @@ import qs from 'qs';
 import { DRE } from './dre';
 import { sleep } from './runtime-utils';
 
-export const SUPPORTED_ETHERSCAN_NETWORKS = ['main', 'ropsten', 'kovan'];
-
 export const stringifyArgs = (args: any) =>
   JSON.stringify(args, (key, value) => {
     if (typeof value == 'number') {
@@ -41,8 +39,6 @@ const _verifyContract = async (
   constructorArguments: any[],
   libraries?: string
 ): Promise<[ok: boolean, err: string]> => {
-  const currentNetwork = DRE.network.name;
-
   let params: VerificationSubtaskArgs = {
     address,
     constructorArguments,
@@ -77,7 +73,7 @@ const _verifyProxy = async (proxyAddr: string, implAddr: string) => {
   //  console.log(`Verifying ${proxyName}...`)
   const networkName = DRE.network.name;
   const apiKey = (<any>DRE.config).etherscan.apiKey!;
-  const apiSubdomain = networkName === 'mainnet' ? 'api' : `api-${networkName}`;
+  const apiSubdomain = networkName === 'main' ? 'api' : `api-${networkName}`;
   const baseUrl = `https://${apiSubdomain}.etherscan.io/api?module=contract`;
 
   let guid: string;
