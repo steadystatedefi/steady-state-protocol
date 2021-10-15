@@ -151,7 +151,7 @@ export const getExternalsFromJsonDb = () =>
 export const getNamedFromJsonDb = () =>
   Object.entries<DbNamedEntry>(getDb().get(`${DRE.network.name}.named`).value() || []);
 
-export const getFromJsonDb = (id: string) => getDb().get(`${DRE.network.name}.named.${id}`).value();
+export const getFromJsonDb = (id: string): DbNamedEntry => getDb().get(`${DRE.network.name}.named.${id}`).value();
 
 export const getFromJsonDbByAddr = (id: string) =>
   getDb().get(`${DRE.network.name}.instance.${id}`).value() as DbInstanceEntry;

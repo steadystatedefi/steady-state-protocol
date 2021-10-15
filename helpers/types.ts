@@ -37,6 +37,7 @@ export type tEthereumAddress = string;
 export interface iAssetCommon<T> {
   [key: string]: T;
 }
+
 export interface iAssetBase<T> {
   WETH: T;
   DAI: T;
@@ -87,7 +88,6 @@ export interface iPolygonParamsPerNetwork<T> {
   [ePolygonNetwork.matic]: T;
   [ePolygonNetwork.mumbai]: T;
 }
-
 
 export interface IMocksConfig {
   UsdAddress: tEthereumAddress;
