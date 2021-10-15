@@ -18,18 +18,13 @@ export enum ePolygonNetwork {
   mumbai = 'mumbai',
 }
 
-export enum EthereumNetworkNames {
+export enum NetworkNames {
   kovan = 'kovan',
   ropsten = 'ropsten',
   rinkeby = 'rinkeby',
   main = 'main',
   matic = 'matic',
   mumbai = 'mumbai',
-}
-
-export enum eContractid {
-  MarketAccessController = 'MarketAccessController',
-  PreDeployedMarketAccessController = '~MarketAccessController',
 }
 
 export type tEthereumAddress = string;

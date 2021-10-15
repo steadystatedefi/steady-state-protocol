@@ -1,4 +1,5 @@
 // @ts-ignore
+import { ALCHEMY_KEY, GWEI, INFURA_KEY } from './helpers/env-utils';
 import {
   eEthereumNetwork,
   ePolygonNetwork,
@@ -6,11 +7,6 @@ import {
 } from './helpers/types';
 
 require('dotenv').config();
-
-const INFURA_KEY = process.env.INFURA_KEY || '';
-const ALCHEMY_KEY = process.env.ALCHEMY_KEY || '';
-
-const GWEI = 1000 * 1000 * 1000;
 
 export const NETWORKS_RPC_URL: iParamsPerNetwork<string> = {
   [eEthereumNetwork.kovan]: ALCHEMY_KEY

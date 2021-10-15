@@ -2,8 +2,9 @@ import { task } from 'hardhat/config';
 import { exit } from 'process';
 import { ConfigNames } from '../../helpers/config_loader';
 import { cleanupJsonDb, getInstanceCountFromJsonDb, printContracts } from '../../helpers/deploy-db';
+import { MAINNET_FORK } from '../../helpers/env-utils';
 import { getFirstSigner } from '../../helpers/runtime-utils';
-import { tEthereumAddress } from '../../helpers/types';
+import { eEthereumNetwork, tEthereumAddress } from '../../helpers/types';
 import { getDeploySteps } from '../deploy/deploy-steps';
 
 task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, DRE) => {
@@ -12,9 +13,8 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
   cleanupJsonDb(DRE.network.name);
   // cleanupUiConfig();
 
-  const MAINNET_FORK = process.env.MAINNET_FORK === 'true';
-  if (!MAINNET_FORK) {
-    console.log('Can only run on fork');
+  if (!MAINNET_FORK || DRE.network.name == eEthereumNetwork.hardhat) {
+    console.log('Can only run on fork or hardhat');
     exit(1);
   }
 

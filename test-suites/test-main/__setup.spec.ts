@@ -5,6 +5,7 @@ import _ from 'lodash';
 import { loadTestConfig } from '../../helpers/config_loader';
 import { USD_ADDRESS, ZERO_ADDRESS } from '../../helpers/constants';
 import { Factories, setDefaultDeployer } from '../../helpers/contract-types';
+import { MAINNET_FORK } from '../../helpers/env-utils';
 import { getSigners } from '../../helpers/runtime-utils';
 import { initializeMakeSuite } from './setup/make-suite';
 
@@ -25,7 +26,7 @@ before(async () => {
   const [deployer, secondaryWallet] = await getSigners();
   setDefaultDeployer(deployer);
 
-  if (process.env.MAINNET_FORK === 'true') {
+  if (MAINNET_FORK) {
     await rawBRE.run('deploy:full');
   } else {
     console.log('-> Deploying test environment...');

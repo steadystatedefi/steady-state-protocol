@@ -1,10 +1,11 @@
 import low from 'lowdb';
 import FileSync from 'lowdb/adapters/FileSync';
 import { Contract } from 'ethers';
-import { tEthereumAddress } from './types';
+import { eEthereumNetwork, tEthereumAddress } from './types';
 import { stringifyArgs } from './etherscan-verification';
 import { DRE } from './dre';
 import { notFalsyOrZeroAddress } from './runtime-utils';
+import { MAINNET_FORK } from './env-utils';
 
 const getDb = () => low(new FileSync('./deployed-contracts.json'));
 
@@ -34,10 +35,8 @@ export const addContractToJsonDb = (
 ) => {
   const currentNetwork = DRE.network.name;
   const db = getDb();
-  // const deployer = contractInstance.deployTransaction.from;
 
-  const MAINNET_FORK = process.env.MAINNET_FORK === 'true';
-  if (MAINNET_FORK || (currentNetwork !== 'hardhat' && !currentNetwork.includes('coverage'))) {
+  if (MAINNET_FORK || (currentNetwork !== eEthereumNetwork.hardhat && !currentNetwork.includes('coverage'))) {
     console.log(`*** ${contractId} ***\n`);
     console.log(`Network: ${currentNetwork}`);
     console.log(`tx: ${contractInstance.deployTransaction.hash}`);

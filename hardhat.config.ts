@@ -4,7 +4,7 @@ import { HardhatUserConfig } from 'hardhat/types';
 // @ts-ignore
 import { accounts } from './helpers/test-wallets.js';
 import { eEthereumNetwork, eNetwork, ePolygonNetwork } from './helpers/types';
-import { EVM_CHAINID, COV_CHAINID } from './helpers/hardhat-constants';
+import { EVM_CHAINID, COV_CHAINID, SKIP_LOAD, HARDFORK, DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_GAS_MUL, MNEMONIC, MNEMONIC_PATH, MAINNET_FORK, COINMARKETCAP_KEY, ETHERSCAN_KEY } from './helpers/env-utils';
 import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS } from './helper-hardhat-config';
 
 require('dotenv').config();
@@ -19,16 +19,6 @@ import '@tenderly/hardhat-tenderly';
 import 'solidity-coverage';
 import 'hardhat-abi-exporter';
 // import 'hardhat-contract-sizer';
-
-const SKIP_LOAD = process.env.SKIP_LOAD === 'true';
-const DEFAULT_BLOCK_GAS_LIMIT = 7000000;
-const DEFAULT_GAS_MUL = 2;
-const HARDFORK = 'istanbul';
-const ETHERSCAN_KEY = process.env.ETHERSCAN_KEY || '';
-const MNEMONIC_PATH = "m/44'/60'/0'/0";
-const MNEMONIC = process.env.MNEMONIC || '';
-const MAINNET_FORK = process.env.MAINNET_FORK === 'true';
-const COINMARKETCAP_KEY = process.env.COINMARKETCAP_KEY || '';
 
 // Prevent to load scripts before compilation and typechain
 if (!SKIP_LOAD) {

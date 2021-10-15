@@ -14,7 +14,6 @@ task('deploy-full', 'Deploy full enviroment')
   .addOptionalParam('skip', 'Skip steps with less or equal index', 0, types.int)
   .setAction(async ({ incremental, secure, strict, verify, skip: skipN, ignorecalc: ignoreCalc }, DRE) => {
     const CONFIG_NAME = ConfigNames.Full;
-    const MAINNET_FORK = process.env.MAINNET_FORK === 'true';
     await DRE.run('set-DRE');
 
     const deployer = await getFirstSigner();
