@@ -1,25 +1,22 @@
 .env
 #Buidler files
+abi
 cache
 artifacts
 node_modules
-dist/
-build/
-.vscode
-.idea
-/types
-
-deployed-contracts.json
+dist
+build
+types
 
 coverage
 .coverage_artifacts
 .coverage_cache
 .coverage_contracts
 
-soljson-v0.8.4+commit.c7e474f2.js
-contracts/types
 package-lock.json
-abi
-typechain
-.npmrc
 yarn.lock
+coverage.json
+
+deployed-contracts.json
+
+soljson-v0.8.4+commit.c7e474f2.js
