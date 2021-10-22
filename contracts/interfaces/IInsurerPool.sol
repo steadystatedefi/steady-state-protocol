@@ -9,6 +9,7 @@ interface IInsurerPool {
   function coverageUnitSize() external view returns (uint256);
 
   /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
+  /// mints $IC tokens when $CC is received from a user
   function onTransferReceived(
     address operator,
     address from,
@@ -20,7 +21,7 @@ interface IInsurerPool {
   /// IInsuredPool.joinProcessed will be called after the decision is made.
   function requestJoin(address insured) external;
 
-  /// @dev can only be called by the collateral fund, when
+  /// @dev can only be called by the collateral fund, when insured cancels coverage
   function onCoverageDeclined(address insured) external;
 
   /// @dev indicates how the demand from insured pools is handled:
@@ -34,15 +35,26 @@ interface IInsurerPool {
   /// @dev can only be called by an accepted insured pool, cancels only empty coverage units, returns number of cancelled units
   function cancelCoverageDemand(uint256 unitCount) external returns (uint256 cancelledUnits);
 
-  /// @dev returns coverage info for the insurer
+  /// @dev returns coverage info for the insured
   function getCoverageDemand(address insured) external view returns (DemandedCoverage memory);
 
   /// @dev when charteredDemand is true and insured has incomplete demand, then this function will transfer $CC collected for the insured
   /// when charteredDemand is false or demand was fulfilled, then there is no need to call this function.
   function receiveDemandedCoverage(address insured)
     external
-    view
     returns (uint256 receivedCoverage, DemandedCoverage memory);
+
+  /// @dev amount of $IC tokens of a user. Weighted number of $IC tokens defines interest rate to be paid to the user
+  function balanceOf(address account) external view returns (uint256);
+
+  /// @dev total amount of $IC tokens
+  function totalSupply() external view returns (uint256);
+
+  /// @dev returns reward / interest rate of the user
+  function interestRate(address account) external view returns (uint256 rate, uint256 accumulatedRate);
+
+  /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY) and goes down with every insurance claim
+  function exchangeRate() external view returns (uint256 rate, uint256 accumulatedRate);
 }
 
 struct DemandedCoverage {
