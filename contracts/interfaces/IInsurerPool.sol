@@ -30,7 +30,11 @@ interface IInsurerPool {
   function charteredDemand() external view returns (bool);
 
   /// @dev can only be called by an accepted insured pool, adds demand for coverage
-  function addCoverageDemand(CoverageUnitBatch[] calldata batches) external;
+  function addCoverageDemand(
+    uint256 unitCount,
+    uint256 premiumRate,
+    bool hasMore
+  ) external returns (uint256 residualCount);
 
   /// @dev can only be called by an accepted insured pool, cancels only empty coverage units, returns number of cancelled units
   function cancelCoverageDemand(uint256 unitCount) external returns (uint256 cancelledUnits);
