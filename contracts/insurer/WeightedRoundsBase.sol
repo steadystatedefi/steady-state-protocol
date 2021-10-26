@@ -22,7 +22,9 @@ library Rounds {
   }
 
   struct Coverage {
-    uint128 coveredPremium;
+    uint128 coveragePremium;
+    uint128 accumulatedPremium;
+    uint32 lastTick;
     uint64 coveredUnits;
     uint64 demandIndex;
     uint24 demandRounds;
