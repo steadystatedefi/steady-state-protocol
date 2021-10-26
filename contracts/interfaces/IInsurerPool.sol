@@ -37,7 +37,7 @@ interface IInsurerPool {
   ) external returns (uint256 residualCount);
 
   /// @dev can only be called by an accepted insured pool, cancels only empty coverage units, returns number of cancelled units
-  function cancelCoverageDemand(uint256 unitCount) external returns (uint256 cancelledUnits);
+  function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
   function getCoverageDemand(address insured) external view returns (DemandedCoverage memory);
@@ -66,11 +66,6 @@ struct DemandedCoverage {
   uint256 totalCovered; // total coverage allocated by insured to insurer (can not exceed total demand)
   uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
   uint256 premiumAccumulatedRate; // time-cumulated of premiumRate
-}
-
-struct CoverageUnitBatch {
-  uint256 unitCount; // number of units demanded, size of unit is implicit (by insurer pool)
-  uint256 premiumRate; // premiumRate in RAYs for coverage provided for these units, may vary between units
 }
 
 interface IInsuredPool {
