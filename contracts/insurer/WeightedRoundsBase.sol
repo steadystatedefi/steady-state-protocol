@@ -107,14 +107,13 @@ abstract contract WeightedRoundsBase {
   ) internal returns (uint64 residualCount) {
     Rounds.InsuredEntry storage entry = _onlyAcceptedInsured(insured);
     Rounds.Demand[] storage demands = _demands[insured];
-    hasMore;
-    //    entry.hasMore = hasMore;
+    hasMore; //    entry.hasMore = hasMore;
+
     if (unitCount == 0) {
       return 0;
     }
 
     // internalCheckPremium(insured, batches[i].premiumRate);
-    //    uint maxPerRound = internal
 
     uint64 nextBatch;
     {
@@ -353,6 +352,7 @@ abstract contract WeightedRoundsBase {
         break;
       }
     }
+    // TODO collect premium data
 
     coverage.totalDemand = uint256(entry.demandedUnits) * unitSize;
     coverage.totalCovered += uint256(covered.coveredUnits) * unitSize;
@@ -375,6 +375,7 @@ abstract contract WeightedRoundsBase {
     returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
   {
     (receivedCoverage, coverage, _covered[insured]) = _collectCoveredDemand(insured, _onlyAcceptedInsured(insured));
+    // TODO transfer receivedCoverage to the insured
     return (receivedCoverage, coverage);
   }
 }
