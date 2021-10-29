@@ -514,7 +514,7 @@ abstract contract WeightedRoundsBase {
       coverage.totalUsableDemand = uint256(coverage.usableRounds) * b.unitPerRound;
     }
     if (b.state.isOpen()) {
-      coverage.openRounds += b.rounds;
+      coverage.openRounds += b.rounds - part.roundNo;
     }
 
     while (b.nextBatchNo != 0) {
@@ -550,6 +550,12 @@ abstract contract WeightedRoundsBase {
     return (receivedCoverage, coverage);
   }
 
+  struct AddCoverageParams {
+    uint64 openBatchNo;
+    bool openBatchUpdated;
+    bool batchUpdated;
+  }
+
   function internalAddCoverage(uint256 amount, uint256 loopLimit)
     internal
     returns (uint256 remainingAmount, uint256 remainingLoopLimit)
@@ -560,7 +566,35 @@ abstract contract WeightedRoundsBase {
       return (amount, loopLimit);
     }
 
-    Rounds.Batch memory b = _batches[part.batchNo];
+    Rounds.Batch memory b;
+    AddCoverageParams memory params;
+    (amount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
+    if (params.batchUpdated) {
+      _batches[part.batchNo] = b;
+    }
+    if (params.openBatchUpdated) {
+      _firstOpenBatch = params.openBatchNo;
+    }
+    _partial = part;
+    console.log('partial3', part.batchNo, part.roundNo, part.roundCoverage);
+    return (amount, loopLimit);
+  }
+
+  function _addCoverage(
+    uint256 amount,
+    uint256 loopLimit,
+    PartialState memory part,
+    AddCoverageParams memory params
+  )
+    internal
+    returns (
+      uint256 remainingAmount,
+      uint256 remainingLoopLimit,
+      Rounds.Batch memory b
+    )
+  {
+    b = _batches[part.batchNo];
+
     if (part.roundCoverage > 0) {
       require(b.state.isUsable(), 'wrong partial round'); // sanity check
       _updateTimeMark(part.batchNo, part, b.unitPerRound);
@@ -568,17 +602,17 @@ abstract contract WeightedRoundsBase {
       uint256 maxRoundCoverage = uint256(_unitSize) * b.unitPerRound;
       uint256 vacant = maxRoundCoverage - part.roundCoverage;
       if (amount < vacant) {
-        _partial.roundCoverage = part.roundCoverage + uint128(amount);
-        return (0, loopLimit - 1);
+        part.roundCoverage += uint128(amount);
+        return (0, loopLimit - 1, b);
       }
       part.roundCoverage = 0;
       part.roundNo++;
       amount -= vacant;
     } else if (!b.state.isUsable()) {
-      return (amount, loopLimit - 1);
+      return (amount, loopLimit - 1, b);
     }
 
-    uint64 openBatchNo = _firstOpenBatch;
+    params.openBatchNo = _firstOpenBatch;
     for (; loopLimit > 0; ) {
       loopLimit--;
       require(b.unitPerRound > 0, 'empty round');
@@ -587,34 +621,56 @@ abstract contract WeightedRoundsBase {
         require(part.roundNo == b.rounds);
         require(part.roundCoverage == 0);
 
-        b.state = Rounds.State.Full;
-        _batches[part.batchNo] = b;
+        if (b.state != Rounds.State.Full || params.batchUpdated) {
+          b.state = Rounds.State.Full;
+          _batches[part.batchNo] = b;
+          params.batchUpdated = false;
+        }
 
-        if (part.batchNo == openBatchNo) {
-          openBatchNo = b.nextBatchNo;
+        if (part.batchNo == params.openBatchNo) {
+          params.openBatchNo = b.nextBatchNo;
+          params.openBatchUpdated = true;
         }
 
         if (b.nextBatchNo == 0) break;
-        part = PartialState({batchNo: b.nextBatchNo, roundNo: 0, roundCoverage: 0});
+
+        // DO NOT do like this here:  part = PartialState({batchNo: b.nextBatchNo, roundNo: 0, roundCoverage: 0});
+        part.batchNo = b.nextBatchNo;
+        part.roundNo = 0;
+        part.roundCoverage = 0;
         console.log('partial0', part.batchNo, part.roundNo, part.roundCoverage);
 
-        if (amount == 0) break;
+        {
+          uint64 totalUnitsBeforeBatch = b.totalUnitsBeforeBatch + uint64(b.rounds) * b.unitPerRound;
 
-        b = _batches[part.batchNo];
+          b = _batches[part.batchNo];
+
+          if (totalUnitsBeforeBatch != b.totalUnitsBeforeBatch) {
+            require(totalUnitsBeforeBatch >= b.totalUnitsBeforeBatch);
+            b.totalUnitsBeforeBatch = totalUnitsBeforeBatch;
+            params.batchUpdated = true;
+          }
+        }
+
+        if (amount == 0) {
+          return (0, loopLimit, b);
+        }
+
         if (!b.state.isUsable()) {
           if (!internalUseNotReadyBatch(b)) {
-            // TODO improve
             console.log('partial1', part.batchNo, part.roundNo, part.roundCoverage);
-            _partial = part;
-            _firstOpenBatch = openBatchNo;
-            return (amount, loopLimit);
+            return (amount, loopLimit, b);
           }
           b.state = Rounds.State.ReadyMin;
+          params.batchUpdated = true;
         }
         _initTimeMark(part.batchNo);
         continue;
       }
-      if (amount == 0) break;
+
+      if (amount == 0) {
+        return (0, loopLimit, b);
+      }
 
       uint256 maxRoundCoverage = uint256(_unitSize) * b.unitPerRound;
       uint256 n = amount / maxRoundCoverage;
@@ -633,10 +689,7 @@ abstract contract WeightedRoundsBase {
       amount -= maxRoundCoverage * vacantRounds;
     }
 
-    _firstOpenBatch = openBatchNo;
-    _partial = part;
-    console.log('partial2', part.batchNo, part.roundNo, part.roundCoverage);
-    return (amount, loopLimit);
+    return (amount, loopLimit, b);
   }
 
   function internalUseNotReadyBatch(Rounds.Batch memory) internal virtual returns (bool) {
@@ -674,6 +727,33 @@ abstract contract WeightedRoundsBase {
     mark.timestamp = uint32(block.timestamp);
 
     _marks[batchNo] = mark;
+  }
+
+  struct Dump {
+    uint64 batchCount;
+    uint64 latestBatch;
+    /// @dev points to an earliest round that is open, can be zero when all rounds are full
+    uint64 firstOpenBatch;
+    PartialState part;
+    Rounds.Batch[] batches;
+  }
+
+  function _dump() internal view returns (Dump memory dump) {
+    dump.batchCount = _batchCount;
+    dump.latestBatch = _latestBatch;
+    dump.firstOpenBatch = _firstOpenBatch;
+    dump.part = _partial;
+    uint64 j = 0;
+    for (uint64 i = dump.part.batchNo; i > 0; i = _batches[i].nextBatchNo) {
+      j++;
+    }
+    dump.batches = new Rounds.Batch[](j);
+    j = 0;
+    for (uint64 i = dump.part.batchNo; i > 0; ) {
+      Rounds.Batch memory b = _batches[i];
+      i = b.nextBatchNo;
+      dump.batches[j++] = b;
+    }
   }
 
   // function internalCheckPremium(address insured, uint256 premium) private {}

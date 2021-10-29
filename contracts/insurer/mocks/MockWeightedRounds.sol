@@ -80,4 +80,8 @@ contract MockWeightedRounds is WeightedRoundsBase {
     (amount, ) = super.internalAddCoverage(amount, type(uint256).max);
     excessCoverage += amount;
   }
+
+  function dump() external view returns (Dump memory) {
+    return _dump();
+  }
 }

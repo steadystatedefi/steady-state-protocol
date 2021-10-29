@@ -1,4 +1,5 @@
 import BigNumber from 'bignumber.js';
+import { BigNumber as BigNumber2 } from '@ethersproject/bignumber';
 import { Libraries } from '@nomiclabs/hardhat-etherscan/src/solc/libraries';
 import axios, { AxiosRequestConfig } from 'axios';
 import qs from 'qs';
@@ -9,11 +10,16 @@ export const stringifyArgs = (args: any) =>
   JSON.stringify(args, (key, value) => {
     if (typeof value == 'number') {
       return new BigNumber(value).toFixed();
-    } else if (typeof value == 'object' && value instanceof BigNumber) {
-      return value.toFixed();
-    } else {
-      return value;
+    } else if (typeof value == 'object') {
+      if (value instanceof BigNumber) {
+        return value.toFixed();
+      } else if (value instanceof BigNumber2) {
+        return value.toString();
+      } else if (value.type == 'BigNumber') {
+        return BigNumber2.from(value).toString();
+      }
     }
+    return value;
   });
 
 export const verifyContract = async (
