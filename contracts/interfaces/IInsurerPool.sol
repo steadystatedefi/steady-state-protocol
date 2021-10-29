@@ -65,11 +65,19 @@ interface IInsurerPool {
 }
 
 struct DemandedCoverage {
-  uint256 totalDemand; // total demand added by insured to insurer
-  uint256 totalCovered; // total coverage allocated by insured to insurer (can not exceed total demand)
+  uint256 totalDemand; // total demand added to insurer
+  uint256 totalCovered; // total coverage allocated by insurer (can not exceed total demand)
   uint256 pendingCovered; // coverage that is allocated, but can not be given yet (should reach unit size)
   uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
   uint256 premiumAccumulatedRate; // time-cumulated of premiumRate
+}
+
+struct TotalCoverage {
+  DemandedCoverage demanded;
+  uint256 totalUsableDemand; // total demand that can be covered now (already balanced) - this value is not provided per-insured
+  uint64 usableRounds;
+  uint64 openRounds;
+  uint64 batchCount;
 }
 
 interface IInsuredPool {
