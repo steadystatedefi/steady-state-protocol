@@ -294,4 +294,57 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await expectCoverage(insured2, 200, 200, 0);
     await expectCoverage(insured3, 2000, 1010, 0);
   });
+
+  it('Cover everything', async () => {
+    const excess = await subj.excessCoverage();
+    await subj.addCoverageDemand(insured1, 990, RAY, false);
+
+    //    await dumpState();
+    {
+      const t = await subj.getTotals();
+      expect(t.batchCount).eq(3);
+      expect(t.openRounds).eq(990);
+      expect(t.usableRounds).eq(990);
+      expect(t.totalUsableDemand).eq(2880 * unitSize);
+      expect(t.demanded.pendingCovered).eq(0);
+      expect(t.demanded.totalCovered).eq(2310 * unitSize);
+      expect(t.demanded.totalDemand).eq(5190 * unitSize);
+      expect(t.demanded.totalDemand).eq(
+        t.demanded.totalCovered.add(t.totalUsableDemand).add(t.demanded.pendingCovered)
+      );
+    }
+
+    await expectCoverage(insured1, 1990, 1000, 0);
+    await expectCoverage(insured2, 200, 200, 0);
+    await expectCoverage(insured3, 2000, 1010, 0);
+
+    await subj.addCoverage(2880 * unitSize);
+    expect(await subj.excessCoverage()).eq(excess);
+
+    {
+      const t = await subj.getTotals();
+      expect(t.batchCount).eq(1);
+      expect(t.openRounds).eq(0);
+      expect(t.usableRounds).eq(0);
+      expect(t.totalUsableDemand).eq(0);
+      expect(t.demanded.pendingCovered).eq(0);
+      expect(t.demanded.totalCovered).eq(5190 * unitSize);
+      expect(t.demanded.totalDemand).eq(5190 * unitSize);
+    }
+
+    await expectCoverage(insured1, 1990, 1990, 0);
+    await expectCoverage(insured2, 200, 200, 0);
+    await expectCoverage(insured3, 2000, 2000, 0);
+
+    await subj.addCoverage(unitSize);
+    expect(await subj.excessCoverage()).eq(excess.add(unitSize));
+  });
+
+  it('Add demand after depletion', async () => {
+    await subj.addCoverageDemand(insured1, 10, RAY, false);
+
+    await expectCoverage(insured1, 2000, 1990, 0);
+    await expectCoverage(insured2, 200, 200, 0);
+    await expectCoverage(insured3, 2000, 2000, 0);
+  });
 });
