@@ -180,7 +180,7 @@ abstract contract WeightedRoundsBase {
 
       uint16 addPerRound;
       bool stop;
-      (addPerRound, stop, b) = _addToBatch(unitCount, b, entry.demandedUnits, params);
+      (addPerRound, stop) = _addToBatch(unitCount, b, entry.demandedUnits, params);
       console.log('added0', addPerRound, b.rounds, b.unitPerRound);
       console.log('added1', uint256(b.state), b.totalUnitsBeforeBatch, b.roundPremiumRateSum);
 
@@ -234,20 +234,19 @@ abstract contract WeightedRoundsBase {
       return (0, true);
     }
 
-    isFirstOfOpen = true;
-    if (latestBatchNo != 0 && (nextBatch = _batches[latestBatchNo].nextBatchNo) != 0) {
-      if (!_batches[nextBatch].state.isOpen()) {
-        (nextBatch, isFirstOfOpen) = (firstOpen, true);
-      }
-    } else {
-      (nextBatch, isFirstOfOpen) = (firstOpen, true);
+    if (
+      latestBatchNo == 0 ||
+      (nextBatch = _batches[latestBatchNo].nextBatchNo) == 0 ||
+      !_batches[nextBatch].state.isOpen()
+    ) {
+      nextBatch = firstOpen;
     }
 
     PartialState memory part = _partial;
     if (part.batchNo == nextBatch) {
       nextBatch = _splitBatch(nextBatch, part.roundCoverage == 0 ? part.roundNo : part.roundNo + 1);
-      isFirstOfOpen = false;
     }
+    isFirstOfOpen = nextBatch == firstOpen;
   }
 
   function _addToBatch(
@@ -255,21 +254,14 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch memory b,
     uint64 demandedUnits,
     AddCoverageDemandParams memory params
-  )
-    private
-    returns (
-      uint16 addPerRound,
-      bool stop,
-      Rounds.Batch memory
-    )
-  {
+  ) private returns (uint16 addPerRound, bool stop) {
     require(b.state.isOpen()); // TODO dev sanity check - remove later
 
     if (b.rounds == 0 || unitCount < b.rounds) {
       // split the batch or return the non-allocated units
       uint24 splitRounds = internalBatchSplit(b.rounds, demandedUnits, uint24(unitCount), params.config.minUnits);
       if (splitRounds == 0) {
-        return (0, true, b);
+        return (0, true);
       }
       require(unitCount >= splitRounds);
 
@@ -291,7 +283,7 @@ abstract contract WeightedRoundsBase {
 
     if (b.unitPerRound >= maxUnitsPerRound) {
       b.state = Rounds.State.Ready;
-      return (0, false, b);
+      return (0, false);
     }
 
     addPerRound = maxUnitsPerRound - b.unitPerRound;
@@ -312,7 +304,7 @@ abstract contract WeightedRoundsBase {
     } else if (b.unitPerRound >= minUnitsPerRound) {
       b.state = Rounds.State.ReadyMin;
     }
-    return (addPerRound, false, b);
+    return (addPerRound, false);
   }
 
   function internalRoundLimits(
