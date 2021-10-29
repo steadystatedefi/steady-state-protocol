@@ -4,6 +4,8 @@ pragma solidity ^0.8.4;
 import '../WeightedRoundsBase.sol';
 
 contract MockWeightedRounds is WeightedRoundsBase {
+  uint256 public excessCoverage;
+
   constructor(uint256 unitSize) WeightedRoundsBase(unitSize) {}
 
   function addCoverageDemand(
@@ -74,8 +76,8 @@ contract MockWeightedRounds is WeightedRoundsBase {
     return _splitRounds <= type(uint24).max ? uint24(_splitRounds) : remainingUnits;
   }
 
-  function addCoverage(uint256 amount) external returns (uint256) {
+  function addCoverage(uint256 amount) external {
     (amount, ) = super.internalAddCoverage(amount, type(uint256).max);
-    return amount;
+    excessCoverage += amount;
   }
 }
