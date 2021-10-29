@@ -21,7 +21,7 @@ abstract contract InsurerPoolBase {
     //
   }
 
-  mapping(address => InsuredEntry) private _insureds;
+  mapping(address => InsuredEntry) internal _insureds;
 
   function collateral() external view returns (address) {
     return _collateral;
