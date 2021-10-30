@@ -69,7 +69,7 @@ struct DemandedCoverage {
   uint256 totalCovered; // total coverage allocated by insurer (can not exceed total demand)
   uint256 pendingCovered; // coverage that is allocated, but can not be given yet (should reach unit size)
   uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
-  uint256 premiumAccumulatedRate; // time-cumulated of premiumRate
+  uint256 totalPremium; // time-cumulated of premiumRate
 }
 
 struct TotalCoverage {

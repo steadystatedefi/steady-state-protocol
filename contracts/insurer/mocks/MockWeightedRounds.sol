@@ -98,7 +98,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
     params.insured = insured;
     params.loopLimit = ~params.loopLimit;
 
-    (coverage, ) = internalGetCoveredDemand(params);
+    (coverage, , ) = internalGetCoveredDemand(params);
     return (params.receivedCoverage, coverage);
   }
 

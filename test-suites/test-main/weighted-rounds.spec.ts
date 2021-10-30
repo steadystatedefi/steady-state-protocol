@@ -8,8 +8,8 @@ import { expect } from 'chai';
 import { stringifyArgs } from '../../helpers/etherscan-verification';
 
 makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
-  const unitSize = 1000;
-  const RATE = WAD.div(YEAR);
+  const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
+  const unitSize = 1e6; // unitSize * RATE == WAD - this simplifies tests as it gives 1 rate point per unit per second
   let subj: MockWeightedRounds;
   let insured1: tEthereumAddress;
   let insured2: tEthereumAddress;
@@ -46,6 +46,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.pendingCovered).eq(0);
       expect(t.coverage.totalCovered).eq(0);
       expect(t.coverage.totalDemand).eq(1000 * unitSize);
+      expect(t.coverage.totalPremium).eq(0);
     }
 
     await subj.addCoverageDemand(insured2, 100, RATE, false);
@@ -58,6 +59,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.pendingCovered).eq(0);
       expect(t.coverage.totalCovered).eq(0);
       expect(t.coverage.totalDemand).eq(1100 * unitSize);
+      expect(t.coverage.totalPremium).eq(0);
     }
 
     await subj.addCoverageDemand(insured3, 2000, RATE, false);
@@ -70,6 +72,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.pendingCovered).eq(0);
       expect(t.coverage.totalCovered).eq(0);
       expect(t.coverage.totalDemand).eq(3100 * unitSize);
+      expect(t.coverage.totalPremium).eq(0);
     }
 
     await expectCoverage(insured1, 1000, 0, 0);
@@ -89,6 +92,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.pendingCovered).eq(0);
       expect(t.coverage.totalCovered).eq(30 * unitSize);
       expect(t.coverage.totalDemand).eq(3100 * unitSize);
+      //      expect(t.coverage.totalPremium).eq(0);
     }
 
     await expectCoverage(insured1, 1000, 10, 0);
