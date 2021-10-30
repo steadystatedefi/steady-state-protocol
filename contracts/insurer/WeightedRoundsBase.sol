@@ -41,10 +41,11 @@ library Rounds {
   struct Coverage {
     //    uint128 coveragePremiumRate;
     uint64 coveredUnits;
-    uint64 openDemandIndex;
+    uint64 lastUpdateIndex;
+    //    uint64 lastFullBatchNo;
     //    uint192 totalCoveragePremium;
     uint32 lastUpdatedAt;
-    uint24 coveredDemandRounds;
+    uint24 lastUpdateRounds;
   }
 
   enum State {
@@ -399,8 +400,8 @@ abstract contract WeightedRoundsBase {
   //   uint32 lastUpdatedAt;
 
   //   uint64 coveredUnits;
-  //   uint64 openDemandIndex;
-  //   uint24 coveredDemandRounds;
+  //   uint64 lastUpdateIndex;
+  //   uint24 lastUpdateRounds;
   // }
 
   function _collectCoveredDemand(address insured, Rounds.InsuredEntry storage entry)
@@ -416,11 +417,11 @@ abstract contract WeightedRoundsBase {
     covered = _covered[insured];
     receivedCoverage = covered.coveredUnits;
 
-    uint24 skipRounds = covered.coveredDemandRounds;
-    covered.coveredDemandRounds = 0;
+    uint24 skipRounds = covered.lastUpdateRounds;
+    covered.lastUpdateRounds = 0;
 
-    for (; covered.openDemandIndex < demands.length; covered.openDemandIndex++) {
-      Rounds.Demand memory d = demands[covered.openDemandIndex];
+    for (; covered.lastUpdateIndex < demands.length; covered.lastUpdateIndex++) {
+      Rounds.Demand memory d = demands[covered.lastUpdateIndex];
       console.log('demand', d.startBatchNo, d.rounds, skipRounds);
 
       uint24 fullRounds;
@@ -459,7 +460,7 @@ abstract contract WeightedRoundsBase {
         console.log('check', part.batchNo, d.startBatchNo);
         if (part.batchNo == d.startBatchNo) {
           fullRounds += part.roundNo;
-          covered.coveredDemandRounds = fullRounds;
+          covered.lastUpdateRounds = fullRounds;
 
           coverage.pendingCovered =
             (uint256(part.roundCoverage) * d.unitPerRound) /
@@ -770,7 +771,7 @@ abstract contract WeightedRoundsBase {
   //   Rounds.Coverage memory covered = _covered[insured];
   //   PartialState memory part = _partial;
 
-  //   for (uint i = demands.length - 1; i > covered.openDemandIndex; i--) {
+  //   for (uint i = demands.length - 1; i > covered.lastUpdateIndex; i--) {
   //     Rounds.Demand memory d = demands[i];
   //     require(d.startBatchNo != 0);
   //     Rounds.Batch memory b = _batches[d.startBatchNo];
