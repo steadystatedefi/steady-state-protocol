@@ -18,9 +18,9 @@ contract MockWeightedRounds is WeightedRoundsBase {
     params.insured = insured;
     params.premiumRate = premiumRate;
     params.hasMore = hasMore;
+    params.loopLimit = ~params.loopLimit;
 
-    (unitCount, ) = super.internalAddCoverageDemand(unitCount, type(uint256).max, params);
-    return unitCount;
+    return super.internalAddCoverageDemand(unitCount, params);
   }
 
   uint16 private _maxAddUnitsPerRound = 1;

@@ -140,49 +140,45 @@ abstract contract WeightedRoundsBase {
   struct AddCoverageDemandParams {
     address insured;
     uint40 premiumRate;
+    uint32 loopLimit;
     bool hasMore;
     Rounds.InsuredConfig config;
   }
 
-  function internalAddCoverageDemand(
-    uint64 unitCount,
-    uint256 loopLimit,
-    AddCoverageDemandParams memory params
-  ) internal returns (uint64, uint256) {
-    // residualCount, remainingLoopLimit
+  function internalAddCoverageDemand(uint64 unitCount, AddCoverageDemandParams memory params)
+    internal
+    returns (uint64)
+  {
     console.log('\ninternalAddCoverageDemand');
     Rounds.InsuredEntry memory entry = _onlyAcceptedInsured(params.insured);
     Rounds.Demand[] storage demands = _demands[params.insured];
     params.config = _configs[params.insured];
 
-    if (unitCount == 0 || loopLimit == 0) {
+    if (unitCount == 0 || params.loopLimit == 0) {
       _insureds[params.insured].hasMore = params.hasMore;
-      return (unitCount, loopLimit);
+      return unitCount;
     }
 
     entry.hasMore = params.hasMore;
 
-    // internalCheckPremium(insured, batches[i].premiumRate);
-
     (uint64 nextBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.latestBatchNo);
     uint64 totalUnitsBeforeBatch;
+    Rounds.Demand memory demand;
 
-    for (; unitCount > 0 && loopLimit > 0; ) {
+    for (; unitCount > 0 && params.loopLimit > 0; ) {
       console.log('addDLoop', nextBatch, isFirstOfOpen, totalUnitsBeforeBatch);
-      loopLimit--;
+      params.loopLimit--;
 
       uint64 thisBatch = nextBatch != 0 ? nextBatch : _appendBatch();
 
       Rounds.Batch memory b = _batches[thisBatch];
       console.log('batch', thisBatch, b.nextBatchNo);
       console.log('batch', thisBatch, b.rounds, b.unitPerRound);
-      {
-        uint64 before = b.totalUnitsBeforeBatch;
-        if (before >= totalUnitsBeforeBatch) {
-          totalUnitsBeforeBatch = before;
-        } else {
-          b.totalUnitsBeforeBatch = totalUnitsBeforeBatch;
-        }
+
+      if (b.totalUnitsBeforeBatch >= totalUnitsBeforeBatch) {
+        totalUnitsBeforeBatch = b.totalUnitsBeforeBatch;
+      } else {
+        b.totalUnitsBeforeBatch = totalUnitsBeforeBatch;
       }
 
       uint16 addPerRound;
@@ -211,14 +207,19 @@ abstract contract WeightedRoundsBase {
 
       totalUnitsBeforeBatch += b.unitPerRound * b.rounds;
 
-      demands.push(
-        Rounds.Demand({
+      if (demand.unitPerRound == addPerRound) {
+        demand.rounds += b.rounds;
+      } else {
+        if (demand.startBatchNo != 0) {
+          demands.push(demand);
+        }
+        demand = Rounds.Demand({
           startBatchNo: thisBatch,
           rounds: b.rounds,
           unitPerRound: addPerRound,
           premiumRate: params.premiumRate
-        })
-      );
+        });
+      }
 
       entry.latestBatchNo = thisBatch;
       nextBatch = b.nextBatchNo;
@@ -226,11 +227,15 @@ abstract contract WeightedRoundsBase {
 
     _insureds[params.insured] = entry;
 
+    if (demand.startBatchNo != 0) {
+      demands.push(demand);
+    }
+
     if (isFirstOfOpen) {
       _firstOpenBatch = 0;
     }
 
-    return (unitCount, loopLimit);
+    return unitCount;
   }
 
   function _findBatchToAppend(uint64 latestBatchNo) internal returns (uint64 nextBatch, bool isFirstOfOpen) {
@@ -750,8 +755,6 @@ abstract contract WeightedRoundsBase {
       dump.batches[j++] = b;
     }
   }
-
-  // function internalCheckPremium(address insured, uint256 premium) private {}
 
   function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits) {}
 
