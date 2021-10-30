@@ -7,6 +7,16 @@ import '../interfaces/IInsurerPool.sol';
 
 import 'hardhat/console.sol';
 
+/*
+
+UnitPremiumRate per sec * 365 days <= 1 WAD (i.e. 1 WAD = 100% of coverage p.a.)
+=>> UnitPremiumRate is uint40
+=>> UnitAccumulatedPremiumRate = UnitPremiumRate (40) * timestamp (32) * unitPerRound (16) = 88
+=>> PoolPremiumRate = UnitPremiumRate (40) * maxUnits (64) = 108
+=>> PoolAccumulatedPremiumRate = PoolPremiumRate (108) * timestamp (32) = 140
+
+*/
+
 library Rounds {
   struct Demand {
     uint128 premiumRate;
@@ -487,26 +497,26 @@ abstract contract WeightedRoundsBase {
     return (availableCoverage, coverage);
   }
 
-  function getTotals() external view returns (TotalCoverage memory coverage) {
+  function internalGetTotals() internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     PartialState memory part = _partial;
     uint64 thisBatch = part.batchNo;
-    if (thisBatch == 0) return coverage;
+    if (thisBatch == 0) return (coverage, total);
 
     Rounds.Batch memory b = _batches[thisBatch];
     console.log('batch0', thisBatch, b.nextBatchNo, b.rounds);
     console.log('batch1', part.roundNo);
 
-    coverage.demanded.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
-    coverage.demanded.totalDemand = b.totalUnitsBeforeBatch + uint256(b.rounds) * b.unitPerRound;
-    coverage.demanded.pendingCovered = part.roundCoverage;
-    coverage.batchCount = 1;
+    coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
+    coverage.totalDemand = b.totalUnitsBeforeBatch + uint256(b.rounds) * b.unitPerRound;
+    coverage.pendingCovered = part.roundCoverage;
+    total.batchCount = 1;
 
     if (b.state.isUsable()) {
-      coverage.usableRounds = b.rounds - part.roundNo;
-      coverage.totalUsableDemand = uint256(coverage.usableRounds) * b.unitPerRound;
+      total.usableRounds = b.rounds - part.roundNo;
+      total.totalCoverable = uint256(total.usableRounds) * b.unitPerRound;
     }
     if (b.state.isOpen()) {
-      coverage.openRounds += b.rounds - part.roundNo;
+      total.openRounds += b.rounds - part.roundNo;
     }
 
     while (b.nextBatchNo != 0) {
@@ -514,23 +524,23 @@ abstract contract WeightedRoundsBase {
       b = _batches[b.nextBatchNo];
       console.log('batch', thisBatch, b.nextBatchNo);
 
-      coverage.batchCount++;
-      coverage.demanded.totalDemand += uint256(b.rounds) * b.unitPerRound;
+      total.batchCount++;
+      coverage.totalDemand += uint256(b.rounds) * b.unitPerRound;
 
       if (b.state.isUsable()) {
-        coverage.usableRounds += b.rounds;
-        coverage.totalUsableDemand += uint256(b.rounds) * b.unitPerRound;
+        total.usableRounds += b.rounds;
+        total.totalCoverable += uint256(b.rounds) * b.unitPerRound;
       }
 
       if (b.state.isOpen()) {
-        coverage.openRounds += b.rounds;
+        total.openRounds += b.rounds;
       }
     }
 
     // TODO premium
-    coverage.demanded.totalCovered *= _unitSize;
-    coverage.demanded.totalDemand *= _unitSize;
-    coverage.totalUsableDemand = coverage.totalUsableDemand * _unitSize - coverage.demanded.pendingCovered;
+    coverage.totalCovered *= _unitSize;
+    coverage.totalDemand *= _unitSize;
+    total.totalCoverable = total.totalCoverable * _unitSize - coverage.pendingCovered;
   }
 
   function receiveDemandedCoverage(address insured)

@@ -73,8 +73,7 @@ struct DemandedCoverage {
 }
 
 struct TotalCoverage {
-  DemandedCoverage demanded;
-  uint256 totalUsableDemand; // total demand that can be covered now (already balanced) - this value is not provided per-insured
+  uint256 totalCoverable; // total demand that can be covered now (already balanced) - this value is not provided per-insured
   uint64 usableRounds;
   uint64 openRounds;
   uint64 batchCount;

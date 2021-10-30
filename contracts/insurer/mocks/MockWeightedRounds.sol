@@ -84,4 +84,8 @@ contract MockWeightedRounds is WeightedRoundsBase {
   function dump() external view returns (Dump memory) {
     return _dump();
   }
+
+  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+    return internalGetTotals();
+  }
 }
