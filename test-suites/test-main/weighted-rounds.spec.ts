@@ -1,5 +1,5 @@
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { RAY } from '../../helpers/constants';
+import { WAD, YEAR } from '../../helpers/constants';
 import { createRandomAddress } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
 import { MockWeightedRounds } from '../../types';
@@ -9,6 +9,7 @@ import { stringifyArgs } from '../../helpers/etherscan-verification';
 
 makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   const unitSize = 1000;
+  const RATE = WAD.div(YEAR);
   let subj: MockWeightedRounds;
   let insured1: tEthereumAddress;
   let insured2: tEthereumAddress;
@@ -35,7 +36,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       const t = await subj.getTotals();
       expect(t.total.batchCount).eq(0);
     }
-    await subj.addCoverageDemand(insured1, 1000, RAY, false);
+    await subj.addCoverageDemand(insured1, 1000, RATE, false);
     {
       const t = await subj.getTotals();
       expect(t.total.batchCount).eq(1);
@@ -47,7 +48,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(1000 * unitSize);
     }
 
-    await subj.addCoverageDemand(insured2, 100, RAY, false);
+    await subj.addCoverageDemand(insured2, 100, RATE, false);
     {
       const t = await subj.getTotals();
       expect(t.total.batchCount).eq(2);
@@ -59,7 +60,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(1100 * unitSize);
     }
 
-    await subj.addCoverageDemand(insured3, 2000, RAY, false);
+    await subj.addCoverageDemand(insured3, 2000, RATE, false);
     {
       const t = await subj.getTotals();
       expect(t.total.batchCount).eq(3);
@@ -172,7 +173,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   });
 
   it('Extend coverage demand by insured2 then add coverage', async () => {
-    await subj.addCoverageDemand(insured2, 100, RAY, false);
+    await subj.addCoverageDemand(insured2, 100, RATE, false);
 
     {
       const t = await subj.getTotals();
@@ -262,7 +263,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await subj.setRoundLimits(1, 2, 100);
     for (let i = 10; i > 0; i--) {
       const insured = createRandomAddress();
-      await subj.addCoverageDemand(insured, 100, RAY, false);
+      await subj.addCoverageDemand(insured, 100, RATE, false);
     }
 
     {
@@ -297,7 +298,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
   it('Cover everything', async () => {
     const excess = await subj.excessCoverage();
-    await subj.addCoverageDemand(insured1, 990, RAY, false);
+    await subj.addCoverageDemand(insured1, 990, RATE, false);
 
     //    await dumpState();
     {
@@ -341,7 +342,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   });
 
   it('Add demand after depletion', async () => {
-    await subj.addCoverageDemand(insured1, 10, RAY, false);
+    await subj.addCoverageDemand(insured1, 10, RATE, false);
 
     await expectCoverage(insured1, 2000, 1990, 0);
     await expectCoverage(insured2, 200, 200, 0);

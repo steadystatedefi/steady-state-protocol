@@ -11,7 +11,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
   function addCoverageDemand(
     address insured,
     uint64 unitCount,
-    uint128 premiumRate,
+    uint40 premiumRate,
     bool hasMore
   ) external returns (uint64) {
     AddCoverageDemandParams memory params;
