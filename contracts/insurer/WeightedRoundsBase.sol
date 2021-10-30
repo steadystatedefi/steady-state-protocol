@@ -11,8 +11,13 @@ import 'hardhat/console.sol';
 
 UnitPremiumRate per sec * 365 days <= 1 WAD (i.e. 1 WAD = 100% of coverage p.a.)
 =>> UnitPremiumRate is uint40
+=>> timestamp ~10y
+
 =>> RoundPremiumRate = UnitPremiumRate (40) * unitPerRound (16) = 56
-=>> UnitAccumulatedPremiumRate = UnitPremiumRate (40) * timestamp (32) * unitPerRound (16) = 88
+
+=>> InsuredPremiumRate = UnitPremiumRate (40) * avgUnits (24) = 64
+=>> AccumulatedInsuredPremiumRate = InsuredPremiumRate (64) * timestamp (32) = 96
+
 =>> PoolPremiumRate = UnitPremiumRate (40) * maxUnits (64) = 108
 =>> PoolAccumulatedPremiumRate = PoolPremiumRate (108) * timestamp (32) = 140
 
@@ -26,15 +31,12 @@ library Rounds {
     uint16 unitPerRound;
   }
 
-  struct InsuredConfig {
-    // riskLevel, minPremiumRate
-    uint32 maxShare;
-    uint32 minUnits;
-  }
-
   struct InsuredEntry {
     uint64 latestBatchNo;
     uint64 demandedUnits;
+    uint32 maxShare;
+    uint24 minUnits;
+    // uint24 riskLevel
     bool hasMore;
   }
 
@@ -42,7 +44,7 @@ library Rounds {
     //    uint128 coveragePremiumRate;
     uint64 coveredUnits;
     uint64 lastUpdateIndex;
-    //    uint64 lastFullBatchNo;
+    uint64 lastOpenBatchNo;
     //    uint192 totalCoveragePremium;
     uint32 lastUpdatedAt;
     uint24 lastUpdateRounds;
@@ -91,7 +93,6 @@ abstract contract WeightedRoundsBase {
   }
 
   mapping(address => Rounds.InsuredEntry) private _insureds;
-  mapping(address => Rounds.InsuredConfig) private _configs;
   mapping(address => Rounds.Demand[]) private _demands;
   mapping(address => Rounds.Coverage) private _covered;
 
@@ -139,11 +140,10 @@ abstract contract WeightedRoundsBase {
   }
 
   struct AddCoverageDemandParams {
+    uint256 loopLimit;
     address insured;
     uint40 premiumRate;
-    uint32 loopLimit;
     bool hasMore;
-    Rounds.InsuredConfig config;
   }
 
   function internalAddCoverageDemand(uint64 unitCount, AddCoverageDemandParams memory params)
@@ -153,7 +153,6 @@ abstract contract WeightedRoundsBase {
     console.log('\ninternalAddCoverageDemand');
     Rounds.InsuredEntry memory entry = _onlyAcceptedInsured(params.insured);
     Rounds.Demand[] storage demands = _demands[params.insured];
-    params.config = _configs[params.insured];
 
     if (unitCount == 0 || params.loopLimit == 0) {
       _insureds[params.insured].hasMore = params.hasMore;
@@ -164,6 +163,8 @@ abstract contract WeightedRoundsBase {
 
     (uint64 nextBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.latestBatchNo);
     uint64 totalUnitsBeforeBatch;
+
+    // TODO try to reuse the previous Demand slot from storage
     Rounds.Demand memory demand;
 
     for (; unitCount > 0 && params.loopLimit > 0; ) {
@@ -184,7 +185,7 @@ abstract contract WeightedRoundsBase {
 
       uint16 addPerRound;
       bool stop;
-      (addPerRound, stop) = _addToBatch(unitCount, b, entry.demandedUnits, params);
+      (addPerRound, stop) = _addToBatch(unitCount, b, entry, params);
       console.log('added0', addPerRound, b.rounds, b.unitPerRound);
       console.log('added1', uint256(b.state), b.totalUnitsBeforeBatch, b.roundPremiumRateSum);
 
@@ -208,18 +209,9 @@ abstract contract WeightedRoundsBase {
 
       totalUnitsBeforeBatch += b.unitPerRound * b.rounds;
 
-      if (demand.unitPerRound == addPerRound) {
-        demand.rounds += b.rounds;
-      } else {
-        if (demand.startBatchNo != 0) {
-          demands.push(demand);
-        }
-        demand = Rounds.Demand({
-          startBatchNo: thisBatch,
-          rounds: b.rounds,
-          unitPerRound: addPerRound,
-          premiumRate: params.premiumRate
-        });
+      if (_addToSlot(demand, demands, addPerRound, b.rounds)) {
+        demand.startBatchNo = thisBatch;
+        demand.premiumRate = params.premiumRate;
       }
 
       entry.latestBatchNo = thisBatch;
@@ -237,6 +229,33 @@ abstract contract WeightedRoundsBase {
     }
 
     return unitCount;
+  }
+
+  function _addToSlot(
+    Rounds.Demand memory demand,
+    Rounds.Demand[] storage demands,
+    uint16 addPerRound,
+    uint24 batchRounds
+  ) private returns (bool) {
+    if (demand.unitPerRound == addPerRound) {
+      uint24 t;
+      unchecked {
+        t = batchRounds + demand.rounds;
+      }
+      if (t >= batchRounds) {
+        demand.rounds = t;
+        return false;
+      }
+      demand.rounds = type(uint24).max;
+      batchRounds = t + 1;
+    }
+
+    if (demand.startBatchNo != 0) {
+      demands.push(demand);
+    }
+    demand.rounds = batchRounds;
+    demand.unitPerRound = addPerRound;
+    return true;
   }
 
   function _findBatchToAppend(uint64 latestBatchNo) internal returns (uint64 nextBatch, bool isFirstOfOpen) {
@@ -261,14 +280,14 @@ abstract contract WeightedRoundsBase {
   function _addToBatch(
     uint64 unitCount,
     Rounds.Batch memory b,
-    uint64 demandedUnits,
+    Rounds.InsuredEntry memory entry,
     AddCoverageDemandParams memory params
   ) private returns (uint16 addPerRound, bool stop) {
     require(b.isOpen()); // TODO dev sanity check - remove later
 
     if (b.rounds == 0 || unitCount < b.rounds) {
       // split the batch or return the non-allocated units
-      uint24 splitRounds = internalBatchSplit(b.rounds, demandedUnits, uint24(unitCount), params.config.minUnits);
+      uint24 splitRounds = internalBatchSplit(b.rounds, entry.demandedUnits, uint24(unitCount), entry.minUnits);
       if (splitRounds == 0) {
         return (0, true);
       }
@@ -286,8 +305,8 @@ abstract contract WeightedRoundsBase {
 
     (uint16 maxShareUnitsPerRound, uint16 minUnitsPerRound, uint16 maxUnitsPerRound) = internalRoundLimits(
       b.totalUnitsBeforeBatch,
-      demandedUnits,
-      params.config.maxShare
+      entry.demandedUnits,
+      entry.maxShare
     );
 
     if (b.unitPerRound >= maxUnitsPerRound) {
@@ -394,106 +413,129 @@ abstract contract WeightedRoundsBase {
     return newBatchNo;
   }
 
-  // struct Coverage {
-  //   uint128 coveragePremiumRate;
-  //   uint192 totalCoveragePremium;
-  //   uint32 lastUpdatedAt;
+  struct GetCoveredDemandParams {
+    uint256 loopLimit;
+    uint256 receivedCoverage;
+    address insured;
+    bool done;
+  }
 
-  //   uint64 coveredUnits;
-  //   uint64 lastUpdateIndex;
-  //   uint24 lastUpdateRounds;
-  // }
-
-  function _collectCoveredDemand(address insured, Rounds.InsuredEntry storage entry)
-    private
+  function internalGetCoveredDemand(GetCoveredDemandParams memory params)
+    internal
     view
-    returns (
-      uint256 receivedCoverage,
-      DemandedCoverage memory coverage,
-      Rounds.Coverage memory covered
-    )
+    returns (DemandedCoverage memory coverage, Rounds.Coverage memory covered)
   {
-    Rounds.Demand[] storage demands = _demands[insured];
-    covered = _covered[insured];
-    receivedCoverage = covered.coveredUnits;
+    Rounds.InsuredEntry storage entry = _insureds[params.insured];
+    Rounds.Demand[] storage demands = _demands[params.insured];
+    uint256 demandLength = demands.length;
+    if (demandLength == 0 || params.loopLimit == 0) {
+      params.done = true;
+      return (coverage, covered);
+    }
 
-    uint24 skipRounds = covered.lastUpdateRounds;
-    covered.lastUpdateRounds = 0;
+    covered = _covered[params.insured];
+    params.receivedCoverage = covered.coveredUnits;
 
-    for (; covered.lastUpdateIndex < demands.length; covered.lastUpdateIndex++) {
-      Rounds.Demand memory d = demands[covered.lastUpdateIndex];
-      console.log('demand', d.startBatchNo, d.rounds, skipRounds);
-
-      uint24 fullRounds;
-      while (d.rounds > fullRounds && d.startBatchNo > 0) {
-        Rounds.Batch memory b = _batches[d.startBatchNo];
-
-        if (!b.isFull()) break;
-        require(b.rounds > 0);
-        fullRounds += b.rounds;
-        d.startBatchNo = b.nextBatchNo;
-
-        // {
-        //   TimeMark memory mark = _marks[d.startBatchNo];
-        //   uint256 totalCoveragePremium = covered.totalCoveragePremium;
-        //   if (covered.lastUpdatedAt != 0) {
-        //     uint32 gap = mark.timestamp - covered.lastUpdatedAt - mark.duration;
-        //     totalCoveragePremium += uint256(covered.coveragePremiumRate) * gap;
-        //   }
-        //   covered.lastUpdatedAt = mark.timestamp;
-
-        //   totalCoveragePremium += uint256(d.premiumRate).rayMul(uint256(mark.coverageTWA) * d.unitPerRound);
-        //   covered.totalCoveragePremium = uint192(totalCoveragePremium);
-
-        //   uint256 rate = uint256(_unitSize) * b.rounds;
-        //   rate = covered.coveragePremiumRate + rate.rayMul(d.premiumRate) * d.unitPerRound;
-        //   covered.coveragePremiumRate = uint128(rate);
-        // }
+    for (; params.loopLimit > 0; params.loopLimit--) {
+      if (
+        covered.lastUpdateIndex >= demandLength ||
+        !_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered)
+      ) {
+        params.done = true;
+        break;
       }
-      console.log('demandRounds', d.rounds, fullRounds);
-
-      bool stop;
-      if (d.rounds > fullRounds) {
-        require(d.startBatchNo != 0);
-
-        PartialState memory part = _partial;
-        console.log('check', part.batchNo, d.startBatchNo);
-        if (part.batchNo == d.startBatchNo) {
-          fullRounds += part.roundNo;
-          covered.lastUpdateRounds = fullRounds;
-
-          coverage.pendingCovered =
-            (uint256(part.roundCoverage) * d.unitPerRound) /
-            _batches[d.startBatchNo].unitPerRound;
-        } else {
-          require(fullRounds == 0);
-        }
-        stop = true;
-      } else {
-        require(d.rounds == fullRounds);
-      }
-
-      covered.coveredUnits += fullRounds - skipRounds;
-      skipRounds = 0;
-
-      if (stop) break;
     }
     // TODO collect premium data
 
     coverage.totalDemand = uint256(_unitSize) * entry.demandedUnits;
     coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
-    receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - receivedCoverage);
-
-    return (receivedCoverage, coverage, covered);
+    params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
   }
 
-  function getCoverageDemand(address insured)
-    external
-    view
-    returns (uint256 availableCoverage, DemandedCoverage memory coverage)
+  function internalUpdateCoveredDemand(GetCoveredDemandParams memory params)
+    internal
+    returns (DemandedCoverage memory coverage)
   {
-    (availableCoverage, coverage, ) = _collectCoveredDemand(insured, _onlyAcceptedInsured(insured));
-    return (availableCoverage, coverage);
+    _onlyAcceptedInsured(params.insured);
+    (coverage, _covered[params.insured]) = internalGetCoveredDemand(params);
+  }
+
+  // struct Coverage {
+  //   uint128 coveragePremiumRate;
+  //   uint192 totalCoveragePremium;
+  //   uint32 lastUpdatedAt;
+  //   uint64 lastOpenBatchNo;
+  //   uint64 coveredUnits;
+  //   uint64 lastUpdateIndex;
+  //   uint24 lastUpdateRounds;
+  // }
+
+  function _collectCoveredDemandSlot(
+    Rounds.Demand memory d,
+    DemandedCoverage memory coverage,
+    Rounds.Coverage memory covered
+  ) private view returns (bool) {
+    //    console.log('collect', d.rounds, covered.lastOpenBatchNo, covered.lastUpdateRounds);
+
+    uint24 fullRounds;
+    if (covered.lastUpdateRounds > 0) {
+      d.rounds -= covered.lastUpdateRounds;
+      d.startBatchNo = covered.lastOpenBatchNo;
+    }
+
+    while (d.rounds > fullRounds) {
+      require(d.startBatchNo != 0);
+      Rounds.Batch memory b = _batches[d.startBatchNo];
+      //      console.log('collectBatch', d.startBatchNo, b.nextBatchNo, b.rounds);
+
+      if (!b.isFull()) break;
+      //      console.log('collectBatch1');
+      require(b.rounds > 0);
+      fullRounds += b.rounds;
+      d.startBatchNo = b.nextBatchNo;
+
+      //       {
+      //         TimeMark memory mark = _marks[d.startBatchNo];
+      // //        uint256 totalCoveragePremium = covered.totalCoveragePremium;
+      //         if (covered.lastUpdatedAt != 0) {
+      //           uint32 gap = mark.timestamp - covered.lastUpdatedAt - mark.duration;
+      //           totalCoveragePremium += uint256(covered.coveragePremiumRate) * gap;
+      //         }
+      //         covered.lastUpdatedAt = mark.timestamp;
+
+      //         totalCoveragePremium += uint256(d.premiumRate).rayMul(uint256(mark.coverageTWA) * d.unitPerRound);
+      //         covered.totalCoveragePremium = uint192(totalCoveragePremium);
+
+      //         uint256 rate = uint256(_unitSize) * b.rounds;
+      //         rate = covered.coveragePremiumRate + rate.rayMul(d.premiumRate) * d.unitPerRound;
+      //         covered.coveragePremiumRate = uint128(rate);
+      //       }
+    }
+
+    covered.coveredUnits += uint64(fullRounds) * d.unitPerRound;
+
+    if (d.rounds == fullRounds) {
+      covered.lastUpdateRounds = 0;
+      covered.lastOpenBatchNo = 0;
+      covered.lastUpdateIndex++;
+      return true;
+    }
+
+    require(d.rounds > fullRounds);
+    require(d.startBatchNo != 0);
+    covered.lastUpdateRounds += fullRounds;
+    covered.lastOpenBatchNo = d.startBatchNo;
+
+    PartialState memory part = _partial;
+    //    console.log('collectCheck', part.batchNo, covered.lastOpenBatchNo);
+    if (part.batchNo == d.startBatchNo) {
+      //      console.log('collectPartial', part.roundNo, part.roundCoverage);
+      covered.coveredUnits += part.roundNo * d.unitPerRound;
+
+      coverage.pendingCovered = (uint256(part.roundCoverage) * d.unitPerRound) / _batches[d.startBatchNo].unitPerRound;
+    }
+
+    return false;
   }
 
   function internalGetTotals() internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
@@ -540,15 +582,6 @@ abstract contract WeightedRoundsBase {
     coverage.totalCovered *= _unitSize;
     coverage.totalDemand *= _unitSize;
     total.totalCoverable = total.totalCoverable * _unitSize - coverage.pendingCovered;
-  }
-
-  function receiveDemandedCoverage(address insured)
-    external
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
-  {
-    (receivedCoverage, coverage, _covered[insured]) = _collectCoveredDemand(insured, _onlyAcceptedInsured(insured));
-    // TODO transfer receivedCoverage to the insured
-    return (receivedCoverage, coverage);
   }
 
   struct AddCoverageParams {
