@@ -1,5 +1,4 @@
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { WAD, YEAR } from '../../helpers/constants';
 import { createRandomAddress } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
 import { MockWeightedRounds } from '../../types';
@@ -29,6 +28,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     expect(t.pendingCovered).eq(pending);
     expect(t.totalCovered).eq(covered * unitSize);
     expect(t.totalDemand).eq(demand * unitSize);
+    //    expect(t.premiumRate).eq(covered);
   };
 
   it('Add demand', async () => {
@@ -351,5 +351,56 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await expectCoverage(insured1, 2000, 1990, 0);
     await expectCoverage(insured2, 200, 200, 0);
     await expectCoverage(insured3, 2000, 2000, 0);
+  });
+
+  it('Receive demand with one call', async () => {
+    expect(await subj.receivedCoverage()).eq(0);
+    const info0 = await subj.getCoverageDemand(insured1);
+    expect(info0.availableCoverage).eq(info0.coverage.totalCovered);
+
+    await subj.receiveDemandedCoverage(insured1, 65535);
+
+    expect(await subj.receivedCoverage()).eq(info0.availableCoverage);
+
+    const info1 = await subj.getCoverageDemand(insured1);
+    expect(info1.availableCoverage).eq(0);
+    expect(info1.coverage.pendingCovered).eq(info0.coverage.pendingCovered);
+    expect(info1.coverage.premiumRate).eq(info0.coverage.premiumRate);
+    expect(info1.coverage.totalCovered).eq(info0.coverage.totalCovered);
+    expect(info1.coverage.totalDemand).eq(info0.coverage.totalDemand);
+    expect(info1.coverage.totalPremium).gt(info0.coverage.totalPremium);
+  });
+
+  it('Receive demand with multiple calls', async () => {
+    const expected = await subj.receivedCoverage();
+
+    const info0 = await subj.getCoverageDemand(insured3);
+    expect(info0.availableCoverage).eq(info0.coverage.totalCovered);
+
+    let prev = info0;
+    const count = 10;
+    for (let i = count; i > 0; i--) {
+      await subj.receiveDemandedCoverage(insured3, i > 1 ? 1 : 65535);
+      const info1 = await subj.getCoverageDemand(insured3);
+      if (i < count) {
+        expect(info1.coverage.premiumRate).gte(prev.coverage.premiumRate);
+        expect(info1.coverage.totalCovered).gte(prev.coverage.totalCovered);
+        expect(info1.coverage.totalDemand).gte(prev.coverage.totalDemand);
+        expect(info1.coverage.totalPremium).gte(prev.coverage.totalPremium);
+      }
+      prev = info1;
+    }
+
+    expect(await subj.receivedCoverage()).eq(expected.add(info0.availableCoverage));
+
+    const info1 = await subj.getCoverageDemand(insured3);
+    expect(info1.availableCoverage).eq(0);
+    expect(info1.coverage.pendingCovered).eq(info0.coverage.pendingCovered);
+    expect(info1.coverage.premiumRate).eq(info0.coverage.premiumRate);
+    expect(info1.coverage.totalCovered).eq(info0.coverage.totalCovered);
+    expect(info1.coverage.totalDemand).eq(info0.coverage.totalDemand);
+    expect(info1.coverage.totalPremium).gt(info0.coverage.totalPremium);
+
+    await subj.receiveDemandedCoverage(insured3, 65535, { gasLimit: 45000 }); // there should be nothing to update
   });
 });

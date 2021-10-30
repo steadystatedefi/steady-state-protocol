@@ -102,16 +102,17 @@ contract MockWeightedRounds is WeightedRoundsBase {
     return (params.receivedCoverage, coverage);
   }
 
-  function receiveDemandedCoverage(address insured)
+  uint256 public receivedCoverage;
+
+  function receiveDemandedCoverage(address insured, uint16 loopLimit)
     external
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
+    returns (DemandedCoverage memory coverage)
   {
     GetCoveredDemandParams memory params;
     params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = loopLimit;
 
     coverage = internalUpdateCoveredDemand(params);
-    // TODO transfer receivedCoverage to the insured
-    return (params.receivedCoverage, coverage);
+    receivedCoverage += params.receivedCoverage;
   }
 }

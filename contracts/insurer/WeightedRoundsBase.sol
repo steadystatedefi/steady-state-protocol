@@ -452,12 +452,15 @@ abstract contract WeightedRoundsBase {
         break;
       }
     }
-    // TODO collect premium data
 
-    //    Rounds.InsuredEntry storage entry = _insureds[params.insured];
-
-    coverage.totalPremium = uint256(_unitSize).wadMul(premium.coveragePremium);
     coverage.premiumRate = uint256(_unitSize).wadMul(premium.coveragePremiumRate);
+    coverage.totalPremium = uint256(_unitSize).wadMul(premium.coveragePremium);
+    //    console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
+    if (premium.lastUpdatedAt != 0) {
+      coverage.totalPremium += coverage.premiumRate * (block.timestamp - premium.lastUpdatedAt);
+      //      console.log('calcPremium', coverage.totalPremium);
+    }
+
     coverage.totalDemand = uint256(_unitSize) * _insureds[params.insured].demandedUnits;
     coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
     params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
