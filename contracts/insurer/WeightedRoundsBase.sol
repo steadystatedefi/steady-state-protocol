@@ -80,7 +80,7 @@ library Rounds {
     return b.state <= State.ReadyMin;
   }
 
-  function isUsable(Batch memory b) internal pure returns (bool) {
+  function isReady(Batch memory b) internal pure returns (bool) {
     return b.state >= State.ReadyMin && b.state <= State.Ready;
   }
 }
@@ -595,7 +595,7 @@ abstract contract WeightedRoundsBase {
     coverage.pendingCovered = part.roundCoverage;
     total.batchCount = 1;
 
-    if (b.isUsable()) {
+    if (b.isReady()) {
       total.usableRounds = b.rounds - part.roundNo;
       total.totalCoverable = uint256(total.usableRounds) * b.unitPerRound;
     }
@@ -611,7 +611,7 @@ abstract contract WeightedRoundsBase {
       total.batchCount++;
       coverage.totalDemand += uint256(b.rounds) * b.unitPerRound;
 
-      if (b.isUsable()) {
+      if (b.isReady()) {
         total.usableRounds += b.rounds;
         total.totalCoverable += uint256(b.rounds) * b.unitPerRound;
       }
@@ -673,7 +673,7 @@ abstract contract WeightedRoundsBase {
     b = _batches[part.batchNo];
 
     if (part.roundCoverage > 0) {
-      require(b.isUsable(), 'wrong partial round'); // sanity check
+      require(b.isReady(), 'wrong partial round'); // sanity check
 
       uint256 maxRoundCoverage = uint256(_unitSize) * b.unitPerRound;
       uint256 vacant = maxRoundCoverage - part.roundCoverage;
@@ -685,7 +685,7 @@ abstract contract WeightedRoundsBase {
       part.roundCoverage = 0;
       part.roundNo++;
       amount -= vacant;
-    } else if (!b.isUsable()) {
+    } else if (!b.isReady()) {
       if (!internalUseNotReadyBatch(b)) {
         // console.log('partial1', part.batchNo, part.roundNo, part.roundCoverage);
         return (amount, loopLimit - 1, b);
@@ -745,7 +745,7 @@ abstract contract WeightedRoundsBase {
 
         if (amount == 0) break;
 
-        if (!b.isUsable()) {
+        if (!b.isReady()) {
           if (!internalUseNotReadyBatch(b)) {
             console.log('partial1', part.batchNo, part.roundNo, part.roundCoverage);
             return (amount, loopLimit, b);
