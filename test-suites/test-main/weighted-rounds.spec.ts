@@ -8,7 +8,8 @@ import { stringifyArgs } from '../../helpers/etherscan-verification';
 
 makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
-  const unitSize = 1e6; // unitSize * RATE == WAD - this simplifies tests as it gives 1 rate point per unit per second
+  const ratePerUnit = 10;
+  const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let subj: MockWeightedRounds;
   let insured1: tEthereumAddress;
   let insured2: tEthereumAddress;
@@ -28,7 +29,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     expect(t.pendingCovered).eq(pending);
     expect(t.totalCovered).eq(covered * unitSize);
     expect(t.totalDemand).eq(demand * unitSize);
-    //    expect(t.premiumRate).eq(covered);
+    expect(t.premiumRate).eq(covered * ratePerUnit + (pending * ratePerUnit) / unitSize);
   };
 
   it('Add demand', async () => {
