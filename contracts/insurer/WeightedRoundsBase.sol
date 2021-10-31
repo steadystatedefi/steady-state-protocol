@@ -113,6 +113,10 @@ abstract contract WeightedRoundsBase {
   uint64 private _latestBatch;
   /// @dev points to an earliest round that is open, can be zero when all rounds are full
   uint64 private _firstOpenBatch;
+  uint64 private _lastStatBatch;
+
+  Rounds.Coverage private _poolCoverage;
+  Rounds.CoveragePremium private _poolPremium;
 
   struct PartialState {
     /// @dev amount of coverage in the partial round, must be zero when roundNo == batch size
@@ -435,13 +439,22 @@ abstract contract WeightedRoundsBase {
     premium = _premiums[params.insured];
 
     uint256 demandLength = demands.length;
-    if (demandLength == 0 || params.loopLimit == 0) {
+    if (demandLength == 0) {
       params.done = true;
+      return (coverage, covered, premium);
+    }
+    if (params.loopLimit == 0) {
       return (coverage, covered, premium);
     }
 
     covered = _covered[params.insured];
     params.receivedCoverage = covered.coveredUnits;
+
+    (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
+      premium.coveragePremium,
+      premium.coveragePremiumRate,
+      premium.lastUpdatedAt
+    );
 
     for (; params.loopLimit > 0; params.loopLimit--) {
       if (
@@ -453,11 +466,19 @@ abstract contract WeightedRoundsBase {
       }
     }
 
-    coverage.premiumRate = uint256(_unitSize).wadMul(premium.coveragePremiumRate);
-    coverage.totalPremium = uint256(_unitSize).wadMul(premium.coveragePremium);
+    _finalizeStats(params, coverage, covered);
+  }
+
+  function _finalizeStats(
+    GetCoveredDemandParams memory params,
+    DemandedCoverage memory coverage,
+    Rounds.Coverage memory covered
+  ) private view {
+    coverage.premiumRate = uint256(_unitSize).wadMul(coverage.premiumRate);
+    coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
     //    console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
-    if (premium.lastUpdatedAt != 0) {
-      coverage.totalPremium += coverage.premiumRate * (block.timestamp - premium.lastUpdatedAt);
+    if (coverage.premiumUpdatedAt != 0) {
+      coverage.totalPremium += coverage.premiumRate * (block.timestamp - coverage.premiumUpdatedAt);
       //      console.log('calcPremium', coverage.totalPremium);
     }
 
@@ -508,11 +529,22 @@ abstract contract WeightedRoundsBase {
       require(b.rounds > 0);
       fullRounds += b.rounds;
 
-      _collectPremium(d, premium, b.rounds, 0);
+      (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
+        d,
+        premium,
+        b.rounds,
+        0,
+        d.premiumRate
+      );
       d.startBatchNo = b.nextBatchNo;
     }
 
     covered.coveredUnits += uint64(fullRounds) * d.unitPerRound;
+    (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
+      premium.coveragePremium,
+      premium.coveragePremiumRate,
+      premium.lastUpdatedAt
+    );
 
     if (d.rounds == fullRounds) {
       covered.lastUpdateRounds = 0;
@@ -530,25 +562,40 @@ abstract contract WeightedRoundsBase {
     console.log('collectCheck', part.batchNo, covered.lastOpenBatchNo);
     if (part.batchNo == d.startBatchNo) {
       console.log('collectPartial', part.roundNo, part.roundCoverage);
-      if (part.roundNo > 0 || coverage.pendingCovered > 0) {
+      if (part.roundNo > 0 || part.roundCoverage > 0) {
         covered.coveredUnits += part.roundNo * d.unitPerRound;
         coverage.pendingCovered =
           (uint256(part.roundCoverage) * d.unitPerRound) /
           _batches[d.startBatchNo].unitPerRound;
 
-        _collectPremium(d, premium, part.roundNo, coverage.pendingCovered);
+        (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = _calcPremium(
+          d,
+          premium,
+          part.roundNo,
+          coverage.pendingCovered,
+          d.premiumRate
+        );
       }
     }
 
     return false;
   }
 
-  function _collectPremium(
+  function _calcPremium(
     Rounds.Demand memory d,
     Rounds.CoveragePremium memory premium,
-    uint24 rounds,
-    uint256 pendingCovered
-  ) private view {
+    uint256 rounds,
+    uint256 pendingCovered,
+    uint256 premiumRate
+  )
+    private
+    view
+    returns (
+      uint96 coveragePremium,
+      uint64 coveragePremiumRate,
+      uint32 lastUpdatedAt
+    )
+  {
     TimeMark memory mark = _marks[d.startBatchNo];
     console.log('premiumBefore', d.startBatchNo, d.unitPerRound, rounds);
     console.log('premiumBefore', mark.timestamp, premium.lastUpdatedAt, mark.duration);
@@ -556,29 +603,26 @@ abstract contract WeightedRoundsBase {
     uint256 v = premium.coveragePremium;
     if (premium.lastUpdatedAt != 0) {
       v += uint256(premium.coveragePremiumRate) * (mark.timestamp - premium.lastUpdatedAt - mark.duration);
-      // } else {
-      //   require(premium.coveragePremiumRate == 0);
-      //   require(premium.coveragePremium == 0);
     }
-    premium.lastUpdatedAt = mark.timestamp;
+    lastUpdatedAt = mark.timestamp;
 
     if (mark.coverageTW > 0) {
       // normalization by unitSize to reduce storage requirements
-      v += ((uint256(d.premiumRate) * mark.coverageTW) * d.unitPerRound + (_unitSize >> 1)) / _unitSize;
+      v += (premiumRate * mark.coverageTW * d.unitPerRound + (_unitSize >> 1)) / _unitSize;
     }
     require(v <= type(uint96).max);
-    premium.coveragePremium = uint96(v);
+    coveragePremium = uint96(v);
 
-    // if (pendingCovered > 0) {
-    // normalization by unitSize to reduce storage requirements
-    v = pendingCovered + (uint256(rounds) * d.unitPerRound * _unitSize);
-    v = (v * d.premiumRate + (_unitSize >> 1)) / _unitSize;
-    // } else {
-    //   v = (uint256(d.premiumRate) * rounds) * d.unitPerRound;
-    // }
+    if (pendingCovered > 0) {
+      // normalization by unitSize to reduce storage requirements
+      v = pendingCovered + (rounds * d.unitPerRound) * _unitSize;
+      v = (v * premiumRate + (_unitSize >> 1)) / _unitSize;
+    } else {
+      v = premiumRate * (rounds * d.unitPerRound);
+    }
     require(v <= type(uint64).max);
-    premium.coveragePremiumRate += uint64(v);
-    console.log('premiumAfter', premium.coveragePremium, premium.coveragePremiumRate);
+    coveragePremiumRate = premium.coveragePremiumRate + uint64(v);
+    console.log('premiumAfter', coveragePremium, coveragePremiumRate);
   }
 
   function internalGetTotals() internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {

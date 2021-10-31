@@ -378,29 +378,22 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     const info0 = await subj.getCoverageDemand(insured3);
     expect(info0.availableCoverage).eq(info0.coverage.totalCovered);
 
-    let prev = info0;
+    let totalPremium = info0.coverage.totalPremium;
     const count = 10;
     for (let i = count; i > 0; i--) {
       await subj.receiveDemandedCoverage(insured3, i > 1 ? 1 : 65535);
       const info1 = await subj.getCoverageDemand(insured3);
-      if (i < count) {
-        expect(info1.coverage.premiumRate).gte(prev.coverage.premiumRate);
-        expect(info1.coverage.totalCovered).gte(prev.coverage.totalCovered);
-        expect(info1.coverage.totalDemand).gte(prev.coverage.totalDemand);
-        expect(info1.coverage.totalPremium).gte(prev.coverage.totalPremium);
-      }
-      prev = info1;
+      totalPremium = totalPremium.add(info0.coverage.premiumRate);
+
+      expect(await subj.receivedCoverage()).eq(expected.add(info0.availableCoverage.sub(info1.availableCoverage)));
+      expect(info1.coverage.pendingCovered).eq(info0.coverage.pendingCovered);
+      expect(info1.coverage.premiumRate).eq(info0.coverage.premiumRate);
+      expect(info1.coverage.totalCovered).eq(info0.coverage.totalCovered);
+      expect(info1.coverage.totalDemand).eq(info0.coverage.totalDemand);
+      expect(info1.coverage.totalPremium).eq(totalPremium);
     }
 
     expect(await subj.receivedCoverage()).eq(expected.add(info0.availableCoverage));
-
-    const info1 = await subj.getCoverageDemand(insured3);
-    expect(info1.availableCoverage).eq(0);
-    expect(info1.coverage.pendingCovered).eq(info0.coverage.pendingCovered);
-    expect(info1.coverage.premiumRate).eq(info0.coverage.premiumRate);
-    expect(info1.coverage.totalCovered).eq(info0.coverage.totalCovered);
-    expect(info1.coverage.totalDemand).eq(info0.coverage.totalDemand);
-    expect(info1.coverage.totalPremium).gt(info0.coverage.totalPremium);
 
     await subj.receiveDemandedCoverage(insured3, 65535, { gasLimit: 45000 }); // there should be nothing to update
   });
