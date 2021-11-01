@@ -1,5 +1,5 @@
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
+import { createRandomAddress, currentTime, increaseTime } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
 import { MockWeightedRounds } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
@@ -15,6 +15,10 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   let insured1: tEthereumAddress;
   let insured2: tEthereumAddress;
   let insured3: tEthereumAddress;
+
+  let totalPremium = BigNumber.from(0);
+  let totalPremiumRate = BigNumber.from(0);
+  let totalPremiumAt = 0;
 
   before(async () => {
     subj = await Factories.MockWeightedRounds.deploy(unitSize);
@@ -48,14 +52,41 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     return t;
   };
 
+  const syncTotals = async (at?: number) => {
+    at = at || (await currentTime());
+
+    if (totalPremiumAt != 0) {
+      expect(at).gte(totalPremiumAt);
+      totalPremium = totalPremium.add(totalPremiumRate.mul(at - totalPremiumAt));
+    }
+    totalPremiumAt = at;
+  };
+
   const checkTotals = async (...parts: CoverageInfo[]) => {
     const tt = await subj.getTotals();
     const t = tt.coverage;
+
+    // console.log('======= Parts:');
+    // parts.forEach((v) => console.log(stringifyArgs(v)));
+    // console.log('======= Total:');
+    // console.log(stringifyArgs(t));
+
     const z = BigNumber.from(0);
-    expect(t.pendingCovered).eq(parts.reduce((p, v) => v.pendingCovered.add(p), z));
-    expect(t.totalCovered).eq(parts.reduce((p, v) => v.totalCovered.add(p), z));
-    expect(t.totalDemand).eq(parts.reduce((p, v) => v.totalDemand.add(p), z));
-    expect(t.premiumRate).eq(parts.reduce((p, v) => v.premiumRate.add(p), z));
+    expect(t.pendingCovered).eq(parts.reduce((p, v) => p.add(v.pendingCovered), z));
+    expect(t.totalCovered).eq(parts.reduce((p, v) => p.add(v.totalCovered), z));
+    expect(t.totalDemand).eq(parts.reduce((p, v) => p.add(v.totalDemand), z));
+    expect(t.premiumRate).eq(parts.reduce((p, v) => p.add(v.premiumRate), z));
+    expect(t.totalPremium).eq(parts.reduce((p, v) => p.add(v.totalPremium), z));
+
+    // const maxAt = parts.reduce((p, v) => v.premiumUpdatedAt > p ? v.premiumUpdatedAt : p, t.premiumUpdatedAt);
+    // expect(t.totalPremium.add(t.premiumRate.mul(maxAt - t.premiumUpdatedAt))).eq(
+    //   parts.reduce((p, v) => p.add(v.totalPremium.add(v.premiumRate.mul(maxAt - v.premiumUpdatedAt))), z));
+
+    // totalPremiumAt = t.premiumUpdatedAt;
+    // totalPremium = t.totalPremium;
+    // totalPremiumRate = t.premiumRate;
+    // await syncTotals(maxAt);
+
     // parts.forEach((v) => expect(t.premiumUpdatedAt).eq(v.premiumUpdatedAt));
     // expect(t.totalPremium).eq(parts.reduce((p, v) => v.totalPremium.add(p), z));
   };
@@ -209,6 +240,16 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalCovered).eq(600 * unitSize);
       expect(t.coverage.totalDemand).eq(3100 * unitSize);
     }
+
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 250, 0),
+      await expectCoverage(insured2, 100, 100, 0),
+      await expectCoverage(insured3, 2000, 250, 0)
+    );
+  });
+
+  it('Check rates', async () => {
+    await increaseTime(5);
 
     await checkTotals(
       await expectCoverage(insured1, 1000, 250, 0),
