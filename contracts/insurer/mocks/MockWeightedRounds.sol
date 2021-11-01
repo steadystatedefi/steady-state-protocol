@@ -115,4 +115,8 @@ contract MockWeightedRounds is WeightedRoundsBase {
     coverage = internalUpdateCoveredDemand(params);
     receivedCoverage += params.receivedCoverage;
   }
+
+  function updateTotals() external {
+    internalUpdateTotals(type(uint256).max);
+  }
 }

@@ -1,93 +1,11 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../dependencies/openzeppelin/contracts/Address.sol';
 import '../tools/math/WadRayMath.sol';
 import '../interfaces/IInsurerPool.sol';
+import './Rounds.sol';
 
 import 'hardhat/console.sol';
-
-/*
-
-UnitPremiumRate per sec * 365 days <= 1 WAD (i.e. 1 WAD = 100% of coverage p.a.)
-=>> UnitPremiumRate is uint40
-=>> timestamp ~10y
-
-=>> RoundPremiumRate = UnitPremiumRate (40) * unitPerRound (16) = 56
-
-=>> InsuredPremiumRate = UnitPremiumRate (40) * avgUnits (24) = 64
-=>> AccumulatedInsuredPremiumRate = InsuredPremiumRate (64) * timestamp (32) = 96
-
-=>> PoolPremiumRate = UnitPremiumRate (40) * maxUnits (64) = 108
-=>> PoolAccumulatedPremiumRate = PoolPremiumRate (108) * timestamp (32) = 140
-
-*/
-
-library Rounds {
-  struct Demand {
-    uint64 startBatchNo;
-    uint40 premiumRate;
-    uint24 rounds;
-    uint16 unitPerRound;
-  }
-
-  struct InsuredEntry {
-    uint64 latestBatchNo;
-    uint64 demandedUnits;
-    uint32 maxShare;
-    uint24 minUnits;
-    // uint24 riskLevel
-    bool hasMore;
-  }
-
-  struct Coverage {
-    uint64 coveredUnits;
-    uint64 lastUpdateIndex;
-    uint64 lastOpenBatchNo;
-    uint24 lastUpdateRounds;
-  }
-
-  struct CoveragePremium {
-    uint96 coveragePremium;
-    uint64 coveragePremiumRate;
-    // uint64
-    uint32 lastUpdatedAt;
-  }
-
-  /// @dev Draft round can NOT receive coverage, more units can be added, always unbalanced
-  /// @dev ReadyMin is a Ready round with some units cancelled, can receive coverage, more units can be added, unbalanced
-  /// @dev Ready round can receive coverage, more units can NOT be added, balanced
-  /// @dev Full round can NOT receive coverage, more units can NOT be added - full rounds are summed up and ignored further
-  enum State {
-    Draft,
-    ReadyMin,
-    Ready,
-    Full
-  }
-
-  struct Batch {
-    uint56 roundPremiumRateSum;
-    uint64 nextBatchNo;
-    /// @dev totalUnitsBeforeBatch value may be lower for non-ready batches
-    uint64 totalUnitsBeforeBatch;
-    /// @dev should be divided by unitPerRound to get the average rate
-    uint24 rounds;
-    uint16 unitPerRound;
-    State state;
-  }
-
-  function isFull(Batch memory b) internal pure returns (bool) {
-    return b.state == State.Full;
-  }
-
-  function isOpen(Batch memory b) internal pure returns (bool) {
-    return b.state <= State.ReadyMin;
-  }
-
-  function isReady(Batch memory b) internal pure returns (bool) {
-    return b.state >= State.ReadyMin && b.state <= State.Ready;
-  }
-}
 
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;
@@ -108,12 +26,10 @@ abstract contract WeightedRoundsBase {
   mapping(uint64 => Rounds.Batch) private _batches;
   /// @dev total number of batches
   uint64 private _batchCount;
-  uint64 private _latestBatch;
+  uint64 private _latestBatchNo;
   /// @dev points to an earliest round that is open, can be zero when all rounds are full
-  uint64 private _firstOpenBatch;
-  uint64 private _lastStatBatch;
-
-  Rounds.Coverage private _poolCoverage;
+  uint64 private _firstOpenBatchNo;
+  uint64 private _poolStatBatchNo;
   Rounds.CoveragePremium private _poolPremium;
 
   struct PartialState {
@@ -135,7 +51,7 @@ abstract contract WeightedRoundsBase {
   }
   mapping(uint64 => TimeMark) private _marks;
 
-  function coverageUnitSize() external view returns (uint256) {
+  function coverageUnitSize() public view returns (uint256) {
     return _unitSize;
   }
 
@@ -192,7 +108,7 @@ abstract contract WeightedRoundsBase {
       _batches[thisBatch] = b;
 
       if (isFirstOfOpen && b.isOpen()) {
-        _firstOpenBatch = thisBatch;
+        _firstOpenBatchNo = thisBatch;
         isFirstOfOpen = false;
       }
 
@@ -225,7 +141,7 @@ abstract contract WeightedRoundsBase {
     }
 
     if (isFirstOfOpen) {
-      _firstOpenBatch = 0;
+      _firstOpenBatchNo = 0;
     }
 
     return unitCount;
@@ -258,8 +174,8 @@ abstract contract WeightedRoundsBase {
     return true;
   }
 
-  function _findBatchToAppend(uint64 latestBatchNo) internal returns (uint64 nextBatch, bool isFirstOfOpen) {
-    uint64 firstOpen = _firstOpenBatch;
+  function _findBatchToAppend(uint64 latestBatchNo) private returns (uint64 nextBatch, bool isFirstOfOpen) {
+    uint64 firstOpen = _firstOpenBatchNo;
     if (firstOpen == 0) {
       // there are no open batches
       return (0, true);
@@ -383,19 +299,19 @@ abstract contract WeightedRoundsBase {
 
     b.rounds = remainingRounds;
     if (b.nextBatchNo == 0) {
-      _latestBatch = newBatchNo;
+      _latestBatchNo = newBatchNo;
     }
     b.nextBatchNo = newBatchNo;
     // console.log(b.rounds, b.unitPerRound, b.nextBatchNo, b.totalUnitsBeforeBatch);
   }
 
   function _appendBatch() private returns (uint64 newBatchNo) {
-    uint64 batchNo = _latestBatch;
+    uint64 batchNo = _latestBatchNo;
     if (batchNo == 0) {
       newBatchNo = ++_batchCount;
       require(newBatchNo == 1);
       _partial.batchNo = 1;
-      _firstOpenBatch = 1;
+      _firstOpenBatchNo = 1;
     } else {
       Rounds.Batch memory b = _batches[batchNo];
       if (b.rounds == 0) {
@@ -408,7 +324,7 @@ abstract contract WeightedRoundsBase {
       _batches[newBatchNo].totalUnitsBeforeBatch = b.totalUnitsBeforeBatch + b.unitPerRound * b.rounds;
     }
 
-    _latestBatch = newBatchNo;
+    _latestBatchNo = newBatchNo;
     return newBatchNo;
   }
 
@@ -459,7 +375,10 @@ abstract contract WeightedRoundsBase {
       }
     }
 
-    _finalizeStats(params, coverage, covered);
+    _finalizePremium(coverage);
+    coverage.totalDemand = uint256(_unitSize) * _insureds[params.insured].demandedUnits;
+    coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
+    params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
   }
 
   function internalUpdateCoveredDemand(GetCoveredDemandParams memory params)
@@ -545,11 +464,7 @@ abstract contract WeightedRoundsBase {
     return false;
   }
 
-  function _finalizeStats(
-    GetCoveredDemandParams memory params,
-    DemandedCoverage memory coverage,
-    Rounds.Coverage memory covered
-  ) private view {
+  function _finalizePremium(DemandedCoverage memory coverage) private view {
     coverage.premiumRate = uint256(_unitSize).wadMul(coverage.premiumRate);
     coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
     //    console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
@@ -557,10 +472,6 @@ abstract contract WeightedRoundsBase {
       coverage.totalPremium += coverage.premiumRate * (block.timestamp - coverage.premiumUpdatedAt);
       //      console.log('calcPremium', coverage.totalPremium);
     }
-
-    coverage.totalDemand = uint256(_unitSize) * _insureds[params.insured].demandedUnits;
-    coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
-    params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
   }
 
   function _calcPremium(
@@ -602,15 +513,118 @@ abstract contract WeightedRoundsBase {
     } else {
       v = premiumRate * (rounds * d.unitPerRound);
     }
+    v += premium.coveragePremiumRate;
     require(v <= type(uint64).max);
-    coveragePremiumRate = premium.coveragePremiumRate + uint64(v);
+    coveragePremiumRate = uint64(v);
     console.log('premiumAfter', coveragePremium, coveragePremiumRate);
+  }
+
+  function internalUpdateTotals(uint256 loopLimit)
+    internal
+    returns (
+      uint256,
+      bool done,
+      DemandedCoverage memory coverage
+    )
+  {
+    Rounds.CoveragePremium memory premium = _poolPremium;
+    (loopLimit, _poolStatBatchNo, done) = _collectPremiumTotals(
+      loopLimit,
+      _poolStatBatchNo,
+      _partial,
+      coverage,
+      premium
+    );
+    _finalizePremium(coverage);
+    return (loopLimit, done, coverage);
+  }
+
+  function _collectPremiumTotals(
+    uint256 loopLimit,
+    uint64 thisBatch,
+    PartialState memory part,
+    DemandedCoverage memory coverage,
+    Rounds.CoveragePremium memory premium
+  )
+    private
+    view
+    returns (
+      uint256,
+      uint64,
+      bool done
+    )
+  {
+    (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
+      premium.coveragePremium,
+      premium.coveragePremiumRate,
+      premium.lastUpdatedAt
+    );
+
+    if (loopLimit == 0 || part.batchNo == 0) {
+      return (0, thisBatch, part.batchNo == 0);
+    }
+
+    Rounds.Demand memory d;
+    if (thisBatch == 0) {
+      d.startBatchNo = 1;
+    } else {
+      Rounds.Batch memory b = _batches[thisBatch];
+      require(b.isFull());
+      d.startBatchNo = b.nextBatchNo;
+    }
+    d.unitPerRound = 1;
+
+    while (loopLimit > 0) {
+      loopLimit--;
+      Rounds.Batch memory b = _batches[d.startBatchNo];
+      if (!b.isFull()) {
+        require(d.startBatchNo == part.batchNo);
+
+        if (part.roundNo > 0 || part.roundCoverage > 0) {
+          (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = _calcPremium(
+            d,
+            premium,
+            part.roundNo,
+            (part.roundCoverage + (b.unitPerRound >> 1)) / b.unitPerRound,
+            b.roundPremiumRateSum
+          );
+        } else {
+          (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
+            premium.coveragePremium,
+            premium.coveragePremiumRate,
+            premium.lastUpdatedAt
+          );
+        }
+
+        done = true;
+        break;
+      }
+
+      (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
+        d,
+        premium,
+        b.rounds,
+        0,
+        b.roundPremiumRateSum
+      );
+
+      (thisBatch, d.startBatchNo) = (d.startBatchNo, b.nextBatchNo);
+      if (d.startBatchNo == 0) {
+        done = true;
+        break;
+      }
+    }
+
+    return (loopLimit, thisBatch, done);
   }
 
   function internalGetTotals() internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     PartialState memory part = _partial;
+    if (part.batchNo == 0) return (coverage, total);
+
+    _collectPremiumTotals(type(uint256).max, _poolStatBatchNo, part, coverage, _poolPremium);
+
     uint64 thisBatch = part.batchNo;
-    if (thisBatch == 0) return (coverage, total);
 
     Rounds.Batch memory b = _batches[thisBatch];
     console.log('batch0', thisBatch, b.nextBatchNo, b.rounds);
@@ -647,7 +661,7 @@ abstract contract WeightedRoundsBase {
       }
     }
 
-    // TODO premium
+    _finalizePremium(coverage);
     coverage.totalCovered *= _unitSize;
     coverage.totalDemand *= _unitSize;
     total.totalCoverable = total.totalCoverable * _unitSize - coverage.pendingCovered;
@@ -676,7 +690,7 @@ abstract contract WeightedRoundsBase {
       _batches[part.batchNo] = b;
     }
     if (params.openBatchUpdated) {
-      _firstOpenBatch = params.openBatchNo;
+      _firstOpenBatchNo = params.openBatchNo;
     }
     _partial = part;
     console.log('partial3', part.batchNo, part.roundNo, part.roundCoverage);
@@ -724,7 +738,7 @@ abstract contract WeightedRoundsBase {
     }
     // TODO optimize time-marking
 
-    params.openBatchNo = _firstOpenBatch;
+    params.openBatchNo = _firstOpenBatchNo;
     while (true) {
       loopLimit--;
       require(b.unitPerRound > 0, 'empty round');
@@ -857,8 +871,8 @@ abstract contract WeightedRoundsBase {
 
   function _dump() internal view returns (Dump memory dump) {
     dump.batchCount = _batchCount;
-    dump.latestBatch = _latestBatch;
-    dump.firstOpenBatch = _firstOpenBatch;
+    dump.latestBatch = _latestBatchNo;
+    dump.firstOpenBatch = _firstOpenBatchNo;
     dump.part = _partial;
     uint64 j = 0;
     for (uint64 i = dump.part.batchNo; i > 0; i = _batches[i].nextBatchNo) {
@@ -873,7 +887,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
-  function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits) {}
+  //  function internalCancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits) {}
 
   // function _cancelCoveredDemand(address insured, uint256 unitCount)
   //   private

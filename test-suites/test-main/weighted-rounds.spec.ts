@@ -5,6 +5,7 @@ import { MockWeightedRounds } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
 import { expect } from 'chai';
 import { stringifyArgs } from '../../helpers/etherscan-verification';
+import { BigNumber } from 'ethers';
 
 makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
@@ -23,13 +24,40 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     insured3 = createRandomAddress();
   });
 
-  const expectCoverage = async (insured: tEthereumAddress, demand: number, covered: number, pending: number) => {
+  type CoverageInfo = {
+    totalDemand: BigNumber;
+    totalCovered: BigNumber;
+    pendingCovered: BigNumber;
+    premiumRate: BigNumber;
+    totalPremium: BigNumber;
+    premiumUpdatedAt: number;
+  };
+
+  const expectCoverage = async (
+    insured: tEthereumAddress,
+    demand: number,
+    covered: number,
+    pending: number
+  ): Promise<CoverageInfo> => {
     const tt = await subj.getCoverageDemand(insured);
     const t = tt.coverage;
     expect(t.pendingCovered).eq(pending);
     expect(t.totalCovered).eq(covered * unitSize);
     expect(t.totalDemand).eq(demand * unitSize);
     expect(t.premiumRate).eq(covered * ratePerUnit + (pending * ratePerUnit) / unitSize);
+    return t;
+  };
+
+  const checkTotals = async (...parts: CoverageInfo[]) => {
+    const tt = await subj.getTotals();
+    const t = tt.coverage;
+    const z = BigNumber.from(0);
+    expect(t.pendingCovered).eq(parts.reduce((p, v) => v.pendingCovered.add(p), z));
+    expect(t.totalCovered).eq(parts.reduce((p, v) => v.totalCovered.add(p), z));
+    expect(t.totalDemand).eq(parts.reduce((p, v) => v.totalDemand.add(p), z));
+    expect(t.premiumRate).eq(parts.reduce((p, v) => v.premiumRate.add(p), z));
+    // parts.forEach((v) => expect(t.premiumUpdatedAt).eq(v.premiumUpdatedAt));
+    // expect(t.totalPremium).eq(parts.reduce((p, v) => v.totalPremium.add(p), z));
   };
 
   it('Add demand', async () => {
@@ -76,9 +104,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalPremium).eq(0);
     }
 
-    await expectCoverage(insured1, 1000, 0, 0);
-    await expectCoverage(insured2, 100, 0, 0);
-    await expectCoverage(insured3, 2000, 0, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 0, 0),
+      await expectCoverage(insured2, 100, 0, 0),
+      await expectCoverage(insured3, 2000, 0, 0)
+    );
   });
 
   it('Add small coverage', async () => {
@@ -96,9 +126,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       //      expect(t.coverage.totalPremium).eq(0);
     }
 
-    await expectCoverage(insured1, 1000, 10, 0);
-    await expectCoverage(insured2, 100, 10, 0);
-    await expectCoverage(insured3, 2000, 10, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 10, 0),
+      await expectCoverage(insured2, 100, 10, 0),
+      await expectCoverage(insured3, 2000, 10, 0)
+    );
   });
 
   it('Add partial coverage', async () => {
@@ -117,9 +149,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(3100 * unitSize);
     }
 
-    await expectCoverage(insured1, 1000, 10, halfRoundSize / 3);
-    await expectCoverage(insured2, 100, 10, halfRoundSize / 3);
-    await expectCoverage(insured3, 2000, 10, halfRoundSize / 3);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 10, halfRoundSize / 3),
+      await expectCoverage(insured2, 100, 10, halfRoundSize / 3),
+      await expectCoverage(insured3, 2000, 10, halfRoundSize / 3)
+    );
 
     await subj.addCoverage(roundSize / 2);
 
@@ -134,9 +168,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(3100 * unitSize);
     }
 
-    await expectCoverage(insured1, 1000, 11, 0);
-    await expectCoverage(insured2, 100, 11, 0);
-    await expectCoverage(insured3, 2000, 11, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 11, 0),
+      await expectCoverage(insured2, 100, 11, 0),
+      await expectCoverage(insured3, 2000, 11, 0)
+    );
   });
 
   it('Add more coverage', async () => {
@@ -153,9 +189,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(3100 * unitSize);
     }
 
-    await expectCoverage(insured1, 1000, 100, 0);
-    await expectCoverage(insured2, 100, 100, 0);
-    await expectCoverage(insured3, 2000, 100, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 100, 0),
+      await expectCoverage(insured2, 100, 100, 0),
+      await expectCoverage(insured3, 2000, 100, 0)
+    );
   });
 
   it('Add coverage when one insured is full', async () => {
@@ -172,9 +210,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(3100 * unitSize);
     }
 
-    await expectCoverage(insured1, 1000, 250, 0);
-    await expectCoverage(insured2, 100, 100, 0);
-    await expectCoverage(insured3, 2000, 250, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 250, 0),
+      await expectCoverage(insured2, 100, 100, 0),
+      await expectCoverage(insured3, 2000, 250, 0)
+    );
   });
 
   it('Extend coverage demand by insured2 then add coverage', async () => {
@@ -191,9 +231,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(3200 * unitSize);
     }
 
-    await expectCoverage(insured1, 1000, 250, 0);
-    await expectCoverage(insured2, 200, 100, 0);
-    await expectCoverage(insured3, 2000, 250, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 250, 0),
+      await expectCoverage(insured2, 200, 100, 0),
+      await expectCoverage(insured3, 2000, 250, 0)
+    );
 
     await subj.addCoverage(150 * unitSize);
 
@@ -208,9 +250,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(3200 * unitSize);
     }
 
-    await expectCoverage(insured1, 1000, 300, 0);
-    await expectCoverage(insured2, 200, 150, 0);
-    await expectCoverage(insured3, 2000, 300, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 300, 0),
+      await expectCoverage(insured2, 200, 150, 0),
+      await expectCoverage(insured3, 2000, 300, 0)
+    );
   });
 
   const dumpState = async () => {
@@ -251,9 +295,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(3200 * unitSize);
     }
 
-    await expectCoverage(insured1, 1000, 1000, 0);
-    await expectCoverage(insured2, 200, 200, 0);
-    await expectCoverage(insured3, 2000, 1000, 0);
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 1000, 0),
+      await expectCoverage(insured2, 200, 200, 0),
+      await expectCoverage(insured3, 2000, 1000, 0)
+    );
   });
 
   it('Add more excessive coverage', async () => {
