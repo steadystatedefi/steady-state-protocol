@@ -462,24 +462,6 @@ abstract contract WeightedRoundsBase {
     _finalizeStats(params, coverage, covered);
   }
 
-  function _finalizeStats(
-    GetCoveredDemandParams memory params,
-    DemandedCoverage memory coverage,
-    Rounds.Coverage memory covered
-  ) private view {
-    coverage.premiumRate = uint256(_unitSize).wadMul(coverage.premiumRate);
-    coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
-    //    console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
-    if (coverage.premiumUpdatedAt != 0) {
-      coverage.totalPremium += coverage.premiumRate * (block.timestamp - coverage.premiumUpdatedAt);
-      //      console.log('calcPremium', coverage.totalPremium);
-    }
-
-    coverage.totalDemand = uint256(_unitSize) * _insureds[params.insured].demandedUnits;
-    coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
-    params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
-  }
-
   function internalUpdateCoveredDemand(GetCoveredDemandParams memory params)
     internal
     returns (DemandedCoverage memory coverage)
@@ -561,6 +543,24 @@ abstract contract WeightedRoundsBase {
     }
 
     return false;
+  }
+
+  function _finalizeStats(
+    GetCoveredDemandParams memory params,
+    DemandedCoverage memory coverage,
+    Rounds.Coverage memory covered
+  ) private view {
+    coverage.premiumRate = uint256(_unitSize).wadMul(coverage.premiumRate);
+    coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
+    //    console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
+    if (coverage.premiumUpdatedAt != 0) {
+      coverage.totalPremium += coverage.premiumRate * (block.timestamp - coverage.premiumUpdatedAt);
+      //      console.log('calcPremium', coverage.totalPremium);
+    }
+
+    coverage.totalDemand = uint256(_unitSize) * _insureds[params.insured].demandedUnits;
+    coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
+    params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
   }
 
   function _calcPremium(
