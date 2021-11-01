@@ -1,5 +1,5 @@
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { createRandomAddress } from '../../helpers/runtime-utils';
+import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
 import { MockWeightedRounds } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
@@ -376,21 +376,22 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     const expected = await subj.receivedCoverage();
 
     const info0 = await subj.getCoverageDemand(insured3);
+    const startedAt = await currentTime();
     expect(info0.availableCoverage).eq(info0.coverage.totalCovered);
 
-    let totalPremium = info0.coverage.totalPremium;
     const count = 10;
     for (let i = count; i > 0; i--) {
       await subj.receiveDemandedCoverage(insured3, i > 1 ? 1 : 65535);
       const info1 = await subj.getCoverageDemand(insured3);
-      totalPremium = totalPremium.add(info0.coverage.premiumRate);
 
       expect(await subj.receivedCoverage()).eq(expected.add(info0.availableCoverage.sub(info1.availableCoverage)));
       expect(info1.coverage.pendingCovered).eq(info0.coverage.pendingCovered);
       expect(info1.coverage.premiumRate).eq(info0.coverage.premiumRate);
       expect(info1.coverage.totalCovered).eq(info0.coverage.totalCovered);
       expect(info1.coverage.totalDemand).eq(info0.coverage.totalDemand);
-      expect(info1.coverage.totalPremium).eq(totalPremium);
+
+      const passed = (await currentTime()) - startedAt;
+      expect(info1.coverage.totalPremium).eq(info0.coverage.totalPremium.add(info0.coverage.premiumRate.mul(passed)));
     }
 
     expect(await subj.receivedCoverage()).eq(expected.add(info0.availableCoverage));

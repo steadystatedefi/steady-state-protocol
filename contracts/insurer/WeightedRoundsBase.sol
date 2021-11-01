@@ -54,6 +54,10 @@ library Rounds {
     uint32 lastUpdatedAt;
   }
 
+  /// @dev Draft round can NOT receive coverage, more units can be added, always unbalanced
+  /// @dev ReadyMin is a Ready round with some units cancelled, can receive coverage, more units can be added, unbalanced
+  /// @dev Ready round can receive coverage, more units can NOT be added, balanced
+  /// @dev Full round can NOT receive coverage, more units can NOT be added - full rounds are summed up and ignored further
   enum State {
     Draft,
     ReadyMin,
@@ -100,12 +104,6 @@ abstract contract WeightedRoundsBase {
   mapping(address => Rounds.Demand[]) private _demands;
   mapping(address => Rounds.Coverage) private _covered;
   mapping(address => Rounds.CoveragePremium) private _premiums;
-
-  /// @dev Draft round can NOT receive coverage, more units can be added, always unbalanced
-  /// @dev Ready round can receive coverage, more units can NOT be added, balanced
-  /// @dev ReadyCut is a Ready round with some units cancelled, can receive coverage, more units can be added, unbalanced
-  /// @dev Partial round (exclusive state) receives coverage, more units can NOT be added
-  /// @dev Full round can NOT receive coverage, more units can NOT be added - full rounds are summed up and ignored further
 
   mapping(uint64 => Rounds.Batch) private _batches;
   /// @dev total number of batches
