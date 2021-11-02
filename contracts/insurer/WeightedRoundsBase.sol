@@ -29,7 +29,6 @@ abstract contract WeightedRoundsBase {
   uint64 private _latestBatchNo;
   /// @dev points to an earliest round that is open, can be zero when all rounds are full
   uint64 private _firstOpenBatchNo;
-  uint64 private _poolStatBatchNo;
   Rounds.CoveragePremium private _poolPremium;
 
   struct PartialState {
@@ -526,118 +525,46 @@ abstract contract WeightedRoundsBase {
     console.log('premiumAfter', coveragePremium, coveragePremiumRate);
   }
 
-  function internalUpdateTotals(uint256 loopLimit)
-    internal
-    returns (
-      uint256,
-      bool done,
-      DemandedCoverage memory coverage
-    )
-  {
-    Rounds.CoveragePremium memory premium = _poolPremium;
-    (loopLimit, _poolStatBatchNo, done) = _collectPremiumTotals(
-      loopLimit,
-      _poolStatBatchNo,
-      _partial,
-      coverage,
-      premium
-    );
-    _finalizePremium(coverage);
-    return (loopLimit, done, coverage);
-  }
-
   function _collectPremiumTotals(
-    uint256 loopLimit,
-    uint64 thisBatch,
     PartialState memory part,
-    DemandedCoverage memory coverage,
-    Rounds.CoveragePremium memory premium
-  )
-    private
-    view
-    returns (
-      uint256,
-      uint64,
-      bool done
-    )
-  {
-    (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
-      premium.coveragePremium,
-      premium.coveragePremiumRate,
-      premium.lastUpdatedAt
-    );
+    Rounds.Batch memory b,
+    DemandedCoverage memory coverage
+  ) private view {
+    Rounds.CoveragePremium memory premium = _poolPremium;
 
-    if (loopLimit == 0 || part.batchNo == 0) {
-      return (0, thisBatch, part.batchNo == 0);
+    if (b.isFull() || (part.roundNo == 0 && part.roundCoverage == 0)) {
+      (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
+        premium.coveragePremium,
+        premium.coveragePremiumRate,
+        premium.lastUpdatedAt
+      );
+      return;
     }
 
     Rounds.Demand memory d;
-    if (thisBatch == 0) {
-      d.startBatchNo = 1;
-    } else {
-      Rounds.Batch memory b = _batches[thisBatch];
-      require(b.isFull());
-      d.startBatchNo = b.nextBatchNo;
-    }
+    d.startBatchNo = part.batchNo;
     d.unitPerRound = 1;
 
-    while (loopLimit > 0) {
-      loopLimit--;
-      Rounds.Batch memory b = _batches[d.startBatchNo];
-      if (!b.isFull()) {
-        require(d.startBatchNo == part.batchNo);
-
-        if (part.roundNo > 0 || part.roundCoverage > 0) {
-          (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = _calcPremium(
-            d,
-            premium,
-            part.roundNo,
-            (part.roundCoverage + (b.unitPerRound >> 1)) / b.unitPerRound,
-            b.roundPremiumRateSum,
-            b.unitPerRound
-          );
-        } else {
-          (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
-            premium.coveragePremium,
-            premium.coveragePremiumRate,
-            premium.lastUpdatedAt
-          );
-        }
-
-        done = true;
-        break;
-      }
-
-      (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
-        d,
-        premium,
-        b.rounds,
-        0,
-        b.roundPremiumRateSum,
-        b.unitPerRound
-      );
-
-      (thisBatch, d.startBatchNo) = (d.startBatchNo, b.nextBatchNo);
-      if (d.startBatchNo == 0) {
-        done = true;
-        break;
-      }
-    }
-
-    return (loopLimit, thisBatch, done);
+    (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = _calcPremium(
+      d,
+      premium,
+      part.roundNo,
+      (part.roundCoverage + (b.unitPerRound >> 1)) / b.unitPerRound,
+      b.roundPremiumRateSum,
+      b.unitPerRound
+    );
   }
 
   function internalGetTotals() internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     PartialState memory part = _partial;
     if (part.batchNo == 0) return (coverage, total);
 
-    _collectPremiumTotals(type(uint256).max, _poolStatBatchNo, part, coverage, _poolPremium);
-
     uint64 thisBatch = part.batchNo;
 
     Rounds.Batch memory b = _batches[thisBatch];
     console.log('batch0', thisBatch, b.nextBatchNo, b.rounds);
     console.log('batch1', part.roundNo);
+    _collectPremiumTotals(part, b, coverage);
 
     coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
     coverage.totalDemand = b.totalUnitsBeforeBatch + uint256(b.rounds) * b.unitPerRound;
@@ -680,6 +607,8 @@ abstract contract WeightedRoundsBase {
     uint64 openBatchNo;
     bool openBatchUpdated;
     bool batchUpdated;
+    bool premiumUpdated;
+    Rounds.CoveragePremium premium;
   }
 
   function internalAddCoverage(uint256 amount, uint256 loopLimit)
@@ -697,6 +626,9 @@ abstract contract WeightedRoundsBase {
     (amount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
     if (params.batchUpdated) {
       _batches[part.batchNo] = b;
+    }
+    if (params.premiumUpdated) {
+      _poolPremium = params.premium;
     }
     if (params.openBatchUpdated) {
       _firstOpenBatchNo = params.openBatchNo;
@@ -757,6 +689,12 @@ abstract contract WeightedRoundsBase {
         if (b.state != Rounds.State.Full) {
           b.state = Rounds.State.Full;
           params.batchUpdated = true;
+
+          if (!params.premiumUpdated) {
+            params.premium = _poolPremium;
+          }
+          _updateTotalPremium(part.batchNo, params.premium, b);
+          params.premiumUpdated = true;
         }
 
         if (params.batchUpdated) {
@@ -825,6 +763,35 @@ abstract contract WeightedRoundsBase {
 
     return (amount, loopLimit, b);
   }
+
+  function _updateTotalPremium(
+    uint64 batchNo,
+    Rounds.CoveragePremium memory premium,
+    Rounds.Batch memory b
+  ) internal {
+    Rounds.Demand memory d;
+    d.startBatchNo = batchNo;
+    d.unitPerRound = 1;
+    uint64 lastRate = premium.coveragePremiumRate;
+    (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
+      d,
+      premium,
+      b.rounds,
+      0,
+      b.roundPremiumRateSum,
+      b.unitPerRound
+    );
+
+    if (lastRate != premium.coveragePremiumRate) {
+      internalPremiumRateUpdated(premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt);
+    }
+  }
+
+  function internalPremiumRateUpdated(
+    uint256 totalPremium,
+    uint256 totalRate,
+    uint32 updatedAt
+  ) internal virtual {}
 
   function internalUseNotReadyBatch(Rounds.Batch memory) internal virtual returns (bool) {
     return false;
