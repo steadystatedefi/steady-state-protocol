@@ -37,16 +37,19 @@ interface IInsurerPool {
   ) external returns (uint256 residualCount);
 
   /// @dev can only be called by an accepted insured pool, cancels only empty coverage units, returns number of cancelled units
-  function cancelCoverageDemand(uint256 unitCount) external returns (uint256 cancelledUnits);
+  function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
-  function getCoverageDemand(address insured) external view returns (DemandedCoverage memory);
+  function getCoverageDemand(address insured)
+    external
+    view
+    returns (uint256 availableExtraCoverage, DemandedCoverage memory);
 
   /// @dev when charteredDemand is true and insured has incomplete demand, then this function will transfer $CC collected for the insured
   /// when charteredDemand is false or demand was fulfilled, then there is no need to call this function.
   function receiveDemandedCoverage(address insured)
     external
-    returns (uint256 receivedCoverage, DemandedCoverage memory);
+    returns (uint256 receivedExtraCoverage, DemandedCoverage memory);
 
   /// @dev amount of $IC tokens of a user. Weighted number of $IC tokens defines interest rate to be paid to the user
   function balanceOf(address account) external view returns (uint256);
@@ -62,15 +65,19 @@ interface IInsurerPool {
 }
 
 struct DemandedCoverage {
-  uint256 totalDemand; // total demand added by insured to insurer
-  uint256 totalCovered; // total coverage allocated by insured to insurer (can not exceed total demand)
+  uint256 totalDemand; // total demand added to insurer
+  uint256 totalCovered; // total coverage allocated by insurer (can not exceed total demand)
+  uint256 pendingCovered; // coverage that is allocated, but can not be given yet (should reach unit size)
   uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
-  uint256 premiumAccumulatedRate; // time-cumulated of premiumRate
+  uint256 totalPremium; // time-cumulated of premiumRate
+  uint32 premiumUpdatedAt;
 }
 
-struct CoverageUnitBatch {
-  uint256 unitCount; // number of units demanded, size of unit is implicit (by insurer pool)
-  uint256 premiumRate; // premiumRate in RAYs for coverage provided for these units, may vary between units
+struct TotalCoverage {
+  uint256 totalCoverable; // total demand that can be covered now (already balanced) - this value is not provided per-insured
+  uint88 usableRounds;
+  uint88 openRounds;
+  uint64 batchCount;
 }
 
 interface IInsuredPool {

@@ -71,14 +71,6 @@ const buidlerConfig: HardhatUserConfig = {
   },
   solidity: {
     compilers: [
-      { version: '0.5.16' },
-      {
-        version: '0.6.12',
-        settings: {
-          optimizer: { enabled: true, runs: 200 },
-          evmVersion: 'istanbul',
-        },
-      },
       {
         version: '0.8.4',
         settings: {
@@ -102,6 +94,7 @@ const buidlerConfig: HardhatUserConfig = {
     coverage: {
       url: 'http://localhost:8555',
       chainId: COV_CHAINID,
+//      gasMultiplier: 50,
     },
     kovan: getCommonNetworkConfig(eEthereumNetwork.kovan, 42),
     ropsten: getCommonNetworkConfig(eEthereumNetwork.ropsten, 3),

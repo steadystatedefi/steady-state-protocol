@@ -40,13 +40,25 @@ const revertHead = async () => {
   await evmRevert(snapshotId);
 };
 
-export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {
+export function makeSharedStateSuite(name: string, tests: (testEnv: TestEnv) => void) {
   describe(name, () => {
     before(async () => {
       await setHead();
     });
     tests(testEnv);
     after(async () => {
+      await revertHead();
+    });
+  });
+}
+
+export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {
+  describe(name, () => {
+    beforeEach(async () => {
+      await setHead();
+    });
+    tests(testEnv);
+    afterEach(async () => {
       await revertHead();
     });
   });

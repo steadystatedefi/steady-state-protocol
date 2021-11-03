@@ -1,23 +1,32 @@
-import * as types from "../types";
 import { Signer } from "ethers";
 import { Contract, ContractFactory } from "@ethersproject/contracts";
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { addContractToJsonDb, getFromJsonDb } from "./deploy-db";
 import { falsyOrZeroAddress } from "./runtime-utils";
+import * as types from "../types";
 
 interface Deployable<TArgs extends any[] = any[], TResult extends Contract = Contract> extends ContractFactory {
-  deploy(...args: TArgs): Promise<TResult>;
   attach(address: string): TResult;
+  deploy(...args: TArgs): Promise<TResult>;
 }
 
 type Constructor<TDeployArgs extends any[], TResult extends Contract> = new (signer: Signer) => Deployable<TDeployArgs, TResult>;
 
-export interface NamedDeployable<TArgs extends any[] = any[], TResult extends Contract = Contract> {
-  deploy(...args: TArgs): Promise<TResult>;
-  connectAndDeploy(deployer: Signer, ...args: TArgs): Promise<TResult>;
-  attach(address: string): TResult;
+interface Named {
   toString(): string;
   name(): string;
+  isMock(): boolean;
+}
+
+export interface UnnamedAttachable<TResult extends Contract = Contract> {
+  attach(address: string): TResult;
+}
+
+export interface NamedDeployable<TArgs extends any[] = any[], TResult extends Contract = Contract> extends Named {
+  attach(address: string): TResult;
+
+  deploy(...args: TArgs): Promise<TResult>;
+  connectAndDeploy(deployer: Signer, ...args: TArgs): Promise<TResult>;
 
   findInstance(): (string | undefined);
   get(signer?: Signer): TResult;
@@ -33,7 +42,7 @@ export const getDefaultDeployer = () => {
   return deployer;
 }
 
-const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArgs, TResult>): NamedDeployable<TArgs, TResult> => {
+const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArgs, TResult>, mock?: boolean): NamedDeployable<TArgs, TResult> => {
   return new class implements NamedDeployable<TArgs, TResult>{
     deploy(...args: TArgs): Promise<TResult> {
       return this.connectAndDeploy(deployer, ...args);
@@ -78,12 +87,24 @@ const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArg
       }
       return new f(signer || deployer).attach(addr!);
     }
+
+    isMock(): boolean {
+      return mock;
+    }
   };
+};
+
+const mock = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArgs, TResult>): NamedDeployable<TArgs, TResult> => wrap(f, true);
+
+export const factoryByName = (s: string): NamedDeployable => {
+  return Factories[s];
 };
 
 export const Factories = {
   CoveragePoolFactory: wrap(types.CoveragePoolFactory),
   PriceOracle: wrap(types.PriceOracleFactory),
+
+  MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
 }
 
 const nameByFactory = (() => {
@@ -91,8 +112,3 @@ const nameByFactory = (() => {
   Object.entries(Factories).forEach(([name, factory]) => names.set(factory, name));
   return names;
 })();
-
-export const factoryByName = (s: string): NamedDeployable => {
-  return Factories[s];
-};
-

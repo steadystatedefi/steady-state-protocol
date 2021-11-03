@@ -1,5 +1,4 @@
-import BigNumber from 'bignumber.js';
-import { Wallet, ContractTransaction } from 'ethers';
+import { Wallet, ContractTransaction, BigNumber } from 'ethers';
 import { tEthereumAddress } from './types';
 import { isAddress } from 'ethers/lib/utils';
 import { isZeroAddress } from 'ethereumjs-util';
@@ -16,9 +15,9 @@ export const evmSnapshot = async () => await (<any>DRE).ethers.provider.send('ev
 
 export const evmRevert = async (id: string) => (<any>DRE).ethers.provider.send('evm_revert', [id]);
 
-export const timeLatest = async () => {
+export const currentTime = async () => {
   const block = await (<any>DRE).ethers.provider.getBlock('latest');
-  return new BigNumber(block.timestamp);
+  return BigNumber.from(block.timestamp).toNumber();
 };
 
 export const advanceBlock = async (timestamp: number) => await (<any>DRE).ethers.provider.send('evm_mine', [timestamp]);
@@ -105,3 +104,4 @@ export const getSignerN = async (n: number) => (await getSigners())[n];
 
 export const getContractFactory = async (abi: any[], bytecode: string) =>
   await (<any>DRE).ethers.getContractFactory(abi, bytecode);
+
