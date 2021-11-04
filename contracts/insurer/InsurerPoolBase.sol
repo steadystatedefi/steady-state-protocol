@@ -3,25 +3,29 @@ pragma solidity ^0.8.4;
 
 import '../dependencies/openzeppelin/contracts/Address.sol';
 import '../interfaces/IInsurerPool.sol';
+import '../interfaces/IInsuredPool.sol';
+import '../tools/tokens/ERC1363ReceiverBase.sol';
 
-abstract contract InsurerPoolBase {
+abstract contract InsurerPoolBase is ERC1363ReceiverBase {
   address private _collateral;
 
-  enum InsuredStatus {
+  enum ProfileStatus {
     Unknown,
-    Joining,
-    Accepted,
-    Rejected,
-    PaidOut,
-    Declined
+    Investor,
+    InsuredUnknown,
+    InsuredRejected,
+    InsuredDeclined,
+    InsuredJoining,
+    InsuredAccepted,
+    InsuredBanned
   }
 
-  struct InsuredEntry {
-    InsuredStatus status;
-    //
+  struct Profile {
+    ProfileStatus status;
+    uint128 investorBalance;
   }
 
-  mapping(address => InsuredEntry) private _insureds;
+  mapping(address => Profile) private _profiles;
 
   function collateral() external view returns (address) {
     return _collateral;
@@ -34,12 +38,35 @@ abstract contract InsurerPoolBase {
 
   /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
   /// mints $IC tokens when $CC is received from a user
-  function onTransferReceived(
+  function internalReceiveTransfer(
     address operator,
-    address from,
+    address,
+    uint256 value,
+    bytes calldata data
+  ) internal override onlyCollateralFund {
+    Profile memory p = _profiles[operator];
+    if (isInsured(p.status)) {
+      // TODO return of funds from insured
+      return;
+    }
+    if (p.status == ProfileStatus.Unknown) {
+      if (value == 0) return;
+      p.status = ProfileStatus.Investor;
+    }
+    if (p.status == ProfileStatus.Investor) {
+      p.investorBalance += uint128(value);
+      _profiles[operator] = p;
+      internalInvest(operator, value, data);
+      return;
+    }
+    revert();
+  }
+
+  function internalInvest(
+    address investor,
     uint256 value,
     bytes memory data
-  ) external onlyCollateralFund returns (bytes4) {}
+  ) internal virtual;
 
   function charteredDemand() public pure virtual returns (bool);
 
@@ -47,50 +74,88 @@ abstract contract InsurerPoolBase {
   event JoinCancelled(address indexed insured);
   event JoinProcessed(address indexed insured, bool acceptec);
 
-  //   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
-  //   /// IInsuredPool.joinProcessed will be called after the decision is made.
-  function requestJoin(address insured) external returns (InsuredStatus status) {
-    require(Address.isContract(insured));
-    status = _insureds[insured].status;
-    if (status == InsuredStatus.Unknown) {
-      _insureds[insured].status = InsuredStatus.Joining;
-      emit JoinRequested(insured);
-
-      status = internalJoin(insured);
-      if (status != InsuredStatus.Joining) {
-        return _processJoin(insured, status == InsuredStatus.Accepted);
-      }
-    }
+  function isInsured(ProfileStatus status) private pure returns (bool) {
+    return status >= ProfileStatus.InsuredUnknown && status <= ProfileStatus.InsuredBanned;
   }
 
-  function cancelJoin() external returns (InsuredStatus) {
+  function isKnownInsured(ProfileStatus status) private pure returns (bool) {
+    return status > ProfileStatus.InsuredUnknown && status <= ProfileStatus.InsuredBanned;
+  }
+
+  function isInsuredOrUnknown(ProfileStatus status) private pure returns (bool) {
+    return status == ProfileStatus.Unknown || isInsured(status);
+  }
+
+  //   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
+  //   /// IInsuredPool.joinProcessed will be called after the decision is made.
+  function requestJoin(address insured) external returns (ProfileStatus status) {
+    require(Address.isContract(insured));
+    status = _profiles[insured].status;
+    if (isInsuredOrUnknown(status)) {
+      if (status >= ProfileStatus.InsuredJoining) {
+        return status;
+      }
+      _profiles[insured].status = ProfileStatus.InsuredJoining;
+      emit JoinRequested(insured);
+
+      status = internalInitiateJoin(insured);
+      if (status != ProfileStatus.InsuredJoining) {
+        return _updateInsuredStatus(insured, status);
+      }
+    }
+    return ProfileStatus.InsuredRejected;
+  }
+
+  function cancelJoin() external returns (ProfileStatus) {
     return _cancelJoin(msg.sender);
   }
 
-  function _cancelJoin(address insured) private returns (InsuredStatus status) {
-    status = _insureds[insured].status;
-    if (status == InsuredStatus.Joining) {
-      _insureds[insured].status = InsuredStatus.Unknown;
+  function _cancelJoin(address insured) private returns (ProfileStatus status) {
+    status = _profiles[insured].status;
+    if (status == ProfileStatus.InsuredJoining) {
+      _profiles[insured].status = ProfileStatus.InsuredUnknown;
       emit JoinCancelled(insured);
     }
   }
 
-  function _processJoin(address insured, bool accepted) private returns (InsuredStatus status) {
-    status = _insureds[insured].status;
-    if (status == InsuredStatus.Joining) {
-      status = accepted ? InsuredStatus.Accepted : InsuredStatus.Rejected;
-      _insureds[insured].status = status;
+  function _updateInsuredStatus(address insured, ProfileStatus status) private returns (ProfileStatus) {
+    require(isInsured(status));
+
+    ProfileStatus currentStatus = _profiles[insured].status;
+    if (currentStatus == ProfileStatus.InsuredJoining) {
+      bool accepted;
+      if (status == ProfileStatus.InsuredAccepted) {
+        accepted = true;
+      } else if (status != ProfileStatus.InsuredBanned) {
+        status != ProfileStatus.InsuredRejected;
+      }
+      _profiles[insured].status = status;
 
       IInsuredPool(insured).joinProcessed(accepted);
       emit JoinProcessed(insured, accepted);
+
+      return _profiles[insured].status;
+    } else if (status == ProfileStatus.InsuredBanned) {
+      require(isInsuredOrUnknown(currentStatus));
+    } else if (status == ProfileStatus.InsuredDeclined) {
+      require(isKnownInsured(currentStatus));
+    } else {
+      revert();
     }
+
+    _profiles[insured].status = status;
+    return status;
   }
 
-  function internalJoin(address) internal virtual returns (InsuredStatus) {
-    return InsuredStatus.Joining;
+  function internalProcessJoin(address insured, bool accepted) internal virtual {
+    _updateInsuredStatus(insured, accepted ? ProfileStatus.InsuredAccepted : ProfileStatus.InsuredRejected);
   }
 
-  function statusOf(address insured) external view returns (InsuredStatus) {
-    return _insureds[insured].status;
+  function internalInitiateJoin(address) internal virtual returns (ProfileStatus) {
+    return ProfileStatus.InsuredAccepted;
+  }
+
+  function statusOf(address account) external view returns (ProfileStatus) {
+    return _profiles[account].status;
   }
 }

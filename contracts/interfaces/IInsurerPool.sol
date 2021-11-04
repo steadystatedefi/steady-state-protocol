@@ -79,14 +79,3 @@ struct TotalCoverage {
   uint88 openRounds;
   uint64 batchCount;
 }
-
-interface IInsuredPool {
-  /// @dev address of the collateral fund and coverage token ($CC)
-  function collateral() external view returns (address);
-
-  /// @dev is called by insurer from or after requestJoin() to inform this insured pool if it was accepted or not
-  function joinProcessed(bool accepted) external;
-
-  /// @dev WIP called by insurer pool to cover full units ad-hoc, is used by direct insurer pools to facilitate user's choice
-  function tryAddCoverage(uint256 unitCount, DemandedCoverage calldata current) external returns (uint256 addedCount);
-}

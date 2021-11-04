@@ -848,6 +848,8 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  // TODO prepare batches and marks in advance to reduce gas cost during the invest call
+
   //  function internalCancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits) {}
 
   // function _cancelCoveredDemand(address insured, uint256 unitCount)
