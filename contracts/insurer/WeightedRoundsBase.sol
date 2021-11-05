@@ -58,7 +58,6 @@ abstract contract WeightedRoundsBase {
     uint256 loopLimit;
     address insured;
     uint40 premiumRate;
-    bool hasMore;
   }
 
   function internalAddCoverageDemand(uint64 unitCount, AddCoverageDemandParams memory params)
@@ -70,11 +69,8 @@ abstract contract WeightedRoundsBase {
     Rounds.Demand[] storage demands = _demands[params.insured];
 
     if (unitCount == 0 || params.loopLimit == 0) {
-      _insureds[params.insured].hasMore = params.hasMore;
       return unitCount;
     }
-
-    entry.hasMore = params.hasMore;
 
     (uint64 nextBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.latestBatchNo);
     uint64 totalUnitsBeforeBatch;
@@ -295,6 +291,7 @@ abstract contract WeightedRoundsBase {
       state: b.state,
       roundPremiumRateSum: b.roundPremiumRateSum
     });
+    _initTimeMark(newBatchNo);
 
     b.rounds = remainingRounds;
     if (b.nextBatchNo == 0) {
@@ -322,6 +319,7 @@ abstract contract WeightedRoundsBase {
       _batches[batchNo].nextBatchNo = newBatchNo;
       _batches[newBatchNo].totalUnitsBeforeBatch = b.totalUnitsBeforeBatch + b.unitPerRound * b.rounds;
     }
+    _initTimeMark(newBatchNo);
 
     _latestBatchNo = newBatchNo;
     return newBatchNo;
@@ -555,7 +553,11 @@ abstract contract WeightedRoundsBase {
     );
   }
 
-  function internalGetTotals() internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+  function internalGetTotals(uint256 loopLimit)
+    internal
+    view
+    returns (DemandedCoverage memory coverage, TotalCoverage memory total)
+  {
     PartialState memory part = _partial;
     if (part.batchNo == 0) return (coverage, total);
 
@@ -579,7 +581,7 @@ abstract contract WeightedRoundsBase {
       total.openRounds += b.rounds - part.roundNo;
     }
 
-    while (b.nextBatchNo != 0) {
+    for (; loopLimit > 0 && b.nextBatchNo != 0; loopLimit--) {
       thisBatch = b.nextBatchNo;
       b = _batches[b.nextBatchNo];
       // console.log('batch', thisBatch, b.nextBatchNo);
@@ -797,11 +799,16 @@ abstract contract WeightedRoundsBase {
     return false;
   }
 
+  function _initTimeMark(uint64 batchNo) private {
+    // NB! this moves some of gas costs from addCoverage to addCoverageDemand
+    _marks[batchNo].timestamp = 1;
+  }
+
   function _updateTimeMark(PartialState memory part, uint256 batchUnitPerRound) private {
     // console.log('==updateTimeMark', part.batchNo);
     require(part.batchNo != 0);
     TimeMark memory mark = _marks[part.batchNo];
-    if (mark.timestamp == 0) {
+    if (mark.timestamp <= 1) {
       _marks[part.batchNo] = TimeMark({coverageTW: 0, timestamp: uint32(block.timestamp), duration: 0});
       return;
     }

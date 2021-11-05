@@ -7,6 +7,8 @@ interface IInsuredPool {
 
   /// @dev is called by insurer from or after requestJoin() to inform this insured pool if it was accepted or not
   function joinProcessed(bool accepted) external;
+
+  function pullCoverageDemand() external;
 }
 
 interface DInsuredPoolTransfer {

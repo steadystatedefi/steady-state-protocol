@@ -17,8 +17,8 @@ contract MockWeightedRounds is WeightedRoundsBase {
     AddCoverageDemandParams memory params;
     params.insured = insured;
     params.premiumRate = premiumRate;
-    params.hasMore = hasMore;
     params.loopLimit = ~params.loopLimit;
+    hasMore;
 
     return super.internalAddCoverageDemand(unitCount, params);
   }
@@ -86,7 +86,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
-    return internalGetTotals();
+    return internalGetTotals(type(uint256).max);
   }
 
   function getCoverageDemand(address insured)

@@ -31,7 +31,6 @@ library Rounds {
     uint32 maxShare;
     uint24 minUnits;
     // uint24 riskLevel
-    bool hasMore;
   }
 
   struct Coverage {
