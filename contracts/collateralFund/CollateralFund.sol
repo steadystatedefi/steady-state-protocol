@@ -9,6 +9,7 @@ import '../pricing/interfaces/IPriceOracle.sol';
 import '../tools/math/WadRayMath.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 
+//TODO: is IERC20
 abstract contract CollateralFund {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
@@ -59,8 +60,8 @@ abstract contract CollateralFund {
 
     (uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
     require(hf > 1);
-
-    //TODO: Make sure hf stays above 1
+    //TODO: MAX_INT check
+    require((balance - int256(oracle.getAssetPrice(asset) * amount) > 0));
 
     depositTokens[asset].burnFrom(msg.sender, amount);
     ccBalances[msg.sender][address(0)] -= amount;
@@ -80,7 +81,10 @@ abstract contract CollateralFund {
     if (!insurerWhitelist[msg.sender]) {
       require(insurerWhitelist[to]);
     }
-    //TODO: Health factor
+    (uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
+    require(hf > 1);
+    //TODO: MAX_INT check
+    require(balance - int256(amount) > 0);
 
     ccBalances[msg.sender][address(0)] -= amount;
     ccBalances[to][address(0)] += amount;
@@ -96,20 +100,30 @@ abstract contract CollateralFund {
     return _totalSupply;
   }
 
-  /// @dev healthFactor and signed balance. healthFactor is in RAY
   function healthFactorOf(address account) external view returns (uint256 hf, int256 balance) {
-    uint256 depositValue = _assetValue(account);
-    uint256 investedValue;
+    _healthFactor(_assetValue(account), _debtValue(account));
+  }
 
-    for (uint256 i = 0; i < insurers.length; i++) {
-      investedValue += ccBalances[account][insurers[i]];
-    }
+  function getReserveAssets() external view returns (address[] memory assets, address[] memory _depositTokens) {
+    return (assets, depositTokenList);
+  }
 
+  function declineCoverageFrom(address insurer) external {
+    IInsurerPool(insurer).onCoverageDeclined(msg.sender);
+  }
+
+  function _healthFactor(uint256 depositValue, uint256 debtValue) internal pure returns (uint256 hf, int256 balance) {
     require(depositValue < uint256(type(int256).max));
-    require(investedValue < uint256(type(int256).max));
-    balance = int256(depositValue) - int256(investedValue);
+    require(debtValue < uint256(type(int256).max));
+    balance = int256(depositValue) - int256(debtValue);
 
-    hf = depositValue.rayDiv(investedValue);
+    hf = depositValue.rayDiv(debtValue);
+  }
+
+  function _debtValue(address account) internal view returns (uint256 total) {
+    for (uint256 i = 0; i < insurers.length; i++) {
+      total += ccBalances[account][insurers[i]];
+    }
   }
 
   /// @dev Get the value of all the assets this user has deposited
@@ -134,13 +148,5 @@ abstract contract CollateralFund {
     for (uint256 i = 0; i < numAssets; i++) {
       total += (IERC20(assets[i]).balanceOf(account) * prices[i]);
     }
-  }
-
-  function getReserveAssets() external view returns (address[] memory assets, address[] memory _depositTokens) {
-    return (assets, depositTokenList);
-  }
-
-  function declineCoverageFrom(address insurer) external {
-    IInsurerPool(insurer).onCoverageDeclined(msg.sender);
   }
 }
