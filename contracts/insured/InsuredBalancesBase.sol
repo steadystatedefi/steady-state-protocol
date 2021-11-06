@@ -3,12 +3,13 @@ pragma solidity ^0.8.4;
 
 import '../dependencies/openzeppelin/contracts/Address.sol';
 import '../dependencies/openzeppelin/contracts/IERC20.sol';
+import '../interfaces/IInsurancePool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 
-abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
+abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
   using WadRayMath for uint256;
 
   address private _collateral;
@@ -21,7 +22,7 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
     _collateral = collateral_;
   }
 
-  function collateral() external view returns (address) {
+  function collateral() public view override returns (address) {
     return _collateral;
   }
 
@@ -69,13 +70,19 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
 
   // TODO unitize?
   struct PremiumBalance {
-    uint96 accum;
-    uint64 rate;
-    uint64 locked;
+    uint112 accum;
+    uint80 rate;
     uint32 updatedAt;
+    uint16 status;
+    //    uint16 reserved0;
   }
   mapping(address => PremiumBalance) private _balances;
-  mapping(address => mapping(address => uint64)) private _lockedBalances;
+
+  struct LockedAccountBalance {
+    uint80 locked;
+  }
+  mapping(address => LockedAccountBalance) private _locks;
+  mapping(address => mapping(address => uint80)) private _lockedBalances;
 
   struct TotalBalance {
     uint128 accum;
@@ -115,12 +122,13 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
       return (unusedAmount, 0);
     }
 
-    require(amount <= type(uint64).max);
-    uint64 mintedAmount = uint64(amount);
+    require(amount <= type(uint80).max);
+    uint80 mintedAmount = uint80(amount);
 
     if (holder != address(0)) {
+      require(internalIsAllowedHolder(_balances[holder].status));
       _lockedBalances[holder][investor] += mintedAmount;
-      _balances[investor].locked += mintedAmount;
+      _locks[investor].locked += mintedAmount;
     } else {
       PremiumBalance memory b = _syncBalance(investor);
       b.rate += mintedAmount;
@@ -130,12 +138,14 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
     return (unusedAmount, mintedAmount);
   }
 
+  function internalIsAllowedHolder(uint16 status) internal view virtual returns (bool);
+
   function _syncBalance(address account) private view returns (PremiumBalance memory b) {
     b = _balances[account];
     if (b.rate > 0) {
       uint256 amount = internalRateAdjustment(b.rate, b.updatedAt) + b.accum;
-      require(amount <= type(uint96).max);
-      b.accum = uint96(amount);
+      require(amount <= type(uint112).max);
+      b.accum = uint112(amount);
     }
     b.updatedAt = uint32(block.timestamp);
     return b;
@@ -145,8 +155,8 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
     b = _totals;
     if (b.rate > 0) {
       uint256 amount = internalRateAdjustment(b.rate, b.updatedAt) + b.accum;
-      require(amount <= type(uint96).max);
-      b.accum = uint96(amount);
+      require(amount <= type(uint128).max);
+      b.accum = uint128(amount);
     }
     b.updatedAt = uint32(block.timestamp);
     return b;
@@ -176,7 +186,7 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
     )
   {
     PremiumBalance memory b = _syncBalance(account);
-    return (b.rate, b.locked, b.accum);
+    return (b.rate, _locks[account].locked, b.accum);
   }
 
   function holdedBalanceOf(address account, address holder) public view returns (uint256) {
@@ -194,21 +204,23 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
 
   // TODO function internalReconcile() internal {}
 
-  function internalAddHolder(address account) internal {
-    require(Address.isContract(account));
-    uint32 updatedAt = _balances[account].updatedAt;
-    if (updatedAt == type(uint32).max) return;
+  function internalSetServiceAccountStatus(address account, uint16 status) internal virtual {
+    require(status > 0);
+    PremiumBalance memory b = _balances[account];
+    if (b.status == 0) {
+      require(b.updatedAt == 0);
+      require(Address.isContract(account));
+    }
 
-    require(updatedAt == 0);
-    _balances[account] = PremiumBalance(0, 0, 0, type(uint32).max);
+    _balances[account].status = status;
   }
 
-  function isHolder(address account) internal view returns (bool) {
-    return _balances[account].updatedAt == type(uint32).max;
+  function getAccountStatus(address account) internal view virtual returns (uint16) {
+    return _balances[account].status;
   }
 
   function isHolder(PremiumBalance memory b) private pure returns (bool) {
-    return b.updatedAt == type(uint32).max;
+    return b.status > 0;
   }
 
   function internalTransfer(
@@ -227,6 +239,8 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
 
     b = _syncBalance(to);
     if (isHolder(b)) {
+      require(internalIsAllowedHolder(b.status));
+
       amount += _lockedBalances[to][from];
       require(amount <= type(uint64).max);
       _lockedBalances[to][from] = uint64(amount);

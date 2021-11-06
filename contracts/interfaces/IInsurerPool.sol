@@ -24,7 +24,7 @@ interface IInsurerPool is IInsurancePool {
     uint256 unitCount,
     uint256 premiumRate,
     bool hasMore
-  ) external returns (uint256 residualCount);
+  ) external returns (uint256 addedCount);
 
   /// @dev can only be called by an accepted insured pool, cancels only empty coverage units, returns number of cancelled units
   function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);

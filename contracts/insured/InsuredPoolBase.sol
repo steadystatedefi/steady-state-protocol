@@ -5,6 +5,43 @@ import '../dependencies/openzeppelin/contracts/Address.sol';
 import '../dependencies/openzeppelin/contracts/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../interfaces/IInsuredPool.sol';
+import './InsuredBalancesBase.sol';
+import './InsuredJoinBase.sol';
 
-abstract contract InsuredPoolBase is IInsuredPool {}
+abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
+  function internalSetServiceAccountStatus(address account, uint16 status)
+    internal
+    override(InsuredBalancesBase, InsuredJoinBase)
+  {
+    return InsuredBalancesBase.internalSetServiceAccountStatus(account, status);
+  }
+
+  function getAccountStatus(address account)
+    internal
+    view
+    override(InsuredBalancesBase, InsuredJoinBase)
+    returns (uint16)
+  {
+    return InsuredBalancesBase.getAccountStatus(account);
+  }
+
+  function internalIsAllowedHolder(uint16 status)
+    internal
+    view
+    override(InsuredBalancesBase, InsuredJoinBase)
+    returns (bool)
+  {
+    return InsuredJoinBase.internalIsAllowedHolder(status);
+  }
+
+  //   function internalAllocateCoverageDemand(address target, uint256 amount, uint256 unitSize) internal virtual
+  //     returns (uint256 amountToAdd, uint256 premiumRate);
+
+  //   function internalCoverageDemandAdded(address target, uint256 amount) internal virtual;
+
+  //   function internalInvest(
+  //     uint256 amount,
+  //     uint256 minAmount,
+  //     uint256 minPremiumRate
+  //   ) internal virtual returns (uint256 availableAmount, uint64 premiumRate);
+}
