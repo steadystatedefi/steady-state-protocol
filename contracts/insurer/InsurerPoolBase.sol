@@ -6,7 +6,7 @@ import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 
-abstract contract InsurerPoolBase is ERC1363ReceiverBase {
+abstract contract InsurerPoolBase is IInsurerPool, ERC1363ReceiverBase {
   address private _collateral;
 
   enum ProfileStatus {
@@ -27,7 +27,7 @@ abstract contract InsurerPoolBase is ERC1363ReceiverBase {
 
   mapping(address => Profile) private _profiles;
 
-  function collateral() external view returns (address) {
+  function collateral() external view override returns (address) {
     return _collateral;
   }
 
@@ -68,7 +68,7 @@ abstract contract InsurerPoolBase is ERC1363ReceiverBase {
     bytes memory data
   ) internal virtual;
 
-  function charteredDemand() public pure virtual returns (bool);
+  function charteredDemand() public pure virtual override returns (bool);
 
   event JoinRequested(address indexed insured);
   event JoinCancelled(address indexed insured);
@@ -86,9 +86,13 @@ abstract contract InsurerPoolBase is ERC1363ReceiverBase {
     return status == ProfileStatus.Unknown || isInsured(status);
   }
 
-  //   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
-  //   /// IInsuredPool.joinProcessed will be called after the decision is made.
-  function requestJoin(address insured) external returns (ProfileStatus status) {
+  /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
+  /// IInsuredPool.joinProcessed will be called after the decision is made.
+  function requestJoin(address insured) external override {
+    _requestJoin(insured);
+  }
+
+  function _requestJoin(address insured) private returns (ProfileStatus status) {
     require(Address.isContract(insured));
     status = _profiles[insured].status;
     if (isInsuredOrUnknown(status)) {

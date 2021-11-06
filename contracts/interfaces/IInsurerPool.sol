@@ -1,21 +1,11 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-interface IInsurerPool {
-  /// @dev address of the collateral fund and coverage token ($CC)
-  function collateral() external view returns (address);
+import './IInsurancePool.sol';
 
+interface IInsurerPool is IInsurancePool {
   /// @dev size of collateral allocation chunk made by this pool
   function coverageUnitSize() external view returns (uint256);
-
-  /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
-  /// mints $IC tokens when $CC is received from a user
-  function onTransferReceived(
-    address operator,
-    address from,
-    uint256 value,
-    bytes memory data
-  ) external returns (bytes4);
 
   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
   /// IInsuredPool.joinProcessed will be called after the decision is made.

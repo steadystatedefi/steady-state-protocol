@@ -51,8 +51,8 @@ abstract contract InsuredBalancesBase is ERC1363ReceiverBase {
 
       if (mintedAmount > 0 && insurerPool != address(0)) {
         require(
-          IInsurerPool(insurerPool).onTransferReceived(operator, from, mintedAmount, '') ==
-            IInsurerPool.onTransferReceived.selector
+          IERC1363Receiver(insurerPool).onTransferReceived(operator, from, mintedAmount, '') ==
+            IERC1363Receiver.onTransferReceived.selector
         );
       }
     } else {

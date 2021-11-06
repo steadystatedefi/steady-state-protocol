@@ -5,5 +5,6 @@ import '../dependencies/openzeppelin/contracts/Address.sol';
 import '../dependencies/openzeppelin/contracts/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
+import '../interfaces/IInsuredPool.sol';
 
-abstract contract InsuredPoolBase {}
+abstract contract InsuredPoolBase is IInsuredPool {}
