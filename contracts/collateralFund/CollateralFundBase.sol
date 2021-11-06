@@ -10,12 +10,11 @@ import '../tools/math/WadRayMath.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 
 //TODO: is IERC20
-abstract contract CollateralFund {
+abstract contract CollateralFundBase {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
 
   IPriceOracle private oracle;
-  //mapping(address=>uint) private ccBalances;     //TODO: ERC1363
 
   // Maps where the owner has invested out their $CC. The [owner][address(0)] is their balance (uninvested)
   // TODO: If 1 IC = 1 invested CC then only need to store balance of uninvested CC (not double map)
@@ -33,6 +32,8 @@ abstract contract CollateralFund {
   //This is a list of all assets that have been accumulated
   address[] private _assets;
 
+  constructor() {}
+
   function deposit(
     address asset,
     uint256 amount,
@@ -43,7 +44,7 @@ abstract contract CollateralFund {
     require(IERC20(asset).balanceOf(msg.sender) >= amount);
     require(IERC20(asset).allowance(msg.sender, address(this)) >= amount);
     //TODO: Assuming stablecoin
-    ccBalances[to][address(0)] += amount;
+    ccBalances[to][address(0)] += amount * _calculateAssetPrice(asset);
     _totalSupply += amount;
     depositTokens[asset].mint(to, amount);
   }
@@ -54,17 +55,16 @@ abstract contract CollateralFund {
     address to
   ) external {
     require(address(depositTokens[asset]) != address(0), 'Not accepting this token');
-    //TODO: Must check price and not assume stablecoin
     require(depositTokens[asset].balanceOf(msg.sender) >= amount);
-    require(ccBalances[msg.sender][address(0)] >= amount);
-
     (uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
     require(hf > 1);
-    //TODO: MAX_INT check
-    require((balance - int256(oracle.getAssetPrice(asset) * amount) > 0));
+    uint256 price = _calculateAssetPrice(asset);
+    require(ccBalances[msg.sender][address(0)] >= price * amount);
 
+    //TODO: MAX_INT check
+    require((balance - int256(price * amount) > 0));
     depositTokens[asset].burnFrom(msg.sender, amount);
-    ccBalances[msg.sender][address(0)] -= amount;
+    ccBalances[msg.sender][address(0)] -= price * amount;
     _totalSupply -= amount;
 
     IERC20(depositTokens[asset].getUnderlying()).transfer(to, amount);
@@ -110,6 +110,10 @@ abstract contract CollateralFund {
 
   function declineCoverageFrom(address insurer) external {
     IInsurerPool(insurer).onCoverageDeclined(msg.sender);
+  }
+
+  function _calculateAssetPrice(address a) internal virtual returns (uint256) {
+    return oracle.getAssetPrice(a);
   }
 
   function _healthFactor(uint256 depositValue, uint256 debtValue) internal pure returns (uint256 hf, int256 balance) {
