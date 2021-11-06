@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../dependencies/openzeppelin/contracts/Address.sol';
-import '../dependencies/openzeppelin/contracts/IERC20.sol';
-import '../dependencies/openzeppelin/contracts/SafeERC20.sol';
+import '@openzeppelin/contracts/utils/Address.sol';
 import '../interfaces/ISweeper.sol';
+import './tokens/IERC20.sol';
+import './SafeERC20.sol';
 import './Errors.sol';
 
 abstract contract SweepBase is ISweeper {

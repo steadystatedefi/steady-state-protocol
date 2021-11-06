@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../../dependencies/openzeppelin/contracts/IERC20.sol';
+import '../../tools/tokens/IERC20.sol';
 
 abstract contract ERC20TransferBase is IERC20 {
   event Transfer(address indexed from, address indexed to, uint256 value);
