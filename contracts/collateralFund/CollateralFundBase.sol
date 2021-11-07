@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import '../dependencies/IERC20Mintable.sol';
 import '../dependencies/IERC1363Receiver.sol';
 import '../interfaces/ICollateralFund.sol';
 import '../interfaces/IInsurerPool.sol';
@@ -20,12 +19,12 @@ abstract contract CollateralFundBase {
   uint256 private _investedSupply;
 
   /// @dev Map of an ERC20 to it's corresponding depositToken (0 address means not included)
-  mapping(address => IDepositToken) private depositTokens;
-  address[] private depositTokenList;
+  mapping(address => IDepositToken) internal depositTokens;
+  address[] internal depositTokenList;
 
   /// @dev whitelist of *active* Insurer Pools
-  mapping(address => bool) private insurerWhitelist;
-  address[] private insurers;
+  mapping(address => bool) internal insurerWhitelist;
+  address[] internal insurers;
 
   //This is a list of all assets that have been accumulated
   address[] private _assets;
@@ -41,7 +40,7 @@ abstract contract CollateralFundBase {
     require(address(depositTokens[asset]) != address(0), 'Not accepting this token');
     require(IERC20(asset).balanceOf(msg.sender) >= amount);
     require(IERC20(asset).allowance(msg.sender, address(this)) >= amount);
-    //TODO: Assuming stablecoin
+
     ccBalance[to] += amount * _calculateAssetPrice(asset);
     _totalSupply += amount;
     depositTokens[asset].mint(to, amount);
@@ -70,7 +69,7 @@ abstract contract CollateralFundBase {
   }
 
   function invest(address insurer, uint256 amount) external {
-    require(insurerWhitelist[insurer]);
+    this.transfer(insurer, amount);
     bytes4 retval = IInsurerPool(insurer).onTransferReceived(address(this), msg.sender, amount, bytes(''));
     require(retval == IERC1363Receiver(insurer).onTransferReceived.selector);
     _investedSupply += amount;
@@ -100,6 +99,8 @@ abstract contract CollateralFundBase {
 
   function addInsurer(address insurer) external virtual returns (bool);
 
+  /*** EXTERNAL VIEWS ***/
+
   function balanceOf(address account) external view returns (uint256) {
     return ccBalance[account];
   }
@@ -116,11 +117,14 @@ abstract contract CollateralFundBase {
     return _investedSupply;
   }
 
+  //TODO: What is performance exactly? How do we calculate this if users are receiving different assets?
   function collateralPerformance() external view returns (uint256 rate, uint256 accumulated) {}
 
   function getReserveAssets() external view returns (address[] memory assets, address[] memory _depositTokens) {
     return (assets, depositTokenList);
   }
+
+  /*** INTERNAL FUNCTIONS ***/
 
   function _calculateAssetPrice(address a) internal virtual returns (uint256) {
     return oracle.getAssetPrice(a);

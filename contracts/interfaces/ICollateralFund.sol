@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../dependencies/IERC20Mintable.sol';
+
 interface ICollateralFund {
   /// @dev mints relevant IDepositToken, increases healthFactor and collateral balance ($CC)
   function deposit(
@@ -28,16 +30,16 @@ interface ICollateralFund {
     bytes calldata params
   ) external;
 
+  /// @dev similar to invest() function for user, can only transfer to insurer pools. Can't push healthFactor below 1.
+  /// An insurer pool can transfer to both user and insured
+  /// An insured pool - TBC
+  function transfer(address to, uint256 amount) external returns (uint256);
+
   /// @dev positive collateral balance ($CC), on negative returns zero
   function balanceOf(address account) external view returns (uint256);
 
   /// @dev invested collateral ($CC) plus any positive surplus from fund's liquidity, can not be less than investedCollateral()
   function totalSupply() external view returns (uint256);
-
-  /// @dev similar to invest() function for user, can only transfer to insurer pools. Can't push healthFactor below 1.
-  /// An insurer pool can transfer to both user and insured
-  /// An insured pool - TBC
-  function transfer(address to, uint256 amount) external view returns (uint256);
 
   /// @dev healthFactor and signed balance. healthFactor is in RAY
   function healthFactorOf(address account) external view returns (uint256 hf, int256 balance);
@@ -56,6 +58,6 @@ interface ICollateralFund {
 }
 
 /// @dev ERC20 that represents a deposit of the given underlying. Can be transferred, but only while healthFactor stays above 1
-interface IDepositToken {
+interface IDepositToken is IERC20Mintable {
   function getUnderlying() external view returns (address);
 }
