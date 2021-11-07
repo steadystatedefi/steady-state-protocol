@@ -15,11 +15,9 @@ abstract contract CollateralFundBase {
   using WadRayMath for uint256;
 
   IPriceOracle private oracle;
-
-  // Maps where the owner has invested out their $CC. The [owner][address(0)] is their balance (uninvested)
-  // TODO: If 1 IC = 1 invested CC then only need to store balance of uninvested CC (not double map)
-  mapping(address => mapping(address => uint256)) private ccBalances;
+  mapping(address => uint256) private ccBalance;
   uint256 private _totalSupply;
+  uint256 private _investedSupply;
 
   /// @dev Map of an ERC20 to it's corresponding depositToken (0 address means not included)
   mapping(address => IDepositToken) private depositTokens;
@@ -44,7 +42,7 @@ abstract contract CollateralFundBase {
     require(IERC20(asset).balanceOf(msg.sender) >= amount);
     require(IERC20(asset).allowance(msg.sender, address(this)) >= amount);
     //TODO: Assuming stablecoin
-    ccBalances[to][address(0)] += amount * _calculateAssetPrice(asset);
+    ccBalance[to] += amount * _calculateAssetPrice(asset);
     _totalSupply += amount;
     depositTokens[asset].mint(to, amount);
   }
@@ -59,13 +57,14 @@ abstract contract CollateralFundBase {
     (uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
     require(hf > 1);
     uint256 price = _calculateAssetPrice(asset);
-    require(ccBalances[msg.sender][address(0)] >= price * amount);
+    require(ccBalance[msg.sender] >= price * amount);
 
     //TODO: MAX_INT check
     require((balance - int256(price * amount) > 0));
     depositTokens[asset].burnFrom(msg.sender, amount);
-    ccBalances[msg.sender][address(0)] -= price * amount;
+    ccBalance[msg.sender] -= price * amount;
     _totalSupply -= amount;
+    _investedSupply -= amount;
 
     IERC20(depositTokens[asset].getUnderlying()).transfer(to, amount);
   }
@@ -74,10 +73,11 @@ abstract contract CollateralFundBase {
     require(insurerWhitelist[insurer]);
     bytes4 retval = IInsurerPool(insurer).onTransferReceived(address(this), msg.sender, amount, bytes(''));
     require(retval == IERC1363Receiver(insurer).onTransferReceived.selector);
+    _investedSupply += amount;
   }
 
   function transfer(address to, uint256 amount) external returns (uint256) {
-    require(ccBalances[msg.sender][address(0)] >= amount);
+    require(ccBalance[msg.sender] >= amount);
     if (!insurerWhitelist[msg.sender]) {
       require(insurerWhitelist[to]);
     }
@@ -86,14 +86,22 @@ abstract contract CollateralFundBase {
     //TODO: MAX_INT check
     require(balance - int256(amount) > 0);
 
-    ccBalances[msg.sender][address(0)] -= amount;
-    ccBalances[to][address(0)] += amount;
+    ccBalance[msg.sender] -= amount;
+    ccBalance[to] += amount;
 
     return amount;
   }
 
+  function declineCoverageFrom(address insurer) external {
+    IInsurerPool(insurer).onCoverageDeclined(msg.sender);
+  }
+
+  function addDepositToken(address asset) external virtual returns (bool);
+
+  function addInsurer(address insurer) external virtual returns (bool);
+
   function balanceOf(address account) external view returns (uint256) {
-    return ccBalances[account][address(0)];
+    return ccBalance[account];
   }
 
   function totalSupply() external view returns (uint256) {
@@ -104,12 +112,14 @@ abstract contract CollateralFundBase {
     _healthFactor(_assetValue(account), _debtValue(account));
   }
 
-  function getReserveAssets() external view returns (address[] memory assets, address[] memory _depositTokens) {
-    return (assets, depositTokenList);
+  function investedCollateral() external view returns (uint256) {
+    return _investedSupply;
   }
 
-  function declineCoverageFrom(address insurer) external {
-    IInsurerPool(insurer).onCoverageDeclined(msg.sender);
+  function collateralPerformance() external view returns (uint256 rate, uint256 accumulated) {}
+
+  function getReserveAssets() external view returns (address[] memory assets, address[] memory _depositTokens) {
+    return (assets, depositTokenList);
   }
 
   function _calculateAssetPrice(address a) internal virtual returns (uint256) {
@@ -126,7 +136,8 @@ abstract contract CollateralFundBase {
 
   function _debtValue(address account) internal view returns (uint256 total) {
     for (uint256 i = 0; i < insurers.length; i++) {
-      total += ccBalances[account][insurers[i]];
+      (uint256 rate, ) = IInsurerPool(insurers[i]).exchangeRate();
+      total += IInsurerPool(insurers[i]).balanceOf(account).rayMul(rate); //TODO: Is this correct?
     }
   }
 
