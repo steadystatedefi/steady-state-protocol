@@ -8,7 +8,7 @@ import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
-  function internalSetServiceAccountStatus(address account, uint16 status)
+  function internalSetServiceAccountStatus(address account, uint32 status)
     internal
     override(InsuredBalancesBase, InsuredJoinBase)
   {
@@ -19,12 +19,12 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     internal
     view
     override(InsuredBalancesBase, InsuredJoinBase)
-    returns (uint16)
+    returns (uint32)
   {
     return InsuredBalancesBase.getAccountStatus(account);
   }
 
-  function internalIsAllowedHolder(uint16 status)
+  function internalIsAllowedHolder(uint32 status)
     internal
     view
     override(InsuredBalancesBase, InsuredJoinBase)
@@ -36,7 +36,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   //   function internalAllocateCoverageDemand(address target, uint256 amount, uint256 unitSize) internal virtual
   //     returns (uint256 amountToAdd, uint256 premiumRate);
 
-  //   function internalCoverageDemandAdded(address target, uint256 amount) internal virtual;
+  function internalCoverageDemandAdded(address target, uint256 amount) internal override {
+    InsuredBalancesBase.internalMint(target, amount, address(0));
+  }
 
   //   function internalInvest(
   //     uint256 amount,

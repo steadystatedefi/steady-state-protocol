@@ -73,8 +73,7 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
     uint112 accum;
     uint80 rate;
     uint32 updatedAt;
-    uint16 status;
-    //    uint16 reserved0;
+    uint32 status;
   }
   mapping(address => PremiumBalance) private _balances;
 
@@ -107,8 +106,34 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
     }
 
     require(premiumRate > 0 && premiumRate >= minPremiumRate);
-
+    amount = amount.wadMul(premiumRate);
+    if (amount == 0) {
+      return (unusedAmount, 0);
+    }
     unusedAmount -= amount;
+
+    internalMint(investor, amount, holder);
+    return (unusedAmount, amount);
+  }
+
+  function internalMint(
+    address account,
+    uint256 amount,
+    address holder
+  ) internal virtual {
+    require(amount <= type(uint80).max);
+    uint80 mintedAmount = uint80(amount);
+
+    if (holder != address(0)) {
+      require(internalIsAllowedHolder(_balances[holder].status));
+      _lockedBalances[holder][account] += mintedAmount;
+      _locks[account].locked += mintedAmount;
+    } else {
+      PremiumBalance memory b = _syncBalance(account);
+      b.rate += mintedAmount;
+      _balances[account] = b;
+    }
+
     {
       TotalBalance memory b = _syncTotalBalance();
       uint256 acc = amount + b.rate;
@@ -116,29 +141,9 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
       b.rate = uint96(acc);
       _totals = b;
     }
-
-    amount = amount.wadMul(premiumRate);
-    if (amount == 0) {
-      return (unusedAmount, 0);
-    }
-
-    require(amount <= type(uint80).max);
-    uint80 mintedAmount = uint80(amount);
-
-    if (holder != address(0)) {
-      require(internalIsAllowedHolder(_balances[holder].status));
-      _lockedBalances[holder][investor] += mintedAmount;
-      _locks[investor].locked += mintedAmount;
-    } else {
-      PremiumBalance memory b = _syncBalance(investor);
-      b.rate += mintedAmount;
-      _balances[investor] = b;
-    }
-
-    return (unusedAmount, mintedAmount);
   }
 
-  function internalIsAllowedHolder(uint16 status) internal view virtual returns (bool);
+  function internalIsAllowedHolder(uint32 status) internal view virtual returns (bool);
 
   function _syncBalance(address account) private view returns (PremiumBalance memory b) {
     b = _balances[account];
@@ -204,18 +209,17 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
 
   // TODO function internalReconcile() internal {}
 
-  function internalSetServiceAccountStatus(address account, uint16 status) internal virtual {
+  function internalSetServiceAccountStatus(address account, uint32 status) internal virtual {
     require(status > 0);
     PremiumBalance memory b = _balances[account];
     if (b.status == 0) {
-      require(b.updatedAt == 0);
       require(Address.isContract(account));
     }
 
     _balances[account].status = status;
   }
 
-  function getAccountStatus(address account) internal view virtual returns (uint16) {
+  function getAccountStatus(address account) internal view virtual returns (uint32) {
     return _balances[account].status;
   }
 
@@ -229,8 +233,8 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
     uint256 amount
   ) internal {
     PremiumBalance memory b = _syncBalance(from);
-    if (isHolder(b)) {
-      require(msg.sender == from);
+    if (isHolder(b) && msg.sender == from) {
+      // can only be done by a direct call of a holder
       _lockedBalances[from][to] = uint64(uint256(_lockedBalances[from][to]) - amount);
     } else {
       b.rate = uint64(uint256(b.rate) - amount);

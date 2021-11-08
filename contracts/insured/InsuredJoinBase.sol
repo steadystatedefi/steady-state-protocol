@@ -22,7 +22,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   function joinPool(IInsurerPool pool) external onlyAdmin {
     require(address(pool) != address(0));
-    uint16 status = getAccountStatus(address(pool));
+    uint32 status = getAccountStatus(address(pool));
 
     require(status == 0 || status == STATUS_UNKNOWN);
     internalSetServiceAccountStatus(msg.sender, STATUS_PENDING);
@@ -35,7 +35,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
   }
 
   function joinProcessed(bool accepted) external override {
-    uint16 status = getAccountStatus(msg.sender);
+    uint32 status = getAccountStatus(msg.sender);
     if (status != STATUS_PENDING) {
       require(status == STATUS_ACCEPTED);
       return;
@@ -49,7 +49,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
   }
 
   function pullCoverageDemand() external override returns (bool) {
-    uint16 status = getAccountStatus(msg.sender);
+    uint32 status = getAccountStatus(msg.sender);
     if (status > INDEX_MAX) {
       return false;
     }
@@ -59,7 +59,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
   }
 
   function pushCoverageDemandTo(IInsurerPool target, uint256 amount) external onlyAdmin {
-    uint16 status = getAccountStatus(address(target));
+    uint32 status = getAccountStatus(address(target));
     if (status != STATUS_ACCEPTED) {
       require(status > 0 && status <= INDEX_MAX);
       _pushCoverageDemand(target, status, amount);
@@ -70,9 +70,9 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   function _pushCoverageDemand(
     IInsurerPool target,
-    uint16 index,
+    uint32 index,
     uint256 amount
-  ) private returns (uint16) {
+  ) private returns (uint32) {
     if (_addCoverageDemandTo(target, amount)) {
       if (index > 0 && index <= INDEX_MAX) {
         return index;
@@ -128,11 +128,11 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   function internalCoverageDemandAdded(address target, uint256 amount) internal virtual;
 
-  function internalSetServiceAccountStatus(address account, uint16 status) internal virtual;
+  function internalSetServiceAccountStatus(address account, uint32 status) internal virtual;
 
-  function getAccountStatus(address account) internal view virtual returns (uint16);
+  function getAccountStatus(address account) internal view virtual returns (uint32);
 
-  function internalIsAllowedHolder(uint16 status) internal view virtual returns (bool) {
+  function internalIsAllowedHolder(uint32 status) internal view virtual returns (bool) {
     return status <= STATUS_ACCEPTED;
   }
 }
