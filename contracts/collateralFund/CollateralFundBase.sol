@@ -13,6 +13,11 @@ abstract contract CollateralFundBase {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
 
+  /*** EVENTS ***/
+  event Deposit(address _asset, uint256 _amt);
+  event Withdraw(address _asset, uint256 _amt);
+  event Invest(address _insurer, uint256 _amt);
+
   IPriceOracle private oracle;
   mapping(address => uint256) private ccBalance;
   uint256 private _totalSupply;
@@ -44,6 +49,8 @@ abstract contract CollateralFundBase {
     ccBalance[to] += amount * _calculateAssetPrice(asset);
     _totalSupply += amount;
     depositTokens[asset].mint(to, amount);
+
+    emit Deposit(asset, amount);
   }
 
   function withdraw(
@@ -66,6 +73,8 @@ abstract contract CollateralFundBase {
     _investedSupply -= amount;
 
     IERC20(depositTokens[asset].getUnderlying()).transfer(to, amount);
+
+    emit Withdraw(asset, amount);
   }
 
   function invest(address insurer, uint256 amount) external {
@@ -73,6 +82,8 @@ abstract contract CollateralFundBase {
     bytes4 retval = IInsurerPool(insurer).onTransferReceived(address(this), msg.sender, amount, bytes(''));
     require(retval == IERC1363Receiver(insurer).onTransferReceived.selector);
     _investedSupply += amount;
+
+    emit Invest(insurer, amount);
   }
 
   function transfer(address to, uint256 amount) external returns (uint256) {
