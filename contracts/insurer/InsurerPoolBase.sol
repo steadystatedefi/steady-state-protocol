@@ -27,6 +27,10 @@ abstract contract InsurerPoolBase is IInsurerPool, ERC1363ReceiverBase {
 
   mapping(address => Profile) private _profiles;
 
+  constructor(address collateral_) {
+    _collateral = collateral_;
+  }
+
   function collateral() external view override returns (address) {
     return _collateral;
   }
@@ -56,13 +60,13 @@ abstract contract InsurerPoolBase is IInsurerPool, ERC1363ReceiverBase {
     if (p.status == ProfileStatus.Investor) {
       p.investorBalance += uint128(value);
       _profiles[operator] = p;
-      internalInvest(operator, value, data);
+      internalHandleInvestment(operator, value, data);
       return;
     }
     revert();
   }
 
-  function internalInvest(
+  function internalHandleInvestment(
     address investor,
     uint256 value,
     bytes memory data

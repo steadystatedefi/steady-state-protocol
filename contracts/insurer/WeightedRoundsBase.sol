@@ -50,7 +50,7 @@ abstract contract WeightedRoundsBase {
   }
   mapping(uint64 => TimeMark) private _marks;
 
-  function coverageUnitSize() public view returns (uint256) {
+  function internalUnitSize() internal view returns (uint256) {
     return _unitSize;
   }
 

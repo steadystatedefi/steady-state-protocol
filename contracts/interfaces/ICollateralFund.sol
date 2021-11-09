@@ -37,7 +37,7 @@ interface ICollateralFund {
   /// @dev similar to invest() function for user, can only transfer to insurer pools. Can't push healthFactor below 1.
   /// An insurer pool can transfer to both user and insured
   /// An insured pool - TBC
-  function transfer(address to, uint256 amount) external view returns (uint256);
+  function transfer(address to, uint256 amount) external returns (bool);
 
   /// @dev healthFactor and signed balance. healthFactor is in RAY
   function healthFactorOf(address account) external view returns (uint256 hf, int256 balance);

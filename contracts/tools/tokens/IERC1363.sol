@@ -16,6 +16,19 @@ library ERC1363 {
    *   bytes4(keccak256('approveAndCall(address,uint256,bytes)'))
    */
   bytes4 internal constant TOKEN = 0xb0202a11;
+
+  function callReceiver(
+    address receiver,
+    address operator,
+    address from,
+    uint256 value,
+    bytes memory data
+  ) internal {
+    require(
+      IERC1363Receiver(receiver).onTransferReceived(operator, from, value, data) ==
+        IERC1363Receiver.onTransferReceived.selector
+    );
+  }
 }
 
 interface IERC1363Receiver {
