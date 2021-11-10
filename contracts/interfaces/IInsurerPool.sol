@@ -30,16 +30,13 @@ interface IInsurerPool is IInsurancePool {
   function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
-  function getCoverageDemand(address insured)
-    external
-    view
-    returns (uint256 availableExtraCoverage, DemandedCoverage memory);
+  function getCoverageDemand(address insured) external view returns (uint256 receivedCoverage, DemandedCoverage memory);
 
   /// @dev when charteredDemand is true and insured has incomplete demand, then this function will transfer $CC collected for the insured
   /// when charteredDemand is false or demand was fulfilled, then there is no need to call this function.
   function receiveDemandedCoverage(address insured)
     external
-    returns (uint256 receivedExtraCoverage, DemandedCoverage memory);
+    returns (uint256 receivedCoverage, DemandedCoverage memory);
 
   /// @dev amount of $IC tokens of a user. Weighted number of $IC tokens defines interest rate to be paid to the user
   function balanceOf(address account) external view returns (uint256);
@@ -51,7 +48,7 @@ interface IInsurerPool is IInsurancePool {
   function interestRate(address account) external view returns (uint256 rate, uint256 accumulatedRate);
 
   /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY) and goes down with every insurance claim
-  function exchangeRate() external view returns (uint256 rate, uint256 accumulatedRate);
+  function exchangeRate() external view returns (uint256);
 }
 
 struct DemandedCoverage {

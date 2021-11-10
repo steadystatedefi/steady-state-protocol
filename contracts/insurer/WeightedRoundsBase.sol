@@ -3,7 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/math/WadRayMath.sol';
 import '../interfaces/IInsurerPool.sol';
-import './Rounds.sol';
+import '../libraries/Rounds.sol';
 
 import 'hardhat/console.sol';
 
@@ -553,6 +553,20 @@ abstract contract WeightedRoundsBase {
     );
   }
 
+  function internalGetPremiumTotals() internal view returns (DemandedCoverage memory coverage) {
+    PartialState memory part = _partial;
+    if (part.batchNo == 0) return (coverage);
+
+    Rounds.Batch memory b = _batches[part.batchNo];
+    _collectPremiumTotals(part, b, coverage);
+
+    coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
+    coverage.pendingCovered = part.roundCoverage;
+
+    _finalizePremium(coverage);
+    coverage.totalCovered *= _unitSize;
+  }
+
   function internalGetTotals(uint256 loopLimit)
     internal
     view
@@ -610,21 +624,25 @@ abstract contract WeightedRoundsBase {
     bool openBatchUpdated;
     bool batchUpdated;
     bool premiumUpdated;
+    bool premiumRateUpdated;
     Rounds.CoveragePremium premium;
   }
 
   function internalAddCoverage(uint256 amount, uint256 loopLimit)
     internal
-    returns (uint256 remainingAmount, uint256 remainingLoopLimit)
+    returns (
+      uint256 remainingAmount,
+      uint256 remainingLoopLimit,
+      AddCoverageParams memory params
+    )
   {
     PartialState memory part = _partial;
 
     if (amount == 0 || loopLimit == 0 || part.batchNo == 0) {
-      return (amount, loopLimit);
+      return (amount, loopLimit, params);
     }
 
     Rounds.Batch memory b;
-    AddCoverageParams memory params;
     (amount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
     if (params.batchUpdated) {
       _batches[part.batchNo] = b;
@@ -637,7 +655,7 @@ abstract contract WeightedRoundsBase {
     }
     _partial = part;
     // console.log('partial3', part.batchNo, part.roundNo, part.roundCoverage);
-    return (amount, loopLimit);
+    return (amount, loopLimit, params);
   }
 
   function _addCoverage(
@@ -695,7 +713,9 @@ abstract contract WeightedRoundsBase {
           if (!params.premiumUpdated) {
             params.premium = _poolPremium;
           }
-          _updateTotalPremium(part.batchNo, params.premium, b);
+          if (_updateTotalPremium(part.batchNo, params.premium, b)) {
+            params.premiumRateUpdated = true;
+          }
           params.premiumUpdated = true;
         }
 
@@ -770,7 +790,7 @@ abstract contract WeightedRoundsBase {
     uint64 batchNo,
     Rounds.CoveragePremium memory premium,
     Rounds.Batch memory b
-  ) internal {
+  ) internal view returns (bool) {
     Rounds.Demand memory d;
     d.startBatchNo = batchNo;
     d.unitPerRound = 1;
@@ -783,17 +803,8 @@ abstract contract WeightedRoundsBase {
       b.roundPremiumRateSum,
       b.unitPerRound
     );
-
-    if (lastRate != premium.coveragePremiumRate) {
-      internalPremiumRateUpdated(premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt);
-    }
+    return lastRate != premium.coveragePremiumRate;
   }
-
-  function internalPremiumRateUpdated(
-    uint256 totalPremium,
-    uint256 totalRate,
-    uint32 updatedAt
-  ) internal virtual {}
 
   function internalUseNotReadyBatch(Rounds.Batch memory) internal virtual returns (bool) {
     return false;

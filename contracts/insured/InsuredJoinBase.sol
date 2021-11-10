@@ -49,7 +49,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
   }
 
   function pullCoverageDemand() external override returns (bool) {
-    uint32 status = getAccountStatus(msg.sender);
+    uint16 status = getAccountStatus(msg.sender);
     if (status > INDEX_MAX) {
       return false;
     }
@@ -59,7 +59,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
   }
 
   function pushCoverageDemandTo(IInsurerPool target, uint256 amount) external onlyAdmin {
-    uint32 status = getAccountStatus(address(target));
+    uint16 status = getAccountStatus(address(target));
     if (status != STATUS_ACCEPTED) {
       require(status > 0 && status <= INDEX_MAX);
       _pushCoverageDemand(target, status, amount);
@@ -70,9 +70,9 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   function _pushCoverageDemand(
     IInsurerPool target,
-    uint32 index,
+    uint16 index,
     uint256 amount
-  ) private returns (uint32) {
+  ) private returns (uint16) {
     if (_addCoverageDemandTo(target, amount)) {
       if (index > 0 && index <= INDEX_MAX) {
         return index;
@@ -128,11 +128,11 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   function internalCoverageDemandAdded(address target, uint256 amount) internal virtual;
 
-  function internalSetServiceAccountStatus(address account, uint32 status) internal virtual;
+  function internalSetServiceAccountStatus(address account, uint16 status) internal virtual;
 
-  function getAccountStatus(address account) internal view virtual returns (uint32);
+  function getAccountStatus(address account) internal view virtual returns (uint16);
 
-  function internalIsAllowedHolder(uint32 status) internal view virtual returns (bool) {
+  function internalIsAllowedHolder(uint16 status) internal view virtual returns (bool) {
     return status <= STATUS_ACCEPTED;
   }
 }
