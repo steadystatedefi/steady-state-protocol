@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import './InsurerPoolBase.sol';
@@ -8,9 +9,13 @@ import './WeightedRoundsBase.sol';
 
 abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   using WadRayMath for uint256;
+  using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
   uint256 private _excessCoverage;
+
+  uint64 private _maxAdvanceUnits = 1000;
+  uint16 private _minInsuredShare = 100; // 1%
 
   struct UserBalance {
     uint128 balance; // scaled
@@ -77,26 +82,68 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     return (params.receivedCoverage, coverage);
   }
 
+  function _roundMinMax() private pure returns (uint16 minUnitsPerRound, uint16 maxUnitsPerRound) {
+    minUnitsPerRound = 1; // TODO should depend on a number of insured pools with "hasMore" status
+    maxUnitsPerRound = 10; // TODO should depend of minUnitsPerRound and pool growth rate
+  }
+
   function internalRoundLimits(
     uint64 totalUnitsBeforeBatch,
+    uint24 batchRounds,
     uint64 demandedUnits,
-    uint256 maxShare
+    uint16 maxShare
   )
     internal
+    view
     override
     returns (
       uint16 maxAddUnitsPerRound,
       uint16 minUnitsPerRound,
       uint16 maxUnitsPerRound
     )
-  {}
+  {
+    uint16 minShare = _minInsuredShare;
+
+    uint256 units = (PercentageMath.ONE + (minShare >> 1)) / minShare;
+    if (totalUnitsBeforeBatch > units) {
+      units = totalUnitsBeforeBatch;
+    }
+
+    (minUnitsPerRound, maxUnitsPerRound) = _roundMinMax();
+
+    uint256 x = (units + uint256(minUnitsPerRound) * batchRounds).percentMul(maxShare < minShare ? minShare : maxShare);
+
+    if (x > demandedUnits) {
+      x -= demandedUnits;
+      maxAddUnitsPerRound = x >= type(uint16).max ? type(uint16).max : uint16(x);
+    }
+  }
 
   function internalBatchSplit(
-    uint24 batchRounds,
+    uint64 totalDemandedUnits,
     uint64 demandedUnits,
-    uint24 remainingUnits,
-    uint64 minUnits
-  ) internal override returns (uint24 splitRounds) {}
+    uint64 minUnits,
+    uint24 batchRounds,
+    uint24 remainingUnits
+  ) internal view override returns (uint24 splitRounds) {
+    if (batchRounds > 0) {
+      if (demandedUnits >= minUnits || demandedUnits + remainingUnits < minUnits) {
+        if (remainingUnits <= batchRounds >> 2) {
+          return 0;
+        }
+      }
+      return remainingUnits;
+    }
+
+    demandedUnits = _maxAdvanceUnits;
+    if (totalDemandedUnits >= demandedUnits) {
+      return 0;
+    }
+    (, uint16 maxUnitsPerRound) = _roundMinMax();
+    totalDemandedUnits = (totalDemandedUnits - demandedUnits) / maxUnitsPerRound;
+
+    return totalDemandedUnits > type(uint24).max ? type(uint24).max : uint24(totalDemandedUnits);
+  }
 
   function internalHandleInvestment(
     address investor,
@@ -181,7 +228,7 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   }
 
   function balanceOf(address account) external view override returns (uint256) {
-    return _balances[account].balance;
+    return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
   function scaledBalanceOf(address account) external view returns (uint256) {

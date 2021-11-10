@@ -39,8 +39,9 @@ contract MockWeightedRounds is WeightedRoundsBase {
 
   function internalRoundLimits(
     uint64 totalUnitsBeforeBatch,
+    uint24 batchRounds,
     uint64 demandedUnits,
-    uint256 maxShare
+    uint16 maxShare
   )
     internal
     view
@@ -54,6 +55,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
     totalUnitsBeforeBatch;
     demandedUnits;
     maxShare;
+    batchRounds;
     return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound);
   }
 
@@ -64,15 +66,17 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalBatchSplit(
-    uint24 batchRounds,
+    uint64 totalDemandedUnits,
     uint64 demandedUnits,
-    uint24 remainingUnits,
-    uint64 minUnits
+    uint64 minUnits,
+    uint24 batchRounds,
+    uint24 remainingUnits
   ) internal view override returns (uint24 splitRounds) {
     minUnits;
     batchRounds;
     demandedUnits;
     remainingUnits;
+    totalDemandedUnits;
     return _splitRounds <= type(uint24).max ? uint24(_splitRounds) : remainingUnits;
   }
 
