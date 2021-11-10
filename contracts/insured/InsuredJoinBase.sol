@@ -25,7 +25,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     uint32 status = getAccountStatus(address(pool));
 
     require(status == 0 || status == STATUS_UNKNOWN);
-    internalSetServiceAccountStatus(msg.sender, STATUS_PENDING);
+    internalSetServiceAccountStatus(address(pool), STATUS_PENDING);
 
     pool.requestJoin(address(this));
   }

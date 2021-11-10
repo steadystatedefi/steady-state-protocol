@@ -66,7 +66,6 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalBatchSplit(
-    uint64 totalDemandedUnits,
     uint64 demandedUnits,
     uint64 minUnits,
     uint24 batchRounds,
@@ -76,8 +75,19 @@ contract MockWeightedRounds is WeightedRoundsBase {
     batchRounds;
     demandedUnits;
     remainingUnits;
-    totalDemandedUnits;
     return _splitRounds <= type(uint24).max ? uint24(_splitRounds) : remainingUnits;
+  }
+
+  function internalBatchAppend(
+    uint64 totalUnitsBeforeBatch,
+    uint64 totalCoveredUnits,
+    uint32 openRounds,
+    uint64 unitCount
+  ) internal pure override returns (uint24 rounds) {
+    totalUnitsBeforeBatch;
+    totalCoveredUnits;
+    openRounds;
+    return unitCount > type(uint24).max ? type(uint24).max : uint24(unitCount);
   }
 
   function addCoverage(uint256 amount) external {

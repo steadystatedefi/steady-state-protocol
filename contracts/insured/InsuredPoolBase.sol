@@ -7,7 +7,17 @@ import '../tools/tokens/ERC1363ReceiverBase.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 
+import 'hardhat/console.sol';
+
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
+  uint256 private _totalDemand;
+  uint64 private _premiumRate;
+
+  constructor(uint256 totalDemand, uint64 premiumRate) {
+    _totalDemand = totalDemand;
+    _premiumRate = premiumRate;
+  }
+
   function internalSetServiceAccountStatus(address account, uint16 status)
     internal
     override(InsuredBalancesBase, InsuredJoinBase)
@@ -33,16 +43,39 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return InsuredJoinBase.internalIsAllowedHolder(status);
   }
 
-  //   function internalAllocateCoverageDemand(address target, uint256 amount, uint256 unitSize) internal virtual
-  //     returns (uint256 amountToAdd, uint256 premiumRate);
-
   function internalCoverageDemandAdded(address target, uint256 amount) internal override {
+    console.log('internalCoverageDemandAdded', target, amount, _totalDemand);
+    _totalDemand -= amount;
     InsuredBalancesBase.internalMint(target, amount, address(0));
   }
 
-  //   function internalInvest(
-  //     uint256 amount,
-  //     uint256 minAmount,
-  //     uint256 minPremiumRate
-  //   ) internal virtual returns (uint256 availableAmount, uint64 premiumRate);
+  function internalHandleDirectInvestment(
+    uint256 amount,
+    uint256 minAmount,
+    uint256
+  ) internal override returns (uint256 availableAmount, uint64 premiumRate) {
+    availableAmount = _totalDemand;
+    if (availableAmount > amount) {
+      _totalDemand = availableAmount - amount;
+      availableAmount = amount;
+    } else if (availableAmount > 0 && availableAmount >= minAmount) {
+      _totalDemand = 0;
+    } else {
+      availableAmount = 0;
+    }
+    return (availableAmount, _premiumRate);
+  }
+
+  function internalAllocateCoverageDemand(
+    address target,
+    uint256 amount,
+    uint256 unitSize
+  ) internal view override returns (uint256 amountToAdd, uint256 premiumRate) {
+    console.log('internalAllocateCoverageDemand', target, amount, unitSize);
+    console.log('internalAllocateCoverageDemand', _totalDemand, _premiumRate);
+    target;
+    amount;
+    unitSize;
+    return (_totalDemand, _premiumRate);
+  }
 }

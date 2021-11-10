@@ -40,6 +40,16 @@ abstract contract InsurerPoolBase is IInsurerPool, ERC1363ReceiverBase {
     _;
   }
 
+  modifier onlyActiveInsured() {
+    require(_profiles[msg.sender].status == ProfileStatus.InsuredAccepted);
+    _;
+  }
+
+  modifier onlyInsured() {
+    require(isKnownInsured(_profiles[msg.sender].status));
+    _;
+  }
+
   /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
   /// mints $IC tokens when $CC is received from a user
   function internalReceiveTransfer(

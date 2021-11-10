@@ -90,13 +90,13 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
   ) private returns (uint256 unusedAmount, uint256) {
     unusedAmount = amount;
     uint64 premiumRate;
-    (amount, premiumRate) = internalInvest(amount, minAmount, minPremiumRate);
-    require(amount >= minAmount);
+    (amount, premiumRate) = internalHandleDirectInvestment(amount, minAmount, minPremiumRate);
     if (amount == 0) {
       return (unusedAmount, 0);
     }
-
+    require(amount >= minAmount);
     require(premiumRate > 0 && premiumRate >= minPremiumRate);
+
     amount = amount.wadMul(premiumRate);
     if (amount == 0) {
       return (unusedAmount, 0);
@@ -136,7 +136,7 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
     return _balances[account].sync(uint32(block.timestamp));
   }
 
-  function internalInvest(
+  function internalHandleDirectInvestment(
     uint256 amount,
     uint256 minAmount,
     uint256 minPremiumRate

@@ -7,6 +7,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const ratePerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
+  const poolDemand = 10000 * unitSize;
   let pool: MockWeightedPool;
   let fund: MockCollateralFund;
   let insureds: MockInsuredPool[] = [];
@@ -14,9 +15,9 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   before(async () => {
     fund = await Factories.MockCollateralFund.deploy();
     pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize);
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit));
   });
 
   enum ProfileStatus {
@@ -32,7 +33,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
   it('Join weighted pool', async () => {
     for (const insured of insureds) {
-      await pool.requestJoin(insured.address);
+      await insured.joinPool(pool.address);
       expect(await pool.statusOf(insured.address)).eq(ProfileStatus.InsuredAccepted);
     }
   });
