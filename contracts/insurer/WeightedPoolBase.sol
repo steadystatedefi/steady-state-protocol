@@ -363,8 +363,16 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
       x = (x - demandedUnits + (batchRounds >> 1)) / batchRounds;
       maxAddUnitsPerRound = x >= type(uint16).max ? type(uint16).max : uint16(x);
     }
-    console.log('internalRoundLimits-3', maxAddUnitsPerRound);
-    return (maxAddUnitsPerRound, params.minUnitsPerRound, params.maxUnitsPerRound);
+
+    x = maxAddUnitsPerRound + unitPerRound;
+    if (params.maxUnitsPerRound >= x) {
+      x = params.maxUnitsPerRound;
+    } else if (x > type(uint16).max) {
+      x = type(uint16).max;
+    }
+
+    console.log('internalRoundLimits-3', maxAddUnitsPerRound, x);
+    return (maxAddUnitsPerRound, params.minUnitsPerRound, uint16(x));
   }
 
   function internalPrepareJoin(address insured) internal override {
