@@ -8,6 +8,10 @@ contract MockWeightedRounds is WeightedRoundsBase {
 
   constructor(uint256 unitSize) WeightedRoundsBase(unitSize) {}
 
+  function addInsured(address insured) external {
+    internalSetInsuredStatus(insured, InsuredStatus.Accepted);
+  }
+
   function addCoverageDemand(
     address insured,
     uint64 unitCount,

@@ -26,6 +26,10 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     insured1 = createRandomAddress();
     insured2 = createRandomAddress();
     insured3 = createRandomAddress();
+
+    await subj.addInsured(insured1);
+    await subj.addInsured(insured2);
+    await subj.addInsured(insured3);
   });
 
   const dumpState = async () => {
@@ -380,6 +384,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await subj.setRoundLimits(1, 2, 100);
     for (let i = 10; i > 0; i--) {
       const insured = createRandomAddress();
+      await subj.addInsured(insured);
       await subj.addCoverageDemand(insured, 100, RATE, false);
       await checkTotals();
     }

@@ -51,6 +51,14 @@ abstract contract WeightedRoundsBase {
   }
   mapping(uint64 => TimeMark) private _marks;
 
+  function internalSetInsuredStatus(address account, InsuredStatus status) internal {
+    _insureds[account].status = status;
+  }
+
+  function internalGetInsuredStatus(address account) internal view returns (InsuredStatus) {
+    return _insureds[account].status;
+  }
+
   function internalUnitSize() internal view returns (uint256) {
     return _unitSize;
   }
@@ -68,6 +76,8 @@ abstract contract WeightedRoundsBase {
   {
     // console.log('\ninternalAddCoverageDemand');
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
+    require(entry.status == InsuredStatus.Accepted);
+
     Rounds.Demand[] storage demands = _demands[params.insured];
 
     if (unitCount == 0 || params.loopLimit == 0) {
@@ -314,12 +324,7 @@ abstract contract WeightedRoundsBase {
     uint64 totalCoveredUnits,
     uint32 openRounds,
     uint64 unitCount
-  ) internal virtual returns (uint24 rounds) {
-    totalUnitsBeforeBatch;
-    totalCoveredUnits;
-    unitCount;
-    return openRounds < 100 ? 100 : 0;
-  }
+  ) internal virtual returns (uint24 rounds);
 
   function _splitBatch(uint64 batchNo, uint24 remainingRounds) private returns (uint64 newBatchNo) {
     if (remainingRounds == 0) {

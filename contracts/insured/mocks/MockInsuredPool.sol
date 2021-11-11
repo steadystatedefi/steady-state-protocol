@@ -9,4 +9,8 @@ contract MockInsuredPool is InsuredPoolBase {
     uint256 totalDemand,
     uint64 premiumRate
   ) InsuredBalancesBase(collateral_) InsuredPoolBase(totalDemand, premiumRate) {}
+
+  function riskLevelPct() external pure override returns (uint16) {
+    return 3000; // 30%
+  }
 }

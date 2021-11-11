@@ -20,21 +20,21 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit));
   });
 
-  enum ProfileStatus {
+  enum InsuredStatus {
     Unknown,
-    Investor,
-    InsuredUnknown,
-    InsuredRejected,
-    InsuredDeclined,
-    InsuredJoining,
-    InsuredAccepted,
-    InsuredBanned,
+    JoinCancelled,
+    JoinRejected,
+    JoinFailed,
+    Declined,
+    Joining,
+    Accepted,
+    Banned,
   }
 
   it('Join weighted pool', async () => {
     for (const insured of insureds) {
       await insured.joinPool(pool.address);
-      expect(await pool.statusOf(insured.address)).eq(ProfileStatus.InsuredAccepted);
+      expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
     }
   });
 });

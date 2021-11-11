@@ -9,6 +9,9 @@ interface IInsuredPool is IInsurancePool {
 
   /// @dev invoked by chartered pools to request more coverage demand
   function pullCoverageDemand() external returns (bool);
+
+  /// @dev risk level of this insured nominated in basis points, can't be zero
+  function riskLevelPct() external returns (uint16);
 }
 
 interface DInsuredPoolTransfer {

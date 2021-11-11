@@ -18,8 +18,8 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   uint16 private _minInsuredShare = 100; // 1%
 
   struct UserBalance {
-    uint128 balance; // scaled
     uint128 premiumBase;
+    uint128 balance; // scaled
   }
   mapping(address => UserBalance) private _balances;
   mapping(address => uint256) private _premiums;
@@ -139,17 +139,6 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     console.log('internalRoundLimits-3', maxAddUnitsPerRound, minUnitsPerRound, maxUnitsPerRound);
   }
 
-  function internalHandleInvestment(
-    address investor,
-    uint256 amount,
-    bytes memory data
-  ) internal override {
-    if (data.length > 0) {
-      abi.decode(data, ());
-    }
-    internalMintForCoverage(investor, amount);
-  }
-
   function _beforeBalanceUpdate(address account)
     private
     returns (UserBalance memory b, Balances.RateAcc memory totals)
@@ -179,21 +168,21 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   }
 
   function internalMintForCoverage(address account, uint256 coverageAmount) internal {
-    require(coverageAmount > 0);
-
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
     uint256 excess = _excessCoverage;
-    (uint256 newExcess, , AddCoverageParams memory params) = super.internalAddCoverage(
-      coverageAmount + excess,
-      type(uint256).max
-    );
-    if (newExcess != excess) {
-      _excessCoverage = newExcess;
-    }
+    if (coverageAmount > 0 || excess > 0) {
+      (uint256 newExcess, , AddCoverageParams memory params) = super.internalAddCoverage(
+        coverageAmount + excess,
+        type(uint256).max
+      );
+      if (newExcess != excess) {
+        _excessCoverage = newExcess;
+      }
 
-    if (params.premiumRateUpdated || excess != 0 || newExcess != 0) {
-      totals = _afterBalanceUpdate(newExcess, totals);
+      if (params.premiumRateUpdated || excess != 0 || newExcess != 0) {
+        totals = _afterBalanceUpdate(newExcess, totals);
+      }
     }
 
     uint256 amount = coverageAmount.rayDiv(exchangeRate()) + b.balance;
@@ -203,8 +192,6 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   }
 
   function internalBurn(address account, uint256 amount) internal returns (uint256 coverageAmount) {
-    require(amount > 0);
-
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
     if (amount == type(uint256).max) {
       (amount, b.balance) = (b.balance, 0);
@@ -212,9 +199,11 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
       b.balance = uint128(b.balance - amount);
     }
 
-    coverageAmount = amount.rayMul(exchangeRate());
-    _excessCoverage -= coverageAmount;
-    totals = _afterBalanceUpdate(_excessCoverage, totals);
+    if (amount > 0) {
+      coverageAmount = amount.rayMul(exchangeRate());
+      _excessCoverage -= coverageAmount;
+      totals = _afterBalanceUpdate(_excessCoverage, totals);
+    }
 
     b.premiumBase = totals.accum;
     _balances[account] = b;
@@ -253,5 +242,65 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
 
   function exchangeRate() public pure override returns (uint256) {
     return WadRayMath.RAY;
+  }
+
+  function statusOf(address account) external view returns (InsuredStatus) {
+    return internalGetStatus(account);
+  }
+
+  function internalIsInvestor(address account) internal view override returns (bool) {
+    UserBalance memory b = _balances[account];
+    return b.premiumBase != 0 || b.balance != 0;
+  }
+
+  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
+    return super.internalGetInsuredStatus(account);
+  }
+
+  function internalSetStatus(address account, InsuredStatus status) internal override {
+    return super.internalSetInsuredStatus(account, status);
+  }
+
+  modifier onlyActiveInsured() {
+    require(internalGetStatus(msg.sender) == InsuredStatus.Accepted);
+    _;
+  }
+
+  modifier onlyInsured() {
+    require(internalGetStatus(msg.sender) > InsuredStatus.Unknown);
+    _;
+  }
+
+  /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
+  /// mints $IC tokens when $CC is received from a user
+  function internalReceiveTransfer(
+    address operator,
+    address,
+    uint256 value,
+    bytes calldata data
+  ) internal override onlyCollateralFund {
+    if (internalIsInvestor(operator)) {
+      if (value == 0) return;
+      internalHandleInvestment(operator, value, data);
+    } else {
+      InsuredStatus status = internalGetStatus(operator);
+      if (status != InsuredStatus.Unknown) {
+        // TODO return of funds from insured
+        Errors.notImplemented();
+        return;
+      }
+    }
+    internalHandleInvestment(operator, value, data);
+  }
+
+  function internalHandleInvestment(
+    address investor,
+    uint256 amount,
+    bytes memory data
+  ) internal virtual {
+    if (data.length > 0) {
+      abi.decode(data, ());
+    }
+    internalMintForCoverage(investor, amount);
   }
 }

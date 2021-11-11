@@ -28,9 +28,9 @@ library Rounds {
   struct InsuredEntry {
     uint64 latestBatchNo;
     uint64 demandedUnits;
-    uint16 maxShare;
     uint24 minUnits;
-    // uint24 riskLevel
+    uint16 maxShare;
+    InsuredStatus status;
   }
 
   struct Coverage {
@@ -80,4 +80,15 @@ library Rounds {
   function isReady(Batch memory b) internal pure returns (bool) {
     return b.state >= State.ReadyMin && b.state <= State.Ready;
   }
+}
+
+enum InsuredStatus {
+  Unknown,
+  JoinCancelled,
+  JoinRejected,
+  JoinFailed,
+  Declined,
+  Joining,
+  Accepted,
+  Banned
 }
