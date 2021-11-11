@@ -59,6 +59,24 @@ abstract contract WeightedRoundsBase {
     return _insureds[account].status;
   }
 
+  function internalSetInsuredParams(address account, Rounds.InsuredParams memory params) internal {
+    Rounds.InsuredEntry memory entry = _insureds[account];
+    entry.minUnits = params.minUnits;
+    entry.maxShare = params.maxShare;
+
+    _insureds[account] = entry;
+  }
+
+  function internalGetInsuredParams(address account)
+    internal
+    view
+    returns (InsuredStatus, Rounds.InsuredParams memory)
+  {
+    Rounds.InsuredEntry memory entry = _insureds[account];
+
+    return (entry.status, Rounds.InsuredParams({minUnits: entry.minUnits, maxShare: entry.maxShare}));
+  }
+
   function internalUnitSize() internal view returns (uint256) {
     return _unitSize;
   }
@@ -72,7 +90,9 @@ abstract contract WeightedRoundsBase {
 
   function internalAddCoverageDemand(uint64 unitCount, AddCoverageDemandParams memory params)
     internal
-    returns (uint64)
+    returns (
+      uint64 // remainingCount
+    )
   {
     // console.log('\ninternalAddCoverageDemand');
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
@@ -255,6 +275,7 @@ abstract contract WeightedRoundsBase {
     (uint16 maxShareUnitsPerRound, uint16 minUnitsPerRound, uint16 maxUnitsPerRound) = internalRoundLimits(
       b.totalUnitsBeforeBatch,
       b.rounds,
+      b.unitPerRound,
       entry.demandedUnits,
       entry.maxShare
     );
@@ -292,6 +313,7 @@ abstract contract WeightedRoundsBase {
   function internalRoundLimits(
     uint64 totalUnitsBeforeBatch,
     uint24 batchRounds,
+    uint16 unitPerRound,
     uint64 demandedUnits,
     uint16 maxShare
   )

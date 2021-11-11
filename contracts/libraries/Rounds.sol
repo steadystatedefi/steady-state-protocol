@@ -25,6 +25,11 @@ library Rounds {
     uint16 unitPerRound;
   }
 
+  struct InsuredParams {
+    uint24 minUnits;
+    uint16 maxShare;
+  }
+
   struct InsuredEntry {
     uint64 latestBatchNo;
     uint64 demandedUnits;

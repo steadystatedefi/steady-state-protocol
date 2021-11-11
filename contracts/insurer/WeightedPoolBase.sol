@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
+import '../interfaces/IInsuredPool.sol';
 import './InsurerPoolBase.sol';
 import './WeightedRoundsBase.sol';
 
@@ -11,11 +12,6 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
-
-  uint256 private _excessCoverage;
-
-  uint64 private _maxAdvanceUnits = 1000;
-  uint16 private _minInsuredShare = 100; // 1%
 
   struct UserBalance {
     uint128 premiumBase;
@@ -25,6 +21,40 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   mapping(address => uint256) private _premiums;
 
   Balances.RateAcc private _totalRate;
+
+  uint256 private _excessCoverage;
+
+  WeightedPoolParams private _params;
+
+  constructor() {
+    internalSetPoolParams(
+      WeightedPoolParams({
+        maxAdvanceUnits: 10000,
+        minAdvanceUnits: 1000,
+        riskWeightTarget: 1000, // 10%
+        minInsuredShare: 100, // 1%
+        maxInsuredShare: 4000, // 25%
+        maxUnitsPerRound: 20,
+        minUnitsPerRound: 20
+      })
+    );
+  }
+
+  function internalSetPoolParams(WeightedPoolParams memory params) private {
+    require(params.minUnitsPerRound > 0);
+    require(params.maxUnitsPerRound >= params.minUnitsPerRound);
+
+    require(params.maxAdvanceUnits >= params.minAdvanceUnits);
+    require(params.minAdvanceUnits >= params.maxUnitsPerRound);
+
+    require(params.minInsuredShare > 0);
+    require(params.maxInsuredShare > params.minInsuredShare);
+    require(params.maxInsuredShare <= PercentageMath.ONE);
+
+    require(params.riskWeightTarget > 0);
+    require(params.riskWeightTarget < PercentageMath.ONE);
+    _params = params;
+  }
 
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
@@ -52,7 +82,7 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     hasMore;
     require(unitCount <= type(uint64).max);
 
-    return super.internalAddCoverageDemand(uint64(unitCount), params);
+    return unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
   }
 
   function cancelCoverageDemand(uint256 unitCount, bool hasMore)
@@ -96,47 +126,6 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     // TODO transfer coverage?
 
     return (params.receivedCoverage, coverage);
-  }
-
-  function _roundMinMax() private pure returns (uint16 minUnitsPerRound, uint16 maxUnitsPerRound) {
-    minUnitsPerRound = 1; // TODO should depend on a number of insured pools with "hasMore" status
-    maxUnitsPerRound = 10; // TODO should depend of minUnitsPerRound and pool growth rate
-  }
-
-  function internalRoundLimits(
-    uint64 totalUnitsBeforeBatch,
-    uint24 batchRounds,
-    uint64 demandedUnits,
-    uint16 maxShare
-  )
-    internal
-    view
-    override
-    returns (
-      uint16 maxAddUnitsPerRound,
-      uint16 minUnitsPerRound,
-      uint16 maxUnitsPerRound
-    )
-  {
-    uint16 minShare = _minInsuredShare;
-
-    console.log('internalRoundLimits-0', totalUnitsBeforeBatch, demandedUnits, batchRounds);
-    console.log('internalRoundLimits-1', maxShare, minShare);
-
-    uint256 units = (PercentageMath.ONE + (minShare >> 1)) / minShare;
-    if (totalUnitsBeforeBatch > units) {
-      units = totalUnitsBeforeBatch;
-    }
-
-    (minUnitsPerRound, maxUnitsPerRound) = _roundMinMax();
-
-    uint256 x = (units + uint256(minUnitsPerRound) * batchRounds).percentMul(maxShare < minShare ? minShare : maxShare);
-
-    if (x > demandedUnits) {
-      x = (x - demandedUnits + (batchRounds >> 1)) / batchRounds;
-      maxAddUnitsPerRound = x >= type(uint16).max ? type(uint16).max : uint16(x);
-    }
-    console.log('internalRoundLimits-3', maxAddUnitsPerRound, minUnitsPerRound, maxUnitsPerRound);
   }
 
   function _beforeBalanceUpdate(address account)
@@ -303,4 +292,105 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     }
     internalMintForCoverage(investor, amount);
   }
+
+  function internalBatchAppend(
+    uint64,
+    uint64,
+    uint32 openRounds,
+    uint64 unitCount
+  ) internal view override returns (uint24) {
+    WeightedPoolParams memory params = _params;
+    uint256 min = params.minAdvanceUnits / params.maxUnitsPerRound;
+    uint256 max = params.maxAdvanceUnits / params.maxUnitsPerRound;
+    if (min > type(uint24).max) {
+      min = type(uint24).max;
+      if (openRounds + min > max) {
+        return 0;
+      }
+    }
+
+    if (openRounds + min > max) {
+      if (min < (max >> 1) || openRounds > (max >> 1)) {
+        return 0;
+      }
+    }
+
+    if (unitCount > type(uint24).max) {
+      unitCount = type(uint24).max;
+    }
+
+    if ((unitCount /= uint64(min)) <= 1) {
+      return uint24(min);
+    }
+
+    if ((max = (max - openRounds) / min) < unitCount) {
+      min *= max;
+    } else {
+      min *= unitCount;
+    }
+    require(min > 0); // TODO sanity check - remove later
+
+    return uint24(min);
+  }
+
+  function internalRoundLimits(
+    uint64 totalUnitsBeforeBatch,
+    uint24 batchRounds,
+    uint16 unitPerRound,
+    uint64 demandedUnits,
+    uint16 maxShare
+  )
+    internal
+    view
+    override
+    returns (
+      uint16 maxAddUnitsPerRound,
+      uint16, // minUnitsPerRound,
+      uint16 // maxUnitsPerRound
+    )
+  {
+    require(maxShare > 0);
+    WeightedPoolParams memory params = _params;
+
+    console.log('internalRoundLimits-0', totalUnitsBeforeBatch, demandedUnits, batchRounds);
+    console.log('internalRoundLimits-1', unitPerRound, params.minUnitsPerRound, maxShare);
+
+    uint256 x = (totalUnitsBeforeBatch +
+      uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound) *
+      batchRounds).percentMul(maxShare);
+
+    if (x > demandedUnits) {
+      x = (x - demandedUnits + (batchRounds >> 1)) / batchRounds;
+      maxAddUnitsPerRound = x >= type(uint16).max ? type(uint16).max : uint16(x);
+    }
+    console.log('internalRoundLimits-3', maxAddUnitsPerRound);
+    return (maxAddUnitsPerRound, params.minUnitsPerRound, params.maxUnitsPerRound);
+  }
+
+  function internalPrepareJoin(address insured) internal override {
+    WeightedPoolParams memory params = _params;
+    InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
+
+    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(params.riskWeightTarget);
+    if (maxShare >= params.maxInsuredShare) {
+      maxShare = params.maxInsuredShare;
+    } else if (maxShare < params.minInsuredShare) {
+      maxShare = params.minInsuredShare;
+    }
+
+    super.internalSetInsuredParams(
+      insured,
+      Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)})
+    );
+  }
+}
+
+struct WeightedPoolParams {
+  uint32 maxAdvanceUnits;
+  uint32 minAdvanceUnits;
+  uint16 riskWeightTarget;
+  uint16 minInsuredShare;
+  uint16 maxInsuredShare;
+  uint16 minUnitsPerRound;
+  uint16 maxUnitsPerRound;
 }

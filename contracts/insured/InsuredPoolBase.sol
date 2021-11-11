@@ -12,10 +12,20 @@ import 'hardhat/console.sol';
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
   uint256 private _totalDemand;
   uint64 private _premiumRate;
+  InsuredParams private _params;
 
   constructor(uint256 totalDemand, uint64 premiumRate) {
     _totalDemand = totalDemand;
     _premiumRate = premiumRate;
+  }
+
+  function internalSetInsuredParams(InsuredParams memory params) internal {
+    require(params.riskWeightPct > 0);
+    _params = params;
+  }
+
+  function insuredParams() public view override returns (InsuredParams memory) {
+    return _params;
   }
 
   function internalSetServiceAccountStatus(address account, uint16 status)

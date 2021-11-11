@@ -42,24 +42,21 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalRoundLimits(
-    uint64 totalUnitsBeforeBatch,
-    uint24 batchRounds,
-    uint64 demandedUnits,
-    uint16 maxShare
+    uint64,
+    uint24,
+    uint16,
+    uint64,
+    uint16
   )
     internal
     view
     override
     returns (
-      uint16 maxAddUnitsPerRound,
-      uint16 minUnitsPerRound,
-      uint16 maxUnitsPerRound
+      uint16,
+      uint16,
+      uint16
     )
   {
-    totalUnitsBeforeBatch;
-    demandedUnits;
-    maxShare;
-    batchRounds;
     return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound);
   }
 
@@ -70,27 +67,20 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalBatchSplit(
-    uint64 demandedUnits,
-    uint64 minUnits,
-    uint24 batchRounds,
+    uint64,
+    uint64,
+    uint24,
     uint24 remainingUnits
-  ) internal view override returns (uint24 splitRounds) {
-    minUnits;
-    batchRounds;
-    demandedUnits;
-    remainingUnits;
+  ) internal view override returns (uint24) {
     return _splitRounds <= type(uint24).max ? uint24(_splitRounds) : remainingUnits;
   }
 
   function internalBatchAppend(
-    uint64 totalUnitsBeforeBatch,
-    uint64 totalCoveredUnits,
-    uint32 openRounds,
+    uint64,
+    uint64,
+    uint32,
     uint64 unitCount
-  ) internal pure override returns (uint24 rounds) {
-    totalUnitsBeforeBatch;
-    totalCoveredUnits;
-    openRounds;
+  ) internal pure override returns (uint24) {
     return unitCount > type(uint24).max ? type(uint24).max : uint24(unitCount);
   }
 
