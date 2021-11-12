@@ -19,7 +19,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   let totalPremium = BigNumber.from(0);
   let totalPremiumRate = BigNumber.from(0);
   let totalPremiumAt = 0;
-  let overrides = { gasLimit: undefined as number };
+  let overrides = { gasLimit: undefined as undefined | number };
 
   before(async () => {
     if (testEnv.underCoverage) {
@@ -296,7 +296,11 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   });
 
   it('Extend coverage demand by insured2 then add coverage', async () => {
+    await dumpState();
+
     await subj.addCoverageDemand(insured2, 100, RATE, false);
+
+    await dumpState();
 
     {
       const t = await subj.getTotals();

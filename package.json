@@ -24,6 +24,7 @@
     "compile": "SKIP_LOAD=true TS_NODE_TRANSPILE_ONLY=1 hardhat compile",
     "test": "TS_NODE_TRANSPILE_ONLY=1 hardhat test ./test-suites/test-main/*.spec.ts",
     "test-example": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/example.spec.ts",
+    "test-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-rounds.spec.ts",
 
     "test-insurance": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/insurance.spec.ts",
 
