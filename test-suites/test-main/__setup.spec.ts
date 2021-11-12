@@ -33,7 +33,7 @@ before(async () => {
     await buildTestEnv(deployer, secondaryWallet);
   }
 
-  await initializeMakeSuite();
+  await initializeMakeSuite(rawBRE.network.name == 'coverage');
   console.log('\n***************');
   console.log('Setup and snapshot finished');
   console.log('***************\n');

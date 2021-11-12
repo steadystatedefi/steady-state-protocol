@@ -19,8 +19,13 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   let totalPremium = BigNumber.from(0);
   let totalPremiumRate = BigNumber.from(0);
   let totalPremiumAt = 0;
+  let overrides = { gasLimit: undefined as number };
 
   before(async () => {
+    if (testEnv.underCoverage) {
+      overrides.gasLimit = 1000000;
+    }
+
     subj = await Factories.MockWeightedRounds.deploy(unitSize);
     await subj.setRoundLimits(1, 2, 3);
     insured1 = createRandomAddress();
@@ -189,7 +194,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   it('Add partial coverage', async () => {
     const roundSize = 3 * unitSize;
     const halfRoundSize = roundSize / 2;
-    await subj.addCoverage(halfRoundSize);
+    await subj.addCoverage(halfRoundSize, overrides);
 
     {
       const t = await subj.getTotals();
@@ -239,7 +244,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   });
 
   it('Add more coverage', async () => {
-    await subj.addCoverage((100 - 11) * 3 * unitSize);
+    await subj.addCoverage((100 - 11) * 3 * unitSize, overrides);
 
     {
       const t = await subj.getTotals();
@@ -260,7 +265,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   });
 
   it('Add coverage when one insured is full', async () => {
-    await subj.addCoverage(300 * unitSize);
+    await subj.addCoverage(300 * unitSize, overrides);
 
     {
       const t = await subj.getTotals();
@@ -518,6 +523,6 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     expect(await subj.receivedCoverage()).eq(expected.add(info0.availableCoverage));
 
-    await subj.receiveDemandedCoverage(insured3, 65535, { gasLimit: 45000 }); // there should be nothing to update
+    await subj.receiveDemandedCoverage(insured3, 65535, testEnv.underCoverage ? overrides : { gasLimit: 45000 }); // there should be nothing to update
   });
 });

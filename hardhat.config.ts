@@ -94,7 +94,6 @@ const buidlerConfig: HardhatUserConfig = {
     coverage: {
       url: 'http://localhost:8555',
       chainId: COV_CHAINID,
-//      gasMultiplier: 50,
     },
     kovan: getCommonNetworkConfig(eEthereumNetwork.kovan, 42),
     ropsten: getCommonNetworkConfig(eEthereumNetwork.ropsten, 3),
