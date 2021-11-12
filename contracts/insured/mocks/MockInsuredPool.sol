@@ -7,13 +7,10 @@ contract MockInsuredPool is InsuredPoolBase {
   constructor(
     address collateral_,
     uint256 totalDemand,
-    uint64 premiumRate
+    uint64 premiumRate,
+    uint24 minUnitsPerInsurer,
+    uint16 riskWeightPct
   ) InsuredBalancesBase(collateral_) InsuredPoolBase(totalDemand, premiumRate) {
-    internalSetInsuredParams(
-      InsuredParams({
-        minUnitsPerInsurer: 10,
-        riskWeightPct: 1000 // 10%
-      })
-    );
+    internalSetInsuredParams(InsuredParams({minUnitsPerInsurer: minUnitsPerInsurer, riskWeightPct: riskWeightPct}));
   }
 }

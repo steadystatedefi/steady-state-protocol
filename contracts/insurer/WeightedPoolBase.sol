@@ -26,21 +26,7 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
 
   WeightedPoolParams private _params;
 
-  constructor() {
-    internalSetPoolParams(
-      WeightedPoolParams({
-        maxAdvanceUnits: 10000,
-        minAdvanceUnits: 1000,
-        riskWeightTarget: 1000, // 10%
-        minInsuredShare: 100, // 1%
-        maxInsuredShare: 4000, // 25%
-        maxUnitsPerRound: 20,
-        minUnitsPerRound: 20
-      })
-    );
-  }
-
-  function internalSetPoolParams(WeightedPoolParams memory params) private {
+  function internalSetPoolParams(WeightedPoolParams memory params) internal {
     require(params.minUnitsPerRound > 0);
     require(params.maxUnitsPerRound >= params.minUnitsPerRound);
 

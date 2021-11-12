@@ -15,9 +15,13 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   before(async () => {
     fund = await Factories.MockCollateralFund.deploy();
     pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize);
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit));
+
+    const minUnits = 10;
+    const riskWeight = 1000; // 10%
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, riskWeight));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, 10));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, riskWeight));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, riskWeight));
   });
 
   enum InsuredStatus {
