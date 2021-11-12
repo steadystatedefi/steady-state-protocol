@@ -67,6 +67,7 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     params.loopLimit = ~params.loopLimit;
     hasMore;
     require(unitCount <= type(uint64).max);
+    console.log('premiumRate', premiumRate);
 
     return unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
   }
@@ -124,7 +125,7 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     if (b.balance > 0) {
       uint256 premiumDiff = totals.accum - b.premiumBase;
       if (premiumDiff > 0) {
-        _premiums[account] += b.balance * premiumDiff;
+        _premiums[account] += premiumDiff.rayMul(b.balance);
       }
     }
   }
@@ -135,10 +136,11 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
   {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     uint256 rate = coverage.premiumRate.rayMul(exchangeRate());
-    if (newExcess > 0) {
-      uint256 covered = coverage.totalCovered + coverage.pendingCovered;
-      rate = (rate * covered) / (newExcess + covered);
-    }
+    console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
+
+    rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
+
+    console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
     return _totalRate = totals.setRate(uint32(block.timestamp), rate);
   }
 
@@ -147,17 +149,14 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
 
     uint256 excess = _excessCoverage;
     if (coverageAmount > 0 || excess > 0) {
-      (uint256 newExcess, , AddCoverageParams memory params) = super.internalAddCoverage(
-        coverageAmount + excess,
-        type(uint256).max
-      );
+      (uint256 newExcess, , ) = super.internalAddCoverage(coverageAmount + excess, type(uint256).max);
       if (newExcess != excess) {
         _excessCoverage = newExcess;
       }
 
-      if (params.premiumRateUpdated || excess != 0 || newExcess != 0) {
-        totals = _afterBalanceUpdate(newExcess, totals);
-      }
+      // TODO avoid update when rate doesn't change
+      // if (params.premiumRateUpdated || excess != 0 || newExcess != 0) {
+      totals = _afterBalanceUpdate(newExcess, totals);
     }
 
     uint256 amount = coverageAmount.rayDiv(exchangeRate()) + b.balance;
@@ -207,9 +206,9 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     if (b.balance > 0) {
       uint256 premiumDiff = totals.accum - b.premiumBase;
       if (premiumDiff > 0) {
-        accumulated += b.balance * premiumDiff;
+        accumulated += uint256(b.balance).rayMul(premiumDiff);
       }
-      return (b.balance * totals.rate, accumulated);
+      return (uint256(b.balance).rayMul(totals.rate), accumulated);
     }
 
     return (0, accumulated);

@@ -674,7 +674,6 @@ abstract contract WeightedRoundsBase {
     bool openBatchUpdated;
     bool batchUpdated;
     bool premiumUpdated;
-    bool premiumRateUpdated;
     Rounds.CoveragePremium premium;
   }
 
@@ -759,9 +758,7 @@ abstract contract WeightedRoundsBase {
           if (!params.premiumUpdated) {
             params.premium = _poolPremium;
           }
-          if (_updateTotalPremium(part.batchNo, params.premium, b)) {
-            params.premiumRateUpdated = true;
-          }
+          _updateTotalPremium(part.batchNo, params.premium, b);
           params.premiumUpdated = true;
         }
 

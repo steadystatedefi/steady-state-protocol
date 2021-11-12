@@ -18,10 +18,12 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
     const minUnits = 10;
     const riskWeight = 1000; // 10%
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, riskWeight));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, 10));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, riskWeight));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, ratePerUnit, minUnits, riskWeight));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, 10));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
   });
 
   enum InsuredStatus {
@@ -35,10 +37,28 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     Banned,
   }
 
-  it('Join weighted pool', async () => {
+  it('Join pools', async () => {
     for (const insured of insureds) {
       await insured.joinPool(pool.address);
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
+    }
+  });
+
+  it('Add coverage', async () => {
+    for (const user of testEnv.users) {
+      await fund.connect(user).invest(pool.address, unitSize * 5);
+      const balance = await pool.balanceOf(user.address);
+      const interest = await pool.interestRate(user.address);
+      console.log(balance.toString(), interest.rate.toString(), interest.accumulated.toString());
+    }
+    // const totals = await pool.getTotals();
+    // console.log(totals);
+
+    console.log('==================');
+    for (const user of testEnv.users) {
+      const balance = await pool.balanceOf(user.address);
+      const interest = await pool.interestRate(user.address);
+      console.log(balance.toString(), interest.rate.toString(), interest.accumulated.toString());
     }
   });
 });
