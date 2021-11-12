@@ -75,7 +75,7 @@ const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArg
       const name = this.name();
       return name === undefined ? undefined : getFromJsonDb(name)?.address;
     }
-    
+
     get(signer?: Signer): TResult {
       const name = this.name();
       if (name === undefined) {
@@ -105,6 +105,9 @@ export const Factories = {
   PriceOracle: wrap(types.PriceOracleFactory),
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
+
+  CollateralFundStable: wrap(types.CollateralFundStableFactory),
+  MockStable: wrap(types.MockStableFactory),
 }
 
 const nameByFactory = (() => {
