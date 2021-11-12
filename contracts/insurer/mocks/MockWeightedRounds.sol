@@ -77,7 +77,6 @@ contract MockWeightedRounds is WeightedRoundsBase {
 
   function internalBatchAppend(
     uint64,
-    uint64,
     uint32,
     uint64 unitCount
   ) internal pure override returns (uint24) {

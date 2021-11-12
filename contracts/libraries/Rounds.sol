@@ -31,7 +31,7 @@ library Rounds {
   }
 
   struct InsuredEntry {
-    uint64 latestBatchNo;
+    uint64 nextBatchNo;
     uint64 demandedUnits;
     uint24 minUnits;
     uint16 maxShare;

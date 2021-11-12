@@ -295,7 +295,6 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
 
   function internalBatchAppend(
     uint64,
-    uint64,
     uint32 openRounds,
     uint64 unitCount
   ) internal view override returns (uint24) {
@@ -373,6 +372,22 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
 
     console.log('internalRoundLimits-3', maxAddUnitsPerRound, x);
     return (maxAddUnitsPerRound, params.minUnitsPerRound, uint16(x));
+  }
+
+  function internalBatchSplit(
+    uint64 demandedUnits,
+    uint64 minUnits,
+    uint24 batchRounds,
+    uint24 remainingUnits
+  ) internal pure override returns (uint24 splitRounds) {
+    // console.log('internalBatchSplit-0', demandedUnits, minUnits);
+    // console.log('internalBatchSplit-1', batchRounds, remainingUnits);
+    if (demandedUnits >= minUnits || demandedUnits + remainingUnits < minUnits) {
+      if (remainingUnits <= batchRounds >> 2) {
+        return 0;
+      }
+    }
+    return remainingUnits;
   }
 
   function internalPrepareJoin(address insured) internal override {

@@ -126,7 +126,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await subj.addCoverageDemand(insured1, 1000, RATE, false);
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(1);
+      expect(t.total.batchCount).eq(2);
       expect(t.total.openRounds).eq(1000);
       expect(t.total.usableRounds).eq(0);
       expect(t.total.totalCoverable).eq(0);
@@ -139,7 +139,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await subj.addCoverageDemand(insured2, 100, RATE, false);
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(2);
+      expect(t.total.batchCount).eq(3);
       expect(t.total.openRounds).eq(1000);
       expect(t.total.usableRounds).eq(100);
       expect(t.total.totalCoverable).eq(2 * 100 * unitSize);
@@ -152,7 +152,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await subj.addCoverageDemand(insured3, 2000, RATE, false);
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(3);
+      expect(t.total.batchCount).eq(4);
       expect(t.total.openRounds).eq(1900);
       expect(t.total.usableRounds).eq(1000);
       expect(t.total.totalCoverable).eq(2100 * unitSize);
@@ -174,7 +174,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(3);
+      expect(t.total.batchCount).eq(4);
       expect(t.total.openRounds).eq(1900);
       expect(t.total.usableRounds).eq(990);
       expect(t.total.totalCoverable).eq(2070 * unitSize);
@@ -198,7 +198,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(3);
+      expect(t.total.batchCount).eq(4);
       expect(t.total.openRounds).eq(1900);
       expect(t.total.usableRounds).eq(990);
       expect(t.total.totalCoverable).eq(2070 * unitSize - halfRoundSize);
@@ -227,7 +227,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(3);
+      expect(t.total.batchCount).eq(4);
       expect(t.total.openRounds).eq(1900);
       expect(t.total.usableRounds).eq(989);
       expect(t.total.totalCoverable).eq(2067 * unitSize);
@@ -248,7 +248,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(2);
+      expect(t.total.batchCount).eq(3);
       expect(t.total.openRounds).eq(1900);
       expect(t.total.usableRounds).eq(900);
       expect(t.total.totalCoverable).eq(1800 * unitSize);
@@ -269,7 +269,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(2);
+      expect(t.total.batchCount).eq(3);
       expect(t.total.openRounds).eq(1750);
       expect(t.total.usableRounds).eq(750);
       expect(t.total.totalCoverable).eq(1500 * unitSize);
@@ -296,11 +296,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   });
 
   it('Extend coverage demand by insured2 then add coverage', async () => {
-    await dumpState();
-
     await subj.addCoverageDemand(insured2, 100, RATE, false);
-
-    await dumpState();
 
     {
       const t = await subj.getTotals();
@@ -323,7 +319,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(3);
+      expect(t.total.batchCount).eq(4);
       expect(t.total.openRounds).eq(1650);
       expect(t.total.usableRounds).eq(700);
       expect(t.total.totalCoverable).eq(1450 * unitSize);
@@ -359,7 +355,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(1);
+      expect(t.total.batchCount).eq(2);
       expect(t.total.openRounds).eq(1000);
       expect(t.total.usableRounds).eq(0);
       expect(t.total.totalCoverable).eq(0);
@@ -400,7 +396,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(2);
+      expect(t.total.batchCount).eq(3);
       expect(t.total.openRounds).eq(1000);
       expect(t.total.usableRounds).eq(100);
       expect(t.total.totalCoverable).eq(1100 * unitSize);
@@ -414,7 +410,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     {
       const t = await subj.getTotals();
-      expect(t.total.batchCount).eq(2);
+      expect(t.total.batchCount).eq(3);
       expect(t.total.openRounds).eq(990);
       expect(t.total.usableRounds).eq(90);
       expect(t.total.totalCoverable).eq(990 * unitSize);
