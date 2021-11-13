@@ -22,7 +22,12 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
 
   Balances.RateAcc internal _totalRate;
 
-  uint256 internal _excessCoverage;
+  struct OpenBalance {
+    uint128 excessCoverage;
+    uint112 buyOffCoverage;
+    uint16 buyOffShare;
+  }
+  OpenBalance internal _openBalance;
 
   WeightedPoolParams internal _params;
 
