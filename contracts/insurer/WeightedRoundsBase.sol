@@ -18,18 +18,27 @@ abstract contract WeightedRoundsBase {
     _unitSize = unitSize;
   }
 
+  /// @dev tracking info about insured pools
   mapping(address => Rounds.InsuredEntry) private _insureds;
+  /// @dev demand log of each insured pool, updated by addition of coverage demand
   mapping(address => Rounds.Demand[]) private _demands;
+  /// @dev coverage summary of each insured pool, updated by retrieving collected coverage
   mapping(address => Rounds.Coverage) private _covered;
+  /// @dev premium summary of each insured pool, updated by retrieving collected coverage
   mapping(address => Rounds.CoveragePremium) private _premiums;
 
+  /// @dev one way linked list of batches, appended by adding coverage demand, trimmed by adding coverage
   mapping(uint64 => Rounds.Batch) private _batches;
+
   /// @dev total number of batches
   uint64 private _batchCount;
+  /// @dev the most recently added batch (head of the linked list)
   uint64 private _latestBatchNo;
-  /// @dev points to an earliest round that is open, can be zero when all rounds are full
+  /// @dev points to an earliest round that is open, can not be zero
   uint64 private _firstOpenBatchNo;
+  /// @dev number of open rounds starting from the partial one to _latestBatchNo
   uint32 private _openRounds;
+  /// @dev summary of total pool premium (covers all batches before the partial)
   Rounds.CoveragePremium private _poolPremium;
 
   struct PartialState {
@@ -42,13 +51,19 @@ abstract contract WeightedRoundsBase {
     /// @dev when equals to batch size - then there is no partial round
     uint24 roundNo;
   }
+  /// @dev the batch being filled (partially filled)
   PartialState private _partial;
 
+  /// @dev segment of a coverage integral (time-weighted) for a partial or full batch
   struct TimeMark {
+    /// @dev value of integral of coverage for a batch
     uint192 coverageTW;
+    /// @dev last updated at
     uint32 timestamp;
+    /// @dev time duration of this batch (length of the integral segment)
     uint32 duration;
   }
+  /// @dev segments of coverage integral NB! Each segment is independent, it does NOT include / cosider previous segments
   mapping(uint64 => TimeMark) private _marks;
 
   function internalSetInsuredStatus(address account, InsuredStatus status) internal {
