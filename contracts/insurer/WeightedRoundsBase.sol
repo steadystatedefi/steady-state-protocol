@@ -576,10 +576,9 @@ abstract contract WeightedRoundsBase {
   function _collectPremiumTotals(
     PartialState memory part,
     Rounds.Batch memory b,
+    Rounds.CoveragePremium memory premium,
     DemandedCoverage memory coverage
   ) private view {
-    Rounds.CoveragePremium memory premium = _poolPremium;
-
     if (b.isFull() || (part.roundNo == 0 && part.roundCoverage == 0)) {
       (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
         premium.coveragePremium,
@@ -606,9 +605,15 @@ abstract contract WeightedRoundsBase {
   function internalGetPremiumTotals() internal view returns (DemandedCoverage memory coverage) {
     PartialState memory part = _partial;
     if (part.batchNo == 0) return (coverage);
+    internalGetPremiumTotals(part, _batches[part.batchNo], _poolPremium);
+  }
 
-    Rounds.Batch memory b = _batches[part.batchNo];
-    _collectPremiumTotals(part, b, coverage);
+  function internalGetPremiumTotals(
+    PartialState memory part,
+    Rounds.Batch memory b,
+    Rounds.CoveragePremium memory premium
+  ) internal view returns (DemandedCoverage memory coverage) {
+    _collectPremiumTotals(part, b, premium, coverage);
 
     coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
     coverage.pendingCovered = part.roundCoverage;
@@ -630,7 +635,7 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch memory b = _batches[thisBatch];
     // console.log('batch0', thisBatch, b.nextBatchNo, b.rounds);
     // console.log('batch1', part.roundNo);
-    _collectPremiumTotals(part, b, coverage);
+    _collectPremiumTotals(part, b, _poolPremium, coverage);
 
     coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
     coverage.totalDemand = b.totalUnitsBeforeBatch + uint256(b.rounds) * b.unitPerRound;
@@ -682,16 +687,17 @@ abstract contract WeightedRoundsBase {
     returns (
       uint256 remainingAmount,
       uint256 remainingLoopLimit,
-      AddCoverageParams memory params
+      AddCoverageParams memory params,
+      PartialState memory part,
+      Rounds.Batch memory b
     )
   {
-    PartialState memory part = _partial;
+    part = _partial;
 
     if (amount == 0 || loopLimit == 0 || part.batchNo == 0) {
-      return (amount, loopLimit, params);
+      return (amount, loopLimit, params, part, b);
     }
 
-    Rounds.Batch memory b;
     (amount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
     if (params.batchUpdated) {
       _batches[part.batchNo] = b;
@@ -705,7 +711,7 @@ abstract contract WeightedRoundsBase {
     }
     _partial = part;
     // console.log('partial3', part.batchNo, part.roundNo, part.roundCoverage);
-    return (amount, loopLimit, params);
+    return (amount, loopLimit, params, part, b);
   }
 
   function _addCoverage(

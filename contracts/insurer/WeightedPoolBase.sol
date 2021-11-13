@@ -63,18 +63,21 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
     }
   }
 
-  function _afterBalanceUpdate(uint256 newExcess, Balances.RateAcc memory totals)
-    private
-    returns (Balances.RateAcc memory)
-  {
-    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
+  function _afterBalanceUpdate(
+    uint256 newExcess,
+    Balances.RateAcc memory totals,
+    DemandedCoverage memory coverage
+  ) private returns (Balances.RateAcc memory) {
     uint256 rate = coverage.premiumRate.rayMul(exchangeRate());
     console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
 
     rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
 
     console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
-    return _totalRate = totals.setRate(uint32(block.timestamp), rate);
+    if (totals.rate == rate) {
+      _totalRate = totals.setRate(uint32(block.timestamp), rate);
+    }
+    return totals;
   }
 
   function internalMintForCoverage(address account, uint256 coverageAmount) internal {
@@ -82,14 +85,13 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
 
     uint256 excess = _excessCoverage;
     if (coverageAmount > 0 || excess > 0) {
-      (uint256 newExcess, , ) = super.internalAddCoverage(coverageAmount + excess, type(uint256).max);
+      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
+        .internalAddCoverage(coverageAmount + excess, type(uint256).max);
       if (newExcess != excess) {
         _excessCoverage = newExcess;
       }
 
-      // TODO avoid update when rate doesn't change
-      // if (params.premiumRateUpdated || excess != 0 || newExcess != 0) {
-      totals = _afterBalanceUpdate(newExcess, totals);
+      totals = _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
     }
 
     uint256 amount = coverageAmount.rayDiv(exchangeRate()) + b.balance;
@@ -109,7 +111,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
     if (amount > 0) {
       coverageAmount = amount.rayMul(exchangeRate());
       _excessCoverage -= coverageAmount;
-      totals = _afterBalanceUpdate(_excessCoverage, totals);
+      totals = _afterBalanceUpdate(_excessCoverage, totals, super.internalGetPremiumTotals());
     }
 
     b.premiumBase = totals.accum;
