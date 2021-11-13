@@ -101,6 +101,23 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
     _balances[account] = b;
   }
 
+  function pushCoverageExcess() public {
+    uint256 excessCoverage = _excessCoverage;
+    if (excessCoverage == 0) {
+      return;
+    }
+
+    Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
+
+    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
+      .internalAddCoverage(excessCoverage, type(uint256).max);
+
+    if (newExcess != excessCoverage) {
+      _excessCoverage = newExcess;
+      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
+    }
+  }
+
   function internalBurn(address account, uint256 amount) internal returns (uint256 coverageAmount) {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
     if (amount == type(uint256).max) {

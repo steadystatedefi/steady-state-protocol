@@ -914,4 +914,9 @@ abstract contract WeightedRoundsBase {
       dump.batches[j++] = b;
     }
   }
+
+  function internalCanAddCoverage() internal view returns (bool) {
+    PartialState memory part = _partial;
+    return part.batchNo != 0 && (part.roundCoverage > 0 || _batches[part.batchNo].isReady());
+  }
 }

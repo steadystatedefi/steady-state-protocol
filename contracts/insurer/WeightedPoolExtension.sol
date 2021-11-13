@@ -5,6 +5,7 @@ import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsuredPool.sol';
 import './WeightedPoolStorage.sol';
+import './WeightedPoolBase.sol';
 
 contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedPoolStorage {
   using WadRayMath for uint256;
@@ -44,9 +45,13 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     params.loopLimit = ~params.loopLimit;
     hasMore;
     require(unitCount <= type(uint64).max);
-    console.log('premiumRate', premiumRate);
 
-    return unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
+    addedCount = unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
+    if (_excessCoverage > 0 && internalCanAddCoverage()) {
+      // avoid addCoverage code to be duplicated within WeightedPoolExtension to reduce contract size
+      WeightedPoolBase(address(this)).pushCoverageExcess();
+    }
+    return addedCount;
   }
 
   function cancelCoverageDemand(uint256 unitCount, bool hasMore)
