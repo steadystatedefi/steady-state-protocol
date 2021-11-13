@@ -3,29 +3,18 @@ pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/Errors.sol';
-import '../interfaces/IInsurerPool.sol';
+import '../interfaces/IJoinable.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../libraries/Rounds.sol';
 
-abstract contract InsurerJoinBase is IInsurerPool {
-  event JoinRequested(address indexed insured);
-  event JoinCancelled(address indexed insured);
-  event JoinProcessed(address indexed insured, bool accepted);
-  event JoinFailed(address indexed insured, string reason);
-
+abstract contract InsurerJoinBase is IInsurerJoinEvents {
   function internalGetStatus(address) internal view virtual returns (InsuredStatus);
 
   function internalSetStatus(address, InsuredStatus) internal virtual;
 
-  /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
-  /// IInsuredPool.joinProcessed will be called after the decision is made.
-  function requestJoin(address insured) external override {
-    _requestJoin(insured);
-  }
-
   function internalIsInvestor(address) internal view virtual returns (bool);
 
-  function _requestJoin(address insured) private returns (InsuredStatus status) {
+  function internalRequestJoin(address insured) internal returns (InsuredStatus status) {
     require(Address.isContract(insured));
     if ((status = internalGetStatus(insured)) >= InsuredStatus.Joining) {
       return status;
@@ -50,7 +39,8 @@ abstract contract InsurerJoinBase is IInsurerPool {
 
   function _cancelJoin(address insured) private returns (InsuredStatus status) {
     if ((status = internalGetStatus(insured)) == InsuredStatus.Joining) {
-      internalSetStatus(insured, InsuredStatus.JoinCancelled);
+      status = InsuredStatus.JoinCancelled;
+      internalSetStatus(insured, status);
       emit JoinCancelled(insured);
     }
   }

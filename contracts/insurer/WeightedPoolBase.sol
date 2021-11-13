@@ -1,30 +1,32 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../tools/math/PercentageMath.sol';
+import '../tools/upgradeability/Delegator.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
-import './InsurerPoolBase.sol';
-import './WeightedRoundsBase.sol';
+import './WeightedPoolStorage.sol';
+import './WeightedPoolExtension.sol';
 
-abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
+abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Delegator, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  struct UserBalance {
-    uint128 premiumBase;
-    uint128 balance; // scaled
+  address internal immutable _extension;
+
+  constructor(uint256 unitSize, WeightedPoolExtension extension) WeightedRoundsBase(unitSize) {
+    require(extension.coverageUnitSize() == unitSize);
+    _extension = address(extension);
   }
-  mapping(address => UserBalance) private _balances;
-  mapping(address => uint256) private _premiums;
 
-  Balances.RateAcc private _totalRate;
-
-  uint256 private _excessCoverage;
-
-  WeightedPoolParams private _params;
+  // solhint-disable-next-line payable-fallback
+  fallback() external {
+    // all IInsurerPoolDemand etc functions should be delegated to the extension
+    _delegate(_extension);
+  }
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal {
     require(params.minUnitsPerRound > 0);
@@ -42,77 +44,8 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     _params = params;
   }
 
-  function coverageUnitSize() external view override returns (uint256) {
-    return internalUnitSize();
-  }
-
-  function charteredDemand() public pure override returns (bool) {
+  function charteredDemand() public pure override(IInsurerPoolCore, WeightedPoolStorage) returns (bool) {
     return true;
-  }
-
-  function onCoverageDeclined(address insured) external override onlyCollateralFund {
-    insured;
-    Errors.notImplemented();
-  }
-
-  function addCoverageDemand(
-    uint256 unitCount,
-    uint256 premiumRate,
-    bool hasMore
-  ) external override onlyActiveInsured returns (uint256 addedCount) {
-    // TODO access control
-    AddCoverageDemandParams memory params;
-    params.insured = msg.sender;
-    require(premiumRate == (params.premiumRate = uint40(premiumRate)));
-    params.loopLimit = ~params.loopLimit;
-    hasMore;
-    require(unitCount <= type(uint64).max);
-    console.log('premiumRate', premiumRate);
-
-    return unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
-  }
-
-  function cancelCoverageDemand(uint256 unitCount, bool hasMore)
-    external
-    override
-    onlyActiveInsured
-    returns (uint256 cancelledUnits)
-  {
-    unitCount;
-    hasMore;
-    Errors.notImplemented();
-    return 0;
-  }
-
-  function getCoverageDemand(address insured)
-    external
-    view
-    override
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
-  {
-    GetCoveredDemandParams memory params;
-    params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
-
-    (coverage, , ) = internalGetCoveredDemand(params);
-    return (params.receivedCoverage, coverage);
-  }
-
-  function receiveDemandedCoverage(address insured)
-    external
-    override
-    onlyActiveInsured
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
-  {
-    GetCoveredDemandParams memory params;
-    params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
-
-    coverage = internalUpdateCoveredDemand(params);
-
-    // TODO transfer coverage?
-
-    return (params.receivedCoverage, coverage);
   }
 
   function _beforeBalanceUpdate(address account)
@@ -222,29 +155,6 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     return internalGetStatus(account);
   }
 
-  function internalIsInvestor(address account) internal view override returns (bool) {
-    UserBalance memory b = _balances[account];
-    return b.premiumBase != 0 || b.balance != 0;
-  }
-
-  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
-    return super.internalGetInsuredStatus(account);
-  }
-
-  function internalSetStatus(address account, InsuredStatus status) internal override {
-    return super.internalSetInsuredStatus(account, status);
-  }
-
-  modifier onlyActiveInsured() {
-    require(internalGetStatus(msg.sender) == InsuredStatus.Accepted);
-    _;
-  }
-
-  modifier onlyInsured() {
-    require(internalGetStatus(msg.sender) > InsuredStatus.Unknown);
-    _;
-  }
-
   /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
   /// mints $IC tokens when $CC is received from a user
   function internalReceiveTransfer(
@@ -277,128 +187,4 @@ abstract contract WeightedPoolBase is WeightedRoundsBase, InsurerPoolBase {
     }
     internalMintForCoverage(investor, amount);
   }
-
-  function internalBatchAppend(
-    uint64,
-    uint32 openRounds,
-    uint64 unitCount
-  ) internal view override returns (uint24) {
-    WeightedPoolParams memory params = _params;
-    uint256 min = params.minAdvanceUnits / params.maxUnitsPerRound;
-    uint256 max = params.maxAdvanceUnits / params.maxUnitsPerRound;
-    if (min > type(uint24).max) {
-      min = type(uint24).max;
-      if (openRounds + min > max) {
-        return 0;
-      }
-    }
-
-    if (openRounds + min > max) {
-      if (min < (max >> 1) || openRounds > (max >> 1)) {
-        return 0;
-      }
-    }
-
-    if (unitCount > type(uint24).max) {
-      unitCount = type(uint24).max;
-    }
-
-    if ((unitCount /= uint64(min)) <= 1) {
-      return uint24(min);
-    }
-
-    if ((max = (max - openRounds) / min) < unitCount) {
-      min *= max;
-    } else {
-      min *= unitCount;
-    }
-    require(min > 0); // TODO sanity check - remove later
-
-    return uint24(min);
-  }
-
-  function internalRoundLimits(
-    uint64 totalUnitsBeforeBatch,
-    uint24 batchRounds,
-    uint16 unitPerRound,
-    uint64 demandedUnits,
-    uint16 maxShare
-  )
-    internal
-    view
-    override
-    returns (
-      uint16 maxAddUnitsPerRound,
-      uint16, // minUnitsPerRound,
-      uint16 // maxUnitsPerRound
-    )
-  {
-    require(maxShare > 0);
-    WeightedPoolParams memory params = _params;
-
-    console.log('internalRoundLimits-0', totalUnitsBeforeBatch, demandedUnits, batchRounds);
-    console.log('internalRoundLimits-1', unitPerRound, params.minUnitsPerRound, maxShare);
-
-    uint256 x = (totalUnitsBeforeBatch +
-      uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound) *
-      batchRounds).percentMul(maxShare);
-
-    if (x > demandedUnits) {
-      x = (x - demandedUnits + (batchRounds >> 1)) / batchRounds;
-      maxAddUnitsPerRound = x >= type(uint16).max ? type(uint16).max : uint16(x);
-    }
-
-    x = maxAddUnitsPerRound + unitPerRound;
-    if (params.maxUnitsPerRound >= x) {
-      x = params.maxUnitsPerRound;
-    } else if (x > type(uint16).max) {
-      x = type(uint16).max;
-    }
-
-    console.log('internalRoundLimits-3', maxAddUnitsPerRound, x);
-    return (maxAddUnitsPerRound, params.minUnitsPerRound, uint16(x));
-  }
-
-  function internalBatchSplit(
-    uint64 demandedUnits,
-    uint64 minUnits,
-    uint24 batchRounds,
-    uint24 remainingUnits
-  ) internal pure override returns (uint24 splitRounds) {
-    // console.log('internalBatchSplit-0', demandedUnits, minUnits);
-    // console.log('internalBatchSplit-1', batchRounds, remainingUnits);
-    if (demandedUnits >= minUnits || demandedUnits + remainingUnits < minUnits) {
-      if (remainingUnits <= batchRounds >> 2) {
-        return 0;
-      }
-    }
-    return remainingUnits;
-  }
-
-  function internalPrepareJoin(address insured) internal override {
-    WeightedPoolParams memory params = _params;
-    InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
-
-    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(params.riskWeightTarget);
-    if (maxShare >= params.maxInsuredShare) {
-      maxShare = params.maxInsuredShare;
-    } else if (maxShare < params.minInsuredShare) {
-      maxShare = params.minInsuredShare;
-    }
-
-    super.internalSetInsuredParams(
-      insured,
-      Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)})
-    );
-  }
-}
-
-struct WeightedPoolParams {
-  uint32 maxAdvanceUnits;
-  uint32 minAdvanceUnits;
-  uint16 riskWeightTarget;
-  uint16 minInsuredShare;
-  uint16 maxInsuredShare;
-  uint16 minUnitsPerRound;
-  uint16 maxUnitsPerRound;
 }

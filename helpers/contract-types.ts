@@ -107,6 +107,7 @@ export const Factories = {
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
   MockCollateralFund: mock(types.MockCollateralFundFactory),
   MockWeightedPool: mock(types.MockWeightedPoolFactory),
+  WeightedPoolExtension: mock(types.WeightedPoolExtensionFactory),
   MockInsuredPool: mock(types.MockInsuredPoolFactory),  
 }
 

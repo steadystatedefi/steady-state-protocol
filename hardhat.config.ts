@@ -16,7 +16,7 @@ import 'hardhat-typechain';
 import '@tenderly/hardhat-tenderly';
 import 'solidity-coverage';
 import 'hardhat-abi-exporter';
-// import 'hardhat-contract-sizer';
+import 'hardhat-contract-sizer';
 
 // Prevent to load scripts before compilation and typechain
 if (!SKIP_LOAD) {

@@ -95,5 +95,6 @@ enum InsuredStatus {
   Declined,
   Joining,
   Accepted,
-  Banned
+  Banned,
+  NotApplicable
 }

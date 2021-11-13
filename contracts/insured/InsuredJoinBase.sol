@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import '../tools/tokens/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
+import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
 abstract contract InsuredJoinBase is IInsuredPool {
@@ -20,7 +21,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     _;
   }
 
-  function joinPool(IInsurerPool pool) external onlyAdmin {
+  function joinPool(IJoinable pool) external onlyAdmin {
     require(address(pool) != address(0));
     uint32 status = getAccountStatus(address(pool));
 

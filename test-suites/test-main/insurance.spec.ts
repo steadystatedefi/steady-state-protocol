@@ -13,8 +13,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   let insureds: MockInsuredPool[] = [];
 
   before(async () => {
+    const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralFund.deploy();
-    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize);
+    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, extension.address);
 
     const minUnits = 10;
     const riskWeight = 1000; // 10%

@@ -2,9 +2,14 @@
 pragma solidity ^0.8.4;
 
 import '../WeightedPoolBase.sol';
+import './MockWeightedRounds.sol';
 
 contract MockWeightedPool is WeightedPoolBase {
-  constructor(address collateral_, uint256 unitSize) WeightedRoundsBase(unitSize) InsurerPoolBase(collateral_) {
+  constructor(
+    address collateral_,
+    uint256 unitSize,
+    WeightedPoolExtension extension
+  ) WeightedPoolBase(unitSize, extension) InsurerPoolBase(collateral_) {
     internalSetPoolParams(
       WeightedPoolParams({
         maxAdvanceUnits: 10000,

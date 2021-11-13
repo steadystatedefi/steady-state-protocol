@@ -827,20 +827,15 @@ abstract contract WeightedRoundsBase {
     uint64 batchNo,
     Rounds.CoveragePremium memory premium,
     Rounds.Batch memory b
-  ) internal view returns (bool) {
-    Rounds.Demand memory d;
-    d.startBatchNo = batchNo;
-    d.unitPerRound = 1;
-    uint64 lastRate = premium.coveragePremiumRate;
+  ) internal view {
     (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
-      d,
+      Rounds.Demand(batchNo, 0, 0, 1),
       premium,
       b.rounds,
       0,
       b.roundPremiumRateSum,
       b.unitPerRound
     );
-    return lastRate != premium.coveragePremiumRate;
   }
 
   function _initTimeMark(uint64 batchNo) private {
