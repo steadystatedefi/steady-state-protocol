@@ -8,8 +8,13 @@ contract MockWeightedPool is WeightedPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
+    uint8 decimals,
     WeightedPoolExtension extension
-  ) WeightedPoolBase(unitSize, extension) InsurerPoolBase(collateral_) {
+  )
+    ERC20DetailsBase('WeightedPoolToken', '$IC', decimals)
+    WeightedPoolBase(unitSize, extension)
+    InsurerPoolBase(collateral_)
+  {
     _joinHandler = address(this);
     internalSetPoolParams(
       WeightedPoolParams({

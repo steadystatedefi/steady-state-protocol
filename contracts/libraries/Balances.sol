@@ -46,6 +46,12 @@ library Balances {
     return b;
   }
 
+  function setRateAfterSync(RateAcc memory b, uint256 rate) internal view returns (RateAcc memory) {
+    require(b.updatedAt == block.timestamp);
+    require(rate == (b.rate = uint96(rate)));
+    return b;
+  }
+
   function incRate(
     RateAcc memory b,
     uint32 at,

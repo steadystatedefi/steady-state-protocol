@@ -15,7 +15,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   before(async () => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralFund.deploy();
-    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, extension.address);
+    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, 18, extension.address);
 
     const minUnits = 10;
     const riskWeight = 1000; // 10%
@@ -36,6 +36,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     Joining,
     Accepted,
     Banned,
+    NotApplicable,
   }
 
   it('Join pools', async () => {

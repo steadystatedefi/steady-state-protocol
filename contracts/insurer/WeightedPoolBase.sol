@@ -10,12 +10,14 @@ import '../interfaces/IInsuredPool.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 
-abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Delegator, ERC1363ReceiverBase {
+abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage, Delegator, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
   address internal immutable _extension;
+
+  event ExcessCoverageIncreased(uint256 coverageExcess);
 
   constructor(uint256 unitSize, WeightedPoolExtension extension) WeightedRoundsBase(unitSize) {
     require(extension.coverageUnitSize() == unitSize);
@@ -53,14 +55,18 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
     returns (UserBalance memory b, Balances.RateAcc memory totals)
   {
     totals = _totalRate.sync(uint32(block.timestamp));
-    b = _balances[account];
+    b = _syncBalance(account, totals);
+  }
 
+  function _syncBalance(address account, Balances.RateAcc memory totals) private returns (UserBalance memory b) {
+    b = _balances[account];
     if (b.balance > 0) {
       uint256 premiumDiff = totals.accum - b.premiumBase;
       if (premiumDiff > 0) {
         _premiums[account] += premiumDiff.rayMul(b.balance);
       }
     }
+    b.premiumBase = totals.accum;
   }
 
   function _afterBalanceUpdate(
@@ -75,7 +81,9 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
 
     console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
     if (totals.rate != rate) {
-      _totalRate = totals.setRate(uint32(block.timestamp), rate);
+      _totalRate = totals.setRateAfterSync(rate);
+    } else {
+      require(totals.updatedAt == block.timestamp);
     }
     return totals;
   }
@@ -90,14 +98,18 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
 
       if (newExcess != excessCoverage) {
         _excessCoverage = newExcess;
+        if (newExcess > excessCoverage) {
+          emit ExcessCoverageIncreased(newExcess);
+        }
       }
 
       totals = _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
     }
 
+    emit Transfer(address(0), account, coverageAmount);
+
     uint256 amount = coverageAmount.rayDiv(exchangeRate()) + b.balance;
     require(amount == (b.balance = uint128(amount)));
-    b.premiumBase = totals.accum;
     _balances[account] = b;
   }
 
@@ -130,9 +142,12 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
       coverageAmount = amount.rayMul(exchangeRate());
       totals = _afterBalanceUpdate(_excessCoverage -= coverageAmount, totals, super.internalGetPremiumTotals());
     }
-
-    b.premiumBase = totals.accum;
+    emit Transfer(account, address(0), coverageAmount);
     _balances[account] = b;
+
+    // collateral is a trusted token, hence we do not use safeTransfer here
+    require(IERC20(collateral()).transfer(account, coverageAmount));
+
     return coverageAmount;
   }
 
@@ -140,11 +155,11 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
     return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
-  function scaledBalanceOf(address account) external view returns (uint256) {
+  function scaledBalanceOf(address account) external view override returns (uint256) {
     return _balances[account].balance;
   }
 
-  function totalSupply() external view override returns (uint256) {
+  function totalSupply() public view override returns (uint256) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     return coverage.totalCovered + coverage.pendingCovered;
   }
@@ -166,12 +181,15 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
     return (0, accumulated);
   }
 
-  function exchangeRate() public pure override returns (uint256) {
-    return WadRayMath.RAY;
+  function exchangeRate() public view override returns (uint256) {
+    return WadRayMath.RAY - _inverseExchangeRate;
   }
 
-  function statusOf(address account) external view returns (InsuredStatus) {
-    return internalGetStatus(account);
+  function statusOf(address account) external view returns (InsuredStatus status) {
+    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
+      status = InsuredStatus.NotApplicable;
+    }
+    return status;
   }
 
   /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
@@ -205,5 +223,20 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
       abi.decode(data, ());
     }
     internalMintForCoverage(investor, amount);
+  }
+
+  function transferBalance(
+    address sender,
+    address recipient,
+    uint256 amount
+  ) internal override {
+    (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(sender);
+
+    b.balance = uint128(b.balance - amount);
+    _balances[sender] = b;
+
+    b = _syncBalance(recipient, totals);
+    require((b.balance = uint128(amount += b.balance)) == amount);
+    _balances[recipient] = b;
   }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../tools/tokens/IERC20.sol';
 import './IInsurancePool.sol';
 import './IJoinable.sol';
 
@@ -26,11 +27,8 @@ interface IInsurerPoolCore is IInsurancePool {
   /// * Non-chartered (potential) demand can only be allocated after calling IInsuredPool.tryAddCoverage first, units can only be allocated in full.
   function charteredDemand() external view returns (bool);
 
-  /// @dev amount of $IC tokens of a user. Weighted number of $IC tokens defines interest rate to be paid to the user
-  function balanceOf(address account) external view returns (uint256);
-
-  /// @dev total amount of $IC tokens
-  function totalSupply() external view returns (uint256);
+  /// @dev amount of $IC tokens of a user. $IC * exchangeRate() = $CC
+  function scaledBalanceOf(address account) external view returns (uint256);
 
   /// @dev returns reward / interest rate of the user
   function interestRate(address account) external view returns (uint256 rate, uint256 accumulatedRate);
@@ -71,6 +69,6 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
     returns (uint256 receivedCoverage, DemandedCoverage memory);
 }
 
-interface IInsurerPool is IInsurerPoolCore, IInsurerPoolDemand {
+interface IInsurerPool is IERC20, IInsurerPoolCore, IInsurerPoolDemand {
   function charteredDemand() external view override(IInsurerPoolCore, IInsurerPoolDemand) returns (bool);
 }

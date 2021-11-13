@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../tools/tokens/ERC20AllowanceBase.sol';
+import '../tools/tokens/ERC20TransferBase.sol';
+import '../tools/tokens/ERC20DetailsBase.sol';
+import '../tools/tokens/ERC20PermitBase.sol';
 import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
@@ -9,6 +13,12 @@ import '../interfaces/IJoinHandler.sol';
 import './InsurerPoolBase.sol';
 import './WeightedRoundsBase.sol';
 
+/// @dev
+/// @dev WARNING! This contract MUST NOT be extended with new fields after deployments
+/// @dev WARNING! because WeightedPoolTokenStorage inherited from this one.
+/// @dev WARNING!
+/// @dev WARNING! To add new fields - inherit from WeightedPoolTokenStorage.
+/// @dev
 abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -26,6 +36,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
   Balances.RateAcc internal _totalRate;
 
   uint256 internal _excessCoverage;
+  uint256 internal _inverseExchangeRate;
 
   address internal _joinHandler;
 
@@ -147,6 +158,33 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
 
   function internalGetStatus(address account) internal view virtual returns (InsuredStatus) {
     return super.internalGetInsuredStatus(account);
+  }
+}
+
+abstract contract WeightedPoolTokenStorage is
+  WeightedPoolStorage,
+  ERC20AllowanceBase,
+  ERC20DetailsBase,
+  ERC20PermitBase,
+  ERC20TransferBase
+{
+  function _getPermitDomainName() internal view override returns (bytes memory) {
+    return bytes(super.name());
+  }
+
+  function _approveByPermit(
+    address owner,
+    address spender,
+    uint256 value
+  ) internal override {
+    _approve(owner, spender, value);
+  }
+
+  function _approveTransferFrom(address owner, uint256 amount)
+    internal
+    override(ERC20AllowanceBase, ERC20TransferBase)
+  {
+    ERC20AllowanceBase._approveTransferFrom(owner, amount);
   }
 }
 
