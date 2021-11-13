@@ -10,6 +10,7 @@ contract MockWeightedPool is WeightedPoolBase {
     uint256 unitSize,
     WeightedPoolExtension extension
   ) WeightedPoolBase(unitSize, extension) InsurerPoolBase(collateral_) {
+    _joinHandler = address(this);
     internalSetPoolParams(
       WeightedPoolParams({
         maxAdvanceUnits: 10000,

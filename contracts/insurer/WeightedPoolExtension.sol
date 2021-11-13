@@ -109,8 +109,10 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     );
   }
 
-  function internalInitiateJoin(address) internal pure override returns (InsuredStatus) {
-    return InsuredStatus.Accepted;
+  function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
+    if (_joinHandler == address(0)) return InsuredStatus.Joining;
+    if (_joinHandler == address(this)) return InsuredStatus.Accepted;
+    return IJoinHandler(_joinHandler).handleJoinRequest(insured);
   }
 
   function internalIsInvestor(address account)

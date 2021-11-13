@@ -5,6 +5,7 @@ import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
+import '../interfaces/IJoinHandler.sol';
 import './InsurerPoolBase.sol';
 import './WeightedRoundsBase.sol';
 
@@ -12,6 +13,8 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
+
+  WeightedPoolParams internal _params;
 
   struct UserBalance {
     uint128 premiumBase;
@@ -28,8 +31,9 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
     uint16 buyOffShare;
   }
   OpenBalance internal _openBalance;
+  uint256 internal _buyOffBalance;
 
-  WeightedPoolParams internal _params;
+  address internal _joinHandler;
 
   function charteredDemand() public pure virtual returns (bool) {
     return true;
