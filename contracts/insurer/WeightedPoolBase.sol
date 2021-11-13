@@ -74,7 +74,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
     rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
 
     console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
-    if (totals.rate == rate) {
+    if (totals.rate != rate) {
       _totalRate = totals.setRate(uint32(block.timestamp), rate);
     }
     return totals;
