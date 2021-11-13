@@ -81,35 +81,18 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
   }
 
   function internalMintForCoverage(address account, uint256 coverageAmount) internal {
-    OpenBalance memory openBalance = _openBalance;
-
-    uint256 buyOff;
-    if (openBalance.buyOffShare > 0) {
-      buyOff = coverageAmount.percentMul(openBalance.buyOffShare);
-      if (buyOff >= openBalance.buyOffCoverage) {
-        (buyOff, openBalance.buyOffCoverage) = (openBalance.buyOffCoverage, 0);
-      } else {
-        openBalance.buyOffCoverage -= uint112(buyOff);
-      }
-      coverageAmount -= buyOff;
-    }
-
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
-    if (coverageAmount > 0 || openBalance.excessCoverage > 0) {
+    uint256 excessCoverage = _excessCoverage;
+    if (coverageAmount > 0 || excessCoverage > 0) {
       (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
-        .internalAddCoverage(coverageAmount + openBalance.excessCoverage, type(uint256).max);
+        .internalAddCoverage(coverageAmount + excessCoverage, type(uint256).max);
 
-      if (newExcess != openBalance.excessCoverage) {
-        require(newExcess == (openBalance.excessCoverage = uint128(newExcess)));
-        buyOff = 1; // forces update of _openBalance
+      if (newExcess != excessCoverage) {
+        _excessCoverage = newExcess;
       }
 
       totals = _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
-    }
-
-    if (buyOff != 0) {
-      _openBalance = openBalance;
     }
 
     uint256 amount = coverageAmount.rayDiv(exchangeRate()) + b.balance;
@@ -128,11 +111,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolStorage, Del
 
     if (amount > 0) {
       coverageAmount = amount.rayMul(exchangeRate());
-      totals = _afterBalanceUpdate(
-        _openBalance.excessCoverage = uint128(_openBalance.excessCoverage - coverageAmount),
-        totals,
-        super.internalGetPremiumTotals()
-      );
+      totals = _afterBalanceUpdate(_excessCoverage -= coverageAmount, totals, super.internalGetPremiumTotals());
     }
 
     b.premiumBase = totals.accum;
