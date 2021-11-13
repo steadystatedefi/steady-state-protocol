@@ -9,7 +9,7 @@ interface IJoinable {
   // function statusOf(address insured)
 }
 
-interface IInsurerJoinEvents {
+interface IJoinEvents {
   event JoinRequested(address indexed insured);
   event JoinCancelled(address indexed insured);
   event JoinProcessed(address indexed insured, bool accepted);

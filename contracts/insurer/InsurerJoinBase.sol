@@ -7,7 +7,7 @@ import '../interfaces/IJoinable.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../libraries/Rounds.sol';
 
-abstract contract InsurerJoinBase is IInsurerJoinEvents {
+abstract contract InsurerJoinBase is IJoinEvents {
   function internalGetStatus(address) internal view virtual returns (InsuredStatus);
 
   function internalSetStatus(address, InsuredStatus) internal virtual;
@@ -30,7 +30,7 @@ abstract contract InsurerJoinBase is IInsurerJoinEvents {
       return _updateInsuredStatus(insured, status);
     }
 
-    return InsuredStatus.JoinRejected;
+    return InsuredStatus.Joining;
   }
 
   function cancelJoin() external returns (InsuredStatus) {
@@ -81,7 +81,5 @@ abstract contract InsurerJoinBase is IInsurerJoinEvents {
 
   function internalPrepareJoin(address) internal virtual;
 
-  function internalInitiateJoin(address) internal virtual returns (InsuredStatus) {
-    return InsuredStatus.Accepted;
-  }
+  function internalInitiateJoin(address) internal virtual returns (InsuredStatus);
 }
