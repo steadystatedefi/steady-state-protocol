@@ -4,6 +4,7 @@ import { MockCollateralFund, MockInsuredPool, MockWeightedPool } from '../../typ
 import { expect } from 'chai';
 
 makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
+  const decimals = 18;
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const ratePerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
@@ -15,16 +16,20 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   before(async () => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralFund.deploy();
-    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, 18, extension.address);
+    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, decimals, extension.address);
 
     const minUnits = 10;
     const riskWeight = 1000; // 10%
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, 10));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
-    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight));
+    insureds.push(
+      await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight, decimals)
+    );
+    insureds.push(await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, 10, decimals));
+    insureds.push(
+      await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight, decimals)
+    );
+    insureds.push(
+      await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits, riskWeight, decimals)
+    );
   });
 
   enum InsuredStatus {

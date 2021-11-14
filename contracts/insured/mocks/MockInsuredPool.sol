@@ -9,8 +9,13 @@ contract MockInsuredPool is InsuredPoolBase {
     uint256 totalDemand,
     uint64 premiumRate,
     uint24 minUnitsPerInsurer,
-    uint16 riskWeightPct
-  ) InsurancePoolBase(collateral_) InsuredPoolBase(totalDemand, premiumRate) {
+    uint16 riskWeightPct,
+    uint8 decimals
+  )
+    ERC20DetailsBase('InsuredPoolToken', '$DC', decimals)
+    InsurancePoolBase(collateral_)
+    InsuredPoolBase(totalDemand, premiumRate)
+  {
     internalSetInsuredParams(InsuredParams({minUnitsPerInsurer: minUnitsPerInsurer, riskWeightPct: riskWeightPct}));
   }
 }

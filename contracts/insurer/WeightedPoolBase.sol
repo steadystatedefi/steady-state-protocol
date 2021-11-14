@@ -155,6 +155,20 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
+  function balancesOf(address account)
+    public
+    view
+    returns (
+      uint256 coverage,
+      uint256 scaled,
+      uint256 premium
+    )
+  {
+    scaled = _balances[account].balance;
+    coverage = scaled.rayMul(exchangeRate());
+    (, premium) = interestRate(account);
+  }
+
   function scaledBalanceOf(address account) external view override returns (uint256) {
     return _balances[account].balance;
   }
@@ -164,7 +178,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return coverage.totalCovered + coverage.pendingCovered;
   }
 
-  function interestRate(address account) external view override returns (uint256 rate, uint256 accumulated) {
+  function interestRate(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
     UserBalance memory b = _balances[account];
 

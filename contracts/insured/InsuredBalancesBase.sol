@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/Address.sol';
+import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import '../tools/tokens/IERC20.sol';
 import '../interfaces/IInsurancePool.sol';
@@ -11,7 +12,8 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../insurance/InsurancePoolBase.sol';
 
-abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase {
+abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase, ERC20BalancelessBase
+{
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
@@ -124,7 +126,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase 
     uint256 minPremiumRate
   ) internal virtual returns (uint256 availableAmount, uint64 premiumRate);
 
-  function balanceOf(address account) public view returns (uint256) {
+  function balanceOf(address account) public view override returns (uint256) {
     return _balances[account].rate;
   }
 
@@ -145,7 +147,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase 
     return _lockedBalances[holder][account];
   }
 
-  function totalSupply() public view returns (uint256) {
+  function totalSupply() public view override returns (uint256) {
     return _totals.rate;
   }
 
@@ -199,5 +201,13 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase 
       require(amount == (b.rate = uint88(amount)));
       _balances[to] = b;
     }
+  }
+
+    function transferBalance(
+    address sender,
+    address recipient,
+    uint256 amount
+  ) internal override {
+
   }
 }

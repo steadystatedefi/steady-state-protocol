@@ -18,6 +18,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
   /// IInsuredPool.joinProcessed will be called after the decision is made.
   function requestJoin(address insured) external override {
+    require(msg.sender == insured); // TODO or admin?
     internalRequestJoin(insured);
   }
 

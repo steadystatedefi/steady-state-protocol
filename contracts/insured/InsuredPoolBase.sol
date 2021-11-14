@@ -88,4 +88,16 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     unitSize;
     return (_totalDemand, _premiumRate);
   }
+
+  modifier onlyAdmin() virtual {
+    _;
+  }
+
+  function joinPool(IJoinable pool) external onlyAdmin {
+    internalJoinPool(pool);
+  }
+
+  function pushCoverageDemandTo(IInsurerPool target, uint256 amount) external onlyAdmin {
+    internalPushCoverageDemandTo(target, amount);
+  }
 }
