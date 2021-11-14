@@ -10,3 +10,8 @@ interface IProtocol {
   /// @dev returns true when the given sender is allowed as the given role for this protocol
   function hasRole(address sender, uint256 roleFlag) external view returns (bool);
 }
+
+enum ProtocolAccessFlags {
+  Deposit,
+  Withdraw
+}

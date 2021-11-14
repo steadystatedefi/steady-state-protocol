@@ -5,6 +5,7 @@ import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import '../tools/tokens/IERC20.sol';
+import '../interfaces/IPremiumCalculator.sol';
 import '../interfaces/IInsurancePool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
@@ -12,7 +13,13 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../insurance/InsurancePoolBase.sol';
 
-abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase, ERC20BalancelessBase, IInsuredEvents {
+abstract contract InsuredBalancesBase is
+  InsurancePoolBase,
+  ERC1363ReceiverBase,
+  ERC20BalancelessBase,
+  IInsuredEvents,
+  IPremiumCalculator
+{
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
@@ -222,7 +229,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase,
     return _totals.rate;
   }
 
-  function totalPremium() public view returns (uint256 rate, uint256 demand) {
+  function totalPremium() public view override returns (uint256 rate, uint256 demand) {
     Balances.RateAcc memory totals = internalSyncTotals();
     return (totals.rate, totals.accum);
   }

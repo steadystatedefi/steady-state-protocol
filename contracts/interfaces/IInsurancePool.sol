@@ -2,10 +2,8 @@
 pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC1363.sol';
+import './ICollateralized.sol';
 
-interface IInsurancePool is IERC1363Receiver {
-  /// @dev address of the collateral fund and coverage token ($CC)
-  function collateral() external view returns (address);
-
+interface IInsurancePool is ICollateralized, IERC1363Receiver {
   // TODO function poolType()
 }
