@@ -3,12 +3,12 @@ pragma solidity ^0.8.4;
 
 import '../tools/math/WadRayMath.sol';
 import '../interfaces/IInsurerPool.sol';
-import './InsurerPoolBase.sol';
+import '../insurance/InsurancePoolBase.sol';
 
 import 'hardhat/console.sol';
 
 // mints fix-yeild non-transferrable token
-abstract contract DirectInsurerPool is InsurerPoolBase {
+abstract contract DirectInsurerPool is InsurancePoolBase {
   using WadRayMath for uint256;
 
   uint256 private immutable _yeildRate;

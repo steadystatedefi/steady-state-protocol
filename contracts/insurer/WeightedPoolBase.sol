@@ -46,7 +46,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     _params = params;
   }
 
-  function charteredDemand() public pure override(IInsurerPoolCore, WeightedPoolStorage) returns (bool) {
+  function charteredDemand() external pure override returns (bool) {
     return true;
   }
 

@@ -10,7 +10,7 @@ contract MockInsuredPool is InsuredPoolBase {
     uint64 premiumRate,
     uint24 minUnitsPerInsurer,
     uint16 riskWeightPct
-  ) InsuredBalancesBase(collateral_) InsuredPoolBase(totalDemand, premiumRate) {
+  ) InsurancePoolBase(collateral_) InsuredPoolBase(totalDemand, premiumRate) {
     internalSetInsuredParams(InsuredParams({minUnitsPerInsurer: minUnitsPerInsurer, riskWeightPct: riskWeightPct}));
   }
 }

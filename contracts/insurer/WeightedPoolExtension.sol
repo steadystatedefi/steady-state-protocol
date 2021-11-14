@@ -6,13 +6,14 @@ import '../libraries/Balances.sol';
 import '../interfaces/IInsuredPool.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
+import './InsurerJoinBase.sol';
 
 contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(uint256 unitSize) InsurerPoolBase(address(0)) WeightedRoundsBase(unitSize) {}
+  constructor(uint256 unitSize) InsurancePoolBase(address(0)) WeightedRoundsBase(unitSize) {}
 
   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
   /// IInsuredPool.joinProcessed will be called after the decision is made.
@@ -20,7 +21,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     internalRequestJoin(insured);
   }
 
-  function charteredDemand() public pure override(IInsurerPoolDemand, WeightedPoolStorage) returns (bool) {
+  function charteredDemand() external pure override returns (bool) {
     return true;
   }
 

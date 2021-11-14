@@ -9,30 +9,12 @@ import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
+import '../insurance/InsurancePoolBase.sol';
 
-abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
+abstract contract InsuredBalancesBase is InsurancePoolBase, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
-
-  address private _collateral;
-
-  constructor(address collateral_) {
-    _collateral = collateral_;
-  }
-
-  function _initialize(address collateral_) internal {
-    _collateral = collateral_;
-  }
-
-  function collateral() public view override returns (address) {
-    return _collateral;
-  }
-
-  modifier onlyCollateralFund() {
-    require(msg.sender == _collateral);
-    _;
-  }
 
   function internalReceiveTransfer(
     address operator,
@@ -67,7 +49,7 @@ abstract contract InsuredBalancesBase is IInsurancePool, ERC1363ReceiverBase {
       require(unusedAmount <= value);
       // return the unused portion
       // safeTransfer is not needed here as _collateral is a trusted contract.
-      require(IERC20(_collateral).transfer(from, unusedAmount));
+      require(IERC20(collateral()).transfer(from, unusedAmount));
     }
   }
 

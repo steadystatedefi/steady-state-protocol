@@ -13,7 +13,7 @@ contract MockWeightedPool is WeightedPoolBase {
   )
     ERC20DetailsBase('WeightedPoolToken', '$IC', decimals)
     WeightedPoolBase(unitSize, extension)
-    InsurerPoolBase(collateral_)
+    InsurancePoolBase(collateral_)
   {
     _joinHandler = address(this);
     internalSetPoolParams(

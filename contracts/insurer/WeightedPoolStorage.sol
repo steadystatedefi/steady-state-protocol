@@ -10,7 +10,7 @@ import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IJoinHandler.sol';
-import './InsurerPoolBase.sol';
+import '../insurance/InsurancePoolBase.sol';
 import './WeightedRoundsBase.sol';
 
 /// @dev
@@ -19,7 +19,7 @@ import './WeightedRoundsBase.sol';
 /// @dev WARNING!
 /// @dev WARNING! To add new fields - inherit from WeightedPoolTokenStorage.
 /// @dev
-abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
+abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -39,10 +39,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurerPoolBase {
   uint256 internal _inverseExchangeRate;
 
   address internal _joinHandler;
-
-  function charteredDemand() public pure virtual returns (bool) {
-    return true;
-  }
 
   modifier onlyActiveInsured() {
     require(internalGetInsuredStatus(msg.sender) == InsuredStatus.Accepted);
