@@ -72,7 +72,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     pending: number
   ): Promise<CoverageInfo> => {
     // console.log('====getCoverage', demand);
-    const tt = await subj.getCoverageDemand(insured);
+    const tt = await subj.receivableCoverageDemand(insured);
     const t = tt.coverage;
     expect(t.pendingCovered).eq(pending);
     expect(t.totalCovered).eq(covered * unitSize);
@@ -483,14 +483,14 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
   it('Receive demand with one call', async () => {
     expect(await subj.receivedCoverage()).eq(0);
-    const info0 = await subj.getCoverageDemand(insured1);
+    const info0 = await subj.receivableCoverageDemand(insured1);
     expect(info0.availableCoverage).eq(info0.coverage.totalCovered);
 
     await subj.receiveDemandedCoverage(insured1, 65535);
 
     expect(await subj.receivedCoverage()).eq(info0.availableCoverage);
 
-    const info1 = await subj.getCoverageDemand(insured1);
+    const info1 = await subj.receivableCoverageDemand(insured1);
     expect(info1.availableCoverage).eq(0);
     expect(info1.coverage.pendingCovered).eq(info0.coverage.pendingCovered);
     expect(info1.coverage.premiumRate).eq(info0.coverage.premiumRate);
@@ -502,14 +502,14 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   it('Receive demand with multiple calls', async () => {
     const expected = await subj.receivedCoverage();
 
-    const info0 = await subj.getCoverageDemand(insured3);
+    const info0 = await subj.receivableCoverageDemand(insured3);
     const startedAt = await currentTime();
     expect(info0.availableCoverage).eq(info0.coverage.totalCovered);
 
     const count = 10;
     for (let i = count; i > 0; i--) {
       await subj.receiveDemandedCoverage(insured3, i > 1 ? 1 : 65535);
-      const info1 = await subj.getCoverageDemand(insured3);
+      const info1 = await subj.receivableCoverageDemand(insured3);
 
       expect(await subj.receivedCoverage()).eq(expected.add(info0.availableCoverage.sub(info1.availableCoverage)));
       expect(info1.coverage.pendingCovered).eq(info0.coverage.pendingCovered);

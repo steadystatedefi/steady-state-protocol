@@ -19,10 +19,17 @@ struct InsuredParams {
 }
 
 interface DInsuredPoolTransfer {
-  function addCoverage(
+  function addCoverageByInvestor(
     address account,
     uint256 minAmount,
     uint256 minPremiumRate,
     address insurerPool
   ) external;
+
+  function addCoverageByInsurer() external;
+}
+
+interface IInsuredEvents {
+  event TransferToHold(address indexed from, address indexed to, uint256 value);
+  event TransferFromHold(address indexed from, address indexed to, uint256 value);
 }

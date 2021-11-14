@@ -47,7 +47,7 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
   /// @dev indicates how the demand from insured pools is handled:
   /// * Chartered demand will be allocated without calling IInsuredPool, coverage units can be partially filled in.
   /// * Non-chartered (potential) demand can only be allocated after calling IInsuredPool.tryAddCoverage first, units can only be allocated in full.
-  function charteredDemand() external view returns (bool);
+  function charteredDemand() external view override returns (bool);
 
   /// @dev can only be called by an accepted insured pool, adds demand for coverage
   function addCoverageDemand(
@@ -60,7 +60,10 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
   function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
-  function getCoverageDemand(address insured) external view returns (uint256 receivedCoverage, DemandedCoverage memory);
+  function receivableCoverageDemand(address insured)
+    external
+    view
+    returns (uint256 receivedCoverage, DemandedCoverage memory);
 
   /// @dev when charteredDemand is true and insured has incomplete demand, then this function will transfer $CC collected for the insured
   /// when charteredDemand is false or demand was fulfilled, then there is no need to call this function.

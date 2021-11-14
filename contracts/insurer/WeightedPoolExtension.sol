@@ -68,7 +68,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return 0;
   }
 
-  function getCoverageDemand(address insured)
+  function receivableCoverageDemand(address insured)
     external
     view
     override

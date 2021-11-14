@@ -44,19 +44,19 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return InsuredBalancesBase.getAccountStatus(account);
   }
 
-  function internalIsAllowedHolder(uint16 status)
+  function internalIsAllowedAsHolder(uint16 status)
     internal
     view
     override(InsuredBalancesBase, InsuredJoinBase)
     returns (bool)
   {
-    return InsuredJoinBase.internalIsAllowedHolder(status);
+    return InsuredJoinBase.internalIsAllowedAsHolder(status);
   }
 
   function internalCoverageDemandAdded(address target, uint256 amount) internal override {
     console.log('internalCoverageDemandAdded', target, amount, _totalDemand);
     _totalDemand -= amount;
-    InsuredBalancesBase.internalMint(target, amount, address(0));
+    InsuredBalancesBase.internalMintForCoverage(target, amount, address(0));
   }
 
   function internalHandleDirectInvestment(
@@ -99,5 +99,58 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   function pushCoverageDemandTo(IInsurerPool target, uint256 amount) external onlyAdmin {
     internalPushCoverageDemandTo(target, amount);
+  }
+
+  function joinProcessed(bool accepted) external override {
+    internalJoinProcessed(msg.sender, accepted);
+  }
+
+  function reconcileWithAllInsurers() external onlyAdmin returns (uint256 receivedCoverage) {
+    return _reconcileWithInsurers(0, type(uint256).max);
+  }
+
+  function reconcileWithInsurers(uint256 startIndex, uint256 count)
+    external
+    onlyAdmin
+    returns (uint256 receivedCoverage)
+  {
+    return _reconcileWithInsurers(startIndex, count);
+  }
+
+  function _reconcileWithInsurers(uint256 startIndex, uint256 count) private returns (uint256 receivedCoverage) {
+    address[] storage insurers = getCharteredInsurers();
+    uint256 max = insurers.length;
+    unchecked {
+      if ((count += startIndex) > startIndex && count < max) {
+        max = count;
+      }
+    }
+    for (; startIndex < max; startIndex++) {
+      (uint256 c, ) = internalReconcileWithInsurer(IInsurerPoolDemand(insurers[startIndex]), false);
+      receivedCoverage += c;
+    }
+  }
+
+  function _reconcileWithInsurersView(uint256 startIndex, uint256 count)
+    private
+    view
+    returns (uint256 receivableCoverage)
+  {
+    address[] storage insurers = getCharteredInsurers();
+    uint256 max = insurers.length;
+    unchecked {
+      if ((count += startIndex) > startIndex && count < max) {
+        max = count;
+      }
+    }
+    Balances.RateAcc memory totals = internalSyncTotals();
+    for (; startIndex < max; startIndex++) {
+      (uint256 c, , ) = internalReconcileWithInsurerView(IInsurerPoolDemand(insurers[startIndex]), totals);
+      receivableCoverage += c;
+    }
+  }
+
+  function receivableByReconcileWithAllInsurers() external view returns (uint256 receivableCoverage) {
+    return _reconcileWithInsurersView(0, type(uint256).max);
   }
 }

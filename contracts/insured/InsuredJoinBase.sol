@@ -8,13 +8,13 @@ import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
 abstract contract InsuredJoinBase is IInsuredPool {
-  address[] private _insurers; // IInsurerPool[]
+  address[] private _genericInsurers; // IInsurerPool[]
+  address[] private _charteredInsurers;
 
   uint16 private constant STATUS_MAX = type(uint16).max;
   uint16 private constant STATUS_NOT_JOINED = STATUS_MAX;
   uint16 private constant STATUS_PENDING = STATUS_MAX - 1;
-
-  uint16 private constant INDEX_MAX = STATUS_MAX - 16;
+  uint16 private constant INDEX_MAX = STATUS_MAX - 2;
 
   function internalJoinPool(IJoinable pool) internal {
     require(address(pool) != address(0));
@@ -26,21 +26,26 @@ abstract contract InsuredJoinBase is IInsuredPool {
     pool.requestJoin(address(this));
   }
 
-  function getInsurers() public view returns (address[] memory) {
-    return _insurers;
+  function getInsurers() public view returns (address[] memory, address[] memory) {
+    return (_genericInsurers, _charteredInsurers);
   }
 
-  function joinProcessed(bool accepted) external override {
-    require(getAccountStatus(msg.sender) == STATUS_PENDING);
+  function getCharteredInsurers() internal view returns (address[] storage) {
+    return _charteredInsurers;
+  }
+
+  function internalJoinProcessed(address insured, bool accepted) internal {
+    require(getAccountStatus(insured) == STATUS_PENDING);
 
     if (accepted) {
-      require(_insurers.length < INDEX_MAX);
-      _insurers.push(msg.sender);
-      uint16 index = uint16(_insurers.length);
-      internalSetServiceAccountStatus(msg.sender, index);
-      _pushCoverageDemand(IInsurerPool(msg.sender), 0);
+      bool chartered = IJoinable(insured).charteredDemand();
+      uint256 index = chartered ? (_charteredInsurers.length << 1) + 1 : (_genericInsurers.length + 1) << 1;
+      require(index < INDEX_MAX);
+      (chartered ? _charteredInsurers : _genericInsurers).push(insured);
+      internalSetServiceAccountStatus(insured, uint16(index));
+      _pushCoverageDemand(IInsurerPool(insured), 0);
     } else {
-      internalSetServiceAccountStatus(msg.sender, STATUS_NOT_JOINED);
+      internalSetServiceAccountStatus(insured, STATUS_NOT_JOINED);
     }
   }
 
@@ -60,10 +65,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     _pushCoverageDemand(target, amount);
   }
 
-  function _pushCoverageDemand(
-    IInsurerPool target,
-    uint256 amount
-  ) private returns (bool) {
+  function _pushCoverageDemand(IInsurerPool target, uint256 amount) private returns (bool) {
     return _addCoverageDemandTo(target, amount);
   }
 
@@ -99,7 +101,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   function getAccountStatus(address account) internal view virtual returns (uint16);
 
-  function internalIsAllowedHolder(uint16 status) internal view virtual returns (bool) {
+  function internalIsAllowedAsHolder(uint16 status) internal view virtual returns (bool) {
     return status > 0 && status <= INDEX_MAX;
   }
 }

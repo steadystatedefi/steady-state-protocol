@@ -7,6 +7,8 @@ interface IJoinable {
   function requestJoin(address insured) external;
 
   // function statusOf(address insured)
+
+  function charteredDemand() external view returns (bool);
 }
 
 interface IJoinEvents {

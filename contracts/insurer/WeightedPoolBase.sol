@@ -145,8 +145,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     emit Transfer(account, address(0), coverageAmount);
     _balances[account] = b;
 
-    // collateral is a trusted token, hence we do not use safeTransfer here
-    require(IERC20(collateral()).transfer(account, coverageAmount));
+    transferCollateral(account, coverageAmount);
 
     return coverageAmount;
   }
