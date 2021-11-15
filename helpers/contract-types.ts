@@ -108,6 +108,7 @@ export const Factories = {
 
   CollateralFundStable: wrap(types.CollateralFundStableFactory),
   MockStable: wrap(types.MockStableFactory),
+  DepositToken: wrap(types.DepositTokenFactory),
 }
 
 const nameByFactory = (() => {
