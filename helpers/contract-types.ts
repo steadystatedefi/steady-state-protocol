@@ -101,7 +101,6 @@ export const factoryByName = (s: string): NamedDeployable => {
 };
 
 export const Factories = {
-  CoveragePoolFactory: wrap(types.CoveragePoolFactory),
   PriceOracle: wrap(types.PriceOracleFactory),
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),

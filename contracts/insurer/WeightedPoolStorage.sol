@@ -105,8 +105,8 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     require(maxShare > 0);
     WeightedPoolParams memory params = _params;
 
-    console.log('internalRoundLimits-0', totalUnitsBeforeBatch, demandedUnits, batchRounds);
-    console.log('internalRoundLimits-1', unitPerRound, params.minUnitsPerRound, maxShare);
+    // console.log('internalRoundLimits-0', totalUnitsBeforeBatch, demandedUnits, batchRounds);
+    // console.log('internalRoundLimits-1', unitPerRound, params.minUnitsPerRound, maxShare);
 
     uint256 x = (totalUnitsBeforeBatch +
       uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound) *
@@ -124,7 +124,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
       x = type(uint16).max;
     }
 
-    console.log('internalRoundLimits-3', maxAddUnitsPerRound, x);
+    // console.log('internalRoundLimits-3', maxAddUnitsPerRound, x);
     return (maxAddUnitsPerRound, params.minUnitsPerRound, uint16(x));
   }
 

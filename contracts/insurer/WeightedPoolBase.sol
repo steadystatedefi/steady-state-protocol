@@ -75,11 +75,11 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     DemandedCoverage memory coverage
   ) private returns (Balances.RateAcc memory) {
     uint256 rate = coverage.premiumRate.rayMul(exchangeRate());
-    console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
+    // console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
 
     rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
 
-    console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
+    // console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
     if (totals.rate != rate) {
       _totalRate = totals.setRateAfterSync(rate);
     } else {
