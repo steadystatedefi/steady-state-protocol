@@ -18,6 +18,7 @@ abstract contract CollateralFundBase {
   event Withdraw(address _asset, uint256 _amt);
   event Invest(address _insurer, uint256 _amt);
 
+  /*** VARIABLES ***/
   IPriceOracle private oracle;
   mapping(address => uint256) private ccBalance;
   uint256 private _totalSupply;
@@ -25,6 +26,8 @@ abstract contract CollateralFundBase {
 
   /// @dev Map of an ERC20 to it's corresponding depositToken (0 address means not included)
   mapping(address => IDepositToken) internal depositTokens;
+
+  /// @dev list of the ERC20s that are accepted
   address[] internal depositTokenList;
 
   /// @dev whitelist of *active* Insurer Pools
@@ -34,6 +37,7 @@ abstract contract CollateralFundBase {
   //This is a list of all assets that have been accumulated
   address[] private _assets;
 
+  /*** FUNCTIONS ***/
   constructor() {}
 
   function deposit(
@@ -43,10 +47,10 @@ abstract contract CollateralFundBase {
     uint256 referralCode
   ) external {
     require(address(depositTokens[asset]) != address(0), 'Not accepting this token');
-    require(IERC20(asset).balanceOf(msg.sender) >= amount);
-    require(IERC20(asset).allowance(msg.sender, address(this)) >= amount);
+    require(IERC20(asset).balanceOf(msg.sender) >= amount, 'Balance low');
+    require(IERC20(asset).allowance(msg.sender, address(this)) >= amount, 'No allowance');
 
-    ccBalance[to] += amount * _calculateAssetPrice(asset);
+    ccBalance[to] += (amount * _calculateAssetPrice(asset));
     _totalSupply += amount;
     depositTokens[asset].mint(to, amount);
 
@@ -60,17 +64,18 @@ abstract contract CollateralFundBase {
   ) external {
     require(address(depositTokens[asset]) != address(0), 'Not accepting this token');
     require(depositTokens[asset].balanceOf(msg.sender) >= amount);
-    (uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
-    require(hf > 1);
+    //Is it satisfactory to rely on the _beforeTokenTransfer of depositToken?
+    //(uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
+    //require(hf > WadRayMath.ray());
+    //TODO: MAX_INT check
+    //require((balance - int256(price * amount) > 0));
     uint256 price = _calculateAssetPrice(asset);
     require(ccBalance[msg.sender] >= price * amount);
 
-    //TODO: MAX_INT check
-    require((balance - int256(price * amount) > 0));
     depositTokens[asset].burnFrom(msg.sender, amount);
     ccBalance[msg.sender] -= price * amount;
     _totalSupply -= amount;
-    _investedSupply -= amount;
+    //_investedSupply -= amount;
 
     IERC20(depositTokens[asset].getUnderlying()).transfer(to, amount);
 
@@ -92,7 +97,7 @@ abstract contract CollateralFundBase {
       require(insurerWhitelist[to]);
     }
     (uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
-    require(hf > 1);
+    require(hf > WadRayMath.ray());
     //TODO: MAX_INT check
     require(balance - int256(amount) > 0);
 
@@ -121,7 +126,8 @@ abstract contract CollateralFundBase {
   }
 
   function healthFactorOf(address account) external view returns (uint256 hf, int256 balance) {
-    _healthFactor(_assetValue(account), _debtValue(account));
+    //TODO: Debt is RAY, asset is NOT
+    return _healthFactor(_assetValue(account), _debtValue(account));
   }
 
   function investedCollateral() external view returns (uint256) {
@@ -135,6 +141,14 @@ abstract contract CollateralFundBase {
     return (assets, depositTokenList);
   }
 
+  function getDepositTokens() external view returns (address[] memory) {
+    return depositTokenList;
+  }
+
+  function getDepositTokenOf(address a) external view returns (address) {
+    return address(depositTokens[a]);
+  }
+
   /*** INTERNAL FUNCTIONS ***/
 
   function _calculateAssetPrice(address a) internal virtual returns (uint256) {
@@ -146,6 +160,9 @@ abstract contract CollateralFundBase {
     require(debtValue < uint256(type(int256).max));
     balance = int256(depositValue) - int256(debtValue);
 
+    if (debtValue == 0) {
+      debtValue = 1;
+    }
     hf = depositValue.rayDiv(debtValue);
   }
 
@@ -163,7 +180,7 @@ abstract contract CollateralFundBase {
     address[] memory allAssets = new address[](depositTokenList.length);
     uint32 numAssets = 0;
     for (uint256 i = 0; i < depositTokenList.length; i++) {
-      if (IDepositToken(depositTokenList[i]).balanceOf(account) > 0) {
+      if (depositTokens[depositTokenList[i]].balanceOf(account) > 0) {
         allAssets[numAssets] = depositTokenList[i];
         numAssets++;
       }
@@ -174,9 +191,15 @@ abstract contract CollateralFundBase {
     }
 
     //TODO: Will/Should rever in getAssetPrice() be caught?
+    //TODO: !!!TEMPORARY QUICK FIX FOR STABLECOIN TESTING!!!
+    /*
     uint256[] memory prices = oracle.getAssetPrices(assets);
     for (uint256 i = 0; i < numAssets; i++) {
       total += (IERC20(assets[i]).balanceOf(account) * prices[i]);
+    }
+    */
+    for (uint256 i = 0; i < numAssets; i++) {
+      total += (depositTokens[assets[i]].balanceOf(account) * 1);
     }
   }
 }
