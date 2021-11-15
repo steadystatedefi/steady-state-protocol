@@ -11,6 +11,8 @@ import './CollateralFundBase.sol';
 import './DepositToken.sol';
 
 contract CollateralFundStable is CollateralFundBase {
+  constructor(string memory name, string memory symbol) CollateralFundBase(name, symbol) {}
+
   function _calculateAssetPrice(address a) internal pure override returns (uint256) {
     return 1;
   }

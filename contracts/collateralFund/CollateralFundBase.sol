@@ -7,9 +7,9 @@ import '../interfaces/IInsurerPool.sol';
 import '../pricing/interfaces/IPriceOracle.sol';
 import '../tools/math/WadRayMath.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
+import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 
-//TODO: is IERC20
-abstract contract CollateralFundBase {
+abstract contract CollateralFundBase is ERC20 {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
 
@@ -20,8 +20,6 @@ abstract contract CollateralFundBase {
 
   /*** VARIABLES ***/
   IPriceOracle private oracle;
-  mapping(address => uint256) private ccBalance;
-  uint256 private _totalSupply;
   uint256 private _investedSupply;
 
   /// @dev Map of an ERC20 to it's corresponding depositToken (0 address means not included)
@@ -38,7 +36,7 @@ abstract contract CollateralFundBase {
   address[] private _assets;
 
   /*** FUNCTIONS ***/
-  constructor() {}
+  constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
 
   function deposit(
     address asset,
@@ -50,10 +48,8 @@ abstract contract CollateralFundBase {
     require(IERC20(asset).balanceOf(msg.sender) >= amount, 'Balance low');
     require(IERC20(asset).allowance(msg.sender, address(this)) >= amount, 'No allowance');
 
-    ccBalance[to] += (amount * _calculateAssetPrice(asset));
-    _totalSupply += amount;
+    _mint(to, amount * _calculateAssetPrice(asset));
     depositTokens[asset].mint(to, amount);
-
     IERC20(asset).transferFrom(msg.sender, address(this), amount);
 
     emit Deposit(asset, amount);
@@ -67,18 +63,11 @@ abstract contract CollateralFundBase {
     require(address(depositTokens[asset]) != address(0), 'Not accepting this token');
     require(depositTokens[asset].balanceOf(msg.sender) >= amount);
     //Is it satisfactory to rely on the _beforeTokenTransfer of depositToken?
-    //(uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
-    //require(hf > WadRayMath.ray());
-    //TODO: MAX_INT check
-    //require((balance - int256(price * amount) > 0));
-    uint256 price = _calculateAssetPrice(asset);
-    require(ccBalance[msg.sender] >= price * amount);
+    //require(ccBalance[msg.sender] >= price * amount);
+    require(balanceOf(msg.sender) >= amount * _calculateAssetPrice(asset));
 
     depositTokens[asset].burnFrom(msg.sender, amount);
-    ccBalance[msg.sender] -= price * amount;
-    _totalSupply -= amount;
-    //_investedSupply -= amount;
-
+    _burn(msg.sender, amount * _calculateAssetPrice(asset));
     IERC20(asset).transfer(to, amount);
 
     emit Withdraw(asset, amount);
@@ -93,22 +82,6 @@ abstract contract CollateralFundBase {
     emit Invest(insurer, amount);
   }
 
-  function transfer(address to, uint256 amount) external returns (uint256) {
-    require(ccBalance[msg.sender] >= amount);
-    if (!insurerWhitelist[msg.sender]) {
-      require(insurerWhitelist[to]);
-    }
-    (uint256 hf, int256 balance) = this.healthFactorOf(msg.sender);
-    require(hf > WadRayMath.ray());
-    //TODO: MAX_INT check
-    require(balance - int256(amount) > 0);
-
-    ccBalance[msg.sender] -= amount;
-    ccBalance[to] += amount;
-
-    return amount;
-  }
-
   function declineCoverageFrom(address insurer) external {
     IInsurerPool(insurer).onCoverageDeclined(msg.sender);
   }
@@ -118,14 +91,6 @@ abstract contract CollateralFundBase {
   function addInsurer(address insurer) external virtual returns (bool);
 
   /*** EXTERNAL VIEWS ***/
-
-  function balanceOf(address account) external view returns (uint256) {
-    return ccBalance[account];
-  }
-
-  function totalSupply() external view returns (uint256) {
-    return _totalSupply;
-  }
 
   function healthFactorOf(address account) external view returns (uint256 hf, int256 balance) {
     //TODO: Debt is RAY, asset is NOT
@@ -152,6 +117,21 @@ abstract contract CollateralFundBase {
   }
 
   /*** INTERNAL FUNCTIONS ***/
+
+  function _beforeTokenTransfer(
+    address from,
+    address to,
+    uint256 amount
+  ) internal view override {
+    if (from == address(0)) {
+      //minting
+      return;
+    }
+    (uint256 hf, int256 balance) = this.healthFactorOf(from);
+    require(hf > WadRayMath.ray());
+    require(amount < uint256(type(int256).max));
+    require(balance - int256(amount) > 0, 'Would cause negative balance');
+  }
 
   function _calculateAssetPrice(address a) internal virtual returns (uint256) {
     return oracle.getAssetPrice(a);

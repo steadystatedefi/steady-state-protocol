@@ -56,7 +56,7 @@ contract DepositToken is ERC20, IDepositToken {
       return;
     }
     (uint256 hf, int256 balance) = collateralFund.healthFactorOf(from);
-    //require(hf > WadRayMath.ray());
+    require(hf > WadRayMath.ray());
     require(amount < uint256(type(int256).max));
     //TODO: This only works for stable
     require(balance - int256(amount) > 0, 'Would cause negative balance');
