@@ -3,6 +3,9 @@ pragma solidity ^0.8.4;
 
 import '../interfaces/ICollateralFund.sol';
 import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import '../tools/math/WadRayMath.sol';
+
+import 'hardhat/console.sol';
 
 //import '../tools/tokens/ERC20MintableBase.sol';
 
@@ -43,5 +46,19 @@ contract DepositToken is ERC20, IDepositToken {
     return underlying;
   }
 
-  //TODO: Override transfer to only occur when healthfactor of collateral fund is > 1
+  function _beforeTokenTransfer(
+    address from,
+    address to,
+    uint256 amount
+  ) internal view override {
+    if (from == address(0)) {
+      //minting
+      return;
+    }
+    (uint256 hf, int256 balance) = collateralFund.healthFactorOf(from);
+    //require(hf > WadRayMath.ray());
+    require(amount < uint256(type(int256).max));
+    //TODO: This only works for stable
+    require(balance - int256(amount) > 0, 'Would cause negative balance');
+  }
 }

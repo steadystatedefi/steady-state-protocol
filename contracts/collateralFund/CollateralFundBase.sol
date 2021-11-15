@@ -54,6 +54,8 @@ abstract contract CollateralFundBase {
     _totalSupply += amount;
     depositTokens[asset].mint(to, amount);
 
+    IERC20(asset).transferFrom(msg.sender, address(this), amount);
+
     emit Deposit(asset, amount);
   }
 
@@ -77,7 +79,7 @@ abstract contract CollateralFundBase {
     _totalSupply -= amount;
     //_investedSupply -= amount;
 
-    IERC20(depositTokens[asset].getUnderlying()).transfer(to, amount);
+    IERC20(asset).transfer(to, amount);
 
     emit Withdraw(asset, amount);
   }

@@ -8,6 +8,7 @@ import '../interfaces/IInsurerPool.sol';
 import '../pricing/interfaces/IPriceOracle.sol';
 import '../tools/math/WadRayMath.sol';
 import './CollateralFundBase.sol';
+import './DepositToken.sol';
 
 contract CollateralFundStable is CollateralFundBase {
   function _calculateAssetPrice(address a) internal pure override returns (uint256) {
@@ -17,9 +18,12 @@ contract CollateralFundStable is CollateralFundBase {
   //TODO: Ownable
   function addDepositToken(address asset) external override returns (bool) {
     if (address(depositTokens[asset]) == address(0)) {
-      //TODO: Confirm it meets spec?
       depositTokenList.push(asset);
-      depositTokens[asset] = IDepositToken(asset);
+
+      //TODO: Do we want to make this here? Or will multiple collateral funds share?
+      string memory tokenName = string(abi.encodePacked('COL-', ERC20(asset).name()));
+      string memory tokenSymbol = string(abi.encodePacked('COL-', ERC20(asset).symbol()));
+      depositTokens[asset] = new DepositToken(tokenName, tokenSymbol, address(this), asset);
     }
 
     return true;
