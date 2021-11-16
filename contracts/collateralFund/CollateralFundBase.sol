@@ -123,9 +123,13 @@ abstract contract CollateralFundBase is ERC20 {
     address to,
     uint256 amount
   ) internal view override {
-    if (from == address(0)) {
-      //minting
+    if (from == address(0) || to == address(0)) {
+      //minting or burning
       return;
+    } else {
+      if (!insurerWhitelist[from]) {
+        require(insurerWhitelist[to]);
+      }
     }
     (uint256 hf, int256 balance) = this.healthFactorOf(from);
     require(hf > WadRayMath.ray());
