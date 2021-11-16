@@ -20,6 +20,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   let collector: PremiumCollector;
   let insureds: MockInsuredPool[] = [];
   let insuredUnits: number[] = [];
+  let insuredTS: number[] = [];
 
   before(async () => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
@@ -56,6 +57,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         riskWeight,
         decimals
       );
+      insuredTS.push(await currentTime());
       await insured.joinPool(pool.address);
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
@@ -97,12 +99,14 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     }
   });
 
-  it('Add coverage', async () => {
+  let totalCoverageProvidedUnits = 0;
+  let totalPremium = 0;
+
+  it('Add coverage by users', async () => {
     const timestamps: number[] = [];
     const userUnits: number[] = [];
 
     let _perUser = 4;
-    let totalCoverageProvidedUnits = 0;
     for (const user of testEnv.users) {
       timestamps.push(await currentTime());
       _perUser++;
@@ -125,7 +129,6 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       );
     }
 
-    let totalPremium = 0;
     const ct = await currentTime();
     for (let index = 0; index < testEnv.users.length; index++) {
       const user = testEnv.users[index];
@@ -138,7 +141,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
       totalPremium += interest.accumulated.toNumber();
     }
+  });
 
+  it('Check coverage per insured', async () => {
     let totalDemandUnits = 0;
     expect(totalPremium).gt(0);
     {
@@ -147,6 +152,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       totalDemandUnits = totals.coverage.totalDemand.div(unitSize).toNumber();
     }
 
+    let totalInsuredPremium = 0;
     for (let index = 0; index < insureds.length; index++) {
       const insured = insureds[index];
       const { coverage } = await pool.receivableCoverageDemand(insured.address);
@@ -164,14 +170,14 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         expect(balances.available).eq(coverage.totalDemand);
         expect(balances.holded).eq(0);
 
-        // premium is charged at full rate, until recosiled
-        console.log(
-          balances.premium.gt(0) ? balances.premium.toNumber() / balances.available.toNumber() : '0',
-          (await currentTime()) - timestamps[index] - 1
-        );
-        //        expect(balances.premium).eq(balances.available.mul(await currentTime() - timestamps[index] - 1));
+        // NB! premium is charged for _demand_ added to guarantee sufficient flow of premium.
+        // Using reconsillation will match it with actual coverage.
+        expect(balances.premium).eq(balances.available.mul((await currentTime()) - insuredTS[index] - 1));
+
+        totalInsuredPremium += balances.premium.toNumber();
       }
     }
+    expect(totalInsuredPremium).eq(totalPremium);
   });
 
   it.skip('Expected pay', async () => {
@@ -179,6 +185,6 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     expect(payList.length).eq(1);
     expect(payList[0].token).eq(payInToken);
 
-    // console.log(payList[0].amount.toString());
+    console.log(payList[0].amount.toString());
   });
 });

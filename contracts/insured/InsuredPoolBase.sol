@@ -53,10 +53,14 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return InsuredJoinBase.internalIsAllowedAsHolder(status);
   }
 
-  function internalCoverageDemandAdded(address target, uint256 amount) internal override {
+  function internalCoverageDemandAdded(
+    address target,
+    uint256 amount,
+    uint256 premiumRate
+  ) internal override {
     // console.log('internalCoverageDemandAdded', target, amount, _totalDemand);
     _totalDemand -= amount;
-    InsuredBalancesBase.internalMintForCoverage(target, amount, address(0));
+    InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate, address(0));
   }
 
   function internalHandleDirectInvestment(

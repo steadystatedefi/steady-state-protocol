@@ -84,7 +84,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
     amountAdded *= unitSize;
     require(amountAdded <= amount);
-    internalCoverageDemandAdded(address(target), amountAdded);
+    internalCoverageDemandAdded(address(target), amountAdded, premiumRate);
 
     return amountAdded < amount;
   }
@@ -95,7 +95,11 @@ abstract contract InsuredJoinBase is IInsuredPool {
     uint256 unitSize
   ) internal virtual returns (uint256 amountToAdd, uint256 premiumRate);
 
-  function internalCoverageDemandAdded(address target, uint256 amount) internal virtual;
+  function internalCoverageDemandAdded(
+    address target,
+    uint256 amount,
+    uint256 premiumRate
+  ) internal virtual;
 
   function internalSetServiceAccountStatus(address account, uint16 status) internal virtual;
 

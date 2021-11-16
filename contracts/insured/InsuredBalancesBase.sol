@@ -13,6 +13,8 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../insurance/InsurancePoolBase.sol';
 
+import 'hardhat/console.sol';
+
 abstract contract InsuredBalancesBase is
   InsurancePoolBase,
   ERC1363ReceiverBase,
@@ -108,15 +110,17 @@ abstract contract InsuredBalancesBase is
     }
     unusedAmount -= amount;
 
-    internalMintForCoverage(investor, amount, holder);
+    internalMintForCoverage(investor, amount, premiumRate, holder);
     return (unusedAmount, amount);
   }
 
   function internalMintForCoverage(
     address account,
     uint256 coverageAmount,
+    uint256 premiumRate,
     address holder
   ) internal virtual {
+    premiumRate;
     require(coverageAmount <= type(uint88).max);
 
     emit Transfer(address(0), account, coverageAmount);
@@ -139,8 +143,9 @@ abstract contract InsuredBalancesBase is
     b.rate += uint88(coverageAmount);
     _balances[account] = b;
 
-    // TODO adjust rate when payments stopped
-    _totals = _totals.incRate(uint32(block.timestamp), coverageAmount);
+    Balances.RateAcc memory totals = internalSyncTotals();
+    require((totals.rate = uint96(coverageAmount += totals.rate)) == coverageAmount);
+    _totals = totals;
   }
 
   function transferBalanceAndEmit(
@@ -193,7 +198,7 @@ abstract contract InsuredBalancesBase is
 
   function internalIsAllowedAsHolder(uint16 status) internal view virtual returns (bool);
 
-  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory b) {
+  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory) {
     // TODO adjust rate when payments stopped
     return _balances[account].sync(uint32(block.timestamp));
   }

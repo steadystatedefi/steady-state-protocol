@@ -158,14 +158,16 @@ contract PremiumCollector {
     address[] storage tokens = _protocolTokens[protocol];
     uint256 i = tokens.length;
 
-    mapping(address => TokenBalance) storage balances = _balances[protocol];
     list = new TokenAmount[](i);
     for (; i > 0; ) {
       i--;
       address token = tokens[i];
-      TokenBalance memory b = balances[token];
+      TokenBalance memory b = _balances[protocol][token];
       uint256 expectedBalance = _balanceOf(token, b.deductable, at, _pools[protocol][token]);
-      list[i] = TokenAmount(token, expectedBalance >= b.balance ? 0 : b.balance - expectedBalance);
+      list[i] = TokenAmount(
+        token,
+        at > 0 ? expectedBalance : (expectedBalance >= b.balance ? 0 : b.balance - expectedBalance)
+      );
     }
   }
 
