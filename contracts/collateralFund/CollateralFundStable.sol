@@ -1,24 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import '../dependencies/IERC20Mintable.sol';
-import '../dependencies/IERC1363Receiver.sol';
-import '../interfaces/ICollateralFund.sol';
-import '../interfaces/IInsurerPool.sol';
-import '../pricing/interfaces/IPriceOracle.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
 import '../tools/math/WadRayMath.sol';
 import './CollateralFundBase.sol';
 import './DepositToken.sol';
 
-contract CollateralFundStable is CollateralFundBase {
+contract CollateralFundStable is CollateralFundBase, Ownable {
   constructor(string memory name, string memory symbol) CollateralFundBase(name, symbol) {}
 
   function _calculateAssetPrice(address a) internal pure override returns (uint256) {
     return 1;
   }
 
-  //TODO: Ownable
-  function addDepositToken(address asset) external override returns (bool) {
+  function addDepositToken(address asset) external override onlyOwner returns (bool) {
     if (address(depositTokens[asset]) == address(0)) {
       depositTokenList.push(asset);
 
@@ -32,7 +27,7 @@ contract CollateralFundStable is CollateralFundBase {
   }
 
   //TODO: Ownable
-  function addInsurer(address insurer) external override returns (bool) {
+  function addInsurer(address insurer) external override onlyOwner returns (bool) {
     if (!insurerWhitelist[insurer]) {
       insurerWhitelist[insurer] = true;
       insurers.push(insurer);
