@@ -68,7 +68,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return 0;
   }
 
-  function receivableCoverageDemand(address insured)
+  function receivableDemandedCoverage(address insured)
     external
     view
     override
@@ -94,7 +94,13 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
 
     coverage = internalUpdateCoveredDemand(params);
 
-    // TODO transfer coverage?
+    if (params.receivedCoverage > 0) {
+      transferCollateral(
+        insured,
+        params.receivedCoverage,
+        abi.encodeWithSelector(DInsuredPoolTransfer.addCoverageByInsurer.selector)
+      );
+    }
 
     return (params.receivedCoverage, coverage);
   }

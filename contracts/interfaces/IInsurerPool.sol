@@ -60,7 +60,7 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
   function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
-  function receivableCoverageDemand(address insured)
+  function receivableDemandedCoverage(address insured)
     external
     view
     returns (uint256 receivedCoverage, DemandedCoverage memory);

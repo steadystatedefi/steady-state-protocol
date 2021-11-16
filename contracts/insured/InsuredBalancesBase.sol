@@ -36,6 +36,15 @@ abstract contract InsuredBalancesBase is
 
   Balances.RateAcc private _totals;
 
+  function getSig(bytes calldata data) private pure returns (bytes4 sig) {
+    // solhint-disable-next-line no-inline-assembly
+    assembly {
+      calldatacopy(0, data.offset, 4)
+      sig := mload(0)
+      // sig := mload(add(_data, 32))
+    }
+  }
+
   function internalReceiveTransfer(
     address operator,
     address from,
@@ -47,7 +56,7 @@ abstract contract InsuredBalancesBase is
     if (data.length == 0) {
       (unusedAmount, ) = _invest(operator, value, 1, 0, address(0));
     } else {
-      bytes4 selector = abi.decode(data[:4], (bytes4));
+      bytes4 selector = getSig(data[:4]);
       if (selector == DInsuredPoolTransfer.addCoverageByInvestor.selector) {
         unusedAmount = _addCoverageByInvestor(operator, from, value, data[4:]);
       } else if (selector == DInsuredPoolTransfer.addCoverageByInsurer.selector) {
@@ -116,35 +125,35 @@ abstract contract InsuredBalancesBase is
 
   function internalMintForCoverage(
     address account,
-    uint256 coverageAmount,
+    uint256 rateAmount,
     uint256 premiumRate,
     address holder
   ) internal virtual {
-    premiumRate;
-    require(coverageAmount <= type(uint88).max);
+    rateAmount = rateAmount.wadMul(premiumRate);
+    require(rateAmount <= type(uint88).max);
 
-    emit Transfer(address(0), account, coverageAmount);
+    emit Transfer(address(0), account, rateAmount);
 
     Balances.RateAccWithUint16 memory b;
     if (holder != address(0)) {
       b = _syncBalance(holder);
       require(internalIsAllowedAsHolder(b.extra));
 
-      _lockedBalances[holder][account] += uint88(coverageAmount);
-      _holds[account].balance += uint88(coverageAmount);
+      _lockedBalances[holder][account] += uint88(rateAmount);
+      _holds[account].balance += uint88(rateAmount);
 
-      emit Transfer(account, holder, coverageAmount);
-      emit TransferToHold(account, holder, coverageAmount);
+      emit Transfer(account, holder, rateAmount);
+      emit TransferToHold(account, holder, rateAmount);
       account = holder;
     } else {
       b = _syncBalance(account);
     }
 
-    b.rate += uint88(coverageAmount);
+    b.rate += uint88(rateAmount);
     _balances[account] = b;
 
     Balances.RateAcc memory totals = internalSyncTotals();
-    require((totals.rate = uint96(coverageAmount += totals.rate)) == coverageAmount);
+    require((totals.rate = uint96(rateAmount += totals.rate)) == rateAmount);
     _totals = totals;
   }
 
@@ -234,12 +243,10 @@ abstract contract InsuredBalancesBase is
     return _totals.rate;
   }
 
-  function totalPremium() public view override returns (uint256 rate, uint256 demand) {
+  function totalPremium() public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = internalSyncTotals();
     return (totals.rate, totals.accum);
   }
-
-  // TODO function internalReconcile() internal {}
 
   function internalSetServiceAccountStatus(address account, uint16 status) internal virtual {
     require(status > 0);
@@ -265,31 +272,40 @@ abstract contract InsuredBalancesBase is
     require(internalIsAllowedAsHolder(b.extra));
 
     (receivedCoverage, coverage) = insurer.receiveDemandedCoverage(address(this));
-    require(b.updatedAt == coverage.premiumUpdatedAt);
+    // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
 
     uint256 diff;
+    Balances.RateAcc memory totals;
     if (b.accum != coverage.totalPremium) {
-      Balances.RateAcc memory totals = internalSyncTotals();
+      totals = internalSyncTotals();
       if (b.accum < coverage.totalPremium) {
         // technical underpayment
         diff = coverage.totalPremium - b.accum;
         require((totals.accum = uint128(diff += totals.accum)) == diff);
         revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
-        diff = b.accum - coverage.totalPremium;
-        totals.accum -= uint128(diff);
+        totals.accum -= uint128(diff = b.accum - coverage.totalPremium);
       }
 
-      _totals = totals;
       b.accum = uint120(coverage.totalPremium);
     }
 
     if (coverage.premiumRate != b.rate && (coverage.premiumRate > b.rate || updateRate)) {
+      if (diff == 0) {
+        totals = internalSyncTotals();
+        diff = 1;
+      }
+      uint88 prevRate = b.rate;
       require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
-      diff = 1;
+      if (prevRate > b.rate) {
+        totals.rate -= prevRate - b.rate;
+      } else {
+        totals.rate += b.rate - prevRate;
+      }
     }
 
     if (diff > 0) {
+      _totals = totals;
       _balances[address(insurer)] = b;
     }
   }
@@ -310,7 +326,7 @@ abstract contract InsuredBalancesBase is
     b = _syncBalance(address(insurer));
     require(internalIsAllowedAsHolder(b.extra));
 
-    (receivedCoverage, coverage) = insurer.receivableCoverageDemand(address(this));
+    (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this));
     require(b.updatedAt == coverage.premiumUpdatedAt);
 
     uint256 diff;

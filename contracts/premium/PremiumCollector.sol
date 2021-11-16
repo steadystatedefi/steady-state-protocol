@@ -16,6 +16,8 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../insurance/InsurancePoolBase.sol';
 
+import 'hardhat/console.sol';
+
 struct TokenAmount {
   address token;
   uint256 amount;
@@ -184,6 +186,7 @@ contract PremiumCollector {
       i--;
       IPremiumCalculator calc = IPremiumCalculator(insuredPools[i]);
       (uint256 rate, uint256 demand) = calc.totalPremium();
+      // console.log('totalPremium', at, rate, demand);
       if (at > 0) {
         demand = rate * (at - block.timestamp);
       } else if (deductable >= demand) {
@@ -194,7 +197,7 @@ contract PremiumCollector {
       }
 
       address c = calc.collateral();
-      if (c != collateral || i == 0) {
+      if (c != collateral) {
         if (collected > 0) {
           amount += _convertPremiumToToken(collateral, collected, token);
         }
@@ -202,6 +205,9 @@ contract PremiumCollector {
       } else {
         collected += demand;
       }
+    }
+    if (collected > 0) {
+      amount += _convertPremiumToToken(collateral, collected, token);
     }
   }
 

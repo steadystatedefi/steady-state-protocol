@@ -96,7 +96,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
     return internalGetTotals(type(uint256).max);
   }
 
-  function receivableCoverageDemand(address insured)
+  function receivableDemandedCoverage(address insured)
     external
     view
     returns (uint256 availableCoverage, DemandedCoverage memory coverage)

@@ -437,7 +437,7 @@ abstract contract WeightedRoundsBase {
       }
     }
 
-    _finalizePremium(coverage);
+    _finalizePremium(coverage, true);
     coverage.totalDemand = uint256(_unitSize) * _insureds[params.insured].demandedUnits;
     coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
     params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
@@ -529,8 +529,10 @@ abstract contract WeightedRoundsBase {
     return false;
   }
 
-  function _finalizePremium(DemandedCoverage memory coverage) private view {
-    coverage.premiumRate = uint256(_unitSize).wadMul(coverage.premiumRate);
+  function _finalizePremium(DemandedCoverage memory coverage, bool roundUp) private view {
+    coverage.premiumRate = roundUp
+      ? uint256(_unitSize).wadMulUp(coverage.premiumRate)
+      : uint256(_unitSize).wadMul(coverage.premiumRate);
     coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
     //    // console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
     if (coverage.premiumUpdatedAt != 0) {
@@ -570,7 +572,7 @@ abstract contract WeightedRoundsBase {
     if (mark.coverageTW > 0) {
       // normalization by unitSize to reduce storage requirements
       batchUnitPerRound *= _unitSize;
-      v += (premiumRate * d.unitPerRound * mark.coverageTW + (batchUnitPerRound >> 1)) / batchUnitPerRound;
+      v += (premiumRate * d.unitPerRound * mark.coverageTW + (batchUnitPerRound - 1)) / batchUnitPerRound;
     }
     require(v <= type(uint96).max);
     coveragePremium = uint96(v);
@@ -578,7 +580,7 @@ abstract contract WeightedRoundsBase {
     if (pendingCovered > 0) {
       // normalization by unitSize to reduce storage requirements
       v = pendingCovered + (rounds * d.unitPerRound) * _unitSize;
-      v = (v * premiumRate + (_unitSize >> 1)) / _unitSize;
+      v = (v * premiumRate + (_unitSize - 1)) / _unitSize;
     } else {
       v = premiumRate * (rounds * d.unitPerRound);
     }
@@ -611,7 +613,7 @@ abstract contract WeightedRoundsBase {
       d,
       premium,
       part.roundNo,
-      (part.roundCoverage + (b.unitPerRound >> 1)) / b.unitPerRound,
+      (part.roundCoverage + (b.unitPerRound - 1)) / b.unitPerRound,
       b.roundPremiumRateSum,
       b.unitPerRound
     );
@@ -633,7 +635,7 @@ abstract contract WeightedRoundsBase {
     coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
     coverage.pendingCovered = part.roundCoverage;
 
-    _finalizePremium(coverage);
+    _finalizePremium(coverage, false);
     coverage.totalCovered *= _unitSize;
   }
 
@@ -683,7 +685,7 @@ abstract contract WeightedRoundsBase {
       }
     }
 
-    _finalizePremium(coverage);
+    _finalizePremium(coverage, false);
     coverage.totalCovered *= _unitSize;
     coverage.totalDemand *= _unitSize;
     total.totalCoverable = total.totalCoverable * _unitSize - coverage.pendingCovered;

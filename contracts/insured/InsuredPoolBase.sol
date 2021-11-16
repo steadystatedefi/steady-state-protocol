@@ -10,12 +10,15 @@ import './InsuredJoinBase.sol';
 import 'hardhat/console.sol';
 
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
-  uint256 private _totalDemand;
+  uint128 private _requiredCoverage;
+  uint128 private _demandedCoverage;
+
   uint64 private _premiumRate;
+
   InsuredParams private _params;
 
-  constructor(uint256 totalDemand, uint64 premiumRate) {
-    _totalDemand = totalDemand;
+  constructor(uint256 requiredCoverage, uint64 premiumRate) {
+    require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
     _premiumRate = premiumRate;
   }
 
@@ -59,7 +62,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     uint256 premiumRate
   ) internal override {
     // console.log('internalCoverageDemandAdded', target, amount, _totalDemand);
-    _totalDemand -= amount;
+    _requiredCoverage = uint128(_requiredCoverage - amount);
+    _demandedCoverage += uint128(amount);
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate, address(0));
   }
 
@@ -68,15 +72,18 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     uint256 minAmount,
     uint256
   ) internal override returns (uint256 availableAmount, uint64 premiumRate) {
-    availableAmount = _totalDemand;
+    availableAmount = _requiredCoverage;
     if (availableAmount > amount) {
-      _totalDemand = availableAmount - amount;
+      _requiredCoverage = uint128(availableAmount - amount);
       availableAmount = amount;
     } else if (availableAmount > 0 && availableAmount >= minAmount) {
-      _totalDemand = 0;
+      _requiredCoverage = 0;
     } else {
-      availableAmount = 0;
+      return (0, _premiumRate);
     }
+
+    require((_demandedCoverage = uint128(amount = _demandedCoverage + availableAmount)) == amount);
+
     return (availableAmount, _premiumRate);
   }
 
@@ -90,7 +97,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     target;
     amount;
     unitSize;
-    return (_totalDemand, _premiumRate);
+    return (_requiredCoverage, _premiumRate);
   }
 
   modifier onlyAdmin() virtual {
@@ -138,7 +145,11 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   function _reconcileWithInsurersView(uint256 startIndex, uint256 count)
     private
     view
-    returns (uint256 receivableCoverage)
+    returns (
+      uint256 receivableCoverage,
+      uint256 rate,
+      uint256 accumulated
+    )
   {
     address[] storage insurers = getCharteredInsurers();
     uint256 max = insurers.length;
@@ -152,9 +163,22 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
       (uint256 c, , ) = internalReconcileWithInsurerView(IInsurerPoolDemand(insurers[startIndex]), totals);
       receivableCoverage += c;
     }
+    return (receivableCoverage, totals.rate, totals.accum);
   }
 
-  function receivableByReconcileWithAllInsurers() external view returns (uint256 receivableCoverage) {
+  function receivableByReconcileWithAllInsurers()
+    external
+    view
+    returns (
+      uint256 receivableCoverage,
+      uint256 rate,
+      uint256 accumulated
+    )
+  {
     return _reconcileWithInsurersView(0, type(uint256).max);
   }
+
+  // function totalCoverage() public view returns(uint256 required, uint256 demanded, uint256 received) {
+  //   return (_requiredCoverage, _demandedCoverage, IERC20(collateral()).balanceOf(address(this)));
+  // }
 }
