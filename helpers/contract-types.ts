@@ -102,11 +102,12 @@ export const factoryByName = (s: string): NamedDeployable => {
 
 export const Factories = {
   PriceOracle: wrap(types.PriceOracleFactory),
+  WeightedPoolExtension: wrap(types.WeightedPoolExtensionFactory),
+  PremiumCollector: wrap(types.PremiumCollectorFactory),
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
   MockCollateralFund: mock(types.MockCollateralFundFactory),
   MockWeightedPool: mock(types.MockWeightedPoolFactory),
-  WeightedPoolExtension: mock(types.WeightedPoolExtensionFactory),
   MockInsuredPool: mock(types.MockInsuredPoolFactory),  
 }
 

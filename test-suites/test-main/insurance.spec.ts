@@ -1,8 +1,11 @@
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { Factories } from '../../helpers/contract-types';
-import { MockCollateralFund, MockInsuredPool, MockWeightedPool } from '../../types';
+import { RAY } from '../../helpers/constants';
+import { MockCollateralFund, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
 import { expect } from 'chai';
-import { currentTime } from '../../helpers/runtime-utils';
+import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
+import { tEthereumAddress } from '../../helpers/types';
+import { Wallet } from '@ethersproject/wallet';
 
 makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const decimals = 18;
@@ -10,8 +13,11 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 10000 * unitSize;
+  let payInToken: tEthereumAddress;
+  const protocol = Wallet.createRandom();
   let pool: MockWeightedPool;
   let fund: MockCollateralFund;
+  let collector: PremiumCollector;
   let insureds: MockInsuredPool[] = [];
   let insuredUnits: number[] = [];
 
@@ -19,6 +25,10 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralFund.deploy();
     pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, decimals, extension.address);
+    collector = await Factories.PremiumCollector.deploy();
+
+    payInToken = createRandomAddress();
+    await collector.setPremiumScale(payInToken, [fund.address], [RAY]);
   });
 
   enum InsuredStatus {
@@ -54,6 +64,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
       const stats = await pool.receivableCoverageDemand(insured.address);
       insureds.push(insured);
+      collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       return stats.coverage;
     };
 
@@ -139,13 +150,35 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     for (let index = 0; index < insureds.length; index++) {
       const insured = insureds[index];
       const { coverage } = await pool.receivableCoverageDemand(insured.address);
-
       expect(coverage.totalDemand).eq(insuredUnits[index] * unitSize);
       const covered = coverage.totalCovered.add(coverage.pendingCovered).toNumber();
       expect(covered).approximately(
         (totalCoverageProvidedUnits * unitSize * insuredUnits[index]) / totalDemandUnits,
         1
       );
+
+      {
+        const balances = await insured.balancesOf(pool.address);
+
+        // here demanded coverage is in use - so a protocol is initially charged at max
+        expect(balances.available).eq(coverage.totalDemand);
+        expect(balances.holded).eq(0);
+
+        // premium is charged at full rate, until recosiled
+        console.log(
+          balances.premium.gt(0) ? balances.premium.toNumber() / balances.available.toNumber() : '0',
+          (await currentTime()) - timestamps[index] - 1
+        );
+        //        expect(balances.premium).eq(balances.available.mul(await currentTime() - timestamps[index] - 1));
+      }
     }
+  });
+
+  it.skip('Expected pay', async () => {
+    const payList = await collector.expectedPayAfter(protocol.address, 1);
+    expect(payList.length).eq(1);
+    expect(payList[0].token).eq(payInToken);
+
+    // console.log(payList[0].amount.toString());
   });
 });

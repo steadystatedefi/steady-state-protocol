@@ -238,15 +238,10 @@ abstract contract InsuredBalancesBase is
 
   function internalSetServiceAccountStatus(address account, uint16 status) internal virtual {
     require(status > 0);
-    if (_balances[account].extra != 0) {
-      _balances[account].extra = status;
-    } else {
+    if (_balances[account].extra != 0) {} else {
       require(Address.isContract(account));
-      // this will reduce gas for the first investor into this pool
-      Balances.RateAccWithUint16 memory b = _syncBalance(account);
-      b.extra = status;
-      _balances[account] = b;
     }
+    _balances[account].extra = status;
   }
 
   function getAccountStatus(address account) internal view virtual returns (uint16) {

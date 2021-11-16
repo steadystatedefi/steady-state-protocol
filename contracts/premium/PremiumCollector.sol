@@ -21,7 +21,7 @@ struct TokenAmount {
   uint256 amount;
 }
 
-abstract contract PremiumCollector {
+contract PremiumCollector {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
 
@@ -223,6 +223,10 @@ abstract contract PremiumCollector {
     require(atTimestamp >= block.timestamp);
     require(atTimestamp == uint32(atTimestamp));
     return _balanceOf(protocol, uint32(atTimestamp));
+  }
+
+  function expectedPayAfter(address protocol, uint32 timeDelta) external view returns (TokenAmount[] memory) {
+    return _balanceOf(protocol, uint32(block.timestamp) + timeDelta);
   }
 
   /// @dev withdraws tokens from protocol's deposits.
