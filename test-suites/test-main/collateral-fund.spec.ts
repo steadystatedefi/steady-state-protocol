@@ -7,7 +7,6 @@ import { MockStable } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { IDepositToken, IDepositTokenInterface } from '../../types/IDepositToken';
 
 makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
   const unitSize = 1000;
@@ -20,7 +19,7 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
 
   before(async () => {
     stable = await Factories.MockStable.deploy();
-    subj = await Factories.CollateralFundStable.deploy();
+    subj = await Factories.CollateralFundStable.deploy('STABLE-FUND', 'CC');
     [depositor1, depositor2] = await getSigners();
     await stable.mint(depositor1.address, 1000);
     await stable.mint(depositor2.address, 1000);
