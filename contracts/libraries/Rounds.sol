@@ -5,15 +5,15 @@ pragma solidity ^0.8.4;
 
 UnitPremiumRate per sec * 365 days <= 1 WAD (i.e. 1 WAD = 100% of coverage p.a.)
 =>> UnitPremiumRate is uint40
-=>> timestamp ~10y
+=>> timestamp ~80y
 
 =>> RoundPremiumRate = UnitPremiumRate (40) * unitPerRound (16) = 56
 
 =>> InsuredPremiumRate = UnitPremiumRate (40) * avgUnits (24) = 64
 =>> AccumulatedInsuredPremiumRate = InsuredPremiumRate (64) * timestamp (32) = 96
 
-=>> PoolPremiumRate = UnitPremiumRate (40) * maxUnits (64) = 108
-=>> PoolAccumulatedPremiumRate = PoolPremiumRate (108) * timestamp (32) = 140
+=>> PoolPremiumRate = UnitPremiumRate (40) * maxUnits (64) = 104
+=>> PoolAccumulatedPremiumRate = PoolPremiumRate (104) * timestamp (32) = 140
 
 */
 
