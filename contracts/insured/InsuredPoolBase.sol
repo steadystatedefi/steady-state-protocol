@@ -116,19 +116,38 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     internalJoinProcessed(msg.sender, accepted);
   }
 
-  function reconcileWithAllInsurers() external onlyAdmin returns (uint256 receivedCoverage) {
+  function reconcileWithAllInsurers()
+    external
+    onlyAdmin
+    returns (
+      uint256 receivedCoverage,
+      uint256 demandedCoverage,
+      uint256 providedCoverage
+    )
+  {
     return _reconcileWithInsurers(0, type(uint256).max);
   }
 
   function reconcileWithInsurers(uint256 startIndex, uint256 count)
     external
     onlyAdmin
-    returns (uint256 receivedCoverage)
+    returns (
+      uint256 receivedCoverage,
+      uint256 demandedCoverage,
+      uint256 providedCoverage
+    )
   {
     return _reconcileWithInsurers(startIndex, count);
   }
 
-  function _reconcileWithInsurers(uint256 startIndex, uint256 count) private returns (uint256 receivedCoverage) {
+  function _reconcileWithInsurers(uint256 startIndex, uint256 count)
+    private
+    returns (
+      uint256 receivedCoverage,
+      uint256 demandedCoverage,
+      uint256 providedCoverage
+    )
+  {
     address[] storage insurers = getCharteredInsurers();
     uint256 max = insurers.length;
     unchecked {
@@ -137,8 +156,13 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
       }
     }
     for (; startIndex < max; startIndex++) {
-      (uint256 c, ) = internalReconcileWithInsurer(IInsurerPoolDemand(insurers[startIndex]), false);
+      (uint256 c, DemandedCoverage memory cov) = internalReconcileWithInsurer(
+        IInsurerPoolDemand(insurers[startIndex]),
+        false
+      );
       receivedCoverage += c;
+      demandedCoverage += cov.totalDemand;
+      providedCoverage += cov.totalCovered;
     }
   }
 
@@ -147,6 +171,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     view
     returns (
       uint256 receivableCoverage,
+      uint256 demandedCoverage,
+      uint256 providedCoverage,
       uint256 rate,
       uint256 accumulated
     )
@@ -160,10 +186,15 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
     Balances.RateAcc memory totals = internalSyncTotals();
     for (; startIndex < max; startIndex++) {
-      (uint256 c, , ) = internalReconcileWithInsurerView(IInsurerPoolDemand(insurers[startIndex]), totals);
+      (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(
+        IInsurerPoolDemand(insurers[startIndex]),
+        totals
+      );
+      demandedCoverage += cov.totalDemand;
+      providedCoverage += cov.totalCovered;
       receivableCoverage += c;
     }
-    return (receivableCoverage, totals.rate, totals.accum);
+    (rate, accumulated) = (totals.rate, totals.accum);
   }
 
   function receivableByReconcileWithAllInsurers()
@@ -171,6 +202,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     view
     returns (
       uint256 receivableCoverage,
+      uint256 demandedCoverage,
+      uint256 providedCoverage,
       uint256 rate,
       uint256 accumulated
     )

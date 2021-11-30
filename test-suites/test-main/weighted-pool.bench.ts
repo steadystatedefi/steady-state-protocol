@@ -3,18 +3,9 @@ import { Factories } from '../../helpers/contract-types';
 import { RAY } from '../../helpers/constants';
 import { MockCollateralFund, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
 import { expect } from 'chai';
-import {
-  createRandomAddress,
-  createUserWallet,
-  currentTime,
-  getEthersProvider,
-  getSigners,
-  mustWaitTx,
-} from '../../helpers/runtime-utils';
+import { createRandomAddress, createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
 import { Wallet } from '@ethersproject/wallet';
-import { DRE } from '../../helpers/dre';
-import { getDefaultProvider } from '@ethersproject/providers';
 import { BigNumber } from '@ethersproject/bignumber';
 
 makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
@@ -26,6 +17,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   let pool: MockWeightedPool;
   let fund: MockCollateralFund;
   let collector: PremiumCollector;
+  let iteration = 0;
   const weights: number[] = [];
   const insureds: MockInsuredPool[] = [];
 
@@ -43,8 +35,8 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       minAdvanceUnits: 1000,
       riskWeightTarget: 1000,
       minInsuredShare: 100,
-      maxInsuredShare: 4000,
-      minUnitsPerRound: 20,
+      maxInsuredShare: 1500,
+      minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
     });
   });
@@ -85,20 +77,20 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       insureds.push(insured);
       weights.push(riskWeight);
       collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
+      console.log(`${iteration}\tDemand\t${insured.address}\t${stats.coverage.totalDemand.toString()}`);
       return stats.coverage;
     };
 
-    const poolDemand = 1000000;
-
-    await joinPool(poolDemand, riskWeight / 10);
-    await joinPool(poolDemand, riskWeight * 2);
-
-    for (let i = 8; i > 0; i--) {
+    for (let poolDemand of [10000, 100000, 1000000]) {
+      await joinPool(poolDemand, riskWeight);
+      await joinPool(poolDemand, riskWeight);
       await joinPool(poolDemand, riskWeight);
     }
+    await joinPool(100000, riskWeight / 8);
   };
 
   it('Create 10 insured pools', async () => {
+    iteration++;
     await deployProtocolPools();
   });
 
@@ -111,26 +103,71 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
     const invest = async (kind: string, investment: number) => {
       const tx = await mustWaitTx(fund.connect(user).invest(pool.address, BigNumber.from(unitSize).mul(investment)));
-      console.log(`Invest\t${kind}\t${user.address}\t${investment}\t${tx.gasUsed}`);
+      console.log(`${iteration}\tInvest\t${kind}\t${user.address}\t${investment}\t${tx.gasUsed}`);
+      // const totals = await pool.getTotals();
+      // console.log(totals.coverage.totalCovered.add(totals.coverage.pendingCovered).toString());
     };
 
-    const smallInvestment = 1;
-    const largeInvestment = 1000;
+    const smallInvestment = 10;
+    const largeInvestment = 10000;
     await invest('init', smallInvestment);
     await invest('next', smallInvestment);
     await invest('next', largeInvestment);
     await invest('next', smallInvestment);
   };
 
-  it('Invest by 100 users', async () => {
-    for (let i = 100; i > 0; i--) {
+  it('Invest by 5 users', async () => {
+    for (let i = 5; i > 0; i--) {
       await investByUser();
     }
   });
 
-  // it('Create 90 insured pools', async () => {
-  //   for (let i = 9; i > 0; i--) {
-  //     await deployProtocolPools();
-  //   }
-  // });
+  const reconcilePools = async () => {
+    for (const insured of insureds) {
+      const tx = await mustWaitTx(insured.reconcileWithAllInsurers());
+      const coverage = await insured.receivableByReconcileWithAllInsurers();
+      console.log(
+        `${iteration}\tReconcile\t${insured.address}\t${coverage.providedCoverage.toString()}\t${tx.gasUsed}`
+      );
+    }
+  };
+
+  it('Reconcile pools', reconcilePools);
+
+  it('Create 10 insured pools (20 total)', async () => {
+    iteration++;
+    await deployProtocolPools();
+  });
+
+  it('Invest by 5 users', async () => {
+    for (let i = 5; i > 0; i--) {
+      await investByUser();
+    }
+  });
+
+  it('Reconcile pools', reconcilePools);
+
+  it('Create 30 insured pools (50 total)', async () => {
+    iteration++;
+    for (let i = 3; i > 0; i--) {
+      await deployProtocolPools();
+    }
+  });
+
+  it('Invest by 5 users', async () => {
+    for (let i = 5; i > 0; i--) {
+      await investByUser();
+    }
+  });
+
+  it('Reconcile pools', reconcilePools);
+
+  it('Invest by 50 users', async () => {
+    iteration++;
+    for (let i = 50; i > 0; i--) {
+      await investByUser();
+    }
+  });
+
+  it('Reconcile pools', reconcilePools);
 });

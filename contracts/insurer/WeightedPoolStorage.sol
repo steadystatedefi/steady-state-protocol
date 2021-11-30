@@ -117,7 +117,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
       maxAddUnitsPerRound = x >= type(uint16).max ? type(uint16).max : uint16(x);
     }
 
-    x = maxAddUnitsPerRound + unitPerRound;
+    x = uint256(maxAddUnitsPerRound) + unitPerRound;
     if (params.maxUnitsPerRound >= x) {
       x = params.maxUnitsPerRound;
     } else if (x > type(uint16).max) {
