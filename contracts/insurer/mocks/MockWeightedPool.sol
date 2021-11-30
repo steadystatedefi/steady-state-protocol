@@ -29,6 +29,10 @@ contract MockWeightedPool is WeightedPoolBase {
     );
   }
 
+  function setPoolParams(WeightedPoolParams calldata params) external {
+    internalSetPoolParams(params);
+  }
+
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return internalGetTotals(type(uint256).max);
   }
