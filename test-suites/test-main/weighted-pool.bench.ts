@@ -102,10 +102,9 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     });
 
     const invest = async (kind: string, investment: number) => {
-      const tx = await mustWaitTx(fund.connect(user).invest(pool.address, BigNumber.from(unitSize).mul(investment)));
-      console.log(`${iteration}\tInvest\t${kind}\t${user.address}\t${investment}\t${tx.gasUsed}`);
-      // const totals = await pool.getTotals();
-      // console.log(totals.coverage.totalCovered.add(totals.coverage.pendingCovered).toString());
+      const v = BigNumber.from(unitSize).mul(investment);
+      const tx = await mustWaitTx(fund.connect(user).invest(pool.address, v));
+      console.log(`${iteration}\tInvest\t${user.address}\t${v.toString()}\t${tx.gasUsed}\t${kind}`);
     };
 
     const smallInvestment = 10;
@@ -162,8 +161,23 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   it('Reconcile pools', reconcilePools);
 
-  it('Invest by 50 users', async () => {
+  it('Invest by 35 users', async () => {
     iteration++;
+    for (let i = 35; i > 0; i--) {
+      await investByUser();
+    }
+  });
+
+  it('Reconcile pools', reconcilePools);
+
+  it('Create 50 insured pools (100 total)', async () => {
+    iteration++;
+    for (let i = 5; i > 0; i--) {
+      await deployProtocolPools();
+    }
+  });
+
+  it('Invest by 50 users', async () => {
     for (let i = 50; i > 0; i--) {
       await investByUser();
     }
