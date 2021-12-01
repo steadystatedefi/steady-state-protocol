@@ -67,7 +67,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
         riskWeight,
         decimals
       );
-      await insured.joinPool(pool.address);
+      const tx = await mustWaitTx(insured.joinPool(pool.address));
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
       expect(generic).eql([]);
@@ -77,7 +77,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       insureds.push(insured);
       weights.push(riskWeight);
       collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
-      console.log(`${iteration}\tDemand\t${insured.address}\t${stats.coverage.totalDemand.toString()}`);
+      console.log(`${iteration}\tDemand\t${insured.address}\t${stats.coverage.totalDemand.toString()}\t${tx.gasUsed}`);
       return stats.coverage;
     };
 
@@ -179,6 +179,36 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   it('Invest by 50 users', async () => {
     for (let i = 50; i > 0; i--) {
+      await investByUser();
+    }
+  });
+
+  it('Reconcile pools', reconcilePools);
+
+  it('Create 100 insured pools (200 total)', async () => {
+    iteration++;
+    for (let i = 10; i > 0; i--) {
+      await deployProtocolPools();
+    }
+  });
+
+  it('Invest by 100 users', async () => {
+    for (let i = 100; i > 0; i--) {
+      await investByUser();
+    }
+  });
+
+  it('Reconcile pools', reconcilePools);
+
+  it('Create 300 insured pools (500 total)', async () => {
+    iteration++;
+    for (let i = 30; i > 0; i--) {
+      await deployProtocolPools();
+    }
+  });
+
+  it('Invest by 300 users', async () => {
+    for (let i = 300; i > 0; i--) {
       await investByUser();
     }
   });
