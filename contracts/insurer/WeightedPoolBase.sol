@@ -10,6 +10,7 @@ import '../interfaces/IInsuredPool.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 
+// Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
 abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage, Delegator, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -50,6 +51,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return true;
   }
 
+  /// @dev Performed before balance updates. The total rate accum by the pool is updated, and then the user balance is updated
   function _beforeBalanceUpdate(address account)
     private
     returns (UserBalance memory b, Balances.RateAcc memory totals)
@@ -58,6 +60,8 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     b = _syncBalance(account, totals);
   }
 
+  /// @dev Updates _premiums with total premium earned by user. Each user's balance is marked by the amount
+  ///  of premium collected by the pool at time of update
   function _syncBalance(address account, Balances.RateAcc memory totals) private returns (UserBalance memory b) {
     b = _balances[account];
     if (b.balance > 0) {
@@ -69,12 +73,13 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     b.premiumBase = totals.accum;
   }
 
+  /// @dev After the balance of the pool is updated, update the _totalRate
   function _afterBalanceUpdate(
     uint256 newExcess,
     Balances.RateAcc memory totals,
     DemandedCoverage memory coverage
   ) private returns (Balances.RateAcc memory) {
-    uint256 rate = coverage.premiumRate.rayMul(exchangeRate());
+    uint256 rate = coverage.premiumRate.rayMul(exchangeRate()); //$CC earned per block
     // console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
 
     rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
@@ -88,6 +93,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return totals;
   }
 
+  /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   function internalMintForCoverage(address account, uint256 coverageAmount) internal {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
@@ -113,6 +119,8 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     _balances[account] = b;
   }
 
+  ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
+  /// an insured adds more demand
   function pushCoverageExcess() public {
     uint256 excessCoverage = _excessCoverage;
     if (excessCoverage == 0) {
@@ -154,6 +162,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
+  ///@dev returns the ($CC coverage, $PC coverage, premium accumulated) of a user
   function balancesOf(address account)
     public
     view
@@ -177,6 +186,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return coverage.totalCovered + coverage.pendingCovered;
   }
 
+  /// @dev Returns the current rate that this user earns per-block, and the amount of premium accumulated
   function interestRate(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
     UserBalance memory b = _balances[account];
@@ -238,6 +248,10 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     internalMintForCoverage(investor, amount);
   }
 
+  ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
+  ///@param sender  The sender
+  ///@param recipient The receiver
+  ///@param amount  Amount to transfer
   function transferBalance(
     address sender,
     address recipient,

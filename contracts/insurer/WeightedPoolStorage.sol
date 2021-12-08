@@ -10,6 +10,8 @@ import '../interfaces/IJoinHandler.sol';
 import '../insurance/InsurancePoolBase.sol';
 import './WeightedRoundsBase.sol';
 
+// Contains all variables for both base and extension contract. Allows for upgrades without corruption
+
 /// @dev
 /// @dev WARNING! This contract MUST NOT be extended with new fields after deployments
 /// @dev WARNING! because WeightedPoolTokenStorage inherited from this one.
@@ -47,6 +49,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     _;
   }
 
+  ///@dev Used to determine the number of rounds to initialize a new batch
   function internalBatchAppend(
     uint64,
     uint32 openRounds,

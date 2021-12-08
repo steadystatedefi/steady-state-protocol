@@ -74,6 +74,7 @@ abstract contract WeightedRoundsBase {
     return _insureds[account].status;
   }
 
+  ///@dev Sets the minimum amount of units this insured pool will assign and the max share % of the pool it can take up
   function internalSetInsuredParams(address account, Rounds.InsuredParams memory params) internal {
     Rounds.InsuredEntry memory entry = _insureds[account];
     entry.minUnits = params.minUnits;
@@ -102,6 +103,10 @@ abstract contract WeightedRoundsBase {
     uint40 premiumRate;
   }
 
+  ///@dev Adds coverage demand by performing the following:
+  /// Find which batch to first append to
+  /// Fill the batch, and create new batches if needed, looping under either all units added to batch or loopLimit
+  //  Return the remaining demanded units
   function internalAddCoverageDemand(uint64 unitCount, AddCoverageDemandParams memory params)
     internal
     returns (
@@ -200,6 +205,8 @@ abstract contract WeightedRoundsBase {
     return unitCount;
   }
 
+  /// @dev Finds which batch to add coverage demand to. Attempts to use nextBatchNo if it is accepting coverage demand
+  ///   Returns the current batch, its number and whether batches were filled
   function _findBatchToAppend(uint64 nextBatchNo)
     private
     returns (
@@ -259,6 +266,7 @@ abstract contract WeightedRoundsBase {
     return b.totalUnitsBeforeBatch + part.roundNo * b.unitPerRound;
   }
 
+  ///@dev adds the demand to the list of demands
   function _addToSlot(
     Rounds.Demand memory demand,
     Rounds.Demand[] storage demands,
@@ -286,6 +294,8 @@ abstract contract WeightedRoundsBase {
     return true;
   }
 
+  ///@dev Adds units to the batch by reducing the batch to the unit size and splitting if need be.
+  /// The unitCount units are evenly distributed across rounds by increase the # of units per round
   function _addToBatch(
     uint64 unitCount,
     Rounds.Batch memory b,
@@ -365,6 +375,8 @@ abstract contract WeightedRoundsBase {
     uint64 unitCount
   ) internal virtual returns (uint24 rounds);
 
+  ///@dev Reduces the current batch's rounds to remainingRounds and adds the leftover rounds to a new batch.
+  /// Also checks if this is the new latest batch
   function _splitBatch(uint24 remainingRounds, Rounds.Batch memory b) private {
     if (b.rounds == remainingRounds) return;
     require(b.rounds > remainingRounds, 'split beyond size');
@@ -397,6 +409,7 @@ abstract contract WeightedRoundsBase {
     bool done;
   }
 
+  ///@dev Get the amount of demand that has been covered and the premium earned from it
   function internalGetCoveredDemand(GetCoveredDemandParams memory params)
     internal
     view
@@ -450,6 +463,11 @@ abstract contract WeightedRoundsBase {
     (coverage, _covered[params.insured], _premiums[params.insured]) = internalGetCoveredDemand(params);
   }
 
+  ///@dev Sets the function paramaters to their correct values by:
+  /// - Setting d.startBatchNo to the first open batch and calculating # of full rounds and premium accrued from full batches
+  /// - Set covered to the premium values from the newly counted full batches
+  /// - RETURN true if the demand has been completely filled
+  /// - Updated with partional round info for number of covered units and the premium earned on them
   function _collectCoveredDemandSlot(
     Rounds.Demand memory d,
     DemandedCoverage memory coverage,
@@ -460,7 +478,7 @@ abstract contract WeightedRoundsBase {
 
     uint24 fullRounds;
     if (covered.lastUpdateRounds > 0) {
-      d.rounds -= covered.lastUpdateRounds;
+      d.rounds -= covered.lastUpdateRounds; //Reduce by # of full rounds that was kept track of until lastOpenBatchNo
       d.startBatchNo = covered.lastOpenBatchNo;
     }
 
@@ -493,6 +511,7 @@ abstract contract WeightedRoundsBase {
       premium.lastUpdatedAt
     );
 
+    //If the covered.lastUpdateIndex demand has been fully covered
     if (d.rounds == fullRounds) {
       covered.lastUpdateRounds = 0;
       covered.lastOpenBatchNo = 0;
@@ -529,6 +548,8 @@ abstract contract WeightedRoundsBase {
     return false;
   }
 
+  ///@dev Calculate the actual premium values since variables keep track of number of coverage units instead of
+  /// amount of coverage currency
   function _finalizePremium(DemandedCoverage memory coverage, bool roundUp) private view {
     coverage.premiumRate = roundUp
       ? uint256(_unitSize).wadMulUp(coverage.premiumRate)
@@ -541,6 +562,8 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  ///@dev Calculate the new premium values by including the rounds that have been filled for demand d and
+  /// the partial rounds
   function _calcPremium(
     Rounds.Demand memory d,
     Rounds.CoveragePremium memory premium,
@@ -590,6 +613,7 @@ abstract contract WeightedRoundsBase {
     // console.log('premiumAfter', coveragePremium, coveragePremiumRate);
   }
 
+  ///@dev Update the premium totals of coverage by including batch b
   function _collectPremiumTotals(
     PartialState memory part,
     Rounds.Batch memory b,
@@ -639,6 +663,8 @@ abstract contract WeightedRoundsBase {
     coverage.totalCovered *= _unitSize;
   }
 
+  ///@dev Get the Pool's total amount of coverage that has been demanded, covered and allocated (partial round) and
+  /// the corresponding premium based on these values
   function internalGetTotals(uint256 loopLimit)
     internal
     view
@@ -731,6 +757,7 @@ abstract contract WeightedRoundsBase {
     return (amount, loopLimit, params, part, b);
   }
 
+  ///@dev Adds coverage to the pool and stops if there are no batches left to add coverage to
   function _addCoverage(
     uint256 amount,
     uint256 loopLimit,
@@ -770,6 +797,7 @@ abstract contract WeightedRoundsBase {
       loopLimit--;
       require(b.unitPerRound > 0, 'empty round');
 
+      //If filled in the final round of a batch
       if (part.roundNo >= b.rounds) {
         require(part.roundNo == b.rounds);
         require(part.roundCoverage == 0);
@@ -866,6 +894,8 @@ abstract contract WeightedRoundsBase {
     _marks[batchNo].timestamp = 1;
   }
 
+  ///@dev Updates the timeMark for this batch which calculates the "area under the curve" of the coverage curve
+  /// over time
   function _updateTimeMark(PartialState memory part, uint256 batchUnitPerRound) private {
     // console.log('==updateTimeMark', part.batchNo);
     require(part.batchNo != 0);

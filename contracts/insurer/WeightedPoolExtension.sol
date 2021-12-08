@@ -8,6 +8,7 @@ import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
+// Handles Insured pool functions, adding/cancelling demand
 contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -35,6 +36,11 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     Errors.notImplemented();
   }
 
+  ///@notice Add coverage demand to the pool
+  ///@param unitCount The number of units to demand
+  ///@param premiumRate The rate that will be paid on this coverage
+  ///@param hasMore TODO
+  ///@return addedCount The amount of coverage added
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
@@ -49,6 +55,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     require(unitCount <= type(uint64).max);
 
     addedCount = unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
+    //If there was excess coverage before adding this demand, immediately assign it
     if (_excessCoverage > 0 && internalCanAddCoverage()) {
       // avoid addCoverage code to be duplicated within WeightedPoolExtension to reduce contract size
       WeightedPoolBase(address(this)).pushCoverageExcess();
@@ -56,6 +63,10 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return addedCount;
   }
 
+  ///@notice Cancel coverage that has been demanded - must be unfilled
+  ///@param unitCount The number of units that wishes to be cancelled
+  ///@param hasMore TODO
+  ///@return cancelledUnits The amount of units that were cancelled
   function cancelCoverageDemand(uint256 unitCount, bool hasMore)
     external
     override
@@ -68,6 +79,10 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return 0;
   }
 
+  ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
+  ///@param insured The insured pool
+  ///@return receivedCoverage The amount of $CC that has been covered
+  ///@return coverage All the details relating to the coverage, demand and premium
   function receivableDemandedCoverage(address insured)
     external
     view
@@ -82,6 +97,8 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return (params.receivedCoverage, coverage);
   }
 
+  ///@notice Transfer the amount of coverage that been filled to the insured
+  ///TODO
   function receiveDemandedCoverage(address insured)
     external
     override
@@ -105,6 +122,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return (params.receivedCoverage, coverage);
   }
 
+  ///@dev Prepare for an insured pool to join by setting the parameters
   function internalPrepareJoin(address insured) internal override {
     WeightedPoolParams memory params = _params;
     InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
@@ -128,6 +146,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return IJoinHandler(_joinHandler).handleJoinRequest(insured);
   }
 
+  ///@dev Return if an account has a balance or premium earned
   function internalIsInvestor(address account)
     internal
     view
