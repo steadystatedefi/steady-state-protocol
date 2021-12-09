@@ -9,6 +9,8 @@ import './InsuredJoinBase.sol';
 
 import 'hardhat/console.sol';
 
+// Insured pool tracks how much coverage was requested to Insurer pool and how much is provided
+// reconcilation will ensure the correct amount of premium is paid
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
   uint128 private _requiredCoverage;
   uint128 private _demandedCoverage;
@@ -20,6 +22,11 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   constructor(uint256 requiredCoverage, uint64 premiumRate) {
     require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
     _premiumRate = premiumRate;
+  }
+
+  //TODO: THIS IS A TEMPORARY FUNCTION
+  function increaseRequiredCoverage(uint256 amount) external {
+    _requiredCoverage += uint128(amount);
   }
 
   function internalSetInsuredParams(InsuredParams memory params) internal {
@@ -56,6 +63,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return InsuredJoinBase.internalIsAllowedAsHolder(status);
   }
 
+  ///@dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
   function internalCoverageDemandAdded(
     address target,
     uint256 amount,
@@ -67,6 +75,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate, address(0));
   }
 
+  ///@dev Adjusts the required and demanded coverage from an investment
+  ///TODO: premiumrate(?)
   function internalHandleDirectInvestment(
     uint256 amount,
     uint256 minAmount,
@@ -116,10 +126,16 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     internalJoinProcessed(msg.sender, accepted);
   }
 
+  ///@notice Reconcile with all chartered insurers
+  ///@return receivedCoverage returns the total amount of received coverage
   function reconcileWithAllInsurers() external onlyAdmin returns (uint256 receivedCoverage) {
     return _reconcileWithInsurers(0, type(uint256).max);
   }
 
+  ///@notice Reconcile the coverage and premium with chartered insurers
+  ///@param startIndex index to start at
+  ///@param count Max amount of insurers to reconcile with
+  ///@return receivedCoverage returns the total amount of received coverage
   function reconcileWithInsurers(uint256 startIndex, uint256 count)
     external
     onlyAdmin
@@ -128,6 +144,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _reconcileWithInsurers(startIndex, count);
   }
 
+  ///@dev Go through each insurer and reconcile with them, but don't update the rate
   function _reconcileWithInsurers(uint256 startIndex, uint256 count) private returns (uint256 receivedCoverage) {
     address[] storage insurers = getCharteredInsurers();
     uint256 max = insurers.length;
@@ -142,6 +159,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
+  ///@dev Get the values if reconciliation were to occur with the desired Insurers
   function _reconcileWithInsurersView(uint256 startIndex, uint256 count)
     private
     view
@@ -166,6 +184,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return (receivableCoverage, totals.rate, totals.accum);
   }
 
+  ///@dev Get the values if reconciliation were to occur with all insurers
   function receivableByReconcileWithAllInsurers()
     external
     view

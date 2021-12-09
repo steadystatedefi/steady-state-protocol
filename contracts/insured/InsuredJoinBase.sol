@@ -7,6 +7,7 @@ import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
+//InsuredJoinBase handles Insured pool requesting to join an Insurer
 abstract contract InsuredJoinBase is IInsuredPool {
   address[] private _genericInsurers; // IInsurerPool[]
   address[] private _charteredInsurers;
@@ -34,18 +35,19 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return _charteredInsurers;
   }
 
-  function internalJoinProcessed(address insured, bool accepted) internal {
-    require(getAccountStatus(insured) == STATUS_PENDING);
+  ///@dev Add the Insurer pool if accepted, and set the status of it
+  function internalJoinProcessed(address insurer, bool accepted) internal {
+    require(getAccountStatus(insurer) == STATUS_PENDING);
 
     if (accepted) {
-      bool chartered = IJoinable(insured).charteredDemand();
+      bool chartered = IJoinable(insurer).charteredDemand();
       uint256 index = chartered ? (_charteredInsurers.length << 1) + 1 : (_genericInsurers.length + 1) << 1;
       require(index < INDEX_MAX);
-      (chartered ? _charteredInsurers : _genericInsurers).push(insured);
-      internalSetServiceAccountStatus(insured, uint16(index));
-      _pushCoverageDemand(IInsurerPool(insured), 0);
+      (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
+      internalSetServiceAccountStatus(insurer, uint16(index));
+      _pushCoverageDemand(IInsurerPool(insurer), 0);
     } else {
-      internalSetServiceAccountStatus(insured, STATUS_NOT_JOINED);
+      internalSetServiceAccountStatus(insurer, STATUS_NOT_JOINED);
     }
   }
 
@@ -69,6 +71,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return _addCoverageDemandTo(target, amount);
   }
 
+  ///@dev Add coverage demand to the Insurer and return if there is more demand that can be added(?)
   function _addCoverageDemandTo(IInsurerPool target, uint256 amount) private returns (bool) {
     uint256 unitSize = IInsurerPool(msg.sender).coverageUnitSize();
     uint256 premiumRate;
