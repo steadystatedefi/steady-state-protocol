@@ -39,7 +39,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
   ///@notice Add coverage demand to the pool
   ///@param unitCount The number of units to demand
   ///@param premiumRate The rate that will be paid on this coverage
-  ///@param hasMore TODO
+  ///@param hasMore Whether the Insured has more demand it would like to request after this
   ///@return addedCount The amount of coverage added
   function addCoverageDemand(
     uint256 unitCount,
@@ -65,7 +65,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
 
   ///@notice Cancel coverage that has been demanded - must be unfilled
   ///@param unitCount The number of units that wishes to be cancelled
-  ///@param hasMore TODO
+  ///@param hasMore Whether the Insured has more demand to cancel
   ///@return cancelledUnits The amount of units that were cancelled
   function cancelCoverageDemand(uint256 unitCount, bool hasMore)
     external

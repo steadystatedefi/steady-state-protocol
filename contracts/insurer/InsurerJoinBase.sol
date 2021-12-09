@@ -7,6 +7,7 @@ import '../interfaces/IJoinable.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../libraries/Rounds.sol';
 
+// InsurerJoinBase handles Insured's requests on joining this Insurer
 abstract contract InsurerJoinBase is IJoinEvents {
   function internalGetStatus(address) internal view virtual returns (InsuredStatus);
 
