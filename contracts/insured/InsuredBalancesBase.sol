@@ -118,10 +118,6 @@ abstract contract InsuredBalancesBase is
     require(amount >= minAmount);
     require(premiumRate > 0 && premiumRate >= minPremiumRate);
 
-    amount = amount.wadMul(premiumRate);
-    if (amount == 0) {
-      return (unusedAmount, 0);
-    }
     unusedAmount -= amount;
 
     internalMintForCoverage(investor, amount, premiumRate, holder);
