@@ -263,7 +263,8 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     _balances[sender] = b;
 
     b = _syncBalance(recipient, totals);
-    require((b.balance = uint128(amount += b.balance)) == amount);
+    amount += b.balance;
+    require((b.balance = uint128(amount)) == amount);
     _balances[recipient] = b;
   }
 }

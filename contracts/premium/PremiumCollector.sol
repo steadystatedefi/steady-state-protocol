@@ -146,7 +146,8 @@ contract PremiumCollector {
       if (amount == 0) continue;
       IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
-      require((b.balance = uint112(amount += b.balance)) == amount);
+      amount += b.balance;
+      require((b.balance = uint112(amount)) == amount);
       b.timestamp = uint32(block.timestamp);
     }
   }

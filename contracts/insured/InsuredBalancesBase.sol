@@ -288,7 +288,8 @@ abstract contract InsuredBalancesBase is
       if (b.accum < coverage.totalPremium) {
         // technical underpayment
         diff = coverage.totalPremium - b.accum;
-        require((totals.accum = uint128(diff += totals.accum)) == diff);
+        diff += totals.accum;
+        require((totals.accum = uint128(diff)) == diff);
         revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
         totals.accum -= uint128(diff = b.accum - coverage.totalPremium); //TODO (Tyler)
@@ -341,7 +342,8 @@ abstract contract InsuredBalancesBase is
       if (b.accum < coverage.totalPremium) {
         // technical underpayment
         diff = coverage.totalPremium - b.accum;
-        require((totals.accum = uint128(diff += totals.accum)) == diff);
+        diff += totals.accum;
+        require((totals.accum = uint128(diff)) == diff);
         revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
         diff = b.accum - coverage.totalPremium;
