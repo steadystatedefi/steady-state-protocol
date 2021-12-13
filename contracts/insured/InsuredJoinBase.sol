@@ -73,7 +73,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   ///@dev Add coverage demand to the Insurer and return if there is more demand that can be added(?)
   function _addCoverageDemandTo(IInsurerPool target, uint256 amount) private returns (bool) {
-    uint256 unitSize = IInsurerPool(msg.sender).coverageUnitSize();
+    uint256 unitSize = IInsurerPool(target).coverageUnitSize();
     uint256 premiumRate;
     (amount, premiumRate) = internalAllocateCoverageDemand(address(target), amount, unitSize);
     if (amount < unitSize) {
