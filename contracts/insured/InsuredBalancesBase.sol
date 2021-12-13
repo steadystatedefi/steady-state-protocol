@@ -155,8 +155,10 @@ abstract contract InsuredBalancesBase is
     _balances[account] = b;
 
     Balances.RateAcc memory totals = internalSyncTotals();
-    require((totals.rate = uint96(rateAmount += totals.rate)) == rateAmount);
-    //totals.rate = uint96(rateAmount += totals.rate);
+
+    rateAmount += totals.rate;
+    require((totals.rate = uint96(rateAmount)) == rateAmount);
+
     _totals = totals;
   }
 
