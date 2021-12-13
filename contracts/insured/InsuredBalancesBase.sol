@@ -331,7 +331,7 @@ abstract contract InsuredBalancesBase is
     require(internalIsAllowedAsHolder(b.extra));
 
     (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this));
-    require(b.updatedAt == coverage.premiumUpdatedAt);
+    require(b.updatedAt >= coverage.premiumUpdatedAt);
 
     uint256 diff;
     if (b.accum != coverage.totalPremium) {

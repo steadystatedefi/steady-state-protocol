@@ -4,6 +4,7 @@ import { isAddress } from 'ethers/lib/utils';
 import { isZeroAddress } from 'ethereumjs-util';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { DRE } from './dre';
+import { Provider } from '@ethersproject/abstract-provider';
 
 export const sleep = (milliseconds: number) => {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -105,3 +106,5 @@ export const getSignerN = async (n: number) => (await getSigners())[n];
 export const getContractFactory = async (abi: any[], bytecode: string) =>
   await (<any>DRE).ethers.getContractFactory(abi, bytecode);
 
+export const getEthersProvider = () => ((<any>DRE).ethers.provider) as Provider;
+export const createUserWallet = () => Wallet.createRandom().connect(getEthersProvider());
