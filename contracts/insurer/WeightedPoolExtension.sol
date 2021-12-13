@@ -36,11 +36,11 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     Errors.notImplemented();
   }
 
-  ///@notice Add coverage demand to the pool
+  ///@notice Add coverage demand to the pool, called by insured
   ///@param unitCount The number of units to demand
   ///@param premiumRate The rate that will be paid on this coverage
   ///@param hasMore Whether the Insured has more demand it would like to request after this
-  ///@return addedCount The amount of coverage added
+  ///@return addedCount The amount of coverage demand added
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
