@@ -15,6 +15,8 @@ import '../insurance/InsurancePoolBase.sol';
 
 import 'hardhat/console.sol';
 
+// Calculates retroactive premium paid by Insured to Insurer over-time.
+// Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
 abstract contract InsuredBalancesBase is
   InsurancePoolBase,
   ERC1363ReceiverBase,
@@ -97,6 +99,9 @@ abstract contract InsuredBalancesBase is
     return unusedAmount;
   }
 
+  ///@dev Invests into the insured for the investor, and it must invest >= minAmount at a rate >= minPremiumRate
+  ///@return unusedAmount Amount of unused coverage
+  ///@return amount of coverage provided
   function _invest(
     address investor,
     uint256 amount,
@@ -113,16 +118,13 @@ abstract contract InsuredBalancesBase is
     require(amount >= minAmount);
     require(premiumRate > 0 && premiumRate >= minPremiumRate);
 
-    amount = amount.wadMul(premiumRate);
-    if (amount == 0) {
-      return (unusedAmount, 0);
-    }
     unusedAmount -= amount;
 
     internalMintForCoverage(investor, amount, premiumRate, holder);
     return (unusedAmount, amount);
   }
 
+  ///@dev Mint the correct amount of tokens for the account (investor)
   function internalMintForCoverage(
     address account,
     uint256 rateAmount,
@@ -264,6 +266,8 @@ abstract contract InsuredBalancesBase is
     return b.extra > 0;
   }
 
+  ///@dev Reconcile the amount of collected premium and current premium rate with the Insurer
+  ///@param updateRate whether the total rate of this Insured pool should be updated
   function internalReconcileWithInsurer(IInsurerPoolDemand insurer, bool updateRate)
     internal
     returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
@@ -284,7 +288,7 @@ abstract contract InsuredBalancesBase is
         require((totals.accum = uint128(diff += totals.accum)) == diff);
         revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
-        totals.accum -= uint128(diff = b.accum - coverage.totalPremium);
+        totals.accum -= uint128(diff = b.accum - coverage.totalPremium); //TODO (Tyler)
       }
 
       b.accum = uint120(coverage.totalPremium);
