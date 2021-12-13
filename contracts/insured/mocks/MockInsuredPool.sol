@@ -18,4 +18,14 @@ contract MockInsuredPool is InsuredPoolBase {
   {
     internalSetInsuredParams(InsuredParams({minUnitsPerInsurer: minUnitsPerInsurer, riskWeightPct: riskWeightPct}));
   }
+
+  ///======= TEMPORARY FUNCTIONS =======///
+  function increaseRequiredCoverage(uint256 amount) external {
+    _increaseRequiredCoverage(amount);
+  }
+
+  function externalGetAccountStatus(address account) external view returns (uint16) {
+    return getAccountStatus(account);
+  }
+  ///===================================///
 }

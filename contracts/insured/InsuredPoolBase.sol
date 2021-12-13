@@ -24,16 +24,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     _premiumRate = premiumRate;
   }
 
-  ///======= TEMPORARY FUNCTIONS =======///
-  function increaseRequiredCoverage(uint256 amount) external {
+  function _increaseRequiredCoverage(uint256 amount) internal {
     _requiredCoverage += uint128(amount);
   }
-
-  function externalGetAccountStatus(address account) external view returns (uint16) {
-    return getAccountStatus(account);
-  }
-
-  ///===================================///
 
   function internalSetInsuredParams(InsuredParams memory params) internal {
     require(params.riskWeightPct > 0);
