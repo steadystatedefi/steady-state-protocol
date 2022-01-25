@@ -8,6 +8,10 @@ contract MockWeightedRounds is WeightedRoundsBase {
 
   constructor(uint256 unitSize) WeightedRoundsBase(unitSize) {}
 
+  function addInsured(address insured) external {
+    internalSetInsuredStatus(insured, InsuredStatus.Accepted);
+  }
+
   function addCoverageDemand(
     address insured,
     uint64 unitCount,
@@ -17,8 +21,8 @@ contract MockWeightedRounds is WeightedRoundsBase {
     AddCoverageDemandParams memory params;
     params.insured = insured;
     params.premiumRate = premiumRate;
-    params.hasMore = hasMore;
     params.loopLimit = ~params.loopLimit;
+    hasMore;
 
     return super.internalAddCoverageDemand(unitCount, params);
   }
@@ -38,22 +42,21 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalRoundLimits(
-    uint64 totalUnitsBeforeBatch,
-    uint64 demandedUnits,
-    uint256 maxShare
+    uint64,
+    uint24,
+    uint16,
+    uint64,
+    uint16
   )
     internal
     view
     override
     returns (
-      uint16 maxAddUnitsPerRound,
-      uint16 minUnitsPerRound,
-      uint16 maxUnitsPerRound
+      uint16,
+      uint16,
+      uint16
     )
   {
-    totalUnitsBeforeBatch;
-    demandedUnits;
-    maxShare;
     return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound);
   }
 
@@ -64,20 +67,24 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalBatchSplit(
-    uint24 batchRounds,
-    uint64 demandedUnits,
-    uint24 remainingUnits,
-    uint64 minUnits
-  ) internal view override returns (uint24 splitRounds) {
-    minUnits;
-    batchRounds;
-    demandedUnits;
-    remainingUnits;
+    uint64,
+    uint64,
+    uint24,
+    uint24 remainingUnits
+  ) internal view override returns (uint24) {
     return _splitRounds <= type(uint24).max ? uint24(_splitRounds) : remainingUnits;
   }
 
+  function internalBatchAppend(
+    uint64,
+    uint32,
+    uint64 unitCount
+  ) internal pure override returns (uint24) {
+    return unitCount > type(uint24).max ? type(uint24).max : uint24(unitCount);
+  }
+
   function addCoverage(uint256 amount) external {
-    (amount, ) = super.internalAddCoverage(amount, type(uint256).max);
+    (amount, , , , ) = super.internalAddCoverage(amount, type(uint256).max);
     excessCoverage += amount;
   }
 
@@ -86,10 +93,10 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
-    return internalGetTotals();
+    return internalGetTotals(type(uint256).max);
   }
 
-  function getCoverageDemand(address insured)
+  function receivableDemandedCoverage(address insured)
     external
     view
     returns (uint256 availableCoverage, DemandedCoverage memory coverage)

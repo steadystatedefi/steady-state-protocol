@@ -16,7 +16,7 @@ import 'hardhat-typechain';
 import '@tenderly/hardhat-tenderly';
 import 'solidity-coverage';
 import 'hardhat-abi-exporter';
-// import 'hardhat-contract-sizer';
+import 'hardhat-contract-sizer';
 
 // Prevent to load scripts before compilation and typechain
 if (!SKIP_LOAD) {
@@ -94,7 +94,6 @@ const buidlerConfig: HardhatUserConfig = {
     coverage: {
       url: 'http://localhost:8555',
       chainId: COV_CHAINID,
-//      gasMultiplier: 50,
     },
     kovan: getCommonNetworkConfig(eEthereumNetwork.kovan, 42),
     ropsten: getCommonNetworkConfig(eEthereumNetwork.ropsten, 3),

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../../dependencies/openzeppelin/contracts/IERC20.sol';
+import '../../tools/tokens/IERC20.sol';
 
 abstract contract ERC20TransferBase is IERC20 {
   event Transfer(address indexed from, address indexed to, uint256 value);
@@ -46,10 +46,17 @@ abstract contract ERC20TransferBase is IERC20 {
     require(recipient != address(0), 'ERC20: transfer to the zero address');
 
     _beforeTokenTransfer(sender, recipient, amount);
+    transferBalanceAndEmit(sender, recipient, amount);
+  }
+
+  function transferBalanceAndEmit(
+    address sender,
+    address recipient,
+    uint256 amount
+  ) internal virtual {
     if (sender != recipient) {
       transferBalance(sender, recipient, amount);
     }
-
     emit Transfer(sender, recipient, amount);
   }
 
