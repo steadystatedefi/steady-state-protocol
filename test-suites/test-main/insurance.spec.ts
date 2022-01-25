@@ -278,7 +278,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     await insureds[0].increaseRequiredCoverage(unitSize * 10000);
     await insureds[0].pushCoverageDemandTo(pool.address, unitSize * 2000);
     await pool.pushCoverageExcess();
-    console.log(await insureds[0].reconcileWithAllInsurers());
+    await insureds[0].reconcileWithAllInsurers();
     //await pool.pushCoverageExcess();
   });
 });
