@@ -12,6 +12,7 @@ chai.use(solidity);
 export interface TestEnv {
   deployer: SignerWithAddress;
   users: SignerWithAddress[];
+  underCoverage: boolean;
   // Declare TestEnv variables
 }
 
@@ -25,9 +26,9 @@ const testEnv: TestEnv = {
   users: [] as SignerWithAddress[],
 } as TestEnv;
 
-export async function initializeMakeSuite() {
-  const [deployer, ...users] = await getSigners();
-  testEnv.deployer = deployer;
+export async function initializeMakeSuite(underCoverage: boolean) {
+  [testEnv.deployer, ...testEnv.users] = await getSigners();
+  testEnv.underCoverage = underCoverage;
 
   // Set TestEnv variables
 }

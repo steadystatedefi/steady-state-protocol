@@ -15,4 +15,11 @@ library Errors {
   string public constant TXT_OWNABLE_CALLER_NOT_OWNER = 'Ownable: caller is not the owner';
   string public constant TXT_CALLER_NOT_PROXY_OWNER = 'ProxyOwner: caller is not the owner';
   string public constant TXT_ACCESS_RESTRICTED = 'RESTRICTED';
+  string public constant TXT_NOT_IMPLEMENTED = 'NOT_IMPLEMENTED';
+
+  function _mutable() private returns (bool) {}
+
+  function notImplemented() internal {
+    require(_mutable(), TXT_NOT_IMPLEMENTED);
+  }
 }

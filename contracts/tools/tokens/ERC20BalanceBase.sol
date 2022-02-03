@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../../dependencies/openzeppelin/contracts/IERC20.sol';
+import '../../tools/tokens/IERC20.sol';
 
 abstract contract ERC20BalanceBase is IERC20 {
   mapping(address => uint256) private _balances;

@@ -8,19 +8,37 @@ contract MockWeightedRounds is WeightedRoundsBase {
 
   constructor(uint256 unitSize) WeightedRoundsBase(unitSize) {}
 
+<<<<<<< HEAD
   function addCoverageDemand(
     address insured,
     uint64 unitCount,
     uint128 premiumRate,
+=======
+  function addInsured(address insured) external {
+    internalSetInsuredStatus(insured, InsuredStatus.Accepted);
+  }
+
+  function addCoverageDemand(
+    address insured,
+    uint64 unitCount,
+    uint40 premiumRate,
+>>>>>>> main
     bool hasMore
   ) external returns (uint64) {
     AddCoverageDemandParams memory params;
     params.insured = insured;
     params.premiumRate = premiumRate;
+<<<<<<< HEAD
     params.hasMore = hasMore;
 
     (unitCount, ) = super.internalAddCoverageDemand(unitCount, type(uint256).max, params);
     return unitCount;
+=======
+    params.loopLimit = ~params.loopLimit;
+    hasMore;
+
+    return super.internalAddCoverageDemand(unitCount, params);
+>>>>>>> main
   }
 
   uint16 private _maxAddUnitsPerRound = 1;
@@ -38,14 +56,23 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalRoundLimits(
+<<<<<<< HEAD
     uint64 totalUnitsBeforeBatch,
     uint64 demandedUnits,
     uint256 maxShare
+=======
+    uint64,
+    uint24,
+    uint16,
+    uint64,
+    uint16
+>>>>>>> main
   )
     internal
     view
     override
     returns (
+<<<<<<< HEAD
       uint16 maxAddUnitsPerRound,
       uint16 minUnitsPerRound,
       uint16 maxUnitsPerRound
@@ -54,6 +81,13 @@ contract MockWeightedRounds is WeightedRoundsBase {
     totalUnitsBeforeBatch;
     demandedUnits;
     maxShare;
+=======
+      uint16,
+      uint16,
+      uint16
+    )
+  {
+>>>>>>> main
     return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound);
   }
 
@@ -64,6 +98,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalBatchSplit(
+<<<<<<< HEAD
     uint24 batchRounds,
     uint64 demandedUnits,
     uint24 remainingUnits,
@@ -80,4 +115,61 @@ contract MockWeightedRounds is WeightedRoundsBase {
     (amount, ) = super.internalAddCoverage(amount, type(uint256).max);
     excessCoverage += amount;
   }
+=======
+    uint64,
+    uint64,
+    uint24,
+    uint24 remainingUnits
+  ) internal view override returns (uint24) {
+    return _splitRounds <= type(uint24).max ? uint24(_splitRounds) : remainingUnits;
+  }
+
+  function internalBatchAppend(
+    uint64,
+    uint32,
+    uint64 unitCount
+  ) internal pure override returns (uint24) {
+    return unitCount > type(uint24).max ? type(uint24).max : uint24(unitCount);
+  }
+
+  function addCoverage(uint256 amount) external {
+    (amount, , , , ) = super.internalAddCoverage(amount, type(uint256).max);
+    excessCoverage += amount;
+  }
+
+  function dump() external view returns (Dump memory) {
+    return _dump();
+  }
+
+  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+    return internalGetTotals(type(uint256).max);
+  }
+
+  function receivableDemandedCoverage(address insured)
+    external
+    view
+    returns (uint256 availableCoverage, DemandedCoverage memory coverage)
+  {
+    GetCoveredDemandParams memory params;
+    params.insured = insured;
+    params.loopLimit = ~params.loopLimit;
+
+    (coverage, , ) = internalGetCoveredDemand(params);
+    return (params.receivedCoverage, coverage);
+  }
+
+  uint256 public receivedCoverage;
+
+  function receiveDemandedCoverage(address insured, uint16 loopLimit)
+    external
+    returns (DemandedCoverage memory coverage)
+  {
+    GetCoveredDemandParams memory params;
+    params.insured = insured;
+    params.loopLimit = loopLimit;
+
+    coverage = internalUpdateCoveredDemand(params);
+    receivedCoverage += params.receivedCoverage;
+  }
+>>>>>>> main
 }

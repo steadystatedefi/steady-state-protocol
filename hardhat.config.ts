@@ -16,7 +16,7 @@ import 'hardhat-typechain';
 import '@tenderly/hardhat-tenderly';
 import 'solidity-coverage';
 import 'hardhat-abi-exporter';
-// import 'hardhat-contract-sizer';
+import 'hardhat-contract-sizer';
 
 // Prevent to load scripts before compilation and typechain
 if (!SKIP_LOAD) {
@@ -71,14 +71,6 @@ const buidlerConfig: HardhatUserConfig = {
   },
   solidity: {
     compilers: [
-      { version: '0.5.16' },
-      {
-        version: '0.6.12',
-        settings: {
-          optimizer: { enabled: true, runs: 200 },
-          evmVersion: 'istanbul',
-        },
-      },
       {
         version: '0.8.4',
         settings: {

@@ -14,7 +14,11 @@ type Constructor<TDeployArgs extends any[], TResult extends Contract> = new (sig
 
 interface Named {
   toString(): string;
+<<<<<<< HEAD
   name(): string;
+=======
+  name(): (string | undefined);
+>>>>>>> main
   isMock(): boolean;
 }
 
@@ -54,7 +58,7 @@ const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArg
       }
       const name = this.name();
       const c = await new f(d).deploy(...args);
-      addContractToJsonDb(name, c, name !== undefined, args);
+      addContractToJsonDb(name || 'unknown', c, name !== undefined, args);
 
       return c;
     }
@@ -67,7 +71,7 @@ const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArg
       return this.name() || 'unknown';
     }
 
-    name(): string {
+    name(): (string | undefined) {
       return nameByFactory.get(this);
     }
 
@@ -89,7 +93,11 @@ const wrap = <TArgs extends any[], TResult extends Contract>(f: Constructor<TArg
     }
 
     isMock(): boolean {
+<<<<<<< HEAD
       return mock;
+=======
+      return mock || false;
+>>>>>>> main
     }
   };
 };
@@ -101,14 +109,23 @@ export const factoryByName = (s: string): NamedDeployable => {
 };
 
 export const Factories = {
-  CoveragePoolFactory: wrap(types.CoveragePoolFactory),
   PriceOracle: wrap(types.PriceOracleFactory),
+<<<<<<< HEAD
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
 
   CollateralFundStable: wrap(types.CollateralFundStableFactory),
   MockStable: wrap(types.MockStableFactory),
   DepositToken: wrap(types.DepositTokenFactory),
+=======
+  WeightedPoolExtension: wrap(types.WeightedPoolExtensionFactory),
+  PremiumCollector: wrap(types.PremiumCollectorFactory),
+
+  MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
+  MockCollateralFund: mock(types.MockCollateralFundFactory),
+  MockWeightedPool: mock(types.MockWeightedPoolFactory),
+  MockInsuredPool: mock(types.MockInsuredPoolFactory),  
+>>>>>>> main
 }
 
 const nameByFactory = (() => {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../dependencies/openzeppelin/contracts/Address.sol';
+import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/Errors.sol';
 
 contract AccessCallHelper {

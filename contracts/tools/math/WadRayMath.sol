@@ -6,10 +6,10 @@ import '../Errors.sol';
 /// @dev Provides mul and div function for wads (decimal numbers with 18 digits precision) and rays (decimals with 27 digits)
 library WadRayMath {
   uint256 internal constant WAD = 1e18;
-  uint256 private constant halfWAD = WAD / 2;
+  uint256 internal constant halfWAD = WAD / 2;
 
   uint256 internal constant RAY = 1e27;
-  uint256 private constant halfRAY = RAY / 2;
+  uint256 internal constant halfRAY = RAY / 2;
 
   uint256 internal constant WAD_RAY_RATIO = 1e9;
   uint256 private constant halfRatio = WAD_RAY_RATIO / 2;
@@ -40,6 +40,14 @@ library WadRayMath {
       return 0;
     }
     return (a * b + halfWAD) / WAD;
+  }
+
+  /// @dev Multiplies two wad, rounding half up to the nearest wad
+  function wadMulUp(uint256 a, uint256 b) internal pure returns (uint256) {
+    if (a == 0 || b == 0) {
+      return 0;
+    }
+    return (a * b + WAD - 1) / WAD;
   }
 
   /// @dev Divides two wad, rounding half up to the nearest wad
