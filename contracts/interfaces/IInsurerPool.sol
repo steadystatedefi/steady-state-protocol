@@ -60,23 +60,15 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
   function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
-<<<<<<< HEAD
   function getCoverageDemand(address insured)
     external
     view
     returns (uint256 availableExtraCoverage, DemandedCoverage memory);
-=======
-  function receivableDemandedCoverage(address insured)
-    external
-    view
-    returns (uint256 receivedCoverage, DemandedCoverage memory);
->>>>>>> main
 
   /// @dev when charteredDemand is true and insured has incomplete demand, then this function will transfer $CC collected for the insured
   /// when charteredDemand is false or demand was fulfilled, then there is no need to call this function.
   function receiveDemandedCoverage(address insured)
     external
-<<<<<<< HEAD
     returns (uint256 receivedExtraCoverage, DemandedCoverage memory);
 
   /// @dev amount of $IC tokens of a user. Weighted number of $IC tokens defines interest rate to be paid to the user
@@ -93,19 +85,10 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
 }
 
 struct DemandedCoverage {
-  uint256 totalDemand; // total demand added to insurer
-  uint256 totalCovered; // total coverage allocated by insurer (can not exceed total demand)
-  uint256 pendingCovered; // coverage that is allocated, but can not be given yet (should reach unit size)
+  uint256 totalDemand; // total demand added by insured to insurer
+  uint256 totalCovered; // total coverage allocated by insured to insurer (can not exceed total demand)
   uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
   uint256 premiumAccumulatedRate; // time-cumulated of premiumRate
-}
-
-struct TotalCoverage {
-  DemandedCoverage demanded;
-  uint256 totalUsableDemand; // total demand that can be covered now (already balanced) - this value is not provided per-insured
-  uint64 usableRounds;
-  uint64 openRounds;
-  uint64 batchCount;
 }
 
 interface IInsuredPool {
@@ -117,11 +100,4 @@ interface IInsuredPool {
 
   /// @dev WIP called by insurer pool to cover full units ad-hoc, is used by direct insurer pools to facilitate user's choice
   function tryAddCoverage(uint256 unitCount, DemandedCoverage calldata current) external returns (uint256 addedCount);
-=======
-    returns (uint256 receivedCoverage, DemandedCoverage memory);
-}
-
-interface IInsurerPool is IERC20, IInsurerPoolCore, IInsurerPoolDemand {
-  function charteredDemand() external view override(IInsurerPoolCore, IInsurerPoolDemand) returns (bool);
->>>>>>> main
 }
