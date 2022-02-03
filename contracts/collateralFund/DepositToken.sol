@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '../interfaces/ICollateralFund.sol';
-import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import '../tools/tokens/ERC20Base.sol';
 import '../tools/math/WadRayMath.sol';
 
 import 'hardhat/console.sol';
@@ -10,7 +10,7 @@ import 'hardhat/console.sol';
 //import '../tools/tokens/ERC20MintableBase.sol';
 
 //TODO: Change to ERC20MintableBase
-contract DepositToken is ERC20, IDepositToken {
+contract DepositToken is ERC20Base, IDepositToken {
   ICollateralFund private collateralFund;
   address private underlying;
 
@@ -19,7 +19,7 @@ contract DepositToken is ERC20, IDepositToken {
     string memory symbol,
     address _collateralFund,
     address _underlying
-  ) ERC20(name, symbol) {
+  ) ERC20Base(name, symbol, 18) {
     collateralFund = ICollateralFund(_collateralFund);
     underlying = _underlying;
   }

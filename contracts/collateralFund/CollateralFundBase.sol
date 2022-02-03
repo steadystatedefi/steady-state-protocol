@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import '../dependencies/IERC1363Receiver.sol';
 import '../interfaces/ICollateralFund.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../pricing/interfaces/IPriceOracle.sol';
 import '../tools/math/WadRayMath.sol';
-import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import '../tools/SafeERC20.sol';
+import '../tools/tokens/ERC20Base.sol';
 
-abstract contract CollateralFundBase is ERC20 {
+//import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+
+abstract contract CollateralFundBase is ERC20Base {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
 
@@ -36,7 +37,7 @@ abstract contract CollateralFundBase is ERC20 {
   address[] private _assets;
 
   /*** FUNCTIONS ***/
-  constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+  constructor(string memory name, string memory symbol) ERC20Base(name, symbol, 18) {}
 
   function deposit(
     address asset,
@@ -154,7 +155,7 @@ abstract contract CollateralFundBase is ERC20 {
 
   function _debtValue(address account) internal view returns (uint256 total) {
     for (uint256 i = 0; i < insurers.length; i++) {
-      (uint256 rate, ) = IInsurerPool(insurers[i]).exchangeRate();
+      uint256 rate = IInsurerPool(insurers[i]).exchangeRate();
       total += IInsurerPool(insurers[i]).balanceOf(account).rayMul(rate); //TODO: Is this correct?
     }
   }

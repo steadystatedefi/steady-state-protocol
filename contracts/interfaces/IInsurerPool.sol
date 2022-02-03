@@ -60,44 +60,18 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
   function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
-  function getCoverageDemand(address insured)
+  function receivableDemandedCoverage(address insured)
     external
     view
-    returns (uint256 availableExtraCoverage, DemandedCoverage memory);
+    returns (uint256 receivedCoverage, DemandedCoverage memory);
 
   /// @dev when charteredDemand is true and insured has incomplete demand, then this function will transfer $CC collected for the insured
   /// when charteredDemand is false or demand was fulfilled, then there is no need to call this function.
   function receiveDemandedCoverage(address insured)
     external
-    returns (uint256 receivedExtraCoverage, DemandedCoverage memory);
-
-  /// @dev amount of $IC tokens of a user. Weighted number of $IC tokens defines interest rate to be paid to the user
-  function balanceOf(address account) external view returns (uint256);
-
-  /// @dev total amount of $IC tokens
-  function totalSupply() external view returns (uint256);
-
-  /// @dev returns reward / interest rate of the user
-  function interestRate(address account) external view returns (uint256 rate, uint256 accumulatedRate);
-
-  /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY) and goes down with every insurance claim
-  function exchangeRate() external view returns (uint256 rate, uint256 accumulatedRate);
+    returns (uint256 receivedCoverage, DemandedCoverage memory);
 }
 
-struct DemandedCoverage {
-  uint256 totalDemand; // total demand added by insured to insurer
-  uint256 totalCovered; // total coverage allocated by insured to insurer (can not exceed total demand)
-  uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
-  uint256 premiumAccumulatedRate; // time-cumulated of premiumRate
-}
-
-interface IInsuredPool {
-  /// @dev address of the collateral fund and coverage token ($CC)
-  function collateral() external view returns (address);
-
-  /// @dev is called by insurer from or after requestJoin() to inform this insured pool if it was accepted or not
-  function joinProcessed(bool accepted) external;
-
-  /// @dev WIP called by insurer pool to cover full units ad-hoc, is used by direct insurer pools to facilitate user's choice
-  function tryAddCoverage(uint256 unitCount, DemandedCoverage calldata current) external returns (uint256 addedCount);
+interface IInsurerPool is IERC20, IInsurerPoolCore, IInsurerPoolDemand {
+  function charteredDemand() external view override(IInsurerPoolCore, IInsurerPoolDemand) returns (bool);
 }

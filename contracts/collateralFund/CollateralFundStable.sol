@@ -5,6 +5,7 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import '../tools/math/WadRayMath.sol';
 import './CollateralFundBase.sol';
 import './DepositToken.sol';
+import '../tools/tokens/IERC20Details.sol';
 
 contract CollateralFundStable is CollateralFundBase, Ownable {
   constructor(string memory name, string memory symbol) CollateralFundBase(name, symbol) {}
@@ -18,8 +19,8 @@ contract CollateralFundStable is CollateralFundBase, Ownable {
       depositTokenList.push(asset);
 
       //TODO: Do we want to make this here? Or will multiple collateral funds share?
-      string memory tokenName = string(abi.encodePacked('COL-', ERC20(asset).name()));
-      string memory tokenSymbol = string(abi.encodePacked('COL-', ERC20(asset).symbol()));
+      string memory tokenName = string(abi.encodePacked('COL-', IERC20Details(asset).name()));
+      string memory tokenSymbol = string(abi.encodePacked('COL-', IERC20Details(asset).symbol()));
       depositTokens[asset] = new DepositToken(tokenName, tokenSymbol, address(this), asset);
     }
 

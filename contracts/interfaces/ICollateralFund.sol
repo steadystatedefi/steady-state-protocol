@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../dependencies/IERC20Mintable.sol';
+import '../tools/tokens/IERC20Mintable.sol';
 
 interface ICollateralFund {
   /// @dev mints relevant IDepositToken, increases healthFactor and collateral balance ($CC)
