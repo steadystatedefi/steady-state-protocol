@@ -1,10 +1,7 @@
 import { Signer } from "ethers";
 import { Contract } from "@ethersproject/contracts";
 import { IERC20DetailedFactory } from "../types/IERC20DetailedFactory";
-<<<<<<< HEAD
-=======
 import { IInsurerPoolFactory } from "../types/IInsurerPoolFactory";
->>>>>>> main
 import { getDefaultDeployer } from "./contract-types";
 
 export interface UnnamedAttachable<TResult extends Contract = Contract> {
@@ -23,9 +20,6 @@ const iface = <TResult extends Contract>(f: ConnectFunc<TResult>): UnnamedAttach
 
 export const Ifaces = {
   IERC20: iface(IERC20DetailedFactory.connect),
-<<<<<<< HEAD
-=======
   IInsurerPool: iface(IInsurerPoolFactory.connect),
->>>>>>> main
 }
 
