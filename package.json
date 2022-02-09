@@ -27,6 +27,7 @@
     "test-example": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/example.spec.ts",
     "test-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-rounds.spec.ts",
     "test-insurance": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/insurance.spec.ts",
+    "test-fund": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/collateral-fund.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-pool.bench.ts",
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 hardhat coverage --network coverage --testfiles \"test-suites/test-main/*.spec.ts\"",
     "test-deploy:fork": "MAINNET_FORK=true hardhat deploy-full",
