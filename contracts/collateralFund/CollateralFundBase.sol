@@ -6,13 +6,15 @@ import '../interfaces/IInsurerPool.sol';
 import '../pricing/interfaces/IPriceOracle.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/SafeERC20.sol';
-import '../tools/tokens/ERC20Base.sol';
+//import '../tools/tokens/ERC20Base.sol';
 
-//import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
+import './CollateralFundBalances.sol';
 
-abstract contract CollateralFundBase is ERC20Base {
+abstract contract CollateralFundBase is CollateralFundBalances {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
+
+  address private constant CC_ADDRESS = address(0x000000000000000000000000000000000000000C);
 
   /*** EVENTS ***/
   event Deposit(address _asset, uint256 _amt);
@@ -23,11 +25,11 @@ abstract contract CollateralFundBase is ERC20Base {
   IPriceOracle private oracle;
   uint256 private _investedSupply;
 
-  /// @dev Map of an ERC20 to it's corresponding depositToken (0 address means not included)
-  mapping(address => IDepositToken) internal depositTokens;
+  /// @dev Actively accepted collateral deposits
+  mapping(address => bool) internal depositWhitelist;
 
-  /// @dev list of the ERC20s that are accepted
-  address[] internal depositTokenList;
+  /// @dev list of the ERC20s that have ever been accepted
+  address[] internal depositList;
 
   /// @dev whitelist of *active* Insurer Pools
   mapping(address => bool) internal insurerWhitelist;
@@ -37,7 +39,7 @@ abstract contract CollateralFundBase is ERC20Base {
   address[] private _assets;
 
   /*** FUNCTIONS ***/
-  constructor(string memory name, string memory symbol) ERC20Base(name, symbol, 18) {}
+  constructor(string memory name) {}
 
   function deposit(
     address asset,
@@ -45,12 +47,17 @@ abstract contract CollateralFundBase is ERC20Base {
     address to,
     uint256 referralCode
   ) external {
-    require(address(depositTokens[asset]) != address(0), 'Not accepting this token');
-    require(IERC20(asset).balanceOf(msg.sender) >= amount, 'Balance low');
-    require(IERC20(asset).allowance(msg.sender, address(this)) >= amount, 'No allowance');
+    require(depositWhitelist[asset], 'Not accepting this token');
 
-    _mint(to, amount * _calculateAssetPrice(asset));
-    depositTokens[asset].mint(to, amount);
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = amount * _calculateAssetPrice(asset);
+    amounts[1] = amount;
+
+    address[] memory underlyings = new address[](2);
+    underlyings[0] = CC_ADDRESS;
+    underlyings[1] = asset;
+
+    mintForBatch(underlyings, amounts, to, '');
     IERC20(asset).transferFrom(msg.sender, address(this), amount);
 
     emit Deposit(asset, amount);
@@ -61,25 +68,31 @@ abstract contract CollateralFundBase is ERC20Base {
     uint256 amount,
     address to
   ) external {
-    require(address(depositTokens[asset]) != address(0), 'Not accepting this token');
-    require(depositTokens[asset].balanceOf(msg.sender) >= amount);
-    //Is it satisfactory to rely on the _beforeTokenTransfer of depositToken?
-    //require(ccBalance[msg.sender] >= price * amount);
-    require(balanceOf(msg.sender) >= amount * _calculateAssetPrice(asset));
+    require(depositWhitelist[asset], 'Not accepting this token');
 
-    depositTokens[asset].burnFrom(msg.sender, amount);
-    _burn(msg.sender, amount * _calculateAssetPrice(asset));
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = amount * _calculateAssetPrice(asset);
+    amounts[1] = amount;
+
+    address[] memory underlyings = new address[](2);
+    underlyings[0] = CC_ADDRESS;
+    underlyings[1] = asset;
+
+    //The security of this function relies on _beforeTokenTransfer
+    burnForBatch(to, underlyings, amounts);
     IERC20(asset).transfer(to, amount);
 
     emit Withdraw(asset, amount);
   }
 
   function invest(address insurer, uint256 amount) external {
-    this.transfer(insurer, amount);
-    bytes4 retval = IInsurerPool(insurer).onTransferReceived(address(this), msg.sender, amount, bytes(''));
-    require(retval == IERC1363Receiver(insurer).onTransferReceived.selector);
-    _investedSupply += amount;
+    //this.transfer(insurer, amount);
+    //bytes4 retval = IInsurerPool(insurer).onTransferReceived(address(this), msg.sender, amount, bytes(''));
+    //require(retval == IERC1363Receiver(insurer).onTransferReceived.selector);
+    //_investedSupply += amount;
+    safeTransferFrom(msg.sender, insurer, _getId(CC_ADDRESS), amount, '');
 
+    _investedSupply += amount;
     emit Invest(insurer, amount);
   }
 
@@ -105,40 +118,67 @@ abstract contract CollateralFundBase is ERC20Base {
   //TODO: What is performance exactly? How do we calculate this if users are receiving different assets?
   function collateralPerformance() external view returns (uint256 rate, uint256 accumulated) {}
 
-  function getReserveAssets() external view returns (address[] memory assets, address[] memory _depositTokens) {
-    return (assets, depositTokenList);
+  function getReserveAssets() external view returns (address[] memory assets, address[] memory acceptedTokens) {
+    return (assets, depositList);
   }
 
-  function getDepositTokens() external view returns (address[] memory) {
-    return depositTokenList;
+  function getDepositsAccepted() external view returns (address[] memory) {
+    return depositList;
   }
 
-  function getDepositTokenOf(address a) external view returns (address) {
-    return address(depositTokens[a]);
+  function getDepositTokenIds() external view returns (uint256[] memory ids) {
+    for (uint256 i = 0; i < depositList.length; i++) {
+      ids[i] = _getId(depositList[i]);
+    }
   }
 
   /*** INTERNAL FUNCTIONS ***/
 
   function _beforeTokenTransfer(
+    address operator,
     address from,
     address to,
-    uint256 amount
-  ) internal view override {
-    if (from == address(0) || to == address(0)) {
-      //minting or burning
+    uint256[] memory ids,
+    uint256[] memory amounts,
+    bytes memory data
+  ) internal override {
+    //minting
+    if (from == address(0)) {
       return;
-    } else {
-      if (!insurerWhitelist[from]) {
-        require(insurerWhitelist[to]);
+    }
+
+    //Check health factor for transfers and burning
+    for (uint256 i = 0; i < ids.length; i++) {
+      if (ids[i] == _getId(CC_ADDRESS)) {
+        if (!insurerWhitelist[from]) {
+          //Buring $CC
+          if (to == address(0)) {
+            (uint256 hf, int256 balance) = this.healthFactorOf(from);
+            require(hf > WadRayMath.ray());
+            require(amounts[i] < uint256(type(int256).max));
+            require(balance - int256(amounts[i]) > 0);
+            continue;
+          }
+          require(insurerWhitelist[to]);
+        }
+      } else {
+        (uint256 hf, int256 balance) = this.healthFactorOf(from);
+        require(hf > WadRayMath.ray());
+        address underlying = idToUnderlying[ids[i]];
+        require(depositWhitelist[underlying]);
+
+        //TODO: This needs to be re-worked for yield-bearing assets
+        require(amounts[i] < uint256(type(int256).max));
+        uint256 amount = amounts[i] * _calculateAssetPrice(underlying);
+        require(amount < uint256(type(int256).max));
+        require(balance - int256(amount) > 0);
       }
     }
-    (uint256 hf, int256 balance) = this.healthFactorOf(from);
-    require(hf > WadRayMath.ray());
-    require(amount < uint256(type(int256).max));
-    require(balance - int256(amount) > 0, 'Would cause negative balance');
+
+    return;
   }
 
-  function _calculateAssetPrice(address a) internal virtual returns (uint256) {
+  function _calculateAssetPrice(address a) internal view virtual returns (uint256) {
     return oracle.getAssetPrice(a);
   }
 
@@ -162,31 +202,12 @@ abstract contract CollateralFundBase is ERC20Base {
 
   /// @dev Get the value of all the assets this user has deposited
   function _assetValue(address account) internal view returns (uint256 total) {
-    // If price oracle is cheap to call, then it may be more efficient to not allocate these arrays and just call oracle on
-    // all collateral fund assets
-    address[] memory allAssets = new address[](depositTokenList.length);
-    uint32 numAssets = 0;
-    for (uint256 i = 0; i < depositTokenList.length; i++) {
-      if (depositTokens[depositTokenList[i]].balanceOf(account) > 0) {
-        allAssets[numAssets] = depositTokenList[i];
-        numAssets++;
+    for (uint256 i = 0; i < depositList.length; i++) {
+      if (balanceOf(account, _getId(depositList[i])) > 0) {
+        total += balanceOf(account, _getId(depositList[i])) * _calculateAssetPrice(depositList[i]);
       }
     }
-    address[] memory assets = new address[](numAssets);
-    for (uint256 i = 0; i < numAssets; i++) {
-      assets[i] = allAssets[i];
-    }
 
-    //TODO: Will/Should rever in getAssetPrice() be caught?
-    //TODO: !!!TEMPORARY QUICK FIX FOR STABLECOIN TESTING!!!
-    /*
-    uint256[] memory prices = oracle.getAssetPrices(assets);
-    for (uint256 i = 0; i < numAssets; i++) {
-      total += (IERC20(assets[i]).balanceOf(account) * prices[i]);
-    }
-    */
-    for (uint256 i = 0; i < numAssets; i++) {
-      total += (depositTokens[assets[i]].balanceOf(account) * 1);
-    }
+    //If more efficient, later on use the oracle.getAssetPrices() function to make a single call
   }
 }

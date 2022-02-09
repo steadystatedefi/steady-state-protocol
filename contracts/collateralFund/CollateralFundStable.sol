@@ -8,20 +8,23 @@ import './DepositToken.sol';
 import '../tools/tokens/IERC20Details.sol';
 
 contract CollateralFundStable is CollateralFundBase, Ownable {
-  constructor(string memory name, string memory symbol) CollateralFundBase(name, symbol) {}
+  constructor(string memory name) CollateralFundBase(name) {}
 
-  function _calculateAssetPrice(address a) internal pure override returns (uint256) {
+  function _calculateAssetPrice(address) internal pure override returns (uint256) {
     return 1;
   }
 
   function addDepositToken(address asset) external override onlyOwner returns (bool) {
-    if (address(depositTokens[asset]) == address(0)) {
-      depositTokenList.push(asset);
+    if (!depositWhitelist[asset]) {
+      depositList.push(asset);
+      depositWhitelist[asset] = true;
+      idToUnderlying[_getId(asset)] = asset;
 
-      //TODO: Do we want to make this here? Or will multiple collateral funds share?
-      string memory tokenName = string(abi.encodePacked('COL-', IERC20Details(asset).name()));
-      string memory tokenSymbol = string(abi.encodePacked('COL-', IERC20Details(asset).symbol()));
-      depositTokens[asset] = new DepositToken(tokenName, tokenSymbol, address(this), asset);
+      //TODO: Probably should move the logic of this function to CollateralFundBalances for when 'ERC20 mode' is enabled
+
+      //string memory tokenName = string(abi.encodePacked('COL-', IERC20Details(asset).name()));
+      //string memory tokenSymbol = string(abi.encodePacked('COL-', IERC20Details(asset).symbol()));
+      //depositTokens[asset] = new DepositToken(tokenName, tokenSymbol, address(this), asset);
     }
 
     return true;
