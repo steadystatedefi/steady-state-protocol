@@ -40,6 +40,7 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     //console.log(await subj.getDepositTokens());
     let deposits = await subj.getDepositsAccepted();
     expect(deposits[0]).eq(stable.address);
+    console.log('Stable ERC1155 ID: ', await (await subj.getId(stable.address)).toBigInt());
     //stableDT = Factories.DepositToken.attach(await subj.getDepositTokenOf(stable.address));
   });
 

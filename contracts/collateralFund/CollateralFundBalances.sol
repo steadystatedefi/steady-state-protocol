@@ -89,4 +89,8 @@ contract CollateralFundBalances is ERC1155Supply {
   function getAddress(address underlying) external view returns (address) {
     return _getAddress(underlying);
   }
+
+  function getId(address underlying) external view returns (uint256) {
+    return _getId(underlying);
+  }
 }
