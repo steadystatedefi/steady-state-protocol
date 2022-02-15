@@ -83,7 +83,7 @@ library Rounds {
   struct Batch {
     /// @dev sum of premium rates provided by all units (from different insured pools), per round
     uint56 roundPremiumRateSum;
-    /// @dev next batch number (one wat linked list)
+    /// @dev next batch number (one-way linked list)
     uint64 nextBatchNo;
     /// @dev total number of units befor this batch, this value may not be exact for non-ready batches
     uint64 totalUnitsBeforeBatch;
