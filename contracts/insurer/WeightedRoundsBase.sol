@@ -116,12 +116,11 @@ abstract contract WeightedRoundsBase {
     // console.log('\ninternalAddCoverageDemand');
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
     require(entry.status == InsuredStatus.Accepted);
-
-    Rounds.Demand[] storage demands = _demands[params.insured];
-
     if (unitCount == 0 || params.loopLimit == 0) {
       return unitCount;
     }
+
+    Rounds.Demand[] storage demands = _demands[params.insured];
 
     (Rounds.Batch memory b, uint64 thisBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.nextBatchNo);
 
@@ -948,7 +947,180 @@ abstract contract WeightedRoundsBase {
   }
 
   function internalCanAddCoverage() internal view returns (bool) {
-    PartialState memory part = _partial;
+    PartialState memory part = _partial; // TODO check if using storage is better for gas
     return part.batchNo != 0 && (part.roundCoverage > 0 || _batches[part.batchNo].isReady());
+  }
+
+  struct CancelCoverageDemandParams {
+    uint256 loopLimit;
+    address insured;
+    bool done;
+  }
+
+  function internalCancelCoverageDemand(uint64 unitCount, CancelCoverageDemandParams memory params)
+    internal
+    returns (uint64 cancelledUnits)
+  {
+    Rounds.InsuredEntry memory entry = _insureds[params.insured];
+    require(entry.status == InsuredStatus.Accepted);
+
+    if (unitCount == 0 || params.loopLimit == 0) {
+      return 0;
+    }
+
+    Rounds.Demand[] storage demands = _demands[params.insured];
+    uint256 index = demands.length;
+    if (index == 0) {
+      return 0;
+    }
+
+    // uint256 prevBatchNo;
+    PartialState memory part = _partial;
+
+    // uint24 roundOffset;
+    Rounds.Demand memory demand;
+
+    Rounds.Coverage memory covered = _covered[params.insured];
+    for (; index > covered.lastUpdateIndex; ) {
+      index--;
+      demand = demands[index];
+
+      (bool done, uint64 units) = _checkUncoveredDemandSlot(part, demand, unitCount - cancelledUnits);
+      cancelledUnits += units;
+      if (done || units == 0) {
+        break;
+      }
+    }
+
+    if (cancelledUnits == 0) {
+      return 0;
+    }
+    demands[index] = demand;
+
+    // TODO lastOpen + policy check
+    // uint256 index = demands.length;
+
+    for (; index > 0; ) {
+      index--;
+      // Rounds.Demand memory demand = demands[index];
+      // Rounds.Batch memory batch = _batches[demand.startBatchNo];
+
+      // if (batch.isFull() || )
+
+      // /// @dev batch number to add next demand (if it will be open) otherwise it will start with the earliest open batch
+      // uint64 nextBatchNo;
+      // /// @dev total number of units demanded by this insured pool
+      // uint64 demandedUnits;
+
+      uint64 n = _adjustUncoveredDemandSlot(unitCount - cancelledUnits, demand);
+      cancelledUnits += n;
+
+      if (demand.rounds == 0) {
+        // TODO sanity check
+        demands.pop();
+        if (cancelledUnits < unitCount) {
+          continue;
+        }
+      } else {
+        require(cancelledUnits >= unitCount);
+        demands[index] = demand;
+      }
+      break;
+    }
+
+    if (unitCount > 0 && index > 0 && index == covered.lastUpdateIndex) {}
+  }
+
+  function _checkUncoveredDemandSlot(
+    PartialState memory part,
+    Rounds.Demand memory demand,
+    uint256 unitCount
+  ) private returns (bool, uint64) {
+    // uint256 units = uint256(demand.rounds) * demand.unitPerRound;
+    // if (units >= unitCount) {
+    //   // _check
+    //   break;
+    // }
+    // if (demand.startBatchNo == part.batchNo) {
+    //   // _check
+    //   break;
+    // }
+    // Rounds.Batch memory batch = _batches[demand.startBatchNo];
+    // if (batch.isFull()) {
+    //   // _check
+    //   break;
+    // }
+  }
+
+  function _adjustUncoveredDemandSlot(uint256 count, Rounds.Demand memory demand) private returns (uint64) {
+    count = uint256(count + demand.unitPerRound - 1) / demand.unitPerRound;
+
+    uint64 batchNo;
+    if (count >= demand.rounds) {
+      (count, demand.rounds) = (demand.rounds, 0);
+      batchNo = demand.startBatchNo;
+    } else {
+      unchecked {
+        demand.rounds -= uint24(count);
+      }
+      uint24 extraRounds;
+      (batchNo, extraRounds) = _skipFromBatch(demand.startBatchNo, demand.rounds);
+      if (extraRounds > 0) {
+        // TODO to split or not to split ...
+        count += extraRounds;
+      }
+    }
+
+    // apply adjustment here
+    _adjustBatches(batchNo, count, demand);
+
+    unchecked {
+      return uint64(count * demand.unitPerRound);
+    }
+  }
+
+  function _skipFromBatch(uint64 startBatchNo, uint256 rounds)
+    private
+    view
+    returns (uint64 nextBatchNo, uint24 extraRounds)
+  {
+    for (; startBatchNo > 0; ) {
+      //      require(startBatchNo != lastBatchNo);
+
+      extraRounds = _batches[startBatchNo].rounds;
+      nextBatchNo = _batches[startBatchNo].nextBatchNo;
+      unchecked {
+        if (extraRounds >= rounds) {
+          return (nextBatchNo, extraRounds - uint24(rounds));
+        }
+        rounds -= extraRounds;
+      }
+      startBatchNo = nextBatchNo;
+    }
+
+    require(rounds == 0);
+  }
+
+  function _adjustBatches(
+    uint64 batchNo,
+    uint256 rounds,
+    Rounds.Demand memory demand
+  ) private {
+    for (; rounds > 0; ) {
+      Rounds.Batch storage batch = _batches[batchNo];
+      rounds -= batch.rounds;
+      batchNo = batch.nextBatchNo;
+
+      batch.unitPerRound -= demand.unitPerRound;
+      if (batch.unitPerRound == 0) {
+        // todo - skip the batch - needs the prev batch
+      }
+      batch.roundPremiumRateSum -= uint56(demand.premiumRate) * demand.unitPerRound;
+      batch.totalUnitsBeforeBatch;
+      if (batch.state == Rounds.State.Ready) {
+        //
+        batch.state = Rounds.State.ReadyMin;
+      }
+    }
   }
 }
