@@ -96,15 +96,27 @@ library Rounds {
   }
 
   function isFull(Batch memory b) internal pure returns (bool) {
-    return b.state == State.Full;
+    return isFull(b.state);
   }
 
   function isOpen(Batch memory b) internal pure returns (bool) {
-    return b.state <= State.ReadyMin;
+    return isOpen(b.state);
   }
 
   function isReady(Batch memory b) internal pure returns (bool) {
-    return b.state >= State.ReadyMin && b.state <= State.Ready;
+    return isReady(b.state);
+  }
+
+  function isFull(State state) internal pure returns (bool) {
+    return state == State.Full;
+  }
+
+  function isOpen(State state) internal pure returns (bool) {
+    return state <= State.ReadyMin;
+  }
+
+  function isReady(State state) internal pure returns (bool) {
+    return state >= State.ReadyMin && state <= State.Ready;
   }
 }
 

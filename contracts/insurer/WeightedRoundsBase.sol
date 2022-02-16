@@ -9,6 +9,7 @@ import 'hardhat/console.sol';
 
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;
+  using Rounds for Rounds.State;
   using WadRayMath for uint256;
 
   uint256 private immutable _unitSize;
@@ -973,110 +974,162 @@ abstract contract WeightedRoundsBase {
     if (index == 0) {
       return 0;
     }
+    uint256 maxIndex = index;
 
-    // uint256 prevBatchNo;
     PartialState memory part = _partial;
-
-    // uint24 roundOffset;
     Rounds.Demand memory demand;
+
+    uint64 batchNo;
+    uint64 prevBatchNo;
+    uint256 skippedRounds;
 
     Rounds.Coverage memory covered = _covered[params.insured];
     for (; index > covered.lastUpdateIndex; ) {
+      // TODO loop limit
       index--;
       demand = demands[index];
 
-      (bool done, uint64 units) = _checkUncoveredDemandSlot(part, demand, unitCount - cancelledUnits);
-      cancelledUnits += units;
-      if (done || units == 0) {
+      bool done;
+      uint64 cancelUnits;
+      (done, batchNo, prevBatchNo, cancelUnits, skippedRounds) = _findUncoveredBatch(
+        part,
+        demand,
+        unitCount - cancelledUnits
+      );
+      cancelledUnits += cancelUnits;
+      if (done) {
         break;
       }
     }
 
-    if (cancelledUnits == 0) {
-      return 0;
-    }
-    demands[index] = demand;
-
     // TODO lastOpen + policy check
-    // uint256 index = demands.length;
+    (batchNo, prevBatchNo) = _adjustUncoveredBatches(batchNo, prevBatchNo, demand.rounds - skippedRounds, demand);
 
-    for (; index > 0; ) {
-      index--;
-      // Rounds.Demand memory demand = demands[index];
-      // Rounds.Batch memory batch = _batches[demand.startBatchNo];
-
-      // if (batch.isFull() || )
-
-      // /// @dev batch number to add next demand (if it will be open) otherwise it will start with the earliest open batch
-      // uint64 nextBatchNo;
-      // /// @dev total number of units demanded by this insured pool
-      // uint64 demandedUnits;
-
-      uint64 n = _adjustUncoveredDemandSlot(unitCount - cancelledUnits, demand);
-      cancelledUnits += n;
-
-      if (demand.rounds == 0) {
-        // TODO sanity check
-        demands.pop();
-        if (cancelledUnits < unitCount) {
-          continue;
-        }
-      } else {
-        require(cancelledUnits >= unitCount);
-        demands[index] = demand;
+    for (uint256 i = index + 1; i < maxIndex; i++) {
+      Rounds.Demand memory d = demands[i];
+      if (d.startBatchNo != batchNo) {
+        // TODO update through the gap
+        (batchNo, prevBatchNo) = (0, 0);
       }
-      break;
+      (batchNo, prevBatchNo) = _adjustUncoveredDemandSlot(batchNo, prevBatchNo, demands[i]);
     }
 
-    if (unitCount > 0 && index > 0 && index == covered.lastUpdateIndex) {}
+    for (uint256 i = maxIndex - index; i > 1; i--) {
+      demands.pop();
+    }
+
+    if (demand.rounds == 0) {
+      demands.pop();
+    } else {
+      demands[index] = demand;
+    }
+
+    // TODO update entry
   }
 
-  function _checkUncoveredDemandSlot(
+  function _findUncoveredBatch(
     PartialState memory part,
     Rounds.Demand memory demand,
     uint256 unitCount
-  ) private returns (bool, uint64) {
-    // uint256 units = uint256(demand.rounds) * demand.unitPerRound;
-    // if (units >= unitCount) {
-    //   // _check
-    //   break;
-    // }
-    // if (demand.startBatchNo == part.batchNo) {
-    //   // _check
-    //   break;
-    // }
-    // Rounds.Batch memory batch = _batches[demand.startBatchNo];
-    // if (batch.isFull()) {
-    //   // _check
-    //   break;
-    // }
+  )
+    private
+    returns (
+      bool done,
+      uint64 batchNo,
+      uint64 prevBatchNo,
+      uint64 cancelUnits,
+      uint256 skippedRounds
+    )
+  {
+    batchNo = demand.startBatchNo;
+
+    uint256 partialRounds;
+    if (batchNo == part.batchNo) {
+      done = true;
+      partialRounds = part.roundCoverage == 0 ? part.roundNo : part.roundNo + 1;
+    } else if (_batches[batchNo].state.isFull()) {
+      for (;;) {
+        prevBatchNo = batchNo;
+        skippedRounds += _batches[batchNo].rounds;
+        if (skippedRounds >= demand.rounds) {
+          require(skippedRounds == demand.rounds);
+          return (true, batchNo, prevBatchNo, 0, skippedRounds);
+        }
+        (prevBatchNo, batchNo) = (batchNo, _batches[batchNo].nextBatchNo);
+        if (batchNo == part.batchNo) {
+          break;
+        }
+      }
+      done = true;
+      partialRounds = part.roundCoverage == 0 ? part.roundNo : part.roundNo + 1;
+    }
+
+    uint256 neededRounds = (uint256(unitCount) + demand.unitPerRound - 1) / demand.unitPerRound;
+    // uint256 availableRounds = uint256(demand.rounds) - skippedRounds; // NB! will include the partial batch in full
+
+    if (demand.rounds <= skippedRounds + partialRounds + neededRounds) {
+      // the partial batch should be split anyway, so cut off the covered rounds
+      skippedRounds += partialRounds;
+    } else {
+      done = true;
+      uint256 excessRounds = uint256(demand.rounds) - skippedRounds - neededRounds;
+      for (; excessRounds > 0; ) {
+        uint24 rounds = _batches[batchNo].rounds;
+        if (rounds > excessRounds) {
+          uint24 remainingRounds;
+          unchecked {
+            remainingRounds = rounds - uint24(excessRounds);
+          }
+
+          // partial batch can always be split
+          if (batchNo == part.batchNo || _canSplitBatchOnCancel(batchNo, remainingRounds)) {
+            Rounds.Batch memory b = _batches[batchNo];
+            _splitBatch(remainingRounds, b);
+            _batches[batchNo] = b;
+
+            // TODO split
+          } else {
+            neededRounds += remainingRounds;
+          }
+          break;
+        }
+        skippedRounds += rounds;
+        excessRounds -= rounds;
+        (prevBatchNo, batchNo) = (batchNo, _batches[batchNo].nextBatchNo);
+      }
+    }
+    cancelUnits = uint64(neededRounds * demand.unitPerRound);
   }
 
-  function _adjustUncoveredDemandSlot(uint256 count, Rounds.Demand memory demand) private returns (uint64) {
-    count = uint256(count + demand.unitPerRound - 1) / demand.unitPerRound;
+  function _canSplitBatchOnCancel(uint64 batchNo, uint24 remainingRounds) private view returns (bool) {}
 
-    uint64 batchNo;
-    if (count >= demand.rounds) {
-      (count, demand.rounds) = (demand.rounds, 0);
-      batchNo = demand.startBatchNo;
-    } else {
-      unchecked {
-        demand.rounds -= uint24(count);
+  function _adjustUncoveredBatches(
+    uint64 batchNo,
+    uint64 prevBatchNo,
+    uint256 rounds,
+    Rounds.Demand memory demand
+  ) private returns (uint64, uint64) {
+    for (; rounds > 0; ) {
+      Rounds.Batch storage batch = _batches[batchNo];
+      rounds -= batch.rounds;
+      if ((batch.unitPerRound -= demand.unitPerRound) == 0) {
+        Errors.notImplemented();
       }
-      uint24 extraRounds;
-      (batchNo, extraRounds) = _skipFromBatch(demand.startBatchNo, demand.rounds);
-      if (extraRounds > 0) {
-        // TODO to split or not to split ...
-        count += extraRounds;
-      }
+      batch.roundPremiumRateSum -= uint56(batch.rounds) * demand.premiumRate;
+      // TODO batch.totalUnitsBeforeBatch
+      (prevBatchNo, batchNo) = (batchNo, _batches[batchNo].nextBatchNo);
     }
+  }
 
-    // apply adjustment here
-    _adjustBatches(batchNo, count, demand);
-
-    unchecked {
-      return uint64(count * demand.unitPerRound);
+  function _adjustUncoveredDemandSlot(
+    uint64 batchNo,
+    uint64 prevBatchNo,
+    Rounds.Demand memory demand
+  ) private returns (uint64, uint64) {
+    if (demand.startBatchNo != batchNo) {
+      prevBatchNo = 0;
     }
+    return _adjustUncoveredBatches(demand.startBatchNo, prevBatchNo, demand.rounds, demand);
   }
 
   function _skipFromBatch(uint64 startBatchNo, uint256 rounds)
