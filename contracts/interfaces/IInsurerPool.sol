@@ -56,8 +56,9 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
     bool hasMore
   ) external returns (uint256 addedCount);
 
-  /// @dev can only be called by an accepted insured pool, cancels only empty coverage units, returns number of cancelled units
-  function cancelCoverageDemand(uint256 unitCount, bool hasMore) external returns (uint256 cancelledUnits);
+  /// @dev can only be called by an accepted insured pool, cancels only demanded, but not covered units
+  /// @dev returns number of cancelled units, the pool will attempt to cancel _at least_ the given amount if possible
+  function cancelCoverageDemand(uint256 unitCount) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
   function receivableDemandedCoverage(address insured)
