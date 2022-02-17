@@ -86,7 +86,7 @@ library Rounds {
     /// @dev next batch number (one-way linked list)
     uint64 nextBatchNo;
     /// @dev total number of units befor this batch, this value may not be exact for non-ready batches
-    uint64 totalUnitsBeforeBatch;
+    uint80 totalUnitsBeforeBatch;
     /// @dev number of rounds within the batch, can only be zero for an empty (not initialized batch)
     uint24 rounds;
     /// @dev number of units for each round of this batch

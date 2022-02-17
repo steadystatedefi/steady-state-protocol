@@ -51,7 +51,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
   ///@dev Used to determine the number of rounds to initialize a new batch
   function internalBatchAppend(
-    uint64,
+    uint80,
     uint32 openRounds,
     uint64 unitCount
   ) internal view override returns (uint24) {
@@ -90,7 +90,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   }
 
   function internalRoundLimits(
-    uint64 totalUnitsBeforeBatch,
+    uint80 totalUnitsBeforeBatch,
     uint24 batchRounds,
     uint16 unitPerRound,
     uint64 demandedUnits,
