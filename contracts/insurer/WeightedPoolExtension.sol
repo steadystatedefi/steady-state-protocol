@@ -73,10 +73,15 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     onlyActiveInsured
     returns (uint256 cancelledUnits)
   {
-    unitCount;
     hasMore;
-    Errors.notImplemented();
-    return 0;
+    CancelCoverageDemandParams memory params;
+    params.loopLimit = ~params.loopLimit;
+
+    if (unitCount > type(uint64).max) {
+      unitCount = type(uint64).max;
+    }
+    return internalCancelCoverageDemand(uint64(unitCount), params);
+    //    Errors.notImplemented();
   }
 
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
