@@ -504,17 +504,20 @@ abstract contract WeightedRoundsBase {
 
       if (!b.isFull()) break;
       // console.log('collectBatch1');
-      require(b.rounds > 0);
-      fullRounds += b.rounds;
 
-      (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
-        d,
-        premium,
-        b.rounds,
-        0,
-        d.premiumRate,
-        b.unitPerRound
-      );
+      // zero rounds may be present due to cancellations
+      if (b.rounds > 0) {
+        fullRounds += b.rounds;
+
+        (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
+          d,
+          premium,
+          b.rounds,
+          0,
+          d.premiumRate,
+          b.unitPerRound
+        );
+      }
       d.startBatchNo = b.nextBatchNo;
     }
 
@@ -823,7 +826,7 @@ abstract contract WeightedRoundsBase {
           if (b.unitPerRound == 0) {
             // this is a special case when all units were removed by cancellations
             require(b.rounds == 0);
-            // TODO update total premium?
+            // total premium doesn't need to be updated as the rate remains the same
           } else {
             if (!params.premiumUpdated) {
               params.premium = _poolPremium;
