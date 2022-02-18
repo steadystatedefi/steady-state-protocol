@@ -39,13 +39,21 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
   address internal _joinHandler;
 
-  modifier onlyActiveInsured() {
+  function _onlyActiveInsured() private view {
     require(internalGetInsuredStatus(msg.sender) == InsuredStatus.Accepted);
+  }
+
+  modifier onlyActiveInsured() {
+    _onlyActiveInsured();
     _;
   }
 
-  modifier onlyInsured() {
+  function _onlyInsured() private view {
     require(internalGetInsuredStatus(msg.sender) > InsuredStatus.Unknown);
+  }
+
+  modifier onlyInsured() {
+    _onlyInsured();
     _;
   }
 

@@ -46,6 +46,9 @@ library Rounds {
     uint16 maxShare;
     /// @dev status of the insured pool
     InsuredStatus status;
+
+    // TODO bool fullyCovered;
+    // uint64 cancelledUnits;
   }
 
   struct Coverage {
@@ -54,8 +57,8 @@ library Rounds {
     /// @dev index of Demand entry that is covered partially or will be covered next
     uint64 lastUpdateIndex;
     /// @dev Batch that is a part of the partially covered Demand
-    uint64 lastOpenBatchNo;
-    /// @dev number of rounds within the Demand (lastUpdateIndex) starting from Demand's startBatchNo till lastOpenBatchNo
+    uint64 lastUpdateBatchNo;
+    /// @dev number of rounds within the Demand (lastUpdateIndex) starting from Demand's startBatchNo till lastUpdateBatchNo
     uint24 lastUpdateRounds;
   }
 
@@ -107,6 +110,10 @@ library Rounds {
     return isReady(b.state);
   }
 
+  function isDraft(State state) internal pure returns (bool) {
+    return state == State.Draft;
+  }
+
   function isFull(State state) internal pure returns (bool) {
     return state == State.Full;
   }
@@ -120,6 +127,7 @@ library Rounds {
   }
 }
 
+// TODO rename to Join or Member Status
 enum InsuredStatus {
   Unknown,
   JoinCancelled,

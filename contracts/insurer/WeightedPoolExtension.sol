@@ -83,6 +83,13 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     //    Errors.notImplemented();
   }
 
+  function cancelCoverage() external onlyActiveInsured {
+    uint256 excess = internalCancelCoverage(msg.sender);
+    if (excess > 0) {
+      // TODO handle excess
+    }
+  }
+
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
   ///@param insured The insured pool
   ///@return receivedCoverage The amount of $CC that has been covered
