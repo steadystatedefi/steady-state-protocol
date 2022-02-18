@@ -991,7 +991,7 @@ abstract contract WeightedRoundsBase {
     Rounds.InsuredEntry storage entry = _insureds[params.insured];
     require(entry.status == InsuredStatus.Accepted);
 
-    if (unitCount == 0 || params.loopLimit == 0) {
+    if (unitCount == 0 || params.loopLimit == 0 || entry.demandedUnits == _covered[params.insured].coveredUnits) {
       return 0;
     }
 
@@ -1124,8 +1124,8 @@ abstract contract WeightedRoundsBase {
     uint256 neededRounds = (uint256(unitCount) + demand.unitPerRound - 1) / demand.unitPerRound;
 
     if (demand.rounds <= skippedRounds + partialRounds + neededRounds) {
-      // the partial batch should be split anyway, so cut off the covered rounds
       if (partialRounds > 0) {
+        // the partial batch can alway be split
         _splitBatch(uint24(partialRounds), batchNo);
         skippedRounds += partialRounds;
       }
