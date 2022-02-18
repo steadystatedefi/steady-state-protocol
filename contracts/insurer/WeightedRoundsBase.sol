@@ -1168,21 +1168,12 @@ abstract contract WeightedRoundsBase {
     for (uint256 i = startFrom; i < maxIndex; i++) {
       Rounds.Demand memory d = demands[i];
       if (d.startBatchNo != batchNo) {
-        // if (params.updateTotals) {
-        //   (batchNo, params.totalUnitsBeforeBatch) = _adjustTotalUnits(
-        //     batchNo,
-        //     d.startBatchNo,
-        //     params.totalUnitsBeforeBatch
-        //   );
-        //   require(batchNo == d.startBatchNo);
-        // } else {
-          params.totalUnitsBeforeBatch = _batches[d.startBatchNo].totalUnitsBeforeBatch;
-          if (params.totalUnitsBeforeBatch > totalUnitsAdjustment) {
-            params.totalUnitsBeforeBatch -= totalUnitsAdjustment;
-          } else {
-            params.totalUnitsBeforeBatch = 0;
-          }
-        // }
+        params.totalUnitsBeforeBatch = _batches[d.startBatchNo].totalUnitsBeforeBatch;
+        if (params.totalUnitsBeforeBatch > totalUnitsAdjustment) {
+          params.totalUnitsBeforeBatch -= totalUnitsAdjustment;
+        } else {
+          params.totalUnitsBeforeBatch = 0;
+        }
       }
       (batchNo, params.totalUnitsBeforeBatch) = _adjustUncoveredBatches(
         d.startBatchNo,
@@ -1192,10 +1183,6 @@ abstract contract WeightedRoundsBase {
       );
       totalUnitsAdjustment += uint80(d.rounds) * d.unitPerRound;
     }
-
-    // if (params.updateTotals) {
-    //   _adjustTotalUnits(batchNo, 0, params.totalUnitsBeforeBatch);
-    // }
 
     if (totalUnitsAdjustment > 0) {
       _pendingCancelledDemandUnits += totalUnitsAdjustment;
@@ -1246,10 +1233,21 @@ abstract contract WeightedRoundsBase {
     return (batchNo, totalUnitsBeforeBatch);
   }
 
-  function internalGetUnadjustedUnits() internal view returns (uint256 total, uint256 pendingCovered, uint256 pendingDemand) {
+  function internalGetUnadjustedUnits()
+    internal
+    view
+    returns (
+      uint256 total,
+      uint256 pendingCovered,
+      uint256 pendingDemand
+    )
+  {
     Rounds.Batch storage b = _batches[_partial.batchNo];
-    return (uint256(b.totalUnitsBeforeBatch) + _partial.roundNo * b.unitPerRound, 
-      _pendingCancelledCoverageUnits, _pendingCancelledDemandUnits);
+    return (
+      uint256(b.totalUnitsBeforeBatch) + _partial.roundNo * b.unitPerRound,
+      _pendingCancelledCoverageUnits,
+      _pendingCancelledDemandUnits
+    );
   }
 
   function internalApplyAdjustmentsToTotals() internal {
@@ -1263,7 +1261,7 @@ abstract contract WeightedRoundsBase {
     totals = _batches[batchNo].totalUnitsBeforeBatch - totals;
     batchNo = _batches[batchNo].nextBatchNo;
 
-    for (; batchNo > 0;) {
+    for (; batchNo > 0; ) {
       Rounds.Batch storage b = _batches[batchNo];
       if (b.totalUnitsBeforeBatch != totals) {
         b.totalUnitsBeforeBatch = totals;
