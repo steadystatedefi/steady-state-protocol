@@ -47,6 +47,7 @@ abstract contract ERC20TransferBase is IERC20 {
 
     _beforeTokenTransfer(sender, recipient, amount);
     transferBalanceAndEmit(sender, recipient, amount);
+    _afterTokenTransfer(sender, recipient, amount);
   }
 
   function transferBalanceAndEmit(
@@ -81,6 +82,26 @@ abstract contract ERC20TransferBase is IERC20 {
    * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
    */
   function _beforeTokenTransfer(
+    address from,
+    address to,
+    uint256 amount
+  ) internal virtual {}
+
+  /**
+   * @dev Hook that is called after any transfer of tokens. This includes
+   * minting and burning.
+   *
+   * Calling conditions:
+   *
+   * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
+   * has been transferred to `to`.
+   * - when `from` is zero, `amount` tokens have been minted for `to`.
+   * - when `to` is zero, `amount` of ``from``'s tokens have been burned.
+   * - `from` and `to` are never both zero.
+   *
+   * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
+   */
+  function _afterTokenTransfer(
     address from,
     address to,
     uint256 amount
