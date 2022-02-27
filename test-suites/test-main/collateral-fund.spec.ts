@@ -2,7 +2,7 @@ import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { RAY } from '../../helpers/constants';
 import { createRandomAddress, getSigners } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
-import { CollateralFundStable, DepositToken, DepositTokenFactory } from '../../types';
+import { CollateralFundStable, MockWeightedPool } from '../../types';
 import { MockStable } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
 import { expect } from 'chai';
@@ -11,37 +11,48 @@ import { getAddress } from 'ethers/lib/utils';
 
 makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
   const unitSize = 1000;
-  let subj: CollateralFundStable;
+  let fund: CollateralFundStable;
+  let pool: MockWeightedPool;
   let stable: MockStable;
   let depositor1: SignerWithAddress;
   let depositor2: SignerWithAddress;
-  let CC_ADDRESS = getAddress('0x000000000000000000000000000000000000000C');
 
   let balanceOf;
+  let dBalanceOf;
 
   //TODO: Insurer type, add it in another test
 
   before(async () => {
     stable = await Factories.MockStable.deploy();
-    subj = await Factories.CollateralFundStable.deploy('STABLE-FUND');
+    fund = await Factories.CollateralFundStable.deploy('STABLE-FUND');
+    const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
+    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, 18, extension.address);
+    await fund.addInsurer(pool.address);
+    expect(await fund.isInsurer(pool.address));
+
     [depositor1, depositor2] = await getSigners();
     await stable.mint(depositor1.address, 1000);
     await stable.mint(depositor2.address, 1000);
-    await stable.connect(depositor1).approve(subj.address, 100000000000000);
-    await stable.connect(depositor2).approve(subj.address, 100000000000000);
-    balanceOf = subj['balanceOf(address,address)'];
+    await stable.connect(depositor1).approve(fund.address, 100000000000000);
+    await stable.connect(depositor2).approve(fund.address, 100000000000000);
+    balanceOf = fund['balanceOf(address)'];
+    dBalanceOf = fund['balanceOf(address,address)'];
 
     console.log('Stablecoin deployed at: ', stable.address);
-    console.log('Collateral fund deployed at: ', subj.address);
+    console.log('Collateral fund deployed at: ', fund.address);
   });
 
   it('Add stablecoin to deposit tokens', async () => {
-    await subj.connect(depositor1).addDepositToken(stable.address);
-    //console.log(await subj.getDepositTokens());
-    let deposits = await subj.getDepositsAccepted();
+    await fund.connect(depositor1).addDepositToken(stable.address);
+    let deposits = await fund.getDepositsAccepted();
     expect(deposits[0]).eq(stable.address);
-    console.log('Stable ERC1155 ID: ', await (await subj.getId(stable.address)).toBigInt());
-    //stableDT = Factories.DepositToken.attach(await subj.getDepositTokenOf(stable.address));
+    let stableID = await (await fund.getId(stable.address)).toBigInt();
+    console.log('Stable ERC1155 ID: ', stableID);
+
+    let stableDT = await fund.getAddress(stable.address);
+    //let stableDT = await fund.CreateToken(stable.address, 'Stable DT', 'SDT')
+    console.log('StableDT: ', stableDT);
+    expect(stableDT.toLowerCase()).eq('0x' + stableID.toString(16));
   });
 
   it('Deposit stable token', async () => {
@@ -51,22 +62,22 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
       dtbalance = 0;
 
     /** Deposit to self **/
-    await subj.connect(depositor1).deposit(stable.address, amt, depositor1.address, 0);
-    balance = await (await balanceOf(depositor1.address, CC_ADDRESS)).toNumber();
+    await fund.connect(depositor1).deposit(stable.address, amt, depositor1.address, 0);
+    balance = await (await balanceOf(depositor1.address)).toNumber();
     expect(balance).eq(amt);
-    dtbalance = await (await balanceOf(depositor1.address, stable.address)).toNumber();
+    dtbalance = await (await dBalanceOf(depositor1.address, stable.address)).toNumber();
     expect(dtbalance).eq(amt);
 
     amt = 300;
-    await subj.connect(depositor2).deposit(stable.address, amt, depositor2.address, 0);
-    balance = await (await balanceOf(depositor2.address, CC_ADDRESS)).toNumber();
+    await fund.connect(depositor2).deposit(stable.address, amt, depositor2.address, 0);
+    balance = await (await balanceOf(depositor2.address)).toNumber();
     expect(balance).eq(amt);
 
     /** Deposit to other **/
     amt = 200;
-    balanceBefore = await (await balanceOf(depositor1.address, CC_ADDRESS)).toNumber();
-    await subj.connect(depositor2).deposit(stable.address, amt, depositor1.address, 0);
-    balance = await balanceOf(depositor1.address, CC_ADDRESS);
+    balanceBefore = await (await balanceOf(depositor1.address)).toNumber();
+    await fund.connect(depositor2).deposit(stable.address, amt, depositor1.address, 0);
+    balance = await balanceOf(depositor1.address);
     expect(balance).eq(amt + balanceBefore);
   });
 
@@ -76,16 +87,19 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
       balanceDT,
       balanceCCBefore,
       balanceDTBefore = 0;
-    balanceCCBefore = await (await balanceOf(depositor1.address, CC_ADDRESS)).toNumber();
-    balanceDTBefore = await (await balanceOf(depositor1.address, stable.address)).toNumber();
-    console.log(await subj.healthFactorOf(depositor1.address));
+    balanceCCBefore = await (await balanceOf(depositor1.address)).toNumber();
+    balanceDTBefore = await (await dBalanceOf(depositor1.address, stable.address)).toNumber();
+    console.log(await fund.healthFactorOf(depositor1.address));
 
-    await subj.connect(depositor1).withdraw(stable.address, amt, depositor1.address);
-    balanceCC = await balanceOf(depositor1.address, CC_ADDRESS);
-    balanceDT = await balanceOf(depositor1.address, stable.address);
+    await fund.connect(depositor1).withdraw(stable.address, amt, depositor1.address);
+    balanceCC = await balanceOf(depositor1.address);
+    balanceDT = await dBalanceOf(depositor1.address, stable.address);
     expect(balanceDT).eq(balanceDTBefore - amt);
     expect(balanceCC).eq(balanceCCBefore - amt);
   });
 
-  it('Invest stable token', async () => {});
+  it('Invest stable token', async () => {
+    await fund.connect(depositor1).invest(pool.address, 100);
+    //TODO: Test that the Weighted Pool credits this investor
+  });
 });
