@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import '@openzeppelin/contracts/access/Ownable.sol';
 import '../tools/math/WadRayMath.sol';
 import './CollateralFundBase.sol';
-import './DepositToken.sol';
 import '../tools/tokens/IERC20Details.sol';
+import '../tools/SafeOwnable.sol';
 
-contract CollateralFundStable is CollateralFundBase, Ownable {
+contract CollateralFundStable is CollateralFundBase, SafeOwnable {
   constructor(string memory name) CollateralFundBase(name) {}
 
   function _calculateAssetPrice(address) internal pure override returns (uint256) {
@@ -19,12 +18,6 @@ contract CollateralFundStable is CollateralFundBase, Ownable {
       depositList.push(asset);
       depositWhitelist[asset] = true;
       idToUnderlying[_getId(asset)] = asset;
-
-      //TODO: Probably should move the logic of this function to CollateralFundBalances for when 'ERC20 mode' is enabled
-
-      //string memory tokenName = string(abi.encodePacked('COL-', IERC20Details(asset).name()));
-      //string memory tokenSymbol = string(abi.encodePacked('COL-', IERC20Details(asset).symbol()));
-      //depositTokens[asset] = new DepositToken(tokenName, tokenSymbol, address(this), asset);
     }
 
     return true;
@@ -38,5 +31,13 @@ contract CollateralFundStable is CollateralFundBase, Ownable {
     }
 
     return true;
+  }
+
+  function CreateToken(
+    address underlying,
+    string calldata name,
+    string calldata symbol
+  ) external onlyOwner returns (address) {
+    return createToken(underlying, name, symbol);
   }
 }
