@@ -8,11 +8,11 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/SafeERC20.sol';
 
 import './CollateralFundBalances.sol';
-import './CollateralFundInvesting.sol';
+import './Treasury.sol';
 import './CoverageCurrency.sol';
 
 ///@dev CollateralFundBase contains logic on minting/burning/transferring $CC/dTokens
-abstract contract CollateralFundBase is CollateralFundBalances, CollateralFundInvesting, CoverageCurrency {
+abstract contract CollateralFundBase is CollateralFundBalances, Treasury, CoverageCurrency {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
 
@@ -91,7 +91,7 @@ abstract contract CollateralFundBase is CollateralFundBalances, CollateralFundIn
 
     accounts[to].deposits[asset].ccIn += uint128(ccAmt);
     accounts[to].deposits[asset].x += uint128(amount);
-    IERC20(asset).transferFrom(msg.sender, address(this), amount);
+    IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
     assetBalances[asset].balance += uint128(amount);
 
     emit Deposit(asset, amount);
@@ -117,7 +117,7 @@ abstract contract CollateralFundBase is CollateralFundBalances, CollateralFundIn
     tb.x -= uint128(amount);
     burnFor(msg.sender, asset, amount);
     _burn(msg.sender, ccAmt);
-    IERC20(asset).transfer(to, amount);
+    IERC20(asset).safeTransfer(to, amount);
     assetBalances[asset].balance -= uint128(amount);
 
     emit Withdraw(asset, amount);
