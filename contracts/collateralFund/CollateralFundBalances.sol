@@ -13,18 +13,9 @@ contract CollateralFundBalances is ERC1155Supply, Treasury {
   address private depositTokenImplementation;
 
   mapping(uint256 => address) public idToUnderlying;
-  mapping(uint256 => address) public adapters;
 
   constructor() ERC1155('') {
     depositTokenImplementation = address(new DepositTokenERC20Adapter());
-  }
-
-  function totalSupply(address asset) external view returns (uint256) {
-    return totalSupply(_getId(asset));
-  }
-
-  function balanceOf(address account, address asset) external view returns (uint256) {
-    return balanceOf(account, _getId(asset));
   }
 
   ///@dev Mints dTokens
@@ -97,7 +88,7 @@ contract CollateralFundBalances is ERC1155Supply, Treasury {
     address recipient,
     uint256 amount
   ) external {
-    require(msg.sender == adapters[id]);
+    require(msg.sender == address(uint160(id)));
     _safeTransferFrom(from, recipient, id, amount, '');
   }
 
@@ -113,7 +104,6 @@ contract CollateralFundBalances is ERC1155Supply, Treasury {
     }
     address clone = Clones.cloneDeterministic(depositTokenImplementation, x);
     DepositTokenERC20Adapter(clone).initialize(name, symbol, 18, _getId(underlying), address(this)); //TODO Set to underlying decimals
-    adapters[_getId(underlying)] = clone;
 
     emit AdapterCreated(underlying, clone);
     return clone;
@@ -141,6 +131,16 @@ contract CollateralFundBalances is ERC1155Supply, Treasury {
   ///@dev Converts the address of the (non)-exisiting adapter to a numerical ID
   function getId(address underlying) external view returns (uint256) {
     return _getId(underlying);
+  }
+
+  ///@dev Get the total supply of a dToken given the underlying
+  function totalSupply(address asset) external view returns (uint256) {
+    return totalSupply(_getId(asset));
+  }
+
+  ///@dev Get the balance of an account's dToken by the underlying address
+  function balanceOf(address account, address asset) external view returns (uint256) {
+    return balanceOf(account, _getId(asset));
   }
 
   ///@dev The number of underlying tokens redeemable for the given amount of dTokens
