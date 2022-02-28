@@ -2,18 +2,28 @@ import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { RAY } from '../../helpers/constants';
 import { createRandomAddress, getSigners } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
-import { CollateralFundStable, MockWeightedPool } from '../../types';
+import {
+  CollateralFundStable,
+  DepositTokenERC20Adapter,
+  DepositTokenERC20AdapterFactory,
+  ERC20Factory,
+  MockTreasuryStrategy,
+  MockTreasuryStrategyFactory,
+  MockWeightedPool,
+} from '../../types';
 import { MockStable } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { getAddress } from 'ethers/lib/utils';
+import BigNumber from 'bignumber.js';
 
 makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
   const unitSize = 1000;
   let fund: CollateralFundStable;
   let pool: MockWeightedPool;
   let stable: MockStable;
+  let strategy: MockTreasuryStrategy;
   let depositor1: SignerWithAddress;
   let depositor2: SignerWithAddress;
 
@@ -30,6 +40,10 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     await fund.addInsurer(pool.address);
     expect(await fund.isInsurer(pool.address));
 
+    strategy = await Factories.MockTreasuryStrategy.deploy(fund.address, stable.address);
+    await fund.AddStrategy(strategy.address, stable.address, 1000000);
+    //expect(await fund.treasuryAllowanceOf(strategy.address, stable.address)).eq(1000000);
+
     [depositor1, depositor2] = await getSigners();
     await stable.mint(depositor1.address, 1000);
     await stable.mint(depositor2.address, 1000);
@@ -40,6 +54,7 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
 
     console.log('Stablecoin deployed at: ', stable.address);
     console.log('Collateral fund deployed at: ', fund.address);
+    console.log('Treasury Strategy deployed at: ');
   });
 
   it('Add stablecoin to deposit tokens', async () => {
@@ -101,5 +116,45 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
   it('Invest stable token', async () => {
     await fund.connect(depositor1).invest(pool.address, 100);
     //TODO: Test that the Weighted Pool credits this investor
+  });
+
+  it('Test Strategy', async () => {
+    expect(await fund.redeemPerToken(stable.address, 100)).eq(100);
+    let balance_underlying = await stable.balanceOf(fund.address);
+    let all_tokens = await fund.numberOf(stable.address);
+    expect(balance_underlying).eq(all_tokens);
+
+    //Request borrow
+    await strategy.Borrow(balance_underlying);
+    expect(await stable.balanceOf(strategy.address)).eq(balance_underlying);
+
+    //Earn 10% yield on the tokens
+    let earn = balance_underlying.mul(10).div(100);
+    await strategy.MockYield(earn);
+
+    all_tokens = await fund.numberOf(stable.address);
+    expect(all_tokens).eq(balance_underlying.add(earn));
+    expect(await fund.redeemPerToken(stable.address, 100)).eq(110);
+
+    //Make a withdraw when 100% of funds are deployed, fund must request return from strategies
+    let amt = 100;
+    await fund.withdraw(stable.address, amt, depositor1.address);
+  });
+
+  it('Transfer Adapter', async () => {
+    await fund.CreateToken(stable.address, 'CF Stable', 'CF-Stable');
+    let addr = await fund.getAddress(stable.address);
+    let adapter = Factories.DepositTokenERC20Adapter.attach(addr);
+    expect(await adapter.totalSupply()).eq(await fund['totalSupply(address)'](stable.address));
+
+    let depositor1_balance = await adapter.balanceOf(depositor1.address);
+    let depositor2_balance = await adapter.balanceOf(depositor2.address);
+    expect(depositor1_balance).eq(await dBalanceOf(depositor1.address, stable.address));
+    expect(depositor2_balance).eq(await dBalanceOf(depositor2.address, stable.address));
+
+    let amt = 25;
+    await adapter.connect(depositor2).transfer(depositor1.address, amt);
+    expect(await adapter.balanceOf(depositor1.address)).eq(depositor1_balance.add(amt));
+    expect(await adapter.balanceOf(depositor2.address)).eq(depositor2_balance.sub(amt));
   });
 });
