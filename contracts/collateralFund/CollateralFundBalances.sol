@@ -19,6 +19,10 @@ contract CollateralFundBalances is ERC1155Supply, Treasury {
     depositTokenImplementation = address(new DepositTokenERC20Adapter());
   }
 
+  function totalSupply(address asset) external view returns (uint256) {
+    return totalSupply(_getId(asset));
+  }
+
   function balanceOf(address account, address asset) external view returns (uint256) {
     return balanceOf(account, _getId(asset));
   }
@@ -108,7 +112,7 @@ contract CollateralFundBalances is ERC1155Supply, Treasury {
       x := add(0x0, underlying)
     }
     address clone = Clones.cloneDeterministic(depositTokenImplementation, x);
-    DepositTokenERC20Adapter(clone).initialize(name, symbol, 18, _getId(underlying), address(this));
+    DepositTokenERC20Adapter(clone).initialize(name, symbol, 18, _getId(underlying), address(this)); //TODO Set to underlying decimals
     adapters[_getId(underlying)] = clone;
 
     emit AdapterCreated(underlying, clone);

@@ -24,12 +24,10 @@ abstract contract Treasury {
   }
 
   mapping(address => Balance) public assetBalances;
-  //mapping(address => mapping(address => uint128)) private startegyAllocations;
-
   ITreasuryStrategy[] public activeStrategies;
 
   function borrowFunds(address token, uint128 amount) external {
-    require(assetBalances[token].allowance[msg.sender] >= amount);
+    //require(assetBalances[token].allowance[msg.sender] >= amount);
     assetBalances[token].allowance[msg.sender] -= amount;
     assetBalances[token].balance -= amount;
     assetBalances[token].borrowed += amount;
@@ -42,6 +40,7 @@ abstract contract Treasury {
   ///@dev Deposit funds into the Treasury and reduces amount borrowed. This DOES NOT
   /// check funds were originally borrowed by msg.sender
   function depositFunds(address token, uint128 amount) external {
+    IERC20(token).transferFrom(msg.sender, address(this), amount);
     if (assetBalances[token].borrowed >= amount) {
       assetBalances[token].borrowed -= amount;
     } else {
@@ -53,7 +52,7 @@ abstract contract Treasury {
     emit StrategyDeposit(msg.sender, token, amount);
   }
 
-  function setAllocation(
+  function setStrategyAllocation(
     address strategy,
     address token,
     uint128 amount
@@ -68,8 +67,8 @@ abstract contract Treasury {
     if (balance < amount) {
       for (uint256 i = 0; i < activeStrategies.length; i++) {
         if (activeStrategies[i].requestReturn(token, uint128(amount - balance))) {
-          balance = uint128(IERC20(token).balanceOf(address(this)));
-          if (balance >= amount) {
+          //balance = uint128(IERC20(token).balanceOf(address(this)));
+          if ((balance = assetBalances[token].balance) >= amount) {
             break;
           }
         }
@@ -97,5 +96,9 @@ abstract contract Treasury {
     for (uint256 i = 0; i < activeStrategies.length; i++) {
       amount += activeStrategies[i].totalValue(token);
     }
+  }
+
+  function treasuryAllowanceOf(address strategy, address token) external view returns (uint128) {
+    return assetBalances[token].allowance[strategy];
   }
 }

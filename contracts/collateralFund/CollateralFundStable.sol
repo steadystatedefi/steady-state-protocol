@@ -40,4 +40,13 @@ contract CollateralFundStable is CollateralFundBase, SafeOwnable {
   ) external onlyOwner returns (address) {
     return createToken(underlying, name, symbol);
   }
+
+  function AddStrategy(
+    address strategy,
+    address token,
+    uint128 amount
+  ) external {
+    activeStrategies.push(ITreasuryStrategy(strategy));
+    setStrategyAllocation(strategy, token, amount);
+  }
 }

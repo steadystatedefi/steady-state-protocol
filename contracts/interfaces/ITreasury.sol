@@ -16,7 +16,7 @@ interface ITreasuryStrategy {
     uint128 value;
   }
 
-  ///@dev Returs all the earnings for an underlying
+  ///@dev Returns all the earnings for an underlying
   ///@param underlying The token that is being invested to generate Earning(s)
   function totalEarningsOf(address underlying) external view returns (Earning[] memory);
 
