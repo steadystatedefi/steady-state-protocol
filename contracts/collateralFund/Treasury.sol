@@ -3,28 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
 import '../tools/SafeERC20.sol';
-
-///@dev A strategy will deploy capital (can deploy multiple underlyings) and earn Earnings
-/// the strategy may earn a different token than deposited underlying.
-interface ITreasuryStrategy {
-  ///@dev Represents earned value from a strategy
-  struct Earning {
-    address token;
-    uint128 value;
-  }
-
-  ///@dev Returs all the earnings for an underlying
-  ///@param underlying The token that is being invested to generate Earning(s)
-  function totalEarningsOf(address underlying) external view returns (Earning[] memory);
-
-  ///@dev Total amount of token earned by this strategy
-  ///@param token The token that was earned (not supplied)
-  function totalEarned(address token) external view returns (uint128);
-
-  ///@dev Returns the invested capital + amount it has earned
-  ///@param token The token that supplied+earned
-  function totalValue(address token) external view returns (uint128);
-}
+import '../interfaces/ITreasury.sol';
 
 ///@dev The Treasury specifies the strategies approved to invest funds.
 ///  currently does not track the debt of each strategy
@@ -74,15 +53,6 @@ abstract contract Treasury {
     emit StrategyDeposit(msg.sender, token, amount);
   }
 
-  ///@dev The number of tokens held directly by the treasury and its strategies,
-  /// and the amount currently earned in those strategies
-  function numberOf(address token) external view returns (uint128 amount) {
-    amount += assetBalances[token].balance;
-    for (uint256 i = 0; i < activeStrategies.length; i++) {
-      amount += activeStrategies[i].totalValue(token);
-    }
-  }
-
   function setAllocation(
     address strategy,
     address token,
@@ -91,9 +61,41 @@ abstract contract Treasury {
     assetBalances[token].allowance[strategy] = amount;
   }
 
+  function _prepareWithdraw(address token, uint256 amount) internal {
+    uint128 balance = uint128(IERC20(token).balanceOf(address(this)));
+    assetBalances[token].balance = balance;
+
+    if (balance < amount) {
+      for (uint256 i = 0; i < activeStrategies.length; i++) {
+        if (activeStrategies[i].requestReturn(token, uint128(amount - balance))) {
+          balance = uint128(IERC20(token).balanceOf(address(this)));
+          if (balance >= amount) {
+            break;
+          }
+        }
+      }
+    }
+    require(balance >= amount);
+  }
+
   function _onDeposit(address token, uint256 amount) internal {
     require(amount < uint256(type(uint128).max));
     assetBalances[token].deposited += uint128(amount);
     assetBalances[token].balance += uint128(amount);
+  }
+
+  function _onWithdraw(address token, uint256 amount) internal {
+    require(amount < uint256(type(uint128).max));
+    assetBalances[token].deposited -= uint128(amount);
+    assetBalances[token].balance -= uint128(amount);
+  }
+
+  ///@dev The number of tokens held directly by the treasury and its strategies,
+  /// and the amount currently earned in those strategies
+  function numberOf(address token) external view returns (uint128 amount) {
+    amount += assetBalances[token].balance;
+    for (uint256 i = 0; i < activeStrategies.length; i++) {
+      amount += activeStrategies[i].totalValue(token);
+    }
   }
 }

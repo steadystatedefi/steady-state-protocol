@@ -5,8 +5,9 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol';
 import '../tools/upgradeability/Clones.sol';
 import './DepositTokenAdapter.sol';
+import './Treasury.sol';
 
-contract CollateralFundBalances is ERC1155Supply {
+contract CollateralFundBalances is ERC1155Supply, Treasury {
   event AdapterCreated(address underlying, address adapter);
 
   address private depositTokenImplementation;
@@ -23,12 +24,17 @@ contract CollateralFundBalances is ERC1155Supply {
   }
 
   ///@dev Mints dTokens
+  ///@param to          The person receiving the tokens
+  ///@param underlying  The underlying being deposited
+  ///@param amount      The amount of underlying deposited
+  ///@param data        Data to pass along to ERC1155Receiver
   function mintFor(
     address to,
     address underlying,
     uint256 amount,
     bytes memory data
   ) internal {
+    amount = this.numToMint(underlying, amount);
     _mint(to, _getId(underlying), amount, data);
   }
 
@@ -42,17 +48,22 @@ contract CollateralFundBalances is ERC1155Supply {
     uint256[] memory ids = new uint256[](underlyings.length);
     for (uint256 i = 0; i < underlyings.length; i++) {
       ids[i] = _getId(underlyings[i]);
+      amounts[i] = this.numToMint(underlyings[i], amounts[i]);
     }
 
     _mintBatch(to, ids, amounts, data);
   }
 
-  ///@dev Burn dTokens
+  ///@dev Burn the correct amount of dTokens to redeem the underlying
+  ///@param from        The address to burn tokens
+  ///@param underlying  The underlying to withdraw
+  ///@param amount      The amount of underlying being redeemed
   function burnFor(
     address from,
     address underlying,
     uint256 amount
   ) internal {
+    amount = this.numToMint(underlying, amount);
     _burn(from, _getId(underlying), amount);
   }
 
@@ -72,6 +83,10 @@ contract CollateralFundBalances is ERC1155Supply {
 
   ///@dev This is an unsafe function that MUST ONLY be called by the adapter.
   /// Does not check approvals nor that the sender is legitimate
+  ///@param id        The ID of the token to transfer
+  ///@param from      The sender of the tokens
+  ///@param recipient The receiver of the tokens
+  ///@param amount    Number of tokens to transfer
   function transferByAdapter(
     uint256 id,
     address from,
@@ -122,5 +137,29 @@ contract CollateralFundBalances is ERC1155Supply {
   ///@dev Converts the address of the (non)-exisiting adapter to a numerical ID
   function getId(address underlying) external view returns (uint256) {
     return _getId(underlying);
+  }
+
+  ///@dev The number of underlying tokens redeemable for the given amount of dTokens
+  ///@param underlying The underlying asset
+  ///@param amount The amount of dTokens to redeem
+  function redeemPerToken(address underlying, uint256 amount) external view returns (uint256) {
+    uint256 supply = totalSupply(_getId(underlying));
+    if (supply < 1) {
+      return 0;
+    }
+    uint128 x = this.numberOf(underlying);
+    return (x * amount) / supply;
+  }
+
+  ///@dev The number of shares to mint for a given deposit
+  ///@param underlying The underlying asset to deposit
+  ///@param amount The amount of underlying to deposit
+  function numToMint(address underlying, uint256 amount) external view returns (uint256) {
+    uint256 supply = totalSupply(_getId(underlying));
+    if (supply == 0) {
+      return amount;
+    }
+    uint128 x = this.numberOf(underlying);
+    return (supply * amount) / x;
   }
 }

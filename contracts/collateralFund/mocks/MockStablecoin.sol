@@ -10,9 +10,9 @@ contract MockStable is ERC20 {
     owner = msg.sender;
   }
 
+  ///@dev Currently anyone can mint
   function mint(address to, uint256 amount) external returns (bool) {
-    require(msg.sender == owner);
-    require(totalSupply() + amount < type(uint256).max);
+    //require(msg.sender == owner);
 
     _mint(to, amount);
     return true;
