@@ -139,6 +139,16 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     //Make a withdraw when 100% of funds are deployed, fund must request return from strategies
     let amt = 100;
     await fund.withdraw(stable.address, amt, depositor1.address);
+
+    //Repay some funds
+    amt = 50;
+    balance_underlying = await stable.balanceOf(fund.address);
+    let balance_strategy = await stable.balanceOf(strategy.address);
+    let borrowable = await fund.treasuryBorrowable(strategy.address, stable.address);
+    await strategy.Repay(amt);
+    expect(await stable.balanceOf(fund.address)).eq(balance_underlying.add(amt));
+    expect(await stable.balanceOf(strategy.address)).eq(balance_strategy.sub(amt));
+    expect(await fund.treasuryBorrowable(strategy.address, stable.address)).eq(borrowable.add(amt));
   });
 
   it('Transfer Adapter', async () => {

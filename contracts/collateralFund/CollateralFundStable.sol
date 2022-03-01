@@ -47,6 +47,6 @@ contract CollateralFundStable is CollateralFundBase, SafeOwnable {
     uint128 amount
   ) external {
     activeStrategies.push(ITreasuryStrategy(strategy));
-    setStrategyAllocation(strategy, token, amount);
+    treasuryStrategyAllowance(strategy, token, amount);
   }
 }

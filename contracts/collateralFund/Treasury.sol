@@ -13,6 +13,12 @@ abstract contract Treasury {
   event StrategyBorrow(address startegy, address token, uint128 amount);
   event StrategyDeposit(address strategy, address token, uint128 amount);
 
+  ///@dev This struct allows a strategy to keep their allowance when requestReturn() occurs
+  struct Allowance {
+    uint128 allowance; //The allowance is MAX borrowable
+    uint128 borrowed; //Current amount borrowed
+  }
+
   //TODO: If dToken (ERC1155) will track the amount of underlying (this is different than totalSupply)
   //  then only the invested amount should be stored to avoid extra store?
   struct Balance {
@@ -20,15 +26,17 @@ abstract contract Treasury {
     uint128 deposited; //Amount deposited into the collateral fund by users
     uint128 balance; //Current (known) balance held directly by the fund. Includes collected earnings
     uint128 borrowed; //Amount "lent" out to strategies
-    mapping(address => uint128) allowance;
+    mapping(address => Allowance) allowance; //Allowance of this token per strategy
   }
 
   mapping(address => Balance) public assetBalances;
   ITreasuryStrategy[] public activeStrategies;
 
+  ///@dev A strategy borrowing funds after it has been approved
   function borrowFunds(address token, uint128 amount) external {
-    //require(assetBalances[token].allowance[msg.sender] >= amount);
-    assetBalances[token].allowance[msg.sender] -= amount;
+    //The below statement will overflow if there is no more left to borrow
+    assetBalances[token].allowance[msg.sender].allowance - assetBalances[token].allowance[msg.sender].borrowed - amount;
+    assetBalances[token].allowance[msg.sender].borrowed += amount;
     assetBalances[token].balance -= amount;
     assetBalances[token].borrowed += amount;
     IERC20(token).safeTransfer(msg.sender, amount);
@@ -37,14 +45,20 @@ abstract contract Treasury {
   }
 
   //TODO: Pulling vs ERC1363
-  ///@dev Deposit funds into the Treasury and reduces amount borrowed. This DOES NOT
-  /// check funds were originally borrowed by msg.sender
+  ///@dev Deposit funds into the Treasury, reduces amount borrowed and reduces strategey's borrow
   function depositFunds(address token, uint128 amount) external {
     IERC20(token).transferFrom(msg.sender, address(this), amount);
-    if (assetBalances[token].borrowed >= amount) {
-      assetBalances[token].borrowed -= amount;
+    Balance storage b = assetBalances[token];
+    if (b.borrowed >= amount) {
+      b.borrowed -= amount;
     } else {
-      assetBalances[token].borrowed = 0;
+      b.borrowed = 0;
+    }
+
+    if (amount > b.allowance[msg.sender].borrowed) {
+      b.allowance[msg.sender].borrowed = 0;
+    } else {
+      b.allowance[msg.sender].borrowed -= amount;
     }
 
     assetBalances[token].balance += amount;
@@ -52,12 +66,13 @@ abstract contract Treasury {
     emit StrategyDeposit(msg.sender, token, amount);
   }
 
-  function setStrategyAllocation(
+  ///@dev Set the amount of tokens a strategy is currently allowed to take out
+  function treasuryStrategyAllowance(
     address strategy,
     address token,
     uint128 amount
   ) internal {
-    assetBalances[token].allowance[strategy] = amount;
+    assetBalances[token].allowance[strategy].allowance = amount;
   }
 
   function _prepareWithdraw(address token, uint256 amount) internal {
@@ -99,6 +114,10 @@ abstract contract Treasury {
   }
 
   function treasuryAllowanceOf(address strategy, address token) external view returns (uint128) {
-    return assetBalances[token].allowance[strategy];
+    return assetBalances[token].allowance[strategy].allowance;
+  }
+
+  function treasuryBorrowable(address strategy, address token) external view returns (uint128) {
+    return assetBalances[token].allowance[strategy].allowance - assetBalances[token].allowance[strategy].borrowed;
   }
 }

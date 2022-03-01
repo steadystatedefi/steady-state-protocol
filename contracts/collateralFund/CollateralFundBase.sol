@@ -265,10 +265,8 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
     for (uint256 i = 0; i < ids.length; i++) {
       address underlying = idToUnderlying[ids[i]];
       require(depositWhitelist[underlying]);
-
-      //TODO: This needs to be re-worked for yield-bearing assets
       require(amounts[i] < uint256(type(int256).max));
-      uint256 amount = amounts[i] * _calculateAssetPrice(underlying);
+      uint256 amount = this.redeemPerToken(underlying, amounts[i]) * _calculateAssetPrice(underlying);
       require(amount < uint256(type(int256).max));
       balance -= int256(amount);
       require(balance > 0);
