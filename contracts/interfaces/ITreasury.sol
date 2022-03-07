@@ -10,18 +10,18 @@ interface ITreasury {
 ///@dev A strategy will deploy capital (can deploy multiple underlyings) and earn Earnings
 /// the strategy may earn a different token than deposited underlying.
 interface ITreasuryStrategy {
-  ///@dev Represents earned value from a strategy
+  ///@dev Represents earned value from a strategy. Does NOT give an indication when tokens lost
   struct Earning {
     address token;
     uint128 value;
   }
 
   ///@dev Returns all the earnings for an underlying
-  ///@param underlying The token that is being invested to generate Earning(s)
-  function totalEarningsOf(address underlying) external view returns (Earning[] memory);
+  ///@param token The token that is being invested to generate Earning(s)
+  function totalEarningsOf(address token) external view returns (Earning[] memory);
 
   ///@dev Total amount of token earned by this strategy
-  ///@param token The token that was earned (not supplied)
+  ///@param token The token that was earned (not necessairly supplied)
   function totalEarned(address token) external view returns (uint128);
 
   ///@dev Returns the amount of invested capital + amount it has earned
@@ -30,8 +30,11 @@ interface ITreasuryStrategy {
 
   ///@dev Request by the fund to return an amount of capital. The strategy SHALL return
   /// the most it can up to the amount
-  ///@param underlying  Underlying to return
+  ///@param token  Underlying to return
   ///@param amount      Amount requested to return
   ///@return            Whether any capital (even less than the requested amount) was sent
-  function requestReturn(address underlying, uint128 amount) external returns (bool);
+  function requestReturn(address token, uint128 amount) external returns (bool);
+
+  ///@dev Get the cumulative WAD performance for the given token
+  function cumulativePerformanceOf(address token) external view returns (int256);
 }

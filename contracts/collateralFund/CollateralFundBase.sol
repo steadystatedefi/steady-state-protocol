@@ -62,7 +62,7 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
     uint256 referralCode,
     address insurer
   ) external {
-    this.deposit(asset, amount, msg.sender, referralCode);
+    deposit(asset, amount, msg.sender, referralCode);
     _invest(insurer, amount, '');
   }
 
@@ -72,7 +72,7 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
     uint256 amount,
     address to,
     uint256 referralCode
-  ) external {
+  ) public {
     require(depositWhitelist[asset], 'Not accepting this token');
 
     if (allowance(to, address(this)) == 0) {

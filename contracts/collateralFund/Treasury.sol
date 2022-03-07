@@ -34,11 +34,12 @@ abstract contract Treasury {
 
   ///@dev A strategy borrowing funds after it has been approved
   function borrowFunds(address token, uint128 amount) external {
+    Balance storage b = assetBalances[token];
     //The below statement will overflow if there is no more left to borrow
-    assetBalances[token].allowance[msg.sender].allowance - assetBalances[token].allowance[msg.sender].borrowed - amount;
-    assetBalances[token].allowance[msg.sender].borrowed += amount;
-    assetBalances[token].balance -= amount;
-    assetBalances[token].borrowed += amount;
+    b.allowance[msg.sender].allowance - b.allowance[msg.sender].borrowed - amount;
+    b.allowance[msg.sender].borrowed += amount;
+    b.balance -= amount;
+    b.borrowed += amount;
     IERC20(token).safeTransfer(msg.sender, amount);
 
     emit StrategyBorrow(msg.sender, token, amount);
@@ -61,7 +62,7 @@ abstract contract Treasury {
       b.allowance[msg.sender].borrowed -= amount;
     }
 
-    assetBalances[token].balance += amount;
+    b.balance += amount;
 
     emit StrategyDeposit(msg.sender, token, amount);
   }
@@ -112,6 +113,12 @@ abstract contract Treasury {
       amount += activeStrategies[i].totalValue(token);
     }
   }
+
+  /*
+  function getPerformanceOf(address token) external view returns (int256 performance) {
+
+  }
+  */
 
   function treasuryAllowanceOf(address strategy, address token) external view returns (uint128) {
     return assetBalances[token].allowance[strategy].allowance;

@@ -17,4 +17,12 @@ contract MockStable is ERC20 {
     _mint(to, amount);
     return true;
   }
+
+  ///@dev Currently anyone can burn
+  function burn(address to, uint256 amount) external returns (bool) {
+    //require(msg.sender == owner);
+
+    _burn(to, amount);
+    return true;
+  }
 }
