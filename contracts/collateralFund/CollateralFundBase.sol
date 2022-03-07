@@ -189,7 +189,23 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
     return _investedSupply;
   }
 
-  function collateralPerformance() external view returns (uint256 rate, uint256 accumulated) {}
+  //TODO: Time-accumulation
+  function collateralPerformance() external view returns (uint256 rate, uint256 accumulated) {
+    //TODO: @Kirill, your interface uses uint256 but it is possible that treasury will lose value. LMK
+    for (uint256 i; i < depositList.length; i++) {
+      (int256 tokenDelta, int256 tokenRate) = performanceOf(depositList[i]);
+      int256 price = int256(_calculateAssetPrice(depositList[i]));
+      int256 dollarDelta = price * tokenDelta;
+      int256 dollarRate = price * tokenRate;
+      if (dollarDelta > 0) {
+        accumulated += uint256(dollarDelta);
+      }
+      if (dollarRate > 0) {
+        //TODO: dollarRate * (ratio of collateral fund this asset makes up e.g 30%)
+        //rate += uint256(dollarRate) * ()
+      }
+    }
+  }
 
   function getReserveAssets() external view returns (address[] memory assets, address[] memory acceptedTokens) {
     return (assets, depositList);

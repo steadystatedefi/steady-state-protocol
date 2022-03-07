@@ -20,9 +20,9 @@ interface ITreasuryStrategy {
   ///@param token The token that is being invested to generate Earning(s)
   function totalEarningsOf(address token) external view returns (Earning[] memory);
 
-  ///@dev Total amount of token earned by this strategy
-  ///@param token The token that was earned (not necessairly supplied)
-  function totalEarned(address token) external view returns (uint128);
+  ///@dev Total amount of token earned or lost by this strategy
+  ///@param token The token that was earned (not necessairly supplied, however you can only lose what is supplied)
+  function deltaOf(address token) external view returns (int256);
 
   ///@dev Returns the amount of invested capital + amount it has earned
   ///@param token The token that supplied+earned

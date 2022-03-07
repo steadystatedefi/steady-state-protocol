@@ -101,12 +101,8 @@ contract MockTreasuryStrategy is ITreasuryStrategy {
     return earnings;
   }
 
-  function totalEarned(address token) external view override returns (uint128 earned) {
-    if (delta > 0) {
-      earned = uint128(uint256(delta));
-    } else {
-      earned = 0;
-    }
+  function deltaOf(address token) external view override returns (int256) {
+    return delta;
   }
 
   function totalValue(address token) external view override returns (uint128) {

@@ -30,6 +30,8 @@ abstract contract Treasury {
   }
 
   mapping(address => Balance) public assetBalances;
+
+  //TODO: mapping(address=>ITreasuryStrategy[]) Keep track of all strategies using a token
   ITreasuryStrategy[] public activeStrategies;
 
   ///@dev A strategy borrowing funds after it has been approved
@@ -107,18 +109,29 @@ abstract contract Treasury {
 
   ///@dev The number of tokens held directly by the treasury and its strategies,
   /// and the amount currently earned in those strategies
-  function numberOf(address token) external view returns (uint128 amount) {
+  function numberOf(address token) public view returns (uint128 amount) {
     amount += assetBalances[token].balance;
     for (uint256 i = 0; i < activeStrategies.length; i++) {
       amount += activeStrategies[i].totalValue(token);
     }
   }
 
-  /*
-  function getPerformanceOf(address token) external view returns (int256 performance) {
+  ///@dev Returns the amount earned/lost
+  ///@return delta The difference of invested and current holdings
+  ///@return rate The current lifetime WAD earning %
+  function performanceOf(address token) public view returns (int256 delta, int256 rate) {
+    /*
+    for (uint256 i = 0; i < activeStrategies.length; i++) {
+      performance += activeStrategies[i].deltaOf(token);
+    }
+    */
+    uint256 deposited = assetBalances[token].deposited;
+    delta = int256(uint256(numberOf(token))) - int256(deposited);
 
+    int256 deltaWad = delta * 1e18;
+    int256 depositsWad = int256(deposited) * 1e18;
+    rate = ((deltaWad * 1e18 + depositsWad / 2) / depositsWad);
   }
-  */
 
   function treasuryAllowanceOf(address strategy, address token) external view returns (uint128) {
     return assetBalances[token].allowance[strategy].allowance;
