@@ -1,10 +1,10 @@
 import { task } from 'hardhat/config';
 import { exit } from 'process';
-import { ConfigNames } from '../../helpers/config_loader';
+import { ConfigNames } from '../../helpers/config-loader';
+import { setDefaultDeployer } from '../../helpers/contract-types';
 import { cleanupJsonDb, getInstanceCountFromJsonDb, printContracts } from '../../helpers/deploy-db';
-import { MAINNET_FORK } from '../../helpers/env-utils';
-import { getFirstSigner } from '../../helpers/runtime-utils';
-import { eEthereumNetwork, tEthereumAddress } from '../../helpers/types';
+import { getFirstSigner, isForkNetwork } from '../../helpers/runtime-utils';
+import { tEthereumAddress } from '../../helpers/types';
 import { getDeploySteps } from '../deploy/deploy-steps';
 
 task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, DRE) => {
@@ -13,9 +13,11 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
   cleanupJsonDb(DRE.network.name);
   // cleanupUiConfig();
 
-  console.log(MAINNET_FORK, DRE.network.name);
-  if (!MAINNET_FORK || DRE.network.name !== eEthereumNetwork.hardhat) {
-    console.log('Can only run on fork or hardhat');
+  const deployer = await getFirstSigner();
+  setDefaultDeployer(deployer);
+
+  if (!isForkNetwork()) {
+    console.log('Can only run on fork');
     exit(1);
   }
 

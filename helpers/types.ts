@@ -1,8 +1,10 @@
+import { getNetworkName } from "./runtime-utils";
+
 export interface SymbolMap<T> {
   [symbol: string]: T;
 }
 
-export type eNetwork = eEthereumNetwork | ePolygonNetwork;
+export type eNetwork = eEthereumNetwork | ePolygonNetwork | eOtherNetwork;
 
 export enum eEthereumNetwork {
   kovan = 'kovan',
@@ -13,10 +15,35 @@ export enum eEthereumNetwork {
   hardhat = 'hardhat',
 }
 
+export enum eOtherNetwork {
+  bsc = 'bsc',
+  bsc_testnet = 'bsc_testnet',
+  avalanche_testnet = 'avalanche_testnet',
+  avalanche = 'avalanche',
+  fantom_testnet = 'fantom_testnet',
+  fantom = 'fantom',
+}
+
 export enum ePolygonNetwork {
   matic = 'matic',
   mumbai = 'mumbai',
+  arbitrum_testnet = 'arbitrum_testnet',
+  arbitrum = 'arbitrum',
+  optimistic_testnet = 'optimistic_testnet',
+  optimistic = 'optimistic',
 }
+
+export const isPolygonNetwork = (name: string) => {
+  return ePolygonNetwork[name] !== undefined;
+};
+
+export const isKnownNetworkName = (name: string) => {
+  return isPolygonNetwork(name) || eEthereumNetwork[name] !== undefined || eOtherNetwork[name] !== undefined;
+};
+
+export const isAutoGasNetwork = (name: string) => {
+  return isPolygonNetwork(name);
+};
 
 export enum NetworkNames {
   kovan = 'kovan',
@@ -62,13 +89,26 @@ export type PickOpt<T, K extends keyof T> = {
   [P in K]?: T[P];
 };
 
+export type AllOpt<T> = {
+  [P in keyof T]?: T[P];
+};
+
 export type OmitOpt<T, K extends keyof any> = PickOpt<T, Exclude<keyof T, K>>;
 
 export const DefaultTokenSymbols: string[] = Object.keys(tokenSymbols);
 
-export type iParamsPerNetwork<T> = iEthereumParamsPerNetwork<T> | iPolygonParamsPerNetwork<T>;
+export type iParamsPerNetwork<T> = iParamsPerNetworkAll<T>;
+export type iParamsPerNetworkOpt<T> = AllOpt<iParamsPerNetwork<T>>;
 
-export interface iParamsPerNetworkAll<T> extends iEthereumParamsPerNetwork<T>, iPolygonParamsPerNetwork<T> {}
+export interface iParamsPerNetworkAll<T>
+  extends iEthereumParamsPerNetwork<T>,
+    iPolygonParamsPerNetwork<T>,
+    iParamsPerOtherNetwork<T> {}
+
+export type iParamsPerNetworkGroup<T> =
+  | iEthereumParamsPerNetwork<T>
+  | iPolygonParamsPerNetwork<T>
+  | iParamsPerOtherNetwork<T>;
 
 export interface iEthereumParamsPerNetwork<T> {
   [eEthereumNetwork.coverage]: T;
@@ -82,30 +122,28 @@ export interface iEthereumParamsPerNetwork<T> {
 export interface iPolygonParamsPerNetwork<T> {
   [ePolygonNetwork.matic]: T;
   [ePolygonNetwork.mumbai]: T;
+  [ePolygonNetwork.arbitrum_testnet]: T;
+  [ePolygonNetwork.arbitrum]: T;
+  [ePolygonNetwork.optimistic_testnet]: T;
+  [ePolygonNetwork.optimistic]: T;
+}
+
+export interface iParamsPerOtherNetwork<T> {
+  [eOtherNetwork.bsc]: T;
+  [eOtherNetwork.bsc_testnet]: T;
+  [eOtherNetwork.avalanche]: T;
+  [eOtherNetwork.avalanche_testnet]: T;
+  [eOtherNetwork.fantom]: T;
+  [eOtherNetwork.fantom_testnet]: T;
 }
 
 export interface IMocksConfig {
   UsdAddress: tEthereumAddress;
 }
 
-export interface IRuntimeConfig {
-  MarketId: string;
-  ProviderId: number;
-
-  Names: ITokenNameRules;
-
-  Mocks: IMocksConfig;
-
-  ProviderRegistry: iParamsPerNetwork<tEthereumAddress>;
-  ProviderRegistryOwner: iParamsPerNetwork<tEthereumAddress>;
-  AddressProvider: iParamsPerNetwork<tEthereumAddress>;
-  AddressProviderOwner: iParamsPerNetwork<tEthereumAddress>;
-
-  ChainlinkAggregator: iParamsPerNetwork<ITokenAddress>;
-
-  EmergencyAdmins: iParamsPerNetwork<tEthereumAddress[]>;
-
-  Dependencies: iParamsPerNetwork<IDependencies>;
+export interface IConfiguration {
+  Owner: iParamsPerNetworkOpt<tEthereumAddress>;
+  DepositTokens: iParamsPerNetworkOpt<SymbolMap<string>>;
 }
 
 export interface ITokenAddress {
@@ -137,3 +175,7 @@ export interface IPrices {
 export interface IDependencies {
   UniswapV2Router?: tEthereumAddress;
 }
+
+export const getParamPerNetwork = <T>(param: iParamsPerNetwork<T> | iParamsPerNetworkOpt<T>, network?: eNetwork): T => {
+  return param[getNetworkName(network)]!;
+};
