@@ -1,10 +1,20 @@
-// @ts-ignore
-import { ALCHEMY_KEY, GWEI, INFURA_KEY } from './helpers/env-utils';
+import dotenv from 'dotenv';
+
 import {
   eEthereumNetwork,
+  eOtherNetwork,
   ePolygonNetwork,
   iParamsPerNetwork,
+  iParamsPerNetworkOpt,
 } from './helpers/types';
+
+dotenv.config();
+
+const INFURA_KEY = process.env.INFURA_KEY || '';
+const ALCHEMY_KEY = process.env.ALCHEMY_KEY || '';
+const MORALIS_KEY = process.env.MORALIS_KEY || '';
+
+const GWEI = 1000 * 1000 * 1000;
 
 export const NETWORKS_RPC_URL: iParamsPerNetwork<string> = {
   [eEthereumNetwork.kovan]: ALCHEMY_KEY
@@ -21,15 +31,50 @@ export const NETWORKS_RPC_URL: iParamsPerNetwork<string> = {
     : `https://mainnet.infura.io/v3/${INFURA_KEY}`,
   [eEthereumNetwork.coverage]: 'http://localhost:8555',
   [eEthereumNetwork.hardhat]: 'http://localhost:8545',
+  [eOtherNetwork.bsc_testnet]: 'https://data-seed-prebsc-1-s2.binance.org:8545/',
+  [eOtherNetwork.bsc]: 'https://bsc-dataseed.binance.org/',
+  [eOtherNetwork.avalanche_testnet]: 'https://api.avax-test.network/ext/bc/C/rpc',
+  [eOtherNetwork.avalanche]: MORALIS_KEY
+    ? `https://speedy-nodes-nyc.moralis.io/${MORALIS_KEY}/avalanche/mainnet`
+    : 'https://api.avax.network/ext/bc/C/rpc',
+  [eOtherNetwork.fantom_testnet]: 'https://rpc.testnet.fantom.network/',
+  [eOtherNetwork.fantom]: 'https://rpcapi.fantom.network/',
+  [ePolygonNetwork.arbitrum_testnet]: 'https://rinkeby.arbitrum.io/rpc',
+  [ePolygonNetwork.arbitrum]: 'https://arb1.arbitrum.io/rpc',
+  [ePolygonNetwork.optimistic_testnet]: 'https://kovan.optimism.io',
+  [ePolygonNetwork.optimistic]: 'https://mainnet.optimism.io',
   [ePolygonNetwork.mumbai]: 'https://rpc-mumbai.maticvigil.com',
   [ePolygonNetwork.matic]: 'https://rpc-mainnet.matic.network',
 };
 
-export const NETWORKS_DEFAULT_GAS: iParamsPerNetwork<number> = {
-  [eEthereumNetwork.kovan]: 1 * GWEI,
-  [eEthereumNetwork.ropsten]: 10 * GWEI,
-  [eEthereumNetwork.rinkeby]: 1 * GWEI,
-  [eEthereumNetwork.main]: 65 * GWEI,
-  [eEthereumNetwork.coverage]: 65 * GWEI,
-  [eEthereumNetwork.hardhat]: 65 * GWEI,
+export const FORK_RPC_URL: iParamsPerNetworkOpt<string> = {
+  [eOtherNetwork.bsc]: MORALIS_KEY
+    ? `https://speedy-nodes-nyc.moralis.io/${MORALIS_KEY}/bsc/mainnet/archive`
+    : undefined,
+  [eOtherNetwork.avalanche]: MORALIS_KEY
+    ? `https://speedy-nodes-nyc.moralis.io/${MORALIS_KEY}/avalanche/mainnet`
+    : 'https://api.avax.network/ext/bc/C/rpc',
+};
+
+const gasPrice = (def: number) => (process.env.GAS_PRICE ? parseInt(process.env.GAS_PRICE) : def) * GWEI;
+
+export const NETWORKS_DEFAULT_GAS: iParamsPerNetwork<number | 'auto'> = {
+  [eEthereumNetwork.kovan]: gasPrice(1),
+  [eEthereumNetwork.ropsten]: gasPrice(10),
+  [eEthereumNetwork.rinkeby]: gasPrice(1),
+  [eEthereumNetwork.main]: gasPrice(85),
+  [eEthereumNetwork.coverage]: gasPrice(65),
+  [eEthereumNetwork.hardhat]: gasPrice(25),
+  [eOtherNetwork.bsc_testnet]: gasPrice(10),
+  [eOtherNetwork.bsc]: gasPrice(1),
+  [eOtherNetwork.avalanche_testnet]: gasPrice(30),
+  [eOtherNetwork.avalanche]: gasPrice(25),
+  [eOtherNetwork.fantom_testnet]: gasPrice(10),
+  [eOtherNetwork.fantom]: gasPrice(1),
+  [ePolygonNetwork.arbitrum_testnet]: 'auto',
+  [ePolygonNetwork.arbitrum]: 'auto',
+  [ePolygonNetwork.optimistic_testnet]: 'auto',
+  [ePolygonNetwork.optimistic]: 'auto',
+  [ePolygonNetwork.mumbai]: gasPrice(1),
+  [ePolygonNetwork.matic]: gasPrice(2),
 };

@@ -7,7 +7,7 @@ import {
   getVerifiedFromJsonDb,
   setVerifiedToJsonDb,
 } from '../../helpers/deploy-db';
-import { verifyContractStringified, verifyProxy } from '../../helpers/etherscan-verification';
+import { verifyContractStringified, verifyProxy } from '../../helpers/contract-verification';
 import { falsyOrZeroAddress } from '../../helpers/runtime-utils';
 
 task('verify-all-contracts', 'Verify contracts listed in DeployDB')

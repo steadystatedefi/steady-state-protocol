@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { ConfigNames, loadRuntimeConfig } from '../../../helpers/config_loader';
+import { ConfigNames, loadRuntimeConfig } from '../../../helpers/config-loader';
 
 task(`full:access-test`, 'Smoke test')
   .addParam('cfg', `Configuration name: ${Object.values(ConfigNames)}`)

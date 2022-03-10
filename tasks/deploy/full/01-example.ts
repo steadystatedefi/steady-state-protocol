@@ -1,4 +1,4 @@
-import { loadRuntimeConfig } from '../../../helpers/config_loader';
+import { loadRuntimeConfig } from '../../../helpers/config-loader';
 import { eNetwork } from '../../../helpers/types';
 import { deployTask } from '../deploy-steps';
 
