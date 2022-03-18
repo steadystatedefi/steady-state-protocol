@@ -1,7 +1,7 @@
 import { task } from 'hardhat/config';
 import { exit } from 'process';
 import { ConfigNames } from '../../helpers/config-loader';
-import { setDefaultDeployer } from '../../helpers/contract-types';
+import { setDefaultDeployer } from '../../helpers/factory-wrapper';
 import { cleanupJsonDb, getInstanceCountFromJsonDb, printContracts } from '../../helpers/deploy-db';
 import { getFirstSigner, isForkNetwork } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
