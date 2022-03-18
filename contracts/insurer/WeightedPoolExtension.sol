@@ -79,14 +79,16 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     if (unitCount > type(uint64).max) {
       unitCount = type(uint64).max;
     }
+
+    // TODO event
     return internalCancelCoverageDemand(uint64(unitCount), params);
-    //    Errors.notImplemented();
   }
 
   function cancelCoverage() external onlyActiveInsured {
     uint256 excess = internalCancelCoverage(msg.sender);
     if (excess > 0) {
-      // TODO handle excess
+      // avoid code to be duplicated within WeightedPoolExtension to reduce contract size
+      WeightedPoolBase(address(this)).addCoverageExcess(excess);
     }
   }
 

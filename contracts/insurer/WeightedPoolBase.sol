@@ -56,7 +56,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     private
     returns (UserBalance memory b, Balances.RateAcc memory totals)
   {
-    totals = _totalRate.sync(uint32(block.timestamp));
+    totals = _beforeAnyBalanceUpdate();
     b = _syncBalance(account, totals);
   }
 
@@ -71,26 +71,6 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       }
     }
     b.premiumBase = totals.accum;
-  }
-
-  /// @dev After the balance of the pool is updated, update the _totalRate
-  function _afterBalanceUpdate(
-    uint256 newExcess,
-    Balances.RateAcc memory totals,
-    DemandedCoverage memory coverage
-  ) private returns (Balances.RateAcc memory) {
-    uint256 rate = coverage.premiumRate.rayMul(exchangeRate()); //$CC earned per block
-    // console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
-
-    rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
-
-    // console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
-    if (totals.rate != rate) {
-      _totalRate = totals.setRateAfterSync(rate);
-    } else {
-      require(totals.updatedAt == block.timestamp);
-    }
-    return totals;
   }
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
@@ -117,6 +97,16 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     uint256 amount = coverageAmount.rayDiv(exchangeRate()) + b.balance;
     require(amount == (b.balance = uint128(amount)));
     _balances[account] = b;
+  }
+
+  function addCoverageExcess(uint256 excess) public {
+    require(msg.sender == address(this));
+
+    excess += _excessCoverage;
+    _excessCoverage = excess;
+
+    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
+    _afterBalanceUpdate(excess, totals, super.internalGetPremiumTotals());
   }
 
   ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
@@ -204,8 +194,8 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return (0, accumulated);
   }
 
-  function exchangeRate() public view override returns (uint256) {
-    return WadRayMath.RAY - _inverseExchangeRate;
+  function exchangeRate() public view override(IInsurerPoolCore, WeightedPoolStorage) returns (uint256) {
+    return WeightedPoolStorage.exchangeRate();
   }
 
   function statusOf(address account) external view returns (InsuredStatus status) {
