@@ -39,19 +39,27 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
   address internal _joinHandler;
 
-  modifier onlyActiveInsured() {
+  function _onlyActiveInsured() private view {
     require(internalGetInsuredStatus(msg.sender) == InsuredStatus.Accepted);
+  }
+
+  modifier onlyActiveInsured() {
+    _onlyActiveInsured();
     _;
   }
 
-  modifier onlyInsured() {
+  function _onlyInsured() private view {
     require(internalGetInsuredStatus(msg.sender) > InsuredStatus.Unknown);
+  }
+
+  modifier onlyInsured() {
+    _onlyInsured();
     _;
   }
 
   ///@dev Used to determine the number of rounds to initialize a new batch
   function internalBatchAppend(
-    uint64,
+    uint80,
     uint32 openRounds,
     uint64 unitCount
   ) internal view override returns (uint24) {
@@ -90,7 +98,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   }
 
   function internalRoundLimits(
-    uint64 totalUnitsBeforeBatch,
+    uint80 totalUnitsBeforeBatch,
     uint24 batchRounds,
     uint16 unitPerRound,
     uint64 demandedUnits,
@@ -154,6 +162,35 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
   function internalGetStatus(address account) internal view virtual returns (InsuredStatus) {
     return super.internalGetInsuredStatus(account);
+  }
+
+  function exchangeRate() public view virtual returns (uint256) {
+    return WadRayMath.RAY - _inverseExchangeRate;
+  }
+
+  /// @dev Performed before balance updates. The total rate accum by the pool is updated, and then the user balance is updated
+  function _beforeAnyBalanceUpdate() internal view returns (Balances.RateAcc memory totals) {
+    totals = _totalRate.sync(uint32(block.timestamp));
+  }
+
+  /// @dev After the balance of the pool is updated, update the _totalRate
+  function _afterBalanceUpdate(
+    uint256 newExcess,
+    Balances.RateAcc memory totals,
+    DemandedCoverage memory coverage
+  ) internal returns (Balances.RateAcc memory) {
+    uint256 rate = coverage.premiumRate.rayMul(exchangeRate()); //$CC earned per second
+    // console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
+
+    rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
+
+    // console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
+    if (totals.rate != rate) {
+      _totalRate = totals.setRateAfterSync(rate);
+    } else {
+      require(totals.updatedAt == block.timestamp);
+    }
+    return totals;
   }
 }
 
