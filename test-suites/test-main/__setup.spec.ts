@@ -3,7 +3,7 @@ import rawBRE from 'hardhat';
 
 import _ from 'lodash';
 import { loadTestConfig } from '../../helpers/config-loader';
-import { setDefaultDeployer } from '../../helpers/contract-types';
+import { setDefaultDeployer } from '../../helpers/factory-wrapper';
 import { getSigners, isForkNetwork } from '../../helpers/runtime-utils';
 import { initializeMakeSuite } from './setup/make-suite';
 
