@@ -1274,11 +1274,12 @@ abstract contract WeightedRoundsBase {
     }
   }
 
-  function internalCancelCoverage(address insured) internal returns (uint128 excessCoverage) {
+  function internalCancelCoverage(address insured) internal returns (bool ok, uint128 excessCoverage) {
     Rounds.InsuredEntry storage entry = _insureds[insured];
     if (entry.demandedUnits == 0) {
-      return 0;
+      return (false, 0);
     }
+    ok = true;
 
     PartialState memory part = _partial;
     Rounds.Coverage memory covered = _covered[insured];

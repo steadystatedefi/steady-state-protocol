@@ -85,8 +85,8 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
   }
 
   function cancelCoverage() external onlyActiveInsured {
-    uint256 excess = internalCancelCoverage(msg.sender);
-    if (excess > 0) {
+    (bool ok, uint256 excess) = internalCancelCoverage(msg.sender);
+    if (ok) {
       // avoid code to be duplicated within WeightedPoolExtension to reduce contract size
       WeightedPoolBase(address(this)).addCoverageExcess(excess);
     }
