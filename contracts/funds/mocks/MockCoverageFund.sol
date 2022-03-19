@@ -74,6 +74,4 @@ contract MockCollateralFund is ICollateralFund {
     override
     returns (address[] memory assets, address[] memory depositTokens)
   {}
-
-  function declineCoverageFrom(address insurer) external override {}
 }

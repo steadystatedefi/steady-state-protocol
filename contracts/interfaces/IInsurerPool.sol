@@ -41,9 +41,6 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
   /// @dev size of collateral allocation chunk made by this pool
   function coverageUnitSize() external view returns (uint256);
 
-  /// @dev can only be called by the collateral fund, when insured cancels coverage
-  function onCoverageDeclined(address insured) external;
-
   /// @dev indicates how the demand from insured pools is handled:
   /// * Chartered demand will be allocated without calling IInsuredPool, coverage units can be partially filled in.
   /// * Non-chartered (potential) demand can only be allocated after calling IInsuredPool.tryAddCoverage first, units can only be allocated in full.

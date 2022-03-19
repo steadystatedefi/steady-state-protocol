@@ -31,11 +31,6 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return internalUnitSize();
   }
 
-  function onCoverageDeclined(address insured) external override onlyCollateralFund {
-    insured;
-    Errors.notImplemented();
-  }
-
   ///@notice Add coverage demand to the pool, called by insured
   ///@param unitCount The number of units to demand
   ///@param premiumRate The rate that will be paid on this coverage
