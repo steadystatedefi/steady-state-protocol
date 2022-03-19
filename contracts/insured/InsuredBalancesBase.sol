@@ -15,8 +15,8 @@ import '../insurance/InsurancePoolBase.sol';
 
 import 'hardhat/console.sol';
 
-// Calculates retroactive premium paid by Insured to Insurer over-time.
-// Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
+/// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
+/// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
 abstract contract InsuredBalancesBase is
   InsurancePoolBase,
   ERC1363ReceiverBase,

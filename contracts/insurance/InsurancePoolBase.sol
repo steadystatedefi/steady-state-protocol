@@ -30,6 +30,15 @@ abstract contract InsurancePoolBase is IInsurancePool {
     require(IERC20(_collateral).transfer(recipient, amount));
   }
 
+  function transferCollateralFrom(
+    address from,
+    address recipient,
+    uint256 amount
+  ) internal {
+    // collateral is a trusted token, hence we do not use safeTransfer here
+    require(IERC20(_collateral).transferFrom(from, recipient, amount));
+  }
+
   function transferCollateral(
     address recipient,
     uint256 amount,
