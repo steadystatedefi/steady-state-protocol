@@ -87,7 +87,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
         transferCollateralFrom(msg.sender, address(this), coverage);
       }
       // avoid code to be duplicated within WeightedPoolExtension to reduce contract size
-      WeightedPoolBase(address(this)).addCoverageExcess(excess + coverage);
+      WeightedPoolBase(address(this)).updateCoverageOnCancel(paidoutCoverage, excess + coverage);
     }
   }
 
