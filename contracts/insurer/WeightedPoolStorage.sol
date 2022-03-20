@@ -13,10 +13,7 @@ import './WeightedRoundsBase.sol';
 // Contains all variables for both base and extension contract. Allows for upgrades without corruption
 
 /// @dev
-/// @dev WARNING! This contract MUST NOT be extended with new fields after deployments
-/// @dev WARNING! because WeightedPoolTokenStorage inherited from this one.
-/// @dev WARNING!
-/// @dev WARNING! To add new fields - inherit from WeightedPoolTokenStorage.
+/// @dev WARNING! This contract MUST NOT be extended with new fields after deployment
 /// @dev
 abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   using WadRayMath for uint256;
