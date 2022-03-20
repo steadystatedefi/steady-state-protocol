@@ -4,7 +4,7 @@ import { Factories } from '../../helpers/contract-types';
 import { MockWeightedRounds } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
 import { expect } from 'chai';
-import { stringifyArgs } from '../../helpers/etherscan-verification';
+import { stringifyArgs } from '../../helpers/contract-verification';
 import { BigNumber } from 'ethers';
 
 makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {

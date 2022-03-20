@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { ConfigNames, loadRuntimeConfig } from '../../../helpers/config_loader';
+import { ConfigNames, loadRuntimeConfig } from '../../../helpers/config-loader';
 import { eNetwork } from '../../../helpers/types';
 import { deployTask } from '../deploy-steps';
 

@@ -57,8 +57,8 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         riskWeight,
         decimals
       );
-      insuredTS.push(await currentTime());
       await insured.joinPool(pool.address);
+      insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
       expect(generic).eql([]);
@@ -181,6 +181,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       );
 
       {
+        const timeDelta = (await currentTime()) - insuredTS[index];
         const balances = await insured.balancesOf(pool.address);
 
         // here demanded coverage is in use - so a protocol is charged at max
@@ -189,9 +190,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
         // NB! premium is charged for _demand_ added to guarantee sufficient flow of premium.
         // Using reconcillation will match it with actual coverage.
-        if (!testEnv.underCoverage) {
-          expect(balances.premium).eq(balances.available.mul((await currentTime()) - insuredTS[index] - 1));
-        }
+        // if (!testEnv.underCoverage) {
+        expect(balances.premium).eq(balances.available.mul(timeDelta));
+        // }
 
         if (coverage.totalPremium.eq(0)) {
           expect(balances.premium).eq(0);

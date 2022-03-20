@@ -1,7 +1,7 @@
 import { task } from 'hardhat/config';
 import { ConfigurableTaskDefinition, TaskArguments } from 'hardhat/types';
 import path from 'path';
-import { ConfigNames } from '../../helpers/config_loader';
+import { ConfigNames } from '../../helpers/config-loader';
 
 export interface IDeployStepParams {
   cfg: string;

@@ -1,12 +1,8 @@
 import { Signer } from "ethers";
 import { Contract } from "@ethersproject/contracts";
+import { getDefaultDeployer, UnnamedAttachable } from "./factory-wrapper";
 import { IERC20DetailedFactory } from "../types/IERC20DetailedFactory";
 import { IInsurerPoolFactory } from "../types/IInsurerPoolFactory";
-import { getDefaultDeployer } from "./contract-types";
-
-export interface UnnamedAttachable<TResult extends Contract = Contract> {
-  attach(address: string): TResult;
-}
 
 type ConnectFunc<TResult extends Contract> = (address: string, signerOrProvider: Signer) => TResult;
 

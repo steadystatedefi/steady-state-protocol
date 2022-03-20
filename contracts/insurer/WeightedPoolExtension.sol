@@ -63,20 +63,33 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return addedCount;
   }
 
-  ///@notice Cancel coverage that has been demanded - must be unfilled
+  ///@notice Cancel coverage that has been demanded, but not filled yet
   ///@param unitCount The number of units that wishes to be cancelled
-  ///@param hasMore Whether the Insured has more demand to cancel
   ///@return cancelledUnits The amount of units that were cancelled
-  function cancelCoverageDemand(uint256 unitCount, bool hasMore)
+  function cancelCoverageDemand(uint256 unitCount)
     external
     override
     onlyActiveInsured
     returns (uint256 cancelledUnits)
   {
-    unitCount;
-    hasMore;
-    Errors.notImplemented();
-    return 0;
+    CancelCoverageDemandParams memory params;
+    params.insured = msg.sender;
+    params.loopLimit = ~params.loopLimit;
+
+    if (unitCount > type(uint64).max) {
+      unitCount = type(uint64).max;
+    }
+
+    // TODO event
+    return internalCancelCoverageDemand(uint64(unitCount), params);
+  }
+
+  function cancelCoverage() external onlyActiveInsured {
+    (bool ok, uint256 excess) = internalCancelCoverage(msg.sender);
+    if (ok) {
+      // avoid code to be duplicated within WeightedPoolExtension to reduce contract size
+      WeightedPoolBase(address(this)).addCoverageExcess(excess);
+    }
   }
 
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged

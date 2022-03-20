@@ -1,7 +1,7 @@
 import { task, types } from 'hardhat/config';
 import { exit } from 'process';
 import { BigNumber } from 'ethers';
-import { ConfigNames } from '../../helpers/config_loader';
+import { ConfigNames } from '../../helpers/config-loader';
 import { getFirstSigner } from '../../helpers/runtime-utils';
 import { cleanupJsonDb, printContracts } from '../../helpers/deploy-db';
 import { getDeploySteps } from '../deploy/deploy-steps';

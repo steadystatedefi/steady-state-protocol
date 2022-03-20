@@ -1,11 +1,10 @@
 import low from 'lowdb';
 import FileSync from 'lowdb/adapters/FileSync';
 import { Contract } from 'ethers';
-import { eEthereumNetwork, tEthereumAddress } from './types';
-import { stringifyArgs } from './etherscan-verification';
+import { tEthereumAddress } from './types';
+import { stringifyArgs } from './contract-verification';
 import { DRE } from './dre';
-import { notFalsyOrZeroAddress } from './runtime-utils';
-import { MAINNET_FORK } from './env-utils';
+import { falsyOrZeroAddress, isForkNetwork } from './runtime-utils';
 
 const getDb = () => low(new FileSync('./deployed-contracts.json'));
 
@@ -34,9 +33,7 @@ export const addContractToJsonDb = (
   verifyArgs?: any[]
 ) => {
   const currentNetwork = DRE.network.name;
-  const db = getDb();
-
-  if (MAINNET_FORK || (currentNetwork !== eEthereumNetwork.hardhat && !currentNetwork.includes('coverage'))) {
+  if (isForkNetwork() || (currentNetwork !== 'hardhat' && !currentNetwork.includes('coverage'))) {
     console.log(`*** ${contractId} ***\n`);
     console.log(`Network: ${currentNetwork}`);
     console.log(`tx: ${contractInstance.deployTransaction.hash}`);
@@ -48,6 +45,18 @@ export const addContractToJsonDb = (
     console.log();
   }
 
+  addContractAddrToJsonDb(contractId, contractInstance.address, register, verifyArgs);
+};
+
+export const addContractAddrToJsonDb = (
+  contractId: string,
+  contractAddr: string,
+  register: boolean,
+  verifyArgs?: any[]
+) => {
+  const currentNetwork = DRE.network.name;
+  const db = getDb();
+
   let logEntry: DbInstanceEntry = {
     id: contractId,
   };
@@ -58,13 +67,13 @@ export const addContractToJsonDb = (
     };
   }
 
-  db.set(`${currentNetwork}.instance.${contractInstance.address}`, logEntry).write();
+  db.set(`${currentNetwork}.instance.${contractAddr}`, logEntry).write();
 
   if (register) {
     const node = `${currentNetwork}.named.${contractId}`;
-    const count = (db.get(node).value())?.count || 0;
+    const count = db.get(node).value()?.count ?? 0;
     let namedEntry: DbNamedEntry = {
-      address: contractInstance.address,
+      address: contractAddr,
       count: count + 1,
     };
     db.set(`${currentNetwork}.named.${contractId}`, namedEntry).write();
@@ -150,12 +159,12 @@ export const getExternalsFromJsonDb = () =>
 export const getNamedFromJsonDb = () =>
   Object.entries<DbNamedEntry>(getDb().get(`${DRE.network.name}.named`).value() || []);
 
-export const getFromJsonDb = (id: string): DbNamedEntry => getDb().get(`${DRE.network.name}.named.${id}`).value();
+export const getFromJsonDb = (id: string) => getDb().get(`${DRE.network.name}.named.${id}`).value();
 
 export const getFromJsonDbByAddr = (id: string) =>
   getDb().get(`${DRE.network.name}.instance.${id}`).value() as DbInstanceEntry;
 
-export const hasInJsonDb = (id: string) => notFalsyOrZeroAddress(getFromJsonDb(id)?.address);
+export const hasInJsonDb = (id: string) => !falsyOrZeroAddress(getFromJsonDb(id)?.address);
 
 export const getInstanceCountFromJsonDb = () => {
   return getInstancesFromJsonDb().length;
