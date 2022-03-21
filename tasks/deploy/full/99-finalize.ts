@@ -1,5 +1,5 @@
 import { task } from 'hardhat/config';
-import { ConfigNames } from '../../../helpers/config_loader';
+import { ConfigNames } from '../../../helpers/config-loader';
 
 task(`full:deploy-finalize`, 'Finalize deploy')
   .addParam('cfg', `Configuration name: ${Object.values(ConfigNames)}`)
