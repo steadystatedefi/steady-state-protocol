@@ -4,8 +4,10 @@ import { createRandomAddress, getSigners } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
 import {
   CollateralFundStable,
+  CoverageCurrency,
   DepositTokenERC20Adapter,
   DepositTokenERC20AdapterFactory,
+  ERC20,
   ERC20Factory,
   MockTreasuryStrategy,
   MockTreasuryStrategyFactory,
@@ -17,12 +19,15 @@ import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { getAddress } from 'ethers/lib/utils';
 import BigNumber from 'bignumber.js';
+import { hrtime } from 'process';
+import { Contract } from 'ethers';
 
 makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
   const unitSize = 1000;
   let fund: CollateralFundStable;
   let pool: MockWeightedPool;
   let stable: MockStable;
+  let cc: CoverageCurrency;
   let strategy: MockTreasuryStrategy;
   let depositor1: SignerWithAddress;
   let depositor2: SignerWithAddress;
@@ -49,8 +54,9 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     await stable.mint(depositor2.address, 1000);
     await stable.connect(depositor1).approve(fund.address, 100000000000000);
     await stable.connect(depositor2).approve(fund.address, 100000000000000);
-    balanceOf = fund['balanceOf(address)'];
-    dBalanceOf = fund['balanceOf(address,address)'];
+    cc = await Factories.CoverageCurrency.attach(await fund.cc());
+    balanceOf = cc['balanceOf(address)'];
+    dBalanceOf = fund['balanceOfA(address,address)'];
 
     console.log('Stablecoin deployed at: ', stable.address);
     console.log('Collateral fund deployed at: ', fund.address);
@@ -78,7 +84,10 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
 
     /** Deposit to self **/
     await fund.connect(depositor1).deposit(stable.address, amt, depositor1.address, 0);
-    balance = await (await balanceOf(depositor1.address)).toNumber();
+    //balance = await (await balanceOf(depositor1.address)).toNumber();
+    console.log(await cc.balanceOf(depositor1.address));
+    balance = await (await cc.balanceOf(depositor1.address)).toNumber();
+    console.log('EEEEEEE');
     expect(balance).eq(amt);
     dtbalance = await (await dBalanceOf(depositor1.address, stable.address)).toNumber();
     expect(dtbalance).eq(amt);

@@ -11,7 +11,7 @@ import './CollateralFundBalances.sol';
 import './CoverageCurrency.sol';
 
 ///@dev CollateralFundBase contains logic on minting/burning/transferring $CC/dTokens
-abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency {
+abstract contract CollateralFundBase is CollateralFundBalances {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
 
@@ -52,8 +52,12 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
 
   mapping(address => Account) internal accounts;
 
+  CoverageCurrency public cc;
+
   /*** FUNCTIONS ***/
-  constructor(string memory name) {}
+  constructor(string memory name) {
+    cc = new CoverageCurrency(name, 'CC', 18, address(this));
+  }
 
   ///@dev Deposit into the collateral fund and invest into the given insurer
   function depositAndInvest(
@@ -75,13 +79,9 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
   ) public {
     require(depositWhitelist[asset], 'Not accepting this token');
 
-    if (allowance(to, address(this)) == 0) {
-      _approve(to, address(this), type(uint256).max);
-    }
-
     uint256 ccAmt = amount * _calculateAssetPrice(asset);
     mintFor(to, asset, amount, '');
-    _mint(to, ccAmt);
+    cc.mint(to, ccAmt);
     require(ccAmt < uint256(type(uint128).max));
     if (accounts[to].deposits[asset].x == 0) {
       //Perhaps x should have a min value of 1 so that duplicates don't populate array
@@ -117,7 +117,7 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
 
     _prepareWithdraw(asset, amount);
     burnFor(msg.sender, asset, amount);
-    _burn(msg.sender, ccAmt);
+    cc.burn(msg.sender, ccAmt);
     IERC20(asset).safeTransfer(to, amount);
     _onWithdraw(asset, amount);
 
@@ -144,7 +144,7 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
     bytes memory params
   ) internal {
     require(amount < uint256(type(uint128).max));
-    this.transferFrom(msg.sender, insurer, amount);
+    cc.transferFrom(msg.sender, insurer, amount);
     require(addCCOut(msg.sender, uint128(amount)));
 
     _investedSupply += amount;
@@ -171,7 +171,7 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
 
   function declineCoverageFrom(address insurer) external {
     IInsurerPool(insurer).onCoverageDeclined(msg.sender);
-    transferFrom(msg.sender, insurer, balanceOf(msg.sender));
+    cc.transferFrom(msg.sender, insurer, cc.balanceOf(msg.sender));
   }
 
   function addDepositToken(address asset) external virtual returns (bool);
@@ -228,11 +228,11 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
   /*** INTERNAL FUNCTIONS ***/
 
   ///@dev Logic for $CC
-  function _beforeTokenTransfer(
+  function beforeTokenTransfer(
     address from,
     address to,
     uint256 amount
-  ) internal override {
+  ) external {
     //minting
     if (from == address(0)) {
       return;
@@ -250,13 +250,15 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
     }
   }
 
-  function _afterTokenTransfer(
+  ///@dev I really do not like this solution
+  function afterTokenTransfer(
     address from,
     address to,
     uint256 amount
-  ) internal override {
+  ) external {
+    require(msg.sender == address(cc));
     if (insurerWhitelist[to] || accounts[to].isAutomated) {
-      bytes4 retval = IInsurerPool(to).onTransferReceived(address(this), msg.sender, amount, '');
+      bytes4 retval = IInsurerPool(to).onTransferReceived(address(this), from, amount, '');
       require(retval == IERC1363Receiver(to).onTransferReceived.selector);
     }
   }
@@ -316,8 +318,8 @@ abstract contract CollateralFundBase is CollateralFundBalances, CoverageCurrency
   /// @dev Get the value of all the assets this user has deposited
   function _assetValue(address account) internal view returns (uint256 total) {
     for (uint256 i = 0; i < depositList.length; i++) {
-      if (balanceOf(account, _getId(depositList[i])) > 0) {
-        total += balanceOf(account, _getId(depositList[i])) * _calculateAssetPrice(depositList[i]);
+      if (balanceOf[account][_getId(depositList[i])] > 0) {
+        total += balanceOf[account][_getId(depositList[i])] * _calculateAssetPrice(depositList[i]);
       }
     }
 

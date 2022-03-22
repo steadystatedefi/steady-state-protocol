@@ -13,6 +13,10 @@ contract CollateralFundBalances is ERC1155Addressable, Treasury {
     setAdapter(address(new DepositTokenERC20Adapter()));
   }
 
+  function uri(uint256 id) public view override returns (string memory) {
+    return '';
+  }
+
   ///@dev Creates the Token Adapter for the given underlying
   function createToken(
     address underlying,

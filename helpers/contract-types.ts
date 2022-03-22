@@ -7,6 +7,7 @@ export const Factories = {
   PremiumCollector: wrap(types.PremiumCollectorFactory),
   CollateralFundStable: wrap(types.CollateralFundStableFactory),
   DepositTokenERC20Adapter: wrap(types.DepositTokenERC20AdapterFactory),
+  CoverageCurrency: wrap(types.CoverageCurrencyFactory),
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
   MockCollateralFund: mock(types.MockCollateralFundFactory),
