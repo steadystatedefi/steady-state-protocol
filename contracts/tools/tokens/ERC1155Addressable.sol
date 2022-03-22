@@ -1,20 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-//TODO: Change import
-import '@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol';
+import './ERC1155Supply.sol';
+import './IERC1155.sol';
 import '../upgradeability/Clones.sol';
 
-//import './DepositTokenAdapter.sol';
+///@dev An IERC1155Adaptable is an ERC1155 that can handle transfers by an ERC1155ERC20Adapter
+interface IERC1155Adaptable is IERC1155 {
+  function transferByAdapter(
+    uint256 id,
+    address from,
+    address recipient,
+    uint256 amount
+  ) external;
 
+  function totalSupply(uint256 id) external view returns (uint256);
+
+  function exists(uint256 id) external view returns (bool);
+}
+
+///@dev ERC1155 that calculates ids based on underlying tokens and their corresponding
+/// ERC20 adapter deterministic address
 abstract contract ERC1155Addressable is ERC1155Supply {
   event AdapterCreated(address underlying, address adapter);
 
   address private adapterImplementation;
 
   mapping(uint256 => address) public idToUnderlying;
-
-  constructor() ERC1155('') {}
 
   ///@dev Sets the ERC20 adapter address, can only be called once
   function setAdapter(address adapter) internal {
@@ -24,6 +36,22 @@ abstract contract ERC1155Addressable is ERC1155Supply {
 
   function getAdapter() internal view returns (address) {
     return adapterImplementation;
+  }
+
+  ///@dev This is an unsafe function that MUST ONLY be called by the adapter.
+  /// Does not check approvals nor that the sender is legitimate
+  ///@param id        The ID of the token to transfer
+  ///@param from      The sender of the tokens
+  ///@param recipient The receiver of the tokens
+  ///@param amount    Number of tokens to transfer
+  function transferByAdapter(
+    uint256 id,
+    address from,
+    address recipient,
+    uint256 amount
+  ) external {
+    require(msg.sender == address(uint160(id)), 'Transfer not by adapter');
+    _unsafeTransferFrom(from, recipient, id, amount, '');
   }
 
   ///@dev Mints tokens
@@ -54,7 +82,7 @@ abstract contract ERC1155Addressable is ERC1155Supply {
       amounts[i] = numToMint(underlyings[i], amounts[i]);
     }
 
-    _mintBatch(to, ids, amounts, data);
+    _batchMint(to, ids, amounts, data);
   }
 
   ///@dev Burn the correct amount of tokens to redeem the underlying
@@ -81,26 +109,10 @@ abstract contract ERC1155Addressable is ERC1155Supply {
       ids[i] = _getId(underlyings[i]);
     }
 
-    _burnBatch(from, ids, amounts);
+    _batchBurn(from, ids, amounts);
   }
 
-  ///@dev This is an unsafe function that MUST ONLY be called by the adapter.
-  /// Does not check approvals nor that the sender is legitimate
-  ///@param id        The ID of the token to transfer
-  ///@param from      The sender of the tokens
-  ///@param recipient The receiver of the tokens
-  ///@param amount    Number of tokens to transfer
-  function transferByAdapter(
-    uint256 id,
-    address from,
-    address recipient,
-    uint256 amount
-  ) external {
-    require(msg.sender == address(uint160(id)));
-    _safeTransferFrom(from, recipient, id, amount, '');
-  }
-
-  ///@dev Get what the adapter for an underlying will be
+  ///@dev Calculate the address of the adapter for an underlying (deployed or not)
   function _getAddress(address underlying) internal view returns (address) {
     bytes32 x; //TODO: is mload cheaper?
     assembly {
@@ -114,7 +126,7 @@ abstract contract ERC1155Addressable is ERC1155Supply {
     return uint160(_getAddress(underlying));
   }
 
-  ///@dev Get what the adapter for an underlying will be
+  ///@dev Calculate the address of the adapter for an underlying (deployed or not)
   function getAddress(address underlying) external view returns (address) {
     return _getAddress(underlying);
   }
@@ -130,8 +142,8 @@ abstract contract ERC1155Addressable is ERC1155Supply {
   }
 
   ///@dev Get the balance of an account's token by the underlying address
-  function balanceOf(address account, address asset) external view returns (uint256) {
-    return balanceOf(account, _getId(asset));
+  function balanceOfA(address account, address asset) public view returns (uint256) {
+    return balanceOf[account][_getId(asset)];
   }
 
   function numToMint(address underlying, uint256 amount) public view virtual returns (uint256);
