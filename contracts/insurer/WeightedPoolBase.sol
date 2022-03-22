@@ -88,7 +88,12 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       _inverseExchangeRate = WadRayMath.RAY - (total - paidoutCoverage).rayDiv(total).rayMul(exchangeRate());
     }
 
-    _excessCoverage = (excess += _excessCoverage);
+    if (excess > 0) {
+      _excessCoverage = (excess += _excessCoverage);
+      emit ExcessCoverageIncreased(excess);
+    } else {
+      excess = _excessCoverage;
+    }
     _afterBalanceUpdate(excess, totals, premium);
   }
 
