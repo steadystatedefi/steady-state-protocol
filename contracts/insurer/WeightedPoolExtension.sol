@@ -124,11 +124,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     coverage = internalUpdateCoveredDemand(params);
 
     if (params.receivedCoverage > 0) {
-      transferCollateral(
-        insured,
-        params.receivedCoverage,
-        abi.encodeWithSelector(DInsuredPoolTransfer.addCoverageByInsurer.selector)
-      );
+      transferCollateral(insured, params.receivedCoverage);
     }
 
     return (params.receivedCoverage, coverage);

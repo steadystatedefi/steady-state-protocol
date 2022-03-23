@@ -7,11 +7,18 @@ import '../tools/upgradeability/Delegator.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
+import '../interfaces/IInvestable.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage, Delegator, ERC1363ReceiverBase {
+abstract contract WeightedPoolBase is
+  IInsurerPoolCore,
+  IInvestable,
+  WeightedPoolTokenStorage,
+  Delegator,
+  ERC1363ReceiverBase
+{
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -95,6 +102,8 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       excess = _excessCoverage;
     }
     _afterBalanceUpdate(excess, totals, premium);
+
+    // TODO should call pushExcess?
   }
 
   ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
@@ -200,7 +209,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     address,
     uint256 value,
     bytes calldata data
-  ) internal override onlyCollateralFund {
+  ) internal override onlyCollateralCurrency {
     if (internalIsInvestor(operator)) {
       if (value == 0) return;
       internalHandleInvestment(operator, value, data);
@@ -244,5 +253,25 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     amount += b.balance;
     require((b.balance = uint128(amount)) == amount);
     _balances[recipient] = b;
+  }
+
+  function withdrawableAllowance(address account) external view override returns (uint256 amount) {
+    amount = _excessCoverage;
+    if (amount > 0) {
+      uint256 balance = _balances[account].balance;
+      if (balance < amount) {
+        amount = balance;
+      }
+    }
+  }
+
+  function delegatedInvest(
+    address account,
+    uint256 amount,
+    bytes calldata params
+  ) external override onlyCollateralCurrency returns (uint256 acceptedAmount, address reciever) {
+    require(params.length == 0); // TODO empty params
+    internalMintForCoverage(account, amount);
+    return (amount, address(this));
   }
 }

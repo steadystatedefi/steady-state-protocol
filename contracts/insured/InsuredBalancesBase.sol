@@ -38,6 +38,8 @@ abstract contract InsuredBalancesBase is
 
   Balances.RateAcc private _totals;
 
+  uint32 private _cancelledAt; // TODO
+
   function getSig(bytes calldata data) private pure returns (bytes4 sig) {
     // solhint-disable-next-line no-inline-assembly
     assembly {
@@ -52,29 +54,31 @@ abstract contract InsuredBalancesBase is
     address from,
     uint256 value,
     bytes calldata data
-  ) internal override onlyCollateralFund {
-    uint256 unusedAmount;
+  ) internal override onlyCollateralCurrency {
+    // uint256 unusedAmount;
 
-    if (data.length == 0) {
-      (unusedAmount, ) = _invest(operator, value, 1, 0, address(0));
-    } else {
-      bytes4 selector = getSig(data[:4]);
-      if (selector == DInsuredPoolTransfer.addCoverageByInvestor.selector) {
-        unusedAmount = _addCoverageByInvestor(operator, from, value, data[4:]);
-      } else if (selector == DInsuredPoolTransfer.addCoverageByInsurer.selector) {
-        abi.decode(data[4:], ());
-        require(operator == from && internalIsAllowedAsHolder(_balances[operator].extra));
-        // do nothing
-      } else {
-        revert('unsupported call data');
-      }
-    }
+    require(operator == from && internalIsAllowedAsHolder(_balances[operator].extra));
+    // if (data.length == 0) {
+    //   // (unusedAmount, ) = _invest(operator, value, 1, 0, address(0));
+    // } else {
+    //   bytes4 selector = getSig(data[:4]);
+    //   if (selector == DInsuredPoolTransfer.addCoverageByInvestor.selector) {
+    //     unusedAmount = _addCoverageByInvestor(operator, from, value, data[4:]);
+    //   } else if (selector == DInsuredPoolTransfer.addCoverageByInsurer.selector) {
+    //     abi.decode(data[4:], ());
+    //     require(operator == from && internalIsAllowedAsHolder(_balances[operator].extra));
+    //     // do nothing
+    //   } else {
+    //     revert('unsupported call data');
+    //   }
+    // }
 
-    if (unusedAmount > 0) {
-      require(unusedAmount <= value);
-      // return the unused portion
-      transferCollateral(from, unusedAmount);
-    }
+    // // TODO remove
+    // if (unusedAmount > 0) {
+    //   require(unusedAmount <= value);
+    //   // return the unused portion
+    //   transferCollateral(from, unusedAmount);
+    // }
   }
 
   function _addCoverageByInvestor(
@@ -212,9 +216,9 @@ abstract contract InsuredBalancesBase is
 
   function internalIsAllowedAsHolder(uint16 status) internal view virtual returns (bool);
 
-  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory) {
-    // TODO adjust rate when payments stopped
-    return _balances[account].sync(uint32(block.timestamp));
+  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory b) {
+    uint32 ts = _cancelledAt;
+    return _balances[account].sync(ts > 0 ? ts : uint32(block.timestamp));
   }
 
   function internalHandleDirectInvestment(

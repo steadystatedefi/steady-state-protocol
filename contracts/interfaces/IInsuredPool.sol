@@ -25,8 +25,6 @@ interface DInsuredPoolTransfer {
     uint256 minPremiumRate,
     address insurerPool
   ) external;
-
-  function addCoverageByInsurer() external;
 }
 
 interface IInsuredEvents {
