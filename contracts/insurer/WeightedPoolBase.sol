@@ -218,7 +218,6 @@ abstract contract WeightedPoolBase is
       if (status != InsuredStatus.Unknown) {
         // TODO return of funds from insured
         Errors.notImplemented();
-        return;
       }
     }
     internalHandleInvestment(operator, value, data);

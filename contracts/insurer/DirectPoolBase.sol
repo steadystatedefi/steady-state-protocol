@@ -13,7 +13,13 @@ import './WeightedPoolExtension.sol';
 import '../insurance/InsurancePoolBase.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract DirectPoolBase is IInsurerPoolCore, ERC1363ReceiverBase, InsurancePoolBase, ERC20BalancelessBase {
+abstract contract DirectPoolBase is
+  IInsurerPoolCore,
+  ERC1363ReceiverBase,
+  InsurancePoolBase,
+  InsurerJoinBase,
+  ERC20BalancelessBase
+{
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -78,16 +84,16 @@ abstract contract DirectPoolBase is IInsurerPoolCore, ERC1363ReceiverBase, Insur
     _cancelledAt = uint32(block.timestamp);
   }
 
-  function internalApplyCoverage(address account, uint256 coverageAmount) internal returns (uint96 ratePoints) {}
-
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   function internalMintForCoverage(address account, uint256 coverageAmount) internal {
     require(account != address(0));
     require(_cancelledAt == 0);
-    uint96 ratePoints = internalApplyCoverage(account, coverageAmount);
+
+    uint256 ratePoints;
+    (coverageAmount, ratePoints) = IInsuredPool(_insured).offerCoverage(coverageAmount);
 
     Balances.RateAcc memory b = _beforeBalanceUpdate(account);
-    b.rate += ratePoints;
+    require((b.rate = uint96(ratePoints + b.rate)) >= ratePoints);
     _premiums[account] = b;
 
     emit Transfer(address(0), account, coverageAmount);
@@ -146,12 +152,12 @@ abstract contract DirectPoolBase is IInsurerPoolCore, ERC1363ReceiverBase, Insur
     premium = b.sync(at).accum;
   }
 
-  // function statusOf(address account) external view returns (InsuredStatus status) {
-  //   if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
-  //     status = InsuredStatus.NotApplicable;
-  //   }
-  //   return status;
-  // }
+  function statusOf(address account) external view returns (InsuredStatus status) {
+    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
+      status = InsuredStatus.NotApplicable;
+    }
+    return status;
+  }
 
   /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
   /// mints $IC tokens when $CC is received from a user
@@ -175,16 +181,16 @@ abstract contract DirectPoolBase is IInsurerPoolCore, ERC1363ReceiverBase, Insur
     // internalHandleInvestment(operator, value, data);
   }
 
-  function internalHandleInvestment(
-    address investor,
-    uint256 amount,
-    bytes memory data
-  ) internal virtual {
-    if (data.length > 0) {
-      abi.decode(data, ());
-    }
-    internalMintForCoverage(investor, amount);
-  }
+  // function internalHandleInvestment(
+  //   address investor,
+  //   uint256 amount,
+  //   bytes memory data
+  // ) internal virtual {
+  //   if (data.length > 0) {
+  //     abi.decode(data, ());
+  //   }
+  //   internalMintForCoverage(investor, amount);
+  // }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
   ///@param sender  The sender
@@ -214,5 +220,78 @@ abstract contract DirectPoolBase is IInsurerPoolCore, ERC1363ReceiverBase, Insur
       _balances[recipient] += amount;
       _premiums[sender] = b;
     }
+  }
+
+  function internalPrepareJoin(address) internal override {}
+
+  function internalInitiateJoin(address account) internal override returns (InsuredStatus) {
+    address insured = _insured;
+    if (insured == address(0)) {
+      _insured = account;
+    } else if (insured != account) {
+      return InsuredStatus.Declined;
+    }
+
+    return InsuredStatus.Accepted;
+  }
+
+  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
+    return _insured == account ? InsuredStatus.Accepted : InsuredStatus.Unknown;
+  }
+
+  function internalSetStatus(address account, InsuredStatus s) internal override {
+    // TODO check?
+  }
+
+  function internalIsInvestor(address account) internal view override returns (bool) {
+    address insured = _insured;
+    if (insured != address(0)) {
+      return insured != account;
+    }
+
+    return _balances[account] > 0 || _premiums[account].accum > 0;
+  }
+
+  ///@dev Adjusts the required and demanded coverage from an investment
+  ///TODO: premiumrate(?)
+  function internalHandleDirectInvestment(
+    uint256 amount,
+    uint256 minAmount,
+    uint256 minPremiumRate
+  ) internal returns (uint256 availableAmount, uint64 premiumRate) {
+    // availableAmount = _requiredCoverage;
+    // if (availableAmount > amount) {
+    //   _requiredCoverage = uint128(availableAmount - amount);
+    //   availableAmount = amount;
+    // } else if (availableAmount > 0 && availableAmount >= minAmount) {
+    //   _requiredCoverage = 0;
+    // } else {
+    //   return (0, _premiumRate);
+    // }
+    // require((_demandedCoverage = uint128(amount = _demandedCoverage + availableAmount)) == amount);
+    // return (availableAmount, _premiumRate);
+  }
+
+  ///@dev Invests into the insured for the investor, and it must invest >= minAmount at a rate >= minPremiumRate
+  ///@return unusedAmount Amount of unused coverage
+  ///@return amount of coverage provided
+  function _invest(
+    address investor,
+    uint256 amount,
+    uint256 minAmount,
+    uint256 minPremiumRate,
+    address holder
+  ) private returns (uint256 unusedAmount, uint256) {
+    // unusedAmount = amount;
+    // uint64 premiumRate;
+    // (amount, premiumRate) = internalHandleDirectInvestment(amount, minAmount, minPremiumRate);
+    // if (amount == 0) {
+    //   return (unusedAmount, 0);
+    // }
+    // require(amount >= minAmount);
+    // require(premiumRate > 0 && premiumRate >= minPremiumRate);
+    // unusedAmount -= amount;
+    // internalMintForCoverage(investor, amount, premiumRate, holder);
+    // return (unusedAmount, amount);
   }
 }

@@ -74,28 +74,6 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate, address(0));
   }
 
-  ///@dev Adjusts the required and demanded coverage from an investment
-  ///TODO: premiumrate(?)
-  function internalHandleDirectInvestment(
-    uint256 amount,
-    uint256 minAmount,
-    uint256
-  ) internal override returns (uint256 availableAmount, uint64 premiumRate) {
-    availableAmount = _requiredCoverage;
-    if (availableAmount > amount) {
-      _requiredCoverage = uint128(availableAmount - amount);
-      availableAmount = amount;
-    } else if (availableAmount > 0 && availableAmount >= minAmount) {
-      _requiredCoverage = 0;
-    } else {
-      return (0, _premiumRate);
-    }
-
-    require((_demandedCoverage = uint128(amount = _demandedCoverage + availableAmount)) == amount);
-
-    return (availableAmount, _premiumRate);
-  }
-
   function internalAllocateCoverageDemand(
     address target,
     uint256 amount,
@@ -232,4 +210,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   // function totalCoverage() public view returns(uint256 required, uint256 demanded, uint256 received) {
   //   return (_requiredCoverage, _demandedCoverage, IERC20(collateral()).balanceOf(address(this)));
   // }
+
+  function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
+    Errors.notImplemented();
+  }
 }

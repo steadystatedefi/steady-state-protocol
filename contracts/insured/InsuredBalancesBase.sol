@@ -40,92 +40,13 @@ abstract contract InsuredBalancesBase is
 
   uint32 private _cancelledAt; // TODO
 
-  function getSig(bytes calldata data) private pure returns (bytes4 sig) {
-    // solhint-disable-next-line no-inline-assembly
-    assembly {
-      calldatacopy(0, data.offset, 4)
-      sig := mload(0)
-      // sig := mload(add(_data, 32))
-    }
-  }
-
   function internalReceiveTransfer(
     address operator,
     address from,
     uint256 value,
     bytes calldata data
   ) internal override onlyCollateralCurrency {
-    // uint256 unusedAmount;
-
     require(operator == from && internalIsAllowedAsHolder(_balances[operator].extra));
-    // if (data.length == 0) {
-    //   // (unusedAmount, ) = _invest(operator, value, 1, 0, address(0));
-    // } else {
-    //   bytes4 selector = getSig(data[:4]);
-    //   if (selector == DInsuredPoolTransfer.addCoverageByInvestor.selector) {
-    //     unusedAmount = _addCoverageByInvestor(operator, from, value, data[4:]);
-    //   } else if (selector == DInsuredPoolTransfer.addCoverageByInsurer.selector) {
-    //     abi.decode(data[4:], ());
-    //     require(operator == from && internalIsAllowedAsHolder(_balances[operator].extra));
-    //     // do nothing
-    //   } else {
-    //     revert('unsupported call data');
-    //   }
-    // }
-
-    // // TODO remove
-    // if (unusedAmount > 0) {
-    //   require(unusedAmount <= value);
-    //   // return the unused portion
-    //   transferCollateral(from, unusedAmount);
-    // }
-  }
-
-  function _addCoverageByInvestor(
-    address operator,
-    address from,
-    uint256 amount,
-    bytes calldata data
-  ) private returns (uint256) {
-    (address account, uint256 minAmount, uint256 minPremiumRate, address insurerPool) = abi.decode(
-      data,
-      (address, uint256, uint256, address)
-    );
-    (uint256 unusedAmount, uint256 mintedAmount) = _invest(account, amount, minAmount, minPremiumRate, insurerPool);
-
-    if (mintedAmount > 0 && insurerPool != address(0)) {
-      require(
-        IERC1363Receiver(insurerPool).onTransferReceived(operator, from, mintedAmount, '') ==
-          IERC1363Receiver.onTransferReceived.selector
-      );
-    }
-
-    return unusedAmount;
-  }
-
-  ///@dev Invests into the insured for the investor, and it must invest >= minAmount at a rate >= minPremiumRate
-  ///@return unusedAmount Amount of unused coverage
-  ///@return amount of coverage provided
-  function _invest(
-    address investor,
-    uint256 amount,
-    uint256 minAmount,
-    uint256 minPremiumRate,
-    address holder
-  ) private returns (uint256 unusedAmount, uint256) {
-    unusedAmount = amount;
-    uint64 premiumRate;
-    (amount, premiumRate) = internalHandleDirectInvestment(amount, minAmount, minPremiumRate);
-    if (amount == 0) {
-      return (unusedAmount, 0);
-    }
-    require(amount >= minAmount);
-    require(premiumRate > 0 && premiumRate >= minPremiumRate);
-
-    unusedAmount -= amount;
-
-    internalMintForCoverage(investor, amount, premiumRate, holder);
-    return (unusedAmount, amount);
   }
 
   ///@dev Mint the correct amount of tokens for the account (investor)
@@ -220,12 +141,6 @@ abstract contract InsuredBalancesBase is
     uint32 ts = _cancelledAt;
     return _balances[account].sync(ts > 0 ? ts : uint32(block.timestamp));
   }
-
-  function internalHandleDirectInvestment(
-    uint256 amount,
-    uint256 minAmount,
-    uint256 minPremiumRate
-  ) internal virtual returns (uint256 availableAmount, uint64 premiumRate);
 
   function balanceOf(address account) public view override returns (uint256) {
     return _balances[account].rate;

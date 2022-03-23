@@ -11,6 +11,8 @@ interface IInsuredPool is IInsurancePool {
   function pullCoverageDemand() external returns (bool);
 
   function insuredParams() external returns (InsuredParams memory);
+
+  function offerCoverage(uint256 offeredAmount) external returns (uint256 acceptedAmount, uint256 rate);
 }
 
 struct InsuredParams {
