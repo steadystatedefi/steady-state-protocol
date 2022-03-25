@@ -20,9 +20,9 @@ abstract contract StakedPremiumHandler is ERC1155Addressable {
   ///[pool id][user]
   mapping(uint256 => mapping(address => Premium)) private premiums;
   mapping(uint256 => PoolState) private pools;
-  uint256 public totalStaked;
 
-  //mapping(uint256 => address) public idToUnderlying;
+  // This variable tracks the number of underlying tokens that all pools are worth.
+  uint256 public totalStaked;
 
   uint256 private constant multiplier = 10**20;
 
@@ -43,13 +43,16 @@ abstract contract StakedPremiumHandler is ERC1155Addressable {
     }
 
     uint256 poolPremiumEarned = index - p.lastPremiumIndex;
-    p.earned += (poolPremiumEarned * balanceOf(user, pool)) / multiplier;
+    p.earned += (poolPremiumEarned * balanceOf[user][pool]) / multiplier;
     p.lastPremiumIndex = index;
 
     premiums[pool][user] = p;
   }
 
-  ///@dev Updates the pool's premium balance and then it's balance
+  ///@dev Updates the pool's premium index and balance. Only updates the variables if >0
+  ///@param id            The ERC1155 ID of this pool
+  ///@param globalPremium The new premium balance for this entire contract
+  ///@param newBalance    The new number of underlying tokens this pool's deposits represent
   ///@return The pool's new index;
   function updatePool(
     uint256 id,
@@ -58,40 +61,24 @@ abstract contract StakedPremiumHandler is ERC1155Addressable {
   ) internal returns (uint256) {
     PoolState memory p = pools[id];
     if (globalPremium > 0) {
-      updatePoolPremium(p, id, globalPremium);
+      uint256 poolPremium = ((globalPremium - p.lastPremium) * p.balance * multiplier) / totalStaked;
+      p.premiumIndex += (poolPremium / totalSupply(id));
+      p.lastPremium = globalPremium;
     }
+    //this check means dust will be left if a pool is ending
     if (newBalance > 0) {
-      //this check means dust will be left if a pool is ending
-      updatePoolBalance(p, newBalance);
+      if (newBalance > p.balance) {
+        totalStaked += (newBalance - p.balance);
+      } else if (newBalance < p.balance) {
+        totalStaked -= (p.balance - newBalance);
+      }
+      p.balance = newBalance;
     }
     pools[id] = p;
     return p.premiumIndex;
   }
 
-  ///@dev Update the pool's premium index and known premium
-  function updatePoolPremium(
-    PoolState memory p,
-    uint256 id,
-    uint256 globalPremium
-  ) internal {
-    //PoolState memory p = pools[id];
-    uint256 poolPremium = ((globalPremium - p.lastPremium) * p.balance * multiplier) / totalStaked;
-    p.premiumIndex += (poolPremium / totalSupply(id));
-    p.lastPremium = globalPremium;
-  }
-
-  ///@dev Updates the pool's balance and totalStaked
-  function updatePoolBalance(PoolState memory p, uint256 newBalance) internal {
-    //uint256 newBalance = balanceOf(pool);
-    if (newBalance > p.balance) {
-      totalStaked += (newBalance - p.balance);
-    } else if (newBalance < p.balance) {
-      totalStaked -= (p.balance - newBalance);
-    }
-
-    p.balance = newBalance;
-  }
-
+  ///@dev Reduces amount of premium of the user and the pool
   function updateOnRedeem(
     address user,
     uint256 id,
@@ -99,6 +86,10 @@ abstract contract StakedPremiumHandler is ERC1155Addressable {
   ) internal {
     premiums[id][user].earned -= amount;
     pools[id].lastPremium -= amount;
+  }
+
+  function uri(uint256 id) public view override returns (string memory) {
+    return '';
   }
 }
 
@@ -138,7 +129,7 @@ contract NoYieldToken is ERC20Base, StakedPremiumHandler {
     mintFor(msg.sender, pool, amount, ''); //TODO: Internal mint will be cheaper
 
     IERC20(token).transferFrom(msg.sender, address(this), amount);
-    uint256 balance = balanceOf(pool);
+    uint256 balance = ERC20BalanceBase.balanceOf(pool);
     updatePool(id, 0, balance);
   }
 
@@ -153,7 +144,7 @@ contract NoYieldToken is ERC20Base, StakedPremiumHandler {
 
     IERC20(pool).transfer(msg.sender, amount);
 
-    uint256 index = updatePool(id, acc, balanceOf(pool));
+    uint256 index = updatePool(id, acc, ERC20BalanceBase.balanceOf(pool));
     updateUser(msg.sender, id, index);
     burnFor(msg.sender, pool, amount);
   }
