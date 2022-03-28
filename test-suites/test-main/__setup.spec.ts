@@ -25,7 +25,7 @@ before(async () => {
   setDefaultDeployer(deployer);
 
   if (isForkNetwork()) {
-    await rawBRE.run('deploy:full');
+    //await rawBRE.run('deploy:full');
   } else {
     console.log('-> Deploying test environment...');
     await buildTestEnv(deployer, secondaryWallets);

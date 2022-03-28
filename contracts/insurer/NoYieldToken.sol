@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/ERC1155Addressable.sol';
 import '../tools/tokens/ERC20Base.sol';
+import '../tools/SafeOwnable.sol';
 import '../interfaces/IInsurerPool.sol';
 
 abstract contract StakedPremiumHandler is ERC1155Addressable {
@@ -35,18 +36,24 @@ abstract contract StakedPremiumHandler is ERC1155Addressable {
     uint256 pool,
     uint256 index
   ) internal {
-    Premium memory p = premiums[pool][user];
+    Premium memory p = updateUserPremium(user, pool, index);
+    premiums[pool][user] = p;
+  }
+
+  function updateUserPremium(
+    address user,
+    uint256 pool,
+    uint256 index
+  ) public view returns (Premium memory p) {
+    p = premiums[pool][user];
     if (p.lastPremiumIndex == 0) {
       p.lastPremiumIndex = index;
-      premiums[pool][user] = p;
-      return;
+      return p;
     }
 
     uint256 poolPremiumEarned = index - p.lastPremiumIndex;
     p.earned += (poolPremiumEarned * balanceOf[user][pool]) / multiplier;
     p.lastPremiumIndex = index;
-
-    premiums[pool][user] = p;
   }
 
   ///@dev Updates the pool's premium index and balance. Only updates the variables if >0
@@ -61,21 +68,40 @@ abstract contract StakedPremiumHandler is ERC1155Addressable {
   ) internal returns (uint256) {
     PoolState memory p = pools[id];
     if (globalPremium > 0) {
-      uint256 poolPremium = ((globalPremium - p.lastPremium) * p.balance * multiplier) / totalStaked;
-      p.premiumIndex += (poolPremium / totalSupply(id));
-      p.lastPremium = globalPremium;
+      updatePoolPremium(p, id, globalPremium);
     }
-    //this check means dust will be left if a pool is ending
     if (newBalance > 0) {
-      if (newBalance > p.balance) {
-        totalStaked += (newBalance - p.balance);
-      } else if (newBalance < p.balance) {
-        totalStaked -= (p.balance - newBalance);
-      }
-      p.balance = newBalance;
+      updatePoolBalance(p, newBalance);
     }
     pools[id] = p;
     return p.premiumIndex;
+  }
+
+  function updatePoolPremium(
+    PoolState memory p,
+    uint256 id,
+    uint256 globalPremium
+  ) internal view {
+    //TODO: Don't like this
+    if (totalStaked == 0) {
+      p.lastPremium = globalPremium;
+      return;
+    }
+    uint256 poolPremium = ((globalPremium - p.lastPremium) * p.balance * multiplier) / totalStaked;
+    uint256 supply = totalSupply(id);
+    if (supply != 0) {
+      p.premiumIndex += (poolPremium / supply);
+    }
+    p.lastPremium = globalPremium;
+  }
+
+  function updatePoolBalance(PoolState memory p, uint256 newBalance) internal {
+    if (newBalance > p.balance) {
+      totalStaked += (newBalance - p.balance);
+    } else if (newBalance < p.balance) {
+      totalStaked -= (p.balance - newBalance);
+    }
+    p.balance = newBalance;
   }
 
   ///@dev Reduces amount of premium of the user and the pool
@@ -91,9 +117,25 @@ abstract contract StakedPremiumHandler is ERC1155Addressable {
   function uri(uint256 id) public view override returns (string memory) {
     return '';
   }
+
+  function getPremiumEarned(
+    address user,
+    uint256 id,
+    uint256 globalPremium
+  ) internal view returns (uint256) {
+    PoolState memory p = pools[id];
+    updatePoolPremium(p, id, globalPremium);
+    Premium memory prem = updateUserPremium(user, id, p.premiumIndex);
+    return prem.earned;
+  }
+
+  function getPoolPremium(address pool) external view returns (uint256) {
+    PoolState memory p = pools[_getId(pool)];
+    return (p.premiumIndex * p.balance) / multiplier;
+  }
 }
 
-contract NoYieldToken is ERC20Base, StakedPremiumHandler {
+contract NoYieldToken is ERC20Base, StakedPremiumHandler, SafeOwnable {
   IInsurerPool public underlying;
 
   ///@dev map(token => pool) these both can be the same (e.g Uniswap). Token is the LP token
@@ -118,13 +160,21 @@ contract NoYieldToken is ERC20Base, StakedPremiumHandler {
     underlying.transfer(msg.sender, amount);
   }
 
+  function addToWhitelist(address token, address pool) external onlyOwner {
+    //Prevent overwriting pools, need to check that all LP unstaked or have a withdraw period
+    require(whitelist[token] == address(0));
+    whitelist[token] = pool;
+    (, uint256 acc) = underlying.interestRate(address(this));
+    updatePool(_getId(token), acc, ERC20BalanceBase.balanceOf(pool));
+  }
+
   //TODO: I think should be reentrant protected
   ///@dev Stake LP tokens into the pool to continue earning premium
   ///@param token   The address of the LP token that is being staked
   ///@param amount  The amount of LP tokens to stake
   function stake(address token, uint256 amount) external {
     address pool = whitelist[token];
-    require(pool != address(0));
+    require(pool != address(0), 'Not accepting this LP');
     uint256 id = _getId(pool);
     mintFor(msg.sender, pool, amount, ''); //TODO: Internal mint will be cheaper
 
@@ -182,6 +232,13 @@ contract NoYieldToken is ERC20Base, StakedPremiumHandler {
       if (fromOn) updateUser(from, ids[i], index);
       if (toOn) updateUser(to, ids[i], index);
     }
+  }
+
+  function earned(address user, address pool) external view returns (uint256) {
+    uint256 acc;
+    uint256 index;
+    (, acc) = underlying.interestRate(address(this));
+    return getPremiumEarned(user, _getId(pool), acc);
   }
 
   function numToMint(address, uint256 amount) public view override returns (uint256) {
