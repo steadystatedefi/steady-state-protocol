@@ -71,7 +71,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     // console.log('internalCoverageDemandAdded', target, amount, _totalDemand);
     _requiredCoverage = uint128(_requiredCoverage - amount);
     _demandedCoverage += uint128(amount);
-    InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate, address(0));
+    InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
   }
 
   function internalAllocateCoverageDemand(

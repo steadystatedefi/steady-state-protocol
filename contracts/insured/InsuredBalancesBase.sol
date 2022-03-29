@@ -29,52 +29,32 @@ abstract contract InsuredBalancesBase is
   using Balances for Balances.RateAccWithUint16;
 
   mapping(address => Balances.RateAccWithUint16) private _balances;
-
-  struct HoldedBalance {
-    uint88 balance;
-  }
-  mapping(address => HoldedBalance) private _holds;
-  mapping(address => mapping(address => uint88)) private _lockedBalances;
-
   Balances.RateAcc private _totals;
 
   uint32 private _cancelledAt; // TODO
 
   function internalReceiveTransfer(
     address operator,
-    address from,
-    uint256 value,
-    bytes calldata data
-  ) internal override onlyCollateralCurrency {
-    require(operator == from && internalIsAllowedAsHolder(_balances[operator].extra));
+    address,
+    uint256,
+    bytes calldata
+  ) internal view override onlyCollateralCurrency {
+    require(internalIsAllowedAsHolder(_balances[operator].extra));
   }
 
   ///@dev Mint the correct amount of tokens for the account (investor)
   function internalMintForCoverage(
     address account,
     uint256 rateAmount,
-    uint256 premiumRate,
-    address holder
+    uint256 premiumRate
   ) internal virtual {
     rateAmount = rateAmount.wadMul(premiumRate);
     require(rateAmount <= type(uint88).max);
 
+    Balances.RateAccWithUint16 memory b = _syncBalance(account);
+    require(internalIsAllowedAsHolder(b.extra));
+
     emit Transfer(address(0), account, rateAmount);
-
-    Balances.RateAccWithUint16 memory b;
-    if (holder != address(0)) {
-      b = _syncBalance(holder);
-      require(internalIsAllowedAsHolder(b.extra));
-
-      _lockedBalances[holder][account] += uint88(rateAmount);
-      _holds[account].balance += uint88(rateAmount);
-
-      emit Transfer(account, holder, rateAmount);
-      emit TransferToHold(account, holder, rateAmount);
-      account = holder;
-    } else {
-      b = _syncBalance(account);
-    }
 
     b.rate += uint88(rateAmount);
     _balances[account] = b;
@@ -87,51 +67,17 @@ abstract contract InsuredBalancesBase is
     _totals = totals;
   }
 
-  function transferBalanceAndEmit(
-    address sender,
-    address recipient,
-    uint256 amount
-  ) internal override {
-    if (sender != recipient) {
-      transferBalance(sender, recipient, amount);
-    }
-    // NB! Transfer event will be emitted from transferBalance to ensure proper sequence
-    // emit Transfer(sender, recipient, amount);
-  }
-
   function transferBalance(
     address sender,
     address recipient,
     uint256 amount
   ) internal override {
-    require(amount <= type(uint88).max);
-
-    bool fromHold;
     Balances.RateAccWithUint16 memory b = _syncBalance(sender);
-    if (isHolder(b) && msg.sender == sender) {
-      // can only be done by a direct call of a holder
-      _lockedBalances[sender][recipient] = uint88(_lockedBalances[sender][recipient] - amount);
-      _holds[recipient].balance -= uint88(amount);
-
-      emit TransferFromHold(sender, recipient, amount);
-      fromHold = true;
-    }
     b.rate = uint88(b.rate - amount);
     _balances[sender] = b;
 
     b = _syncBalance(recipient);
     b.rate += uint88(amount);
-
-    emit Transfer(sender, recipient, amount);
-    if (isHolder(b)) {
-      require(internalIsAllowedAsHolder(b.extra));
-      require(!fromHold); // need to know what is the actual account
-
-      _lockedBalances[recipient][sender] += uint88(amount);
-      _holds[sender].balance += uint88(amount);
-
-      emit TransferToHold(sender, recipient, amount);
-    }
     _balances[recipient] = b;
   }
 
@@ -146,21 +92,9 @@ abstract contract InsuredBalancesBase is
     return _balances[account].rate;
   }
 
-  function balancesOf(address account)
-    public
-    view
-    returns (
-      uint256 available,
-      uint256 holded,
-      uint256 premium
-    )
-  {
+  function balancesOf(address account) public view returns (uint256 rate, uint256 premium) {
     Balances.RateAccWithUint16 memory b = _syncBalance(account);
-    return (b.rate, _holds[account].balance, b.accum);
-  }
-
-  function holdedBalanceOf(address account, address holder) public view returns (uint256) {
-    return _lockedBalances[holder][account];
+    return (b.rate, b.accum);
   }
 
   function totalSupply() public view override returns (uint256) {
@@ -174,7 +108,7 @@ abstract contract InsuredBalancesBase is
 
   function internalSetServiceAccountStatus(address account, uint16 status) internal virtual {
     require(status > 0);
-    if (_balances[account].extra != 0) {} else {
+    if (_balances[account].extra == 0) {
       require(Address.isContract(account));
     }
     _balances[account].extra = status;
@@ -184,10 +118,6 @@ abstract contract InsuredBalancesBase is
     return _balances[account].extra;
   }
 
-  function isHolder(Balances.RateAccWithUint16 memory b) private pure returns (bool) {
-    return b.extra > 0;
-  }
-
   ///@dev Reconcile the amount of collected premium and current premium rate with the Insurer
   ///@param updateRate whether the total rate of this Insured pool should be updated
   function internalReconcileWithInsurer(IInsurerPoolDemand insurer, bool updateRate)
@@ -195,7 +125,7 @@ abstract contract InsuredBalancesBase is
     returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
   {
     Balances.RateAccWithUint16 memory b = _syncBalance(address(insurer));
-    require(internalIsAllowedAsHolder(b.extra));
+    // require(internalIsAllowedAsHolder(b.extra));
 
     (receivedCoverage, coverage) = insurer.receiveDemandedCoverage(address(this));
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
@@ -251,7 +181,7 @@ abstract contract InsuredBalancesBase is
     )
   {
     b = _syncBalance(address(insurer));
-    require(internalIsAllowedAsHolder(b.extra));
+    // require(internalIsAllowedAsHolder(b.extra));
 
     (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this));
     require(b.updatedAt >= coverage.premiumUpdatedAt);

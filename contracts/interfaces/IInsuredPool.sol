@@ -30,6 +30,6 @@ interface DInsuredPoolTransfer {
 }
 
 interface IInsuredEvents {
-  event TransferToHold(address indexed from, address indexed to, uint256 value);
-  event TransferFromHold(address indexed from, address indexed to, uint256 value);
+  // event TransferToHold(address indexed from, address indexed to, uint256 value);
+  // event TransferFromHold(address indexed from, address indexed to, uint256 value);
 }
