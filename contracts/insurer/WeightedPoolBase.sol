@@ -7,11 +7,18 @@ import '../tools/upgradeability/Delegator.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
+import '../interfaces/IInvestable.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage, Delegator, ERC1363ReceiverBase {
+abstract contract WeightedPoolBase is
+  IInsurerPoolCore,
+  IInvestable,
+  WeightedPoolTokenStorage,
+  Delegator,
+  ERC1363ReceiverBase
+{
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -51,28 +58,6 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return true;
   }
 
-  /// @dev Performed before balance updates. The total rate accum by the pool is updated, and then the user balance is updated
-  function _beforeBalanceUpdate(address account)
-    private
-    returns (UserBalance memory b, Balances.RateAcc memory totals)
-  {
-    totals = _beforeAnyBalanceUpdate();
-    b = _syncBalance(account, totals);
-  }
-
-  /// @dev Updates _premiums with total premium earned by user. Each user's balance is marked by the amount
-  ///  of premium collected by the pool at time of update
-  function _syncBalance(address account, Balances.RateAcc memory totals) private returns (UserBalance memory b) {
-    b = _balances[account];
-    if (b.balance > 0) {
-      uint256 premiumDiff = totals.accum - b.premiumBase;
-      if (premiumDiff > 0) {
-        _premiums[account] += premiumDiff.rayMul(b.balance);
-      }
-    }
-    b.premiumBase = totals.accum;
-  }
-
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   function internalMintForCoverage(address account, uint256 coverageAmount) internal {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
@@ -99,14 +84,26 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     _balances[account] = b;
   }
 
-  function addCoverageExcess(uint256 excess) public {
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
     require(msg.sender == address(this));
 
-    excess += _excessCoverage;
-    _excessCoverage = excess;
-
+    DemandedCoverage memory premium = super.internalGetPremiumTotals();
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
-    _afterBalanceUpdate(excess, totals, super.internalGetPremiumTotals());
+
+    if (paidoutCoverage > 0) {
+      uint256 total = premium.totalCovered + premium.pendingCovered;
+      _inverseExchangeRate = WadRayMath.RAY - (total - paidoutCoverage).rayDiv(total).rayMul(exchangeRate());
+    }
+
+    if (excess > 0) {
+      _excessCoverage = (excess += _excessCoverage);
+      emit ExcessCoverageIncreased(excess);
+    } else {
+      excess = _excessCoverage;
+    }
+    _afterBalanceUpdate(excess, totals, premium);
+
+    // TODO should call pushExcess?
   }
 
   ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
@@ -212,7 +209,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     address,
     uint256 value,
     bytes calldata data
-  ) internal override onlyCollateralFund {
+  ) internal override onlyCollateralCurrency {
     if (internalIsInvestor(operator)) {
       if (value == 0) return;
       internalHandleInvestment(operator, value, data);
@@ -221,7 +218,6 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       if (status != InsuredStatus.Unknown) {
         // TODO return of funds from insured
         Errors.notImplemented();
-        return;
       }
     }
     internalHandleInvestment(operator, value, data);
@@ -256,5 +252,25 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     amount += b.balance;
     require((b.balance = uint128(amount)) == amount);
     _balances[recipient] = b;
+  }
+
+  function withdrawableAllowance(address account) external view override returns (uint256 amount) {
+    amount = _excessCoverage;
+    if (amount > 0) {
+      uint256 balance = _balances[account].balance;
+      if (balance < amount) {
+        amount = balance;
+      }
+    }
+  }
+
+  function delegatedInvest(
+    address account,
+    uint256 amount,
+    bytes calldata params
+  ) external override onlyCollateralCurrency returns (uint256 acceptedAmount, address reciever) {
+    require(params.length == 0); // TODO empty params
+    internalMintForCoverage(account, amount);
+    return (amount, address(this));
   }
 }

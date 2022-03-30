@@ -21,12 +21,16 @@ struct TotalCoverage {
   uint64 batchCount;
 }
 
-interface IInsurerPoolCore is IInsurancePool {
+interface IInsurerPoolBase {
   /// @dev indicates how the demand from insured pools is handled:
   /// * Chartered demand will be allocated without calling IInsuredPool, coverage units can be partially filled in.
   /// * Non-chartered (potential) demand can only be allocated after calling IInsuredPool.tryAddCoverage first, units can only be allocated in full.
   function charteredDemand() external view returns (bool);
 
+  function cancelCoverage(uint256 payoutRatio) external returns (uint256 payoutValue);
+}
+
+interface IInsurerPoolCore is IInsurancePool, IInsurerPoolBase {
   /// @dev amount of $IC tokens of a user. $IC * exchangeRate() = $CC
   function scaledBalanceOf(address account) external view returns (uint256);
 
@@ -37,17 +41,11 @@ interface IInsurerPoolCore is IInsurancePool {
   function exchangeRate() external view returns (uint256);
 }
 
-interface IInsurerPoolDemand is IInsurancePool, IJoinable {
+interface IInsurerPoolDemand is IInsurancePool, IInsurerPoolBase, IJoinable {
+  function charteredDemand() external view override(IInsurerPoolBase, IJoinable) returns (bool);
+
   /// @dev size of collateral allocation chunk made by this pool
   function coverageUnitSize() external view returns (uint256);
-
-  /// @dev can only be called by the collateral fund, when insured cancels coverage
-  function onCoverageDeclined(address insured) external;
-
-  /// @dev indicates how the demand from insured pools is handled:
-  /// * Chartered demand will be allocated without calling IInsuredPool, coverage units can be partially filled in.
-  /// * Non-chartered (potential) demand can only be allocated after calling IInsuredPool.tryAddCoverage first, units can only be allocated in full.
-  function charteredDemand() external view override returns (bool);
 
   /// @dev can only be called by an accepted insured pool, adds demand for coverage
   function addCoverageDemand(
@@ -74,5 +72,5 @@ interface IInsurerPoolDemand is IInsurancePool, IJoinable {
 }
 
 interface IInsurerPool is IERC20, IInsurerPoolCore, IInsurerPoolDemand {
-  function charteredDemand() external view override(IInsurerPoolCore, IInsurerPoolDemand) returns (bool);
+  function charteredDemand() external view override(IInsurerPoolBase, IInsurerPoolDemand) returns (bool);
 }

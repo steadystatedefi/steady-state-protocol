@@ -49,10 +49,6 @@ interface ICollateralFund {
   function collateralPerformance() external view returns (uint256 rate, uint256 accumulated);
 
   function getReserveAssets() external view returns (address[] memory assets, address[] memory depositTokens);
-
-  /// @dev can only be called by insured pool to cancel all coverage from the insurer.
-  /// calls insusrer.onCoverageDeclined, then transfers back all $CC from caller (insured) to insurer
-  function declineCoverageFrom(address insurer) external;
 }
 
 /// @dev ERC20 that represents a deposit of the given underlying. Can be transferred, but only while healthFactor stays above 1

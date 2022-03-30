@@ -31,6 +31,10 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return (_genericInsurers, _charteredInsurers);
   }
 
+  function getGenericInsurers() internal view returns (address[] storage) {
+    return _genericInsurers;
+  }
+
   function getCharteredInsurers() internal view returns (address[] storage) {
     return _charteredInsurers;
   }

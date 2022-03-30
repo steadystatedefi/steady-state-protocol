@@ -1274,10 +1274,17 @@ abstract contract WeightedRoundsBase {
     }
   }
 
-  function internalCancelCoverage(address insured) internal returns (bool ok, uint128 excessCoverage) {
+  function internalCancelCoverage(address insured)
+    internal
+    returns (
+      bool ok,
+      uint256 excessCoverage,
+      uint256 providedCoverage
+    )
+  {
     Rounds.InsuredEntry storage entry = _insureds[insured];
     if (entry.demandedUnits == 0) {
-      return (false, 0);
+      return (false, 0, 0);
     }
     ok = true;
 
@@ -1288,6 +1295,7 @@ abstract contract WeightedRoundsBase {
     if (part.batchNo > 0 && entry.demandedUnits != covered.coveredUnits) {
       d = _ensureCoverageUpdated(insured, covered, part.batchNo);
     }
+    providedCoverage = covered.coveredUnits * _unitSize;
 
     if (entry.demandedUnits > covered.coveredUnits) {
       CancelCoverageDemandParams memory params;

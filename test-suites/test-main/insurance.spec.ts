@@ -185,13 +185,12 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         const balances = await insured.balancesOf(pool.address);
 
         // here demanded coverage is in use - so a protocol is charged at max
-        expect(balances.available).eq(coverage.totalDemand.mul(premiumPerUnit).div(unitSize));
-        expect(balances.holded).eq(0);
+        expect(balances.rate).eq(coverage.totalDemand.mul(premiumPerUnit).div(unitSize));
 
         // NB! premium is charged for _demand_ added to guarantee sufficient flow of premium.
         // Using reconcillation will match it with actual coverage.
         // if (!testEnv.underCoverage) {
-        expect(balances.premium).eq(balances.available.mul(timeDelta));
+        expect(balances.premium).eq(balances.rate.mul(timeDelta));
         // }
 
         if (coverage.totalPremium.eq(0)) {
@@ -200,10 +199,10 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
           expect(balances.premium).gt(coverage.totalPremium);
         }
 
-        expect(balances.available).eq(await insured.totalSupply());
+        expect(balances.rate).eq(await insured.totalSupply());
 
         const totalPremium = await insured.totalPremium();
-        expect(balances.available).eq(totalPremium.rate);
+        expect(balances.rate).eq(totalPremium.rate);
         expect(balances.premium).eq(totalPremium.accumulated);
 
         totalInsuredPremium += totalPremium.accumulated.toNumber();
@@ -235,20 +234,19 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         const balances = await insured.balancesOf(pool.address);
 
         // here demanded coverage is in use - so a protocol is charged at max
-        expect(balances.available).eq(coverage.totalDemand.mul(premiumPerUnit).div(unitSize));
-        expect(balances.holded).eq(0);
+        expect(balances.rate).eq(coverage.totalDemand.mul(premiumPerUnit).div(unitSize));
 
         // NB! reconcillation match it with actual coverage.
         expect(balances.premium).eq(coverage.totalPremium);
-        expect(balances.available).eq(await insured.totalSupply());
+        expect(balances.rate).eq(await insured.totalSupply());
         if (coverage.premiumRate.eq(0)) {
-          expect(balances.available).eq(0);
+          expect(balances.rate).eq(0);
         } else {
-          expect(balances.available).gt(coverage.premiumRate);
+          expect(balances.rate).gt(coverage.premiumRate);
         }
 
         const totalPremium = await insured.totalPremium();
-        expect(balances.available).eq(totalPremium.rate);
+        expect(balances.rate).eq(totalPremium.rate);
         expect(balances.premium).eq(totalPremium.accumulated);
       }
     }

@@ -22,4 +22,7 @@ library Errors {
   function notImplemented() internal {
     require(_mutable(), TXT_NOT_IMPLEMENTED);
   }
+
+  error NotSupported();
+  error NotImplemented();
 }
