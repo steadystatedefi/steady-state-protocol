@@ -33,13 +33,21 @@ abstract contract InsuredBalancesBase is
 
   uint32 private _cancelledAt; // TODO
 
+  function _ensureHolder(uint16 flags) private view {
+    require(internalIsAllowedAsHolder(flags));
+  }
+
+  function _ensureHolder(address account) internal view {
+    _ensureHolder(_balances[account].extra);
+  }
+
   function internalReceiveTransfer(
     address operator,
     address,
     uint256,
     bytes calldata
   ) internal view override onlyCollateralCurrency {
-    require(internalIsAllowedAsHolder(_balances[operator].extra));
+    _ensureHolder(operator);
   }
 
   ///@dev Mint the correct amount of tokens for the account (investor)
@@ -52,7 +60,7 @@ abstract contract InsuredBalancesBase is
     require(rateAmount <= type(uint88).max);
 
     Balances.RateAccWithUint16 memory b = _syncBalance(account);
-    require(internalIsAllowedAsHolder(b.extra));
+    _ensureHolder(b.extra);
 
     emit Transfer(address(0), account, rateAmount);
 
@@ -83,9 +91,22 @@ abstract contract InsuredBalancesBase is
 
   function internalIsAllowedAsHolder(uint16 status) internal view virtual returns (bool);
 
-  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory b) {
+  function internalCancelRates() internal {
+    require(_cancelledAt == 0);
+    _cancelledAt = uint32(block.timestamp);
+  }
+
+  function _syncTimestamp() private view returns (uint32) {
     uint32 ts = _cancelledAt;
-    return _balances[account].sync(ts > 0 ? ts : uint32(block.timestamp));
+    return ts > 0 ? ts : uint32(block.timestamp);
+  }
+
+  function internalSyncTotals() internal view returns (Balances.RateAcc memory) {
+    return _totals.sync(_syncTimestamp());
+  }
+
+  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory b) {
+    return _balances[account].sync(_syncTimestamp());
   }
 
   function balanceOf(address account) public view override returns (uint256) {
@@ -125,7 +146,7 @@ abstract contract InsuredBalancesBase is
     returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
   {
     Balances.RateAccWithUint16 memory b = _syncBalance(address(insurer));
-    // require(internalIsAllowedAsHolder(b.extra));
+    _ensureHolder(b.extra);
 
     (receivedCoverage, coverage) = insurer.receiveDemandedCoverage(address(this));
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
@@ -141,7 +162,7 @@ abstract contract InsuredBalancesBase is
         require((totals.accum = uint128(diff)) == diff);
         revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
-        totals.accum -= uint128(diff = b.accum - coverage.totalPremium); //TODO (Tyler)
+        totals.accum -= uint128(diff = b.accum - coverage.totalPremium); // TODO (Tyler)
       }
 
       b.accum = uint120(coverage.totalPremium);
@@ -167,10 +188,6 @@ abstract contract InsuredBalancesBase is
     }
   }
 
-  function internalSyncTotals() internal view returns (Balances.RateAcc memory) {
-    return _totals.sync(uint32(block.timestamp));
-  }
-
   function internalReconcileWithInsurerView(IInsurerPoolDemand insurer, Balances.RateAcc memory totals)
     internal
     view
@@ -181,7 +198,7 @@ abstract contract InsuredBalancesBase is
     )
   {
     b = _syncBalance(address(insurer));
-    // require(internalIsAllowedAsHolder(b.extra));
+    _ensureHolder(b.extra);
 
     (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this));
     require(b.updatedAt >= coverage.premiumUpdatedAt);

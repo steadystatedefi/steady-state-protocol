@@ -38,7 +38,7 @@ abstract contract DirectPoolBase is
   }
 
   function _onlyActiveInsured() private view {
-    //    require(internalGetInsuredStatus(msg.sender) == InsuredStatus.Accepted);
+    require(msg.sender == _insured && _cancelledAt == 0);
   }
 
   modifier onlyActiveInsured() {
@@ -47,7 +47,7 @@ abstract contract DirectPoolBase is
   }
 
   function _onlyInsured() private view {
-    //    require(internalGetInsuredStatus(msg.sender) > InsuredStatus.Unknown);
+    require(msg.sender == _insured);
   }
 
   modifier onlyInsured() {
@@ -67,14 +67,13 @@ abstract contract DirectPoolBase is
     return _premiums[account].sync(at);
   }
 
-  function cancelCoverage(uint256 paidoutCoverage) external onlyActiveInsured {
-    require(_cancelledAt == 0);
-
+  function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     uint256 total = _totalBalance.rayMul(exchangeRate());
 
-    if (paidoutCoverage > 0) {
-      _inverseExchangeRate = uint96(WadRayMath.RAY - (total - paidoutCoverage).rayDiv(total).rayMul(exchangeRate()));
-      total -= paidoutCoverage;
+    if (payoutRatio > 0) {
+      payoutValue = total.rayMul(payoutRatio);
+      _inverseExchangeRate = uint96(WadRayMath.RAY - (total - payoutValue).rayDiv(total).rayMul(exchangeRate()));
+      total -= payoutValue;
     }
 
     if (total > 0) {
@@ -229,14 +228,17 @@ abstract contract DirectPoolBase is
     if (insured == address(0)) {
       _insured = account;
     } else if (insured != account) {
-      return InsuredStatus.Declined;
+      return InsuredStatus.JoinRejected;
     }
 
     return InsuredStatus.Accepted;
   }
 
   function internalGetStatus(address account) internal view override returns (InsuredStatus) {
-    return _insured == account ? InsuredStatus.Accepted : InsuredStatus.Unknown;
+    return
+      _insured == account
+        ? (_cancelledAt == 0 ? InsuredStatus.Accepted : InsuredStatus.Declined)
+        : InsuredStatus.Unknown;
   }
 
   function internalSetStatus(address account, InsuredStatus s) internal override {

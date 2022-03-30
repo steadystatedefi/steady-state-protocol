@@ -63,4 +63,8 @@ contract MockWeightedPool is WeightedPoolBase {
     coverage = internalUpdateCoveredDemand(params);
     receivedCoverage += params.receivedCoverage;
   }
+
+  function cancelCoverage(uint256) external pure override returns (uint256) {
+    revert Errors.NotImplemented();
+  }
 }

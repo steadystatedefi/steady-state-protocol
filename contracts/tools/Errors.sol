@@ -24,4 +24,5 @@ library Errors {
   }
 
   error NotSupported();
+  error NotImplemented();
 }

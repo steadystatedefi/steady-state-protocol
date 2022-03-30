@@ -79,15 +79,25 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
-  function cancelCoverage(uint256 paidoutCoverage) external override onlyActiveInsured {
-    (bool ok, uint256 excess, uint256 coverage) = internalCancelCoverage(msg.sender);
+  function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
+    return internalCancelCoverage(msg.sender, payoutRatio);
+  }
+
+  function internalCancelCoverage(address insured, uint256 payoutRatio)
+    private
+    onlyActiveInsured
+    returns (uint256 payoutValue)
+  {
+    internalSetStatus(insured, InsuredStatus.Declined);
+    (bool ok, uint256 excess, uint256 coverage) = internalCancelCoverage(insured);
     if (ok) {
-      coverage -= paidoutCoverage;
+      payoutValue = coverage.rayMul(payoutRatio);
+      coverage -= payoutValue;
       if (coverage > 0) {
-        transferCollateralFrom(msg.sender, address(this), coverage);
+        transferCollateralFrom(insured, address(this), coverage);
       }
       // avoid code to be duplicated within WeightedPoolExtension to reduce contract size
-      WeightedPoolBase(address(this)).updateCoverageOnCancel(paidoutCoverage, excess + coverage);
+      WeightedPoolBase(address(this)).updateCoverageOnCancel(payoutValue, excess + coverage);
     }
   }
 
