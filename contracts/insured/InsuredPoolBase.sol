@@ -3,7 +3,6 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 

@@ -10,20 +10,13 @@ import '../interfaces/IInsurancePool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../insurance/InsurancePoolBase.sol';
 
 import 'hardhat/console.sol';
 
 /// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
 /// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
-abstract contract InsuredBalancesBase is
-  InsurancePoolBase,
-  ERC1363ReceiverBase,
-  ERC20BalancelessBase,
-  IInsuredEvents,
-  IPremiumCalculator
-{
+abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase, IInsuredEvents, IPremiumCalculator {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
@@ -39,15 +32,6 @@ abstract contract InsuredBalancesBase is
 
   function _ensureHolder(address account) internal view {
     _ensureHolder(_balances[account].extra);
-  }
-
-  function internalReceiveTransfer(
-    address operator,
-    address,
-    uint256,
-    bytes calldata
-  ) internal view override onlyCollateralCurrency {
-    _ensureHolder(operator);
   }
 
   ///@dev Mint the correct amount of tokens for the account (investor)

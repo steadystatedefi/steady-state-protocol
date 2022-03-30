@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../../tools/tokens/IERC1363.sol';
 import '../../interfaces/ICollateralFund.sol';
 
 contract MockCollateralFund is ICollateralFund {
@@ -58,7 +57,7 @@ contract MockCollateralFund is ICollateralFund {
     uint256 value,
     bytes memory data
   ) private returns (bool) {
-    ERC1363.callReceiver(to, msg.sender, msg.sender, value, data);
+    // ERC1363.callReceiver(to, msg.sender, msg.sender, value, data);
     return true;
   }
 

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.4;
 
 import '../tools/tokens/ERC20BalancelessBase.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../libraries/Balances.sol';
@@ -13,13 +12,7 @@ import './WeightedPoolExtension.sol';
 import '../insurance/InsurancePoolBase.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract DirectPoolBase is
-  IInsurerPoolCore,
-  ERC1363ReceiverBase,
-  InsurancePoolBase,
-  InsurerJoinBase,
-  ERC20BalancelessBase
-{
+abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, InsurerJoinBase, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -156,28 +149,6 @@ abstract contract DirectPoolBase is
       status = InsuredStatus.NotApplicable;
     }
     return status;
-  }
-
-  /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
-  /// mints $IC tokens when $CC is received from a user
-  function internalReceiveTransfer(
-    address operator,
-    address,
-    uint256 value,
-    bytes calldata data
-  ) internal override onlyCollateralCurrency {
-    // if (internalIsInvestor(operator)) {
-    //   if (value == 0) return;
-    //   internalHandleInvestment(operator, value, data);
-    // } else {
-    //   InsuredStatus status = internalGetStatus(operator);
-    //   if (status != InsuredStatus.Unknown) {
-    //     // TODO return of funds from insured
-    //     Errors.notImplemented();
-    //     return;
-    //   }
-    // }
-    // internalHandleInvestment(operator, value, data);
   }
 
   // function internalHandleInvestment(

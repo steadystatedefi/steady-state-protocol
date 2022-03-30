@@ -21,12 +21,12 @@ abstract contract ERC20AllowanceBase is IERC20 {
   }
 
   function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-    _decAllowance(msg.sender, spender, subtractedValue, 'ERC20: decreased allowance below zero');
+    _decAllowance(msg.sender, spender, subtractedValue, false);
     return true;
   }
 
   function useAllowance(address owner, uint256 subtractedValue) public virtual returns (bool) {
-    _decAllowance(owner, msg.sender, subtractedValue, 'ERC20: decreased allowance below zero');
+    _decAllowance(owner, msg.sender, subtractedValue, false);
     return true;
   }
 
@@ -34,14 +34,24 @@ abstract contract ERC20AllowanceBase is IERC20 {
     address owner,
     address spender,
     uint256 subtractedValue,
-    string memory errMsg
+    bool transfer_
   ) private {
     uint256 limit = _allowances[owner][spender];
-    require(limit >= subtractedValue, errMsg);
+    if (limit == 0 && subtractedValue > 0 && transfer_ && delegatedAllownance(owner, spender, subtractedValue)) {
+      return;
+    }
+
+    require(limit >= subtractedValue, 'ERC20: decreased allowance below zero');
     unchecked {
       _approve(owner, spender, limit - subtractedValue);
     }
   }
+
+  function delegatedAllownance(
+    address owner,
+    address spender,
+    uint256 subtractedValue
+  ) internal virtual returns (bool) {}
 
   /**
    * @dev Sets `amount` as the allowance of `spender` over the `owner`s tokens.
@@ -71,6 +81,6 @@ abstract contract ERC20AllowanceBase is IERC20 {
   event Approval(address indexed owner, address indexed spender, uint256 value);
 
   function _approveTransferFrom(address owner, uint256 amount) internal virtual {
-    _decAllowance(owner, msg.sender, amount, 'ERC20: transfer amount exceeds allowance');
+    _decAllowance(owner, msg.sender, amount, true);
   }
 }

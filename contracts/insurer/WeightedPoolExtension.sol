@@ -186,13 +186,4 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
   function internalSetStatus(address account, InsuredStatus status) internal override {
     return super.internalSetInsuredStatus(account, status);
   }
-
-  function onTransferReceived(
-    address,
-    address,
-    uint256,
-    bytes memory
-  ) external pure override returns (bytes4) {
-    revert();
-  }
 }
