@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../../tools/tokens/IERC1363.sol';
 import '../../interfaces/ICollateralFund.sol';
 
 contract MockCollateralFund is ICollateralFund {
@@ -34,14 +35,12 @@ contract MockCollateralFund is ICollateralFund {
 
   function totalSupply() external view override returns (uint256) {}
 
-  function transfer(address to, uint256 amount) external override returns (bool) {
-    bytes memory data;
-    return _transferAndCall(to, amount, data);
+  function transfer(address, uint256) external pure override returns (bool) {
+    return true;
   }
 
   function transferAndCall(address to, uint256 value) external returns (bool) {
-    bytes memory data;
-    return _transferAndCall(to, value, data);
+    return _transferAndCall(to, value, '');
   }
 
   function transferAndCall(
@@ -57,7 +56,7 @@ contract MockCollateralFund is ICollateralFund {
     uint256 value,
     bytes memory data
   ) private returns (bool) {
-    // ERC1363.callReceiver(to, msg.sender, msg.sender, value, data);
+    ERC1363.callReceiver(to, msg.sender, msg.sender, value, data);
     return true;
   }
 

@@ -2,13 +2,12 @@
 pragma solidity ^0.8.4;
 
 import '../tools/tokens/ERC20Base.sol';
-import '../interfaces/ITokenDelegate.sol';
+import '../tools/tokens/IERC1363.sol';
 
 abstract contract TokenDelegateBase is ERC20Base {
   uint256 internal constant FLAG_MINT = 1 << 1;
   uint256 internal constant FLAG_BURN = 1 << 2;
   uint256 internal constant FLAG_TRANSFER_CALLBACK = 1 << 3;
-  uint256 internal constant FLAG_ALLOWANCE_CALLBACK = 1 << 4;
 
   mapping(address => uint256) private _flags;
 
@@ -29,7 +28,7 @@ abstract contract TokenDelegateBase is ERC20Base {
     super.transferBalanceAndEmit(sender, recipient, amount);
 
     if (_flags[recipient] & FLAG_TRANSFER_CALLBACK != 0) {
-      ITokenDelegate(recipient).onTransferReceived(msg.sender, sender, amount, '');
+      IERC1363Receiver(recipient).onTransferReceived(msg.sender, sender, amount, '');
     }
   }
 
@@ -45,13 +44,5 @@ abstract contract TokenDelegateBase is ERC20Base {
 
   function internalUnsetFlags(address account) internal {
     delete _flags[account];
-  }
-
-  function delegatedAllownance(
-    address owner,
-    address spender,
-    uint256 value
-  ) internal view override returns (bool) {
-    return _flags[owner] & FLAG_ALLOWANCE_CALLBACK != 0 && ITokenDelegate(owner).delegatedAllowance(spender) >= value;
   }
 }

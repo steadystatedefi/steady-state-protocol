@@ -3,7 +3,6 @@ pragma solidity ^0.8.4;
 
 import './TokenDelegateBase.sol';
 import '../tools/SafeOwnable.sol';
-import '../interfaces/ITokenDelegate.sol';
 
 contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
   constructor(
@@ -16,8 +15,8 @@ contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
     internalSetFlags(account, FLAG_MINT | FLAG_BURN);
   }
 
-  function registerInsurer(ITokenDelegate account) external onlyOwner {
-    internalSetFlags(address(account), FLAG_TRANSFER_CALLBACK | FLAG_ALLOWANCE_CALLBACK);
+  function registerInsurer(address account) external onlyOwner {
+    internalSetFlags(account, FLAG_TRANSFER_CALLBACK);
   }
 
   function unregister(address account) external {

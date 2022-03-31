@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '../tools/tokens/ERC20BalancelessBase.sol';
+import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../libraries/Balances.sol';
@@ -12,7 +13,13 @@ import './WeightedPoolExtension.sol';
 import '../insurance/InsurancePoolBase.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, InsurerJoinBase, ERC20BalancelessBase {
+abstract contract DirectPoolBase is
+  IInsurerPoolCore,
+  InsurancePoolBase,
+  InsurerJoinBase,
+  ERC20BalancelessBase,
+  ERC1363ReceiverBase
+{
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -21,6 +28,7 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
 
   mapping(address => Balances.RateAcc) private _premiums;
   mapping(address => uint256) private _balances;
+  mapping(address => uint256) private _excesses;
 
   uint256 private _totalBalance;
   uint224 private _inverseExchangeRate;
@@ -77,12 +85,14 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
   }
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  function internalMintForCoverage(address account, uint256 coverageAmount) internal {
+  function internalMintForCoverage(address account, uint256 providedAmount) internal {
     require(account != address(0));
     require(_cancelledAt == 0);
 
-    uint256 ratePoints;
-    (coverageAmount, ratePoints) = IInsuredPool(_insured).offerCoverage(coverageAmount);
+    (uint256 coverageAmount, uint256 ratePoints) = IInsuredPool(_insured).offerCoverage(providedAmount);
+    if (providedAmount > coverageAmount) {
+      _excesses[account] += providedAmount - coverageAmount;
+    }
 
     Balances.RateAcc memory b = _beforeBalanceUpdate(account);
     require((b.rate = uint96(ratePoints + b.rate)) >= ratePoints);
@@ -151,17 +161,6 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return status;
   }
 
-  // function internalHandleInvestment(
-  //   address investor,
-  //   uint256 amount,
-  //   bytes memory data
-  // ) internal virtual {
-  //   if (data.length > 0) {
-  //     abi.decode(data, ());
-  //   }
-  //   internalMintForCoverage(investor, amount);
-  // }
-
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
   ///@param sender  The sender
   ///@param recipient The receiver
@@ -225,46 +224,19 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _balances[account] > 0 || _premiums[account].accum > 0;
   }
 
-  ///@dev Adjusts the required and demanded coverage from an investment
-  ///TODO: premiumrate(?)
-  function internalHandleDirectInvestment(
+  function internalReceiveTransfer(
+    address operator,
+    address account,
     uint256 amount,
-    uint256 minAmount,
-    uint256 minPremiumRate
-  ) internal returns (uint256 availableAmount, uint64 premiumRate) {
-    // availableAmount = _requiredCoverage;
-    // if (availableAmount > amount) {
-    //   _requiredCoverage = uint128(availableAmount - amount);
-    //   availableAmount = amount;
-    // } else if (availableAmount > 0 && availableAmount >= minAmount) {
-    //   _requiredCoverage = 0;
-    // } else {
-    //   return (0, _premiumRate);
-    // }
-    // require((_demandedCoverage = uint128(amount = _demandedCoverage + availableAmount)) == amount);
-    // return (availableAmount, _premiumRate);
+    bytes calldata data
+  ) internal override onlyCollateralCurrency {
+    require(data.length == 0);
+    if (internalGetStatus(operator) == InsuredStatus.Unknown) {
+      internalMintForCoverage(account, amount);
+    } else {
+      // return of funds from insured
+    }
   }
 
-  ///@dev Invests into the insured for the investor, and it must invest >= minAmount at a rate >= minPremiumRate
-  ///@return unusedAmount Amount of unused coverage
-  ///@return amount of coverage provided
-  function _invest(
-    address investor,
-    uint256 amount,
-    uint256 minAmount,
-    uint256 minPremiumRate,
-    address holder
-  ) private returns (uint256 unusedAmount, uint256) {
-    // unusedAmount = amount;
-    // uint64 premiumRate;
-    // (amount, premiumRate) = internalHandleDirectInvestment(amount, minAmount, minPremiumRate);
-    // if (amount == 0) {
-    //   return (unusedAmount, 0);
-    // }
-    // require(amount >= minAmount);
-    // require(premiumRate > 0 && premiumRate >= minPremiumRate);
-    // unusedAmount -= amount;
-    // internalMintForCoverage(investor, amount, premiumRate, holder);
-    // return (unusedAmount, amount);
-  }
+  // TODO withdraw
 }

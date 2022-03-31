@@ -19,8 +19,12 @@ abstract contract InsurancePoolBase is IInsurancePool {
     _collateral = collateral_;
   }
 
-  modifier onlyCollateralCurrency() {
+  function _onlyCollateralCurrency() private view {
     require(msg.sender == _collateral);
+  }
+
+  modifier onlyCollateralCurrency() {
+    _onlyCollateralCurrency();
     _;
   }
 

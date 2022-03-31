@@ -3,15 +3,15 @@ pragma solidity ^0.8.4;
 
 import '../tools/math/PercentageMath.sol';
 import '../tools/upgradeability/Delegator.sol';
+import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
-import '../interfaces/IInvestable.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract WeightedPoolBase is IInsurerPoolCore, IInvestable, WeightedPoolTokenStorage, Delegator {
+abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage, Delegator, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -195,38 +195,6 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, IInvestable, WeightedPoo
     return status;
   }
 
-  // /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
-  // /// mints $IC tokens when $CC is received from a user
-  // function internalReceiveTransfer(
-  //   address operator,
-  //   address,
-  //   uint256 value,
-  //   bytes calldata data
-  // ) internal override onlyCollateralCurrency {
-  //   if (internalIsInvestor(operator)) {
-  //     if (value == 0) return;
-  //     internalHandleInvestment(operator, value, data);
-  //   } else {
-  //     InsuredStatus status = internalGetStatus(operator);
-  //     if (status != InsuredStatus.Unknown) {
-  //       // TODO return of funds from insured
-  //       Errors.notImplemented();
-  //     }
-  //   }
-  //   internalHandleInvestment(operator, value, data);
-  // }
-
-  function internalHandleInvestment(
-    address investor,
-    uint256 amount,
-    bytes memory data
-  ) internal virtual {
-    if (data.length > 0) {
-      abi.decode(data, ());
-    }
-    internalMintForCoverage(investor, amount);
-  }
-
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
   ///@param sender  The sender
   ///@param recipient The receiver
@@ -247,23 +215,28 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, IInvestable, WeightedPoo
     _balances[recipient] = b;
   }
 
-  function withdrawableAllowance(address account) external view override returns (uint256 amount) {
-    amount = _excessCoverage;
-    if (amount > 0) {
-      uint256 balance = _balances[account].balance;
-      if (balance < amount) {
-        amount = balance;
-      }
+  function internalReceiveTransfer(
+    address operator,
+    address account,
+    uint256 amount,
+    bytes calldata data
+  ) internal override onlyCollateralCurrency {
+    require(data.length == 0);
+
+    if (internalGetStatus(operator) == InsuredStatus.Unknown) {
+      internalMintForCoverage(account, amount);
+    } else {
+      // return of funds from insured
     }
   }
 
-  function delegatedInvest(
-    address account,
-    uint256 amount,
-    bytes calldata params
-  ) external override onlyCollateralCurrency returns (uint256 acceptedAmount, address reciever) {
-    require(params.length == 0); // TODO empty params
-    internalMintForCoverage(account, amount);
-    return (amount, address(this));
-  }
+  // function delegatedAllowance(address account) external view override returns (uint256 amount) {
+  //   amount = _excessCoverage;
+  //   if (amount > 0) {
+  //     uint256 balance = _balances[account].balance;
+  //     if (balance < amount) {
+  //       amount = balance;
+  //     }
+  //   }
+  // }
 }
