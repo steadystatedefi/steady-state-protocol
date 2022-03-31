@@ -30,6 +30,24 @@ abstract contract ERC20MintableBase is ERC20TransferBase {
     emit Transfer(address(0), account, amount);
   }
 
+  function _mintAndTransfer(
+    address account,
+    address recipient,
+    uint256 amount
+  ) internal virtual {
+    require(account != address(0), 'ERC20: mint to the zero address');
+    require(recipient != address(0), 'ERC20: transfer to the zero address');
+
+    _beforeTokenTransfer(address(0), account, amount);
+    _beforeTokenTransfer(account, recipient, amount);
+
+    _totalSupply = _totalSupply + amount;
+    incrementBalance(recipient, amount);
+
+    emit Transfer(address(0), account, amount);
+    emit Transfer(account, recipient, amount);
+  }
+
   /**
    * @dev Destroys `amount` tokens from `account`, reducing the
    * total supply.

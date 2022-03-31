@@ -35,14 +35,12 @@ contract MockCollateralFund is ICollateralFund {
 
   function totalSupply() external view override returns (uint256) {}
 
-  function transfer(address to, uint256 amount) external override returns (bool) {
-    bytes memory data;
-    return _transferAndCall(to, amount, data);
+  function transfer(address, uint256) external pure override returns (bool) {
+    return true;
   }
 
   function transferAndCall(address to, uint256 value) external returns (bool) {
-    bytes memory data;
-    return _transferAndCall(to, value, data);
+    return _transferAndCall(to, value, '');
   }
 
   function transferAndCall(

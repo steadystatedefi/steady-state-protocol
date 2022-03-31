@@ -13,7 +13,6 @@ import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IProtocol.sol';
 import '../tools/math/WadRayMath.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../insurance/InsurancePoolBase.sol';
 
 import 'hardhat/console.sol';
