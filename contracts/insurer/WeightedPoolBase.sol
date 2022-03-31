@@ -52,7 +52,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
   }
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  function internalMintForCoverage(address account, uint256 coverageAmount) internal {
+  function _mintForCoverage(address account, uint256 coverageAmount) private {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
     uint256 excessCoverage = _excessCoverage;
@@ -120,7 +120,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
 
   function internalBurn(address account, uint256 amount) internal returns (uint256 coverageAmount) {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
-    if (amount == type(uint256).max) {
+    if (amount >= b.balance) {
       (amount, b.balance) = (b.balance, 0);
     } else {
       b.balance = uint128(b.balance - amount);
@@ -224,19 +224,21 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     require(data.length == 0);
 
     if (internalGetStatus(operator) == InsuredStatus.Unknown) {
-      internalMintForCoverage(account, amount);
+      _mintForCoverage(account, amount);
     } else {
-      // return of funds from insured
+      // return of funds from insureds
     }
   }
 
-  // function delegatedAllowance(address account) external view override returns (uint256 amount) {
-  //   amount = _excessCoverage;
-  //   if (amount > 0) {
-  //     uint256 balance = _balances[account].balance;
-  //     if (balance < amount) {
-  //       amount = balance;
-  //     }
-  //   }
-  // }
+  function withdrawable(address account) public view override returns (uint256 amount) {
+    amount = _balances[account].balance;
+    uint256 excess = _excessCoverage;
+    if (excess < amount) {
+      amount = excess;
+    }
+  }
+
+  function withdrawAll() external override returns (uint256) {
+    return internalBurn(msg.sender, _excessCoverage);
+  }
 }

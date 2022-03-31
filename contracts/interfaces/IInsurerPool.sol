@@ -39,6 +39,10 @@ interface IInsurerPoolCore is IInsurancePool, IInsurerPoolBase {
 
   /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY) and goes down with every insurance claim
   function exchangeRate() external view returns (uint256);
+
+  function withdrawable(address account) external view returns (uint256 amount);
+
+  function withdrawAll() external returns (uint256);
 }
 
 interface IInsurerPoolDemand is IInsurancePool, IInsurerPoolBase, IJoinable {

@@ -28,7 +28,6 @@ abstract contract DirectPoolBase is
 
   mapping(address => Balances.RateAcc) private _premiums;
   mapping(address => uint256) private _balances;
-  mapping(address => uint256) private _excesses;
 
   uint256 private _totalBalance;
   uint224 private _inverseExchangeRate;
@@ -85,13 +84,13 @@ abstract contract DirectPoolBase is
   }
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  function internalMintForCoverage(address account, uint256 providedAmount) internal {
+  function internalMintForCoverage(address account, uint256 providedAmount) internal returns (uint256 excess) {
     require(account != address(0));
     require(_cancelledAt == 0);
 
     (uint256 coverageAmount, uint256 ratePoints) = IInsuredPool(_insured).offerCoverage(providedAmount);
     if (providedAmount > coverageAmount) {
-      _excesses[account] += providedAmount - coverageAmount;
+      excess = providedAmount - coverageAmount;
     }
 
     Balances.RateAcc memory b = _beforeBalanceUpdate(account);
@@ -178,14 +177,17 @@ abstract contract DirectPoolBase is
       b = _beforeBalanceUpdate(sender);
 
       uint256 bal = _balances[sender];
-      _balances[sender] = bal - amount;
       ratePoints = uint96((b.rate * (amount + (bal >> 1))) / bal);
+      b.rate -= ratePoints;
+
+      _balances[sender] = bal - amount;
       _premiums[sender] = b;
     }
 
     {
       b = _beforeBalanceUpdate(recipient);
       b.rate += ratePoints;
+
       _balances[recipient] += amount;
       _premiums[sender] = b;
     }
@@ -232,11 +234,20 @@ abstract contract DirectPoolBase is
   ) internal override onlyCollateralCurrency {
     require(data.length == 0);
     if (internalGetStatus(operator) == InsuredStatus.Unknown) {
-      internalMintForCoverage(account, amount);
+      uint256 excess = internalMintForCoverage(account, amount);
+      if (excess > 0) {
+        transferCollateral(account, amount);
+      }
     } else {
       // return of funds from insured
     }
   }
 
-  // TODO withdraw
+  function withdrawable(address account) public view override returns (uint256 amount) {
+    return _cancelledAt == 0 ? 0 : balanceOf(account);
+  }
+
+  function withdrawAll() external override returns (uint256) {
+    return _cancelledAt == 0 ? 0 : internalBurnAll(msg.sender);
+  }
 }
