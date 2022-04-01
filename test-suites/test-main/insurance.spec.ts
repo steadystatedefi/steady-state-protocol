@@ -1,7 +1,7 @@
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { Factories } from '../../helpers/contract-types';
 import { RAY } from '../../helpers/constants';
-import { MockCollateralFund, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
 import { expect } from 'chai';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
@@ -16,7 +16,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   let payInToken: tEthereumAddress;
   const protocol = Wallet.createRandom();
   let pool: MockWeightedPool;
-  let fund: MockCollateralFund;
+  let fund: MockCollateralCurrency;
   let collector: PremiumCollector;
   let insureds: MockInsuredPool[] = [];
   let insuredUnits: number[] = [];
@@ -24,7 +24,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
   before(async () => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
-    fund = await Factories.MockCollateralFund.deploy();
+    fund = await Factories.MockCollateralCurrency.deploy();
     pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, decimals, extension.address);
     collector = await Factories.PremiumCollector.deploy();
 

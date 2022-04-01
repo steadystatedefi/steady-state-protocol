@@ -7,7 +7,7 @@ export const Factories = {
   PremiumCollector: wrap(types.PremiumCollectorFactory),
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
-  MockCollateralFund: mock(types.MockCollateralFundFactory),
+  MockCollateralCurrency: mock(types.MockCollateralCurrencyFactory),
   MockWeightedPool: mock(types.MockWeightedPoolFactory),
   MockInsuredPool: mock(types.MockInsuredPoolFactory),  
 }
