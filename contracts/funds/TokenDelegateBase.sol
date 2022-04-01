@@ -26,10 +26,26 @@ abstract contract TokenDelegateBase is ERC20Base {
     uint256 amount
   ) internal override {
     super.transferBalanceAndEmit(sender, recipient, amount);
+    _notifyRecipient(sender, recipient, amount);
+  }
 
+  function _notifyRecipient(
+    address sender,
+    address recipient,
+    uint256 amount
+  ) private {
     if (_flags[recipient] & FLAG_TRANSFER_CALLBACK != 0) {
       IERC1363Receiver(recipient).onTransferReceived(msg.sender, sender, amount, '');
     }
+  }
+
+  function _mintAndTransfer(
+    address sender,
+    address recipient,
+    uint256 amount
+  ) internal override {
+    super._mintAndTransfer(sender, recipient, amount);
+    _notifyRecipient(sender, recipient, amount);
   }
 
   function internalSetFlags(address account, uint256 flags) internal {

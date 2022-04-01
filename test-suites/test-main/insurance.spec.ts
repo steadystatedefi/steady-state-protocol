@@ -269,15 +269,4 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       expect(totalInsuredPremium).within(n, n + insureds.length * ((await currentTime()) - insuredTS[0] - 1));
     }
   });
-
-  it('Excess Coverage', async () => {
-    await fund
-      .connect(testEnv.users[0])
-      .invest(pool.address, unitSize * 10000, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
-    await insureds[0].increaseRequiredCoverage(unitSize * 10000);
-    await insureds[0].pushCoverageDemandTo(pool.address, unitSize * 2000);
-    await pool.pushCoverageExcess();
-    await insureds[0].reconcileWithAllInsurers();
-    //await pool.pushCoverageExcess();
-  });
 });

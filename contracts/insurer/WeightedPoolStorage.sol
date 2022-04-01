@@ -198,9 +198,10 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     Balances.RateAcc memory totals,
     DemandedCoverage memory coverage
   ) internal returns (Balances.RateAcc memory) {
-    uint256 rate = uint256(coverage.premiumRate).rayDiv(newExcess + coverage.totalCovered + coverage.pendingCovered); // earns per second * 10^27
-    // console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
-
+    // console.log('_afterBalanceUpdate', coverage.premiumRate, newExcess, coverage.totalCovered + coverage.pendingCovered);
+    uint256 rate = coverage.premiumRate == 0
+      ? 0
+      : uint256(coverage.premiumRate).rayDiv(newExcess + coverage.totalCovered + coverage.pendingCovered); // earns per second * 10^27
     _totalRate = totals.setRateAfterSync(rate.rayMul(exchangeRate()));
     return totals;
   }

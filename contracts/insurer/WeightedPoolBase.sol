@@ -118,16 +118,20 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     }
   }
 
-  function internalBurn(address account, uint256 amount) internal returns (uint256 coverageAmount) {
+  function internalBurn(address account, uint256 coverageAmount) internal returns (uint256) {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
-    if (amount >= b.balance) {
-      (amount, b.balance) = (b.balance, 0);
-    } else {
-      b.balance = uint128(b.balance - amount);
+
+    {
+      uint256 balance = uint256(b.balance).rayMul(exchangeRate());
+      if (coverageAmount >= balance) {
+        coverageAmount = balance;
+        b.balance = 0;
+      } else {
+        b.balance = uint128(b.balance - coverageAmount.rayDiv(exchangeRate()));
+      }
     }
 
-    if (amount > 0) {
-      coverageAmount = amount.rayMul(exchangeRate());
+    if (coverageAmount > 0) {
       totals = _afterBalanceUpdate(_excessCoverage -= coverageAmount, totals, super.internalGetPremiumTotals());
     }
     emit Transfer(account, address(0), coverageAmount);
@@ -138,7 +142,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return coverageAmount;
   }
 
-  function balanceOf(address account) external view override returns (uint256) {
+  function balanceOf(address account) public view override returns (uint256) {
     return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
@@ -231,10 +235,12 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
   }
 
   function withdrawable(address account) public view override returns (uint256 amount) {
-    amount = _balances[account].balance;
-    uint256 excess = _excessCoverage;
-    if (excess < amount) {
-      amount = excess;
+    amount = _excessCoverage;
+    if (amount > 0) {
+      uint256 bal = balanceOf(account);
+      if (amount > bal) {
+        amount = bal;
+      }
     }
   }
 
