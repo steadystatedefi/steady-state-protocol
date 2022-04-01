@@ -5,9 +5,10 @@ export const Factories = {
   PriceOracle: wrap(types.PriceOracleFactory),
   WeightedPoolExtension: wrap(types.WeightedPoolExtensionFactory),
   PremiumCollector: wrap(types.PremiumCollectorFactory),
+  CollateralCurrency: wrap(types.CollateralCurrencyFactory),
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
-  MockCollateralFund: mock(types.MockCollateralFundFactory),
+  MockCollateralCurrency: mock(types.MockCollateralCurrencyFactory),
   MockWeightedPool: mock(types.MockWeightedPoolFactory),
   MockInsuredPool: mock(types.MockInsuredPoolFactory),  
 }

@@ -52,7 +52,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
   }
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  function internalMintForCoverage(address account, uint256 coverageAmount) internal {
+  function _mintForCoverage(address account, uint256 coverageAmount) private {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
     uint256 excessCoverage = _excessCoverage;
@@ -96,7 +96,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     }
     _afterBalanceUpdate(excess, totals, premium);
 
-    // TODO should call pushExcess?
+    pushCoverageExcess();
   }
 
   ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
@@ -118,16 +118,20 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     }
   }
 
-  function internalBurn(address account, uint256 amount) internal returns (uint256 coverageAmount) {
+  function internalBurn(address account, uint256 coverageAmount) internal returns (uint256) {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
-    if (amount == type(uint256).max) {
-      (amount, b.balance) = (b.balance, 0);
-    } else {
-      b.balance = uint128(b.balance - amount);
+
+    {
+      uint256 balance = uint256(b.balance).rayMul(exchangeRate());
+      if (coverageAmount >= balance) {
+        coverageAmount = balance;
+        b.balance = 0;
+      } else {
+        b.balance = uint128(b.balance - coverageAmount.rayDiv(exchangeRate()));
+      }
     }
 
-    if (amount > 0) {
-      coverageAmount = amount.rayMul(exchangeRate());
+    if (coverageAmount > 0) {
       totals = _afterBalanceUpdate(_excessCoverage -= coverageAmount, totals, super.internalGetPremiumTotals());
     }
     emit Transfer(account, address(0), coverageAmount);
@@ -138,7 +142,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return coverageAmount;
   }
 
-  function balanceOf(address account) external view override returns (uint256) {
+  function balanceOf(address account) public view override returns (uint256) {
     return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
@@ -224,19 +228,23 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     require(data.length == 0);
 
     if (internalGetStatus(operator) == InsuredStatus.Unknown) {
-      internalMintForCoverage(account, amount);
+      _mintForCoverage(account, amount);
     } else {
-      // return of funds from insured
+      // return of funds from insureds
     }
   }
 
-  // function delegatedAllowance(address account) external view override returns (uint256 amount) {
-  //   amount = _excessCoverage;
-  //   if (amount > 0) {
-  //     uint256 balance = _balances[account].balance;
-  //     if (balance < amount) {
-  //       amount = balance;
-  //     }
-  //   }
-  // }
+  function withdrawable(address account) public view override returns (uint256 amount) {
+    amount = _excessCoverage;
+    if (amount > 0) {
+      uint256 bal = balanceOf(account);
+      if (amount > bal) {
+        amount = bal;
+      }
+    }
+  }
+
+  function withdrawAll() external override returns (uint256) {
+    return internalBurn(msg.sender, _excessCoverage);
+  }
 }

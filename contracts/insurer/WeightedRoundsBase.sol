@@ -662,8 +662,9 @@ abstract contract WeightedRoundsBase {
 
   function internalGetPremiumTotals() internal view returns (DemandedCoverage memory coverage) {
     PartialState memory part = _partial;
-    if (part.batchNo == 0) return (coverage);
-    internalGetPremiumTotals(part, _batches[part.batchNo], _poolPremium);
+    if (part.batchNo != 0) {
+      return internalGetPremiumTotals(part, _batches[part.batchNo], _poolPremium);
+    }
   }
 
   function internalGetPremiumTotals(
