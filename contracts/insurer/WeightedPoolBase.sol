@@ -96,7 +96,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     }
     _afterBalanceUpdate(excess, totals, premium);
 
-    // TODO should call pushExcess?
+    pushCoverageExcess();
   }
 
   ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
