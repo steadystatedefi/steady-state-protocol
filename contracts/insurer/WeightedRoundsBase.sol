@@ -1137,6 +1137,7 @@ abstract contract WeightedRoundsBase {
         batchNo = _splitBatch(uint24(partialRounds), batchNo);
         skippedRounds += partialRounds;
       }
+      neededRounds = demand.rounds - skippedRounds;
     } else {
       // there is more demand in this slot than needs to be cancelled
       // so some batches may be skipped
@@ -1152,7 +1153,7 @@ abstract contract WeightedRoundsBase {
           unchecked {
             remainingRounds = rounds - uint24(excessRounds);
           }
-          if (batchNo == part.batchNo || _canSplitBatchOnCancel(batchNo, remainingRounds)) {
+          if (batchNo == part.batchNo || internalCanSplitBatchOnCancel(batchNo, remainingRounds)) {
             // partial batch can always be split, otherwise the policy decides
             batchNo = _splitBatch(remainingRounds, batchNo);
           } else {
@@ -1170,7 +1171,7 @@ abstract contract WeightedRoundsBase {
     cancelUnits = uint64(neededRounds * demand.unitPerRound);
   }
 
-  function _canSplitBatchOnCancel(uint64 batchNo, uint24 remainingRounds) private view returns (bool) {}
+  function internalCanSplitBatchOnCancel(uint64 batchNo, uint24 remainingRounds) internal view virtual returns (bool) {}
 
   function _adjustUncoveredSlots(
     uint64 batchNo,
