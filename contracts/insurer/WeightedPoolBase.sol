@@ -230,12 +230,11 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     bytes calldata data
   ) internal override onlyCollateralCurrency {
     require(data.length == 0);
+    require(
+      operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown
+    );
 
-    if (internalGetStatus(operator) == InsuredStatus.Unknown) {
-      _mintForCoverage(account, amount);
-    } else {
-      // return of funds from insureds
-    }
+    _mintForCoverage(account, amount);
   }
 
   function withdrawable(address account) public view override returns (uint256 amount) {
