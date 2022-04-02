@@ -88,8 +88,8 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     onlyActiveInsured
     returns (uint256 payoutValue)
   {
+    (bool ok, uint256 excess, uint256 coverage) = super.internalCancelCoverage(insured);
     internalSetStatus(insured, InsuredStatus.Declined);
-    (bool ok, uint256 excess, uint256 coverage) = internalCancelCoverage(insured);
     if (ok) {
       payoutValue = coverage.rayMul(payoutRatio);
       coverage -= payoutValue;

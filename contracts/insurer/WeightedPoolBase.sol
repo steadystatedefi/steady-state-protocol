@@ -96,6 +96,10 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     }
     _afterBalanceUpdate(excess, totals, premium);
 
+    internalPostCoverageCancel();
+  }
+
+  function internalPostCoverageCancel() internal virtual {
     pushCoverageExcess();
   }
 

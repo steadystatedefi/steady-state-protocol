@@ -4,6 +4,7 @@ import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../typ
 import { expect } from 'chai';
 import { currentTime } from '../../helpers/runtime-utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { zeroAddress } from 'ethereumjs-util';
 
 makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
   const decimals = 18;
@@ -196,7 +197,15 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     for (const insured of insureds) {
       await insured.pushCoverageDemandTo(pool.address, unitSize * 10000);
     }
-
     expect(await pool.withdrawable(user.address)).eq(0);
+  });
+
+  it('Cancel coverage', async () => {
+    const insured = insureds[0];
+    await insured.reconcileWithAllInsurers(); // required to cancel
+    // console.log(await pool.dump());
+
+    await insured.cancelCoverage(zeroAddress(), 0);
+    expect(await pool.withdrawable(user.address)).gt(0);
   });
 });

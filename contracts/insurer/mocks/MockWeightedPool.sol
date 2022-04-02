@@ -37,6 +37,12 @@ contract MockWeightedPool is WeightedPoolBase {
     return internalGetTotals(type(uint256).max);
   }
 
+  function getExcessCoverage() external view returns (uint256) {
+    return _excessCoverage;
+  }
+
+  function internalPostCoverageCancel() internal override {}
+
   function receivableDemandedCoverage(address insured)
     external
     view
@@ -64,7 +70,11 @@ contract MockWeightedPool is WeightedPoolBase {
     receivedCoverage += params.receivedCoverage;
   }
 
-  function cancelCoverage(uint256) external pure override returns (uint256) {
-    revert Errors.NotImplemented();
+  function cancelCoverage(uint256) external override returns (uint256) {
+    _delegate(_extension);
+  }
+
+  function dump() external view returns (Dump memory) {
+    return _dump();
   }
 }

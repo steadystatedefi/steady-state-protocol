@@ -224,10 +224,30 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     expect(totalInsuredPremiumRate).eq(payList[0].amount);
   });
 
+  it('Check totals', async () => {
+    let totalDemand = 0;
+    let totalCovered = 0;
+
+    for (const insured of insureds) {
+      const { coverage } = await pool.receivableDemandedCoverage(insured.address);
+      expect(coverage.totalDemand.toNumber()).gte(coverage.totalCovered.toNumber());
+      totalCovered += coverage.totalCovered.toNumber();
+      totalDemand += coverage.totalDemand.toNumber();
+    }
+
+    const totals = await pool.getTotals();
+    expect(totalCovered).eq(totals.coverage.totalCovered);
+    expect(totalDemand).eq(totals.coverage.totalDemand);
+  });
+
   it('Reconcile', async () => {
     for (const insured of insureds) {
+      const { coverage: coverage0 } = await pool.receivableDemandedCoverage(insured.address);
       await insured.reconcileWithAllInsurers();
+
       const { coverage } = await pool.receivableDemandedCoverage(insured.address);
+      expect(coverage0.totalDemand).eq(coverage.totalDemand);
+      expect(coverage0.totalCovered).eq(coverage.totalCovered);
       // console.log('after', insured.address, coverage.totalPremium.toNumber(), coverage.premiumRate.toNumber());
 
       {
@@ -253,14 +273,23 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
     let totalInsuredPremium = 0;
     let totalInsuredPremiumRate = 0;
+    let totalDemand = 0;
+    let totalCovered = 0;
 
     for (const insured of insureds) {
       const { coverage } = await pool.receivableDemandedCoverage(insured.address);
       totalInsuredPremium += coverage.totalPremium.toNumber();
       totalInsuredPremiumRate += coverage.premiumRate.toNumber();
+
+      expect(coverage.totalDemand.toNumber()).gte(coverage.totalCovered.toNumber());
+      totalCovered += coverage.totalCovered.toNumber();
+      totalDemand += coverage.totalDemand.toNumber();
     }
 
     const totals = await pool.getTotals();
+    expect(totalCovered).eq(totals.coverage.totalCovered);
+    expect(totalDemand).eq(totals.coverage.totalDemand);
+
     let n = totals.coverage.premiumRate.toNumber();
     expect(totalInsuredPremiumRate).within(n, n + insureds.length); // rounding up may give +1 per insured
 
