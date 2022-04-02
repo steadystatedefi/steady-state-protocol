@@ -227,7 +227,7 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
   });
 
-  it.skip('Cancel coverage', async () => {
+  it('Cancel coverage', async () => {
     const insured = insureds[0];
 
     await insured.reconcileWithAllInsurers(); // required for cancel
@@ -241,27 +241,29 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     const { coverage: totals1 } = await pool.getTotals();
     const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
 
+    // console.log(totals0.totalCovered.toString(), totals0.totalDemand.toString());
+    // console.log(totals1.totalCovered.toString(), totals1.totalDemand.toString());
+    // console.log(
+    //   totals1.totalCovered.sub(totals0.totalCovered).toString(),
+    //   totals1.totalDemand.sub(totals0.totalDemand).toString()
+    // );
+    // console.log((await pool.getExcessCoverage()).toString());
+    // console.log(stats0.totalCovered.toString(), stats0.totalDemand.toString());
+    // console.log(stats1.totalCovered.toString(), stats1.totalDemand.toString());
+    // console.log(
+    //   stats1.totalCovered.sub(stats0.totalCovered).toString(),
+    //   stats1.totalDemand.sub(stats0.totalDemand).toString()
+    // );
+
     expect(stats1.totalDemand).eq(0);
     expect(stats1.totalCovered).eq(0);
-    // expect(stats1.totalPremium).eq(0); // TODO ???
+    // expect(stats1.totalPremium).eq(0); // TODO ??? reconcile always
     expect(stats1.premiumRate).eq(0);
     expect(stats1.pendingCovered).eq(0);
 
-    // expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand);
-    // expect(totals0.totalCovered.sub(totals1.totalCovered)).eq(stats0.totalCovered);
-
-    console.log(totals0.totalCovered.toString(), totals0.totalDemand.toString());
-    console.log(totals1.totalCovered.toString(), totals1.totalDemand.toString());
-    console.log(
-      totals1.totalCovered.sub(totals0.totalCovered).toString(),
-      totals1.totalDemand.sub(totals0.totalDemand).toString()
-    );
-    console.log((await pool.getExcessCoverage()).toString());
-    console.log(stats0.totalCovered.toString(), stats0.totalDemand.toString());
-    console.log(stats1.totalCovered.toString(), stats1.totalDemand.toString());
-    console.log(
-      stats1.totalCovered.sub(stats0.totalCovered).toString(),
-      stats1.totalDemand.sub(stats0.totalDemand).toString()
-    );
+    expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand);
+    expect(totals0.totalCovered.sub(totals1.totalCovered)).eq(stats0.totalCovered);
   });
+
+  // TODO apply delayed adjustments
 });

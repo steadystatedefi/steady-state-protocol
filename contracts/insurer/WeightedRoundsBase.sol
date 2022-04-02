@@ -1306,10 +1306,10 @@ abstract contract WeightedRoundsBase {
 
     uint64 partBatchNo = _partial.batchNo;
     Rounds.Coverage memory covered = _covered[insured];
-    Rounds.Demand memory d;
+    Rounds.Demand memory d = _demands[insured][covered.lastUpdateIndex];
 
     if (partBatchNo > 0 && entry.demandedUnits != covered.coveredUnits) {
-      d = _ensureCoverageUpdated(insured, covered, partBatchNo);
+      _ensureCoverageUpdated(d, covered, partBatchNo);
     }
     providedCoverage = covered.coveredUnits * _unitSize;
 
@@ -1323,13 +1323,14 @@ abstract contract WeightedRoundsBase {
 
     if (partBatchNo > 0) {
       excessCoverage = _cancelCovered(insured, _partial, d);
+      _pendingCancelledCoverageUnits += covered.coveredUnits - uint64(covered.lastPartialRoundNo) * d.unitPerRound;
     }
 
     entry.demandedUnits = 0;
     entry.nextBatchNo = 0;
     delete (_covered[insured]);
     delete (_demands[insured]);
-    delete (_premiums[insured]);
+    delete (_premiums[insured]); // TODO this may be an issue when insured wasn't sync'ed in this block
   }
 
   function _cancelCovered(
@@ -1347,12 +1348,15 @@ abstract contract WeightedRoundsBase {
       _updateTimeMark(part, b.unitPerRound);
       _updateTotalPremium(part.batchNo, poolPremium, b);
 
-      poolPremium.coveragePremium -=
-        premium.coveragePremium +
-        uint96(premium.coveragePremiumRate) *
-        (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
-      poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
+      // TODO store coveragePremium of cancelled coverages in a separate field
 
+      // poolPremium.coveragePremium -=
+      //   premium.coveragePremium +
+      //   uint96(premium.coveragePremiumRate) *
+      //   (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
+
+      // TODO this may be an issue when insured wasn't sync'ed in this block
+      poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
       _poolPremium = poolPremium;
     }
 
@@ -1369,18 +1373,15 @@ abstract contract WeightedRoundsBase {
   }
 
   function _ensureCoverageUpdated(
-    address insured,
+    Rounds.Demand memory d,
     Rounds.Coverage memory covered,
     uint64 partialBatchNo
-  ) private view returns (Rounds.Demand memory d) {
-    Rounds.Demand storage ds = _demands[insured][covered.lastUpdateIndex];
+  ) private view {
     uint64 lastBatchNo = covered.lastUpdateBatchNo;
     if (lastBatchNo == 0) {
-      lastBatchNo = ds.startBatchNo;
+      lastBatchNo = d.startBatchNo;
     }
-    if (partialBatchNo == lastBatchNo) {
-      d = ds;
-    } else {
+    if (partialBatchNo != lastBatchNo) {
       require(lastBatchNo > 0 && _batches[lastBatchNo].state.isOpen(), 'coverage must be updated');
     }
   }
