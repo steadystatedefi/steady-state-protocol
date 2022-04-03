@@ -203,28 +203,53 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     expect(await pool.withdrawable(user.address)).eq(0);
   });
 
-  it('Cancel coverage demand', async () => {
+  // it('Fails to cancel coverage with coverage demand present', async () => {
+  //   const insured = insureds[0];
+  //   await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('');
+  // });
+
+  // it('Cancel coverage demand', async () => {
+  //   const insured = insureds[0];
+
+  //   const { coverage: totals0 } = await pool.getTotals();
+  //   const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+
+  //   await insured.testCancelCoverageDemand(pool.address, 1000000000);
+
+  //   const { coverage: totals1 } = await pool.getTotals();
+  //   const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+  //   expect(stats0.totalCovered).eq(stats1.totalCovered);
+  //   expect(stats0.premiumRate).eq(stats1.premiumRate);
+  //   expect(stats0.pendingCovered).eq(stats1.pendingCovered);
+
+  //   expect(totals0.totalCovered).eq(totals1.totalCovered);
+  //   expect(totals0.premiumRate).eq(totals1.premiumRate);
+  //   expect(totals0.pendingCovered).eq(totals1.pendingCovered);
+
+  //   expect(stats0.totalDemand).gte(stats0.totalCovered);
+  //   expect(stats0.totalDemand).gt(stats1.totalDemand);
+  //   expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
+  // });
+
+  // it('Cancel coverage demand (2)', async () => {
+  //   const insured = insureds[0];
+
+  //   const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+
+  //   await insured.testCancelCoverageDemand(pool.address, 1000000000);
+
+  //   const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+  //   expect(stats0.totalCovered).eq(stats1.totalCovered);
+  //   expect(stats0.premiumRate).eq(stats1.premiumRate);
+  //   expect(stats0.pendingCovered).eq(stats1.pendingCovered);
+  //   expect(stats0.totalDemand).eq(stats1.totalDemand);
+  // });
+
+  it('Fails to cancel coverage without reconcillation', async () => {
     const insured = insureds[0];
-
-    const { coverage: totals0 } = await pool.getTotals();
-    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
-
-    await insured.testCancelCoverageDemand(pool.address, 1000000000);
-
-    const { coverage: totals1 } = await pool.getTotals();
-    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
-
-    expect(stats0.totalCovered).eq(stats1.totalCovered);
-    expect(stats0.premiumRate).eq(stats1.premiumRate);
-    expect(stats0.pendingCovered).eq(stats1.pendingCovered);
-
-    expect(totals0.totalCovered).eq(totals1.totalCovered);
-    expect(totals0.premiumRate).eq(totals1.premiumRate);
-    expect(totals0.pendingCovered).eq(totals1.pendingCovered);
-
-    expect(stats0.totalDemand).gte(stats0.totalCovered);
-    expect(stats0.totalDemand).gt(stats1.totalDemand);
-    expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
+    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('coverage must be received before cancellation');
   });
 
   it('Cancel coverage', async () => {
@@ -235,7 +260,9 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
 
+    console.log(await pool.dump());
     await insured.cancelCoverage(zeroAddress(), 0);
+    console.log(await pool.dump());
     //    expect(await pool.withdrawable(user.address)).gt(0);
 
     const { coverage: totals1 } = await pool.getTotals();

@@ -1293,44 +1293,59 @@ abstract contract WeightedRoundsBase {
   function internalCancelCoverage(address insured)
     internal
     returns (
-      bool ok,
+      DemandedCoverage memory coverage,
       uint256 excessCoverage,
-      uint256 providedCoverage
+      uint256 providedCoverage,
+      uint256 receivedCoverage
     )
   {
     Rounds.InsuredEntry storage entry = _insureds[insured];
     if (entry.demandedUnits == 0) {
-      return (false, 0, 0);
+      return (coverage, 0, 0, 0);
     }
-    ok = true;
 
-    uint64 partBatchNo = _partial.batchNo;
-    Rounds.Coverage memory covered = _covered[insured];
-    Rounds.Demand memory d = _demands[insured][covered.lastUpdateIndex];
+    Rounds.Coverage memory covered;
+    (coverage, covered, receivedCoverage) = _syncBeforeCancelCoverage(insured);
 
-    if (partBatchNo > 0 && entry.demandedUnits != covered.coveredUnits) {
-      _ensureCoverageUpdated(d, covered, partBatchNo);
+    Rounds.Demand[] storage demands = _demands[insured];
+    Rounds.Demand memory d;
+    PartialState memory part = _partial;
+
+    if (covered.lastUpdateIndex < demands.length) {
+      require(
+          covered.lastUpdateIndex == demands.length - 1 && 
+          covered.lastUpdateBatchNo == part.batchNo && 
+          covered.lastPartialRoundNo == part.roundNo, 
+          'demand must be cancelled');
+
+      d = demands[covered.lastUpdateIndex];
+    } else {
+      require(entry.demandedUnits == covered.coveredUnits);
     }
+
     providedCoverage = covered.coveredUnits * _unitSize;
 
-    if (entry.demandedUnits > covered.coveredUnits) {
-      CancelCoverageDemandParams memory params;
-      params.loopLimit = ~params.loopLimit;
-      params.insured = insured;
-      internalCancelCoverageDemand(type(uint64).max, params);
-      require(params.done);
+    if (part.batchNo > 0) {
+      excessCoverage = _cancelCovered(insured, part, d);
     }
-
-    if (partBatchNo > 0) {
-      excessCoverage = _cancelCovered(insured, _partial, d);
-      _pendingCancelledCoverageUnits += covered.coveredUnits - uint64(covered.lastPartialRoundNo) * d.unitPerRound;
-    }
+    _pendingCancelledCoverageUnits += covered.coveredUnits - uint64(covered.lastPartialRoundNo) * d.unitPerRound;
 
     entry.demandedUnits = 0;
     entry.nextBatchNo = 0;
     delete (_covered[insured]);
     delete (_demands[insured]);
-    delete (_premiums[insured]); // TODO this may be an issue when insured wasn't sync'ed in this block
+  }
+
+  function _syncBeforeCancelCoverage(address insured) private 
+  returns(DemandedCoverage memory coverage, Rounds.Coverage memory covered, uint256 receivedCoverage) {
+    GetCoveredDemandParams memory params;
+    params.insured = insured;
+    params.loopLimit = ~uint256(0);
+
+    (coverage, covered, _premiums[insured]) = internalGetCoveredDemand(params);
+    require(params.done);
+
+    receivedCoverage = params.receivedCoverage;
   }
 
   function _cancelCovered(
@@ -1341,48 +1356,42 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch storage partBatch = _batches[part.batchNo];
     Rounds.Batch memory b = partBatch;
 
-    {
-      Rounds.CoveragePremium memory poolPremium = _poolPremium;
-      Rounds.CoveragePremium memory premium = _premiums[insured];
+    _cancelPremium(insured, part, b);
 
-      _updateTimeMark(part, b.unitPerRound);
-      _updateTotalPremium(part.batchNo, poolPremium, b);
+    if (d.unitPerRound > 0) {
+      (partBatch.unitPerRound, partBatch.roundPremiumRateSum) = 
+        (b.unitPerRound -= d.unitPerRound, b.roundPremiumRateSum - uint56(d.premiumRate) * d.unitPerRound);
 
-      // TODO store coveragePremium of cancelled coverages in a separate field
-
-      // poolPremium.coveragePremium -=
-      //   premium.coveragePremium +
-      //   uint96(premium.coveragePremiumRate) *
-      //   (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
-
-      // TODO this may be an issue when insured wasn't sync'ed in this block
-      poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
-      _poolPremium = poolPremium;
-    }
-
-    if (d.unitPerRound > 0 && part.roundCoverage > 0) {
-      partBatch.unitPerRound = (b.unitPerRound -= d.unitPerRound);
-      partBatch.roundPremiumRateSum = b.roundPremiumRateSum - uint56(d.premiumRate) * d.unitPerRound;
-
-      excessCoverage = uint128(_unitSize) * b.unitPerRound;
-      if (part.roundCoverage > excessCoverage) {
-        _partial.roundCoverage = excessCoverage;
-        excessCoverage = part.roundCoverage - excessCoverage;
+      if (part.roundCoverage > 0) {
+        excessCoverage = uint128(_unitSize) * b.unitPerRound;
+        if (part.roundCoverage > excessCoverage) {
+          (part.roundCoverage, excessCoverage) = (excessCoverage, part.roundCoverage - excessCoverage);
+          _partial.roundCoverage = part.roundCoverage;
+        }
       }
     }
   }
 
-  function _ensureCoverageUpdated(
-    Rounds.Demand memory d,
-    Rounds.Coverage memory covered,
-    uint64 partialBatchNo
-  ) private view {
-    uint64 lastBatchNo = covered.lastUpdateBatchNo;
-    if (lastBatchNo == 0) {
-      lastBatchNo = d.startBatchNo;
-    }
-    if (partialBatchNo != lastBatchNo) {
-      require(lastBatchNo > 0 && _batches[lastBatchNo].state.isOpen(), 'coverage must be updated');
-    }
+  function _cancelPremium(
+    address insured,
+    PartialState memory part,
+    Rounds.Batch memory partBatch
+  ) internal {
+    Rounds.CoveragePremium memory poolPremium = _poolPremium;
+    Rounds.CoveragePremium memory premium = _premiums[insured];
+
+    _updateTimeMark(part, partBatch.unitPerRound);
+    _updateTotalPremium(part.batchNo, poolPremium, partBatch);
+
+    // TODO store coveragePremium of cancelled coverages in a separate field
+
+    // poolPremium.coveragePremium -=
+    //   premium.coveragePremium +
+    //   uint96(premium.coveragePremiumRate) *
+    //   (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
+
+    poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
+    _premiums[insured].coveragePremiumRate = 0;
+    _poolPremium = poolPremium;
   }
 }

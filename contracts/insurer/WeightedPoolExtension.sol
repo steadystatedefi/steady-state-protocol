@@ -88,17 +88,33 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     onlyActiveInsured
     returns (uint256 payoutValue)
   {
-    (bool ok, uint256 excess, uint256 coverage) = super.internalCancelCoverage(insured);
+    (DemandedCoverage memory coverage, uint256 excessCoverage,
+      uint256 providedCoverage,
+      uint256 receivableCoverage) = super.internalCancelCoverage(insured);
+
+
+    // receivableCoverage was not yet received by the insured, it was found during the cancallation
+    // and caller relies on a coverage provided earlier
+    providedCoverage -= receivableCoverage;
+
+    // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc 
+    // and the actual amount of protocol tokens made available during last sync
+    coverage; 
+    // so this is a sanity check - insurance must be sync'ed before cancellation
+    // otherwise there will be premium without actual supply of protocol tokens
+    require(receivableCoverage <= (providedCoverage>>4), 'coverage must be received before cancellation');
     internalSetStatus(insured, InsuredStatus.Declined);
-    if (ok) {
-      payoutValue = coverage.rayMul(payoutRatio);
-      coverage -= payoutValue;
-      if (coverage > 0) {
-        transferCollateralFrom(insured, address(this), coverage);
-      }
-      // avoid code to be duplicated within WeightedPoolExtension to reduce contract size
-      WeightedPoolBase(address(this)).updateCoverageOnCancel(payoutValue, excess + coverage);
+
+    payoutValue = providedCoverage.rayMul(payoutRatio);
+
+    providedCoverage -= payoutValue;
+    if (providedCoverage > 0) {
+      // take back the unused provided coverage
+      transferCollateralFrom(insured, address(this), providedCoverage);
     }
+    // this call is to consider / reinvest the released funds
+    WeightedPoolBase(address(this)).updateCoverageOnCancel(payoutValue, excessCoverage + providedCoverage + receivableCoverage);
+    // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
   }
 
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
