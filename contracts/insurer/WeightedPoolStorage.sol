@@ -66,7 +66,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     uint256 max = params.maxAdvanceUnits / params.maxUnitsPerRound;
     if (min > type(uint24).max) {
       if (openRounds + min > max) {
-        console.log('internalBatchAppend-0', 0);
         return 0;
       }
       min = type(uint24).max;
@@ -74,7 +73,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
     if (openRounds + min > max) {
       if (min < (max >> 1) || openRounds > (max >> 1)) {
-        console.log('internalBatchAppend-1', 0);
         return 0;
       }
     }
@@ -84,7 +82,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     }
 
     if ((unitCount /= uint64(min)) <= 1) {
-      console.log('internalBatchAppend-2', min);
       return uint24(min);
     }
 
@@ -94,7 +91,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
       min *= unitCount;
     }
     require(min > 0); // TODO sanity check - remove later
-    console.log('internalBatchAppend-3', min);
 
     return uint24(min);
   }
@@ -141,7 +137,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
       }
     }
 
-    console.log('internalRoundLimits-3', uint16(x), params.minUnitsPerRound, params.maxUnitsPerRound);
     return (uint16(x), params.minUnitsPerRound, params.maxUnitsPerRound, params.overUnitsPerRound);
   }
 

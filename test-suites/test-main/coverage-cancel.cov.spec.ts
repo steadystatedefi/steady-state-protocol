@@ -6,7 +6,7 @@ import { currentTime } from '../../helpers/runtime-utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { zeroAddress } from 'ethereumjs-util';
 
-makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
+makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   const decimals = 18;
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const premiumPerUnit = 10;
@@ -177,11 +177,12 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
   });
 
   it('Withdraw excess', async () => {
+    expect(await cc.balanceOf(user.address)).eq(0);
+
     const userBalance = await pool.balanceOf(user.address);
     const withdrawable = await pool.withdrawable(user.address);
 
-    expect(await cc.balanceOf(user.address)).eq(0);
-    await pool.connect(user).withdrawAll();
+    await pool.connect(user).withdrawAll({ gasLimit: 2000000 });
 
     expect(await pool.withdrawable(user.address)).eq(0);
     expect(await cc.balanceOf(user.address)).eq(withdrawable);
@@ -309,7 +310,10 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     expect(totals0.totalCovered.sub(totals1.totalCovered)).eq(stats0.totalCovered);
     expect(totals0.totalPremium).lt(totals1.totalPremium);
 
-    //    expect(totals0.premiumRate.sub(stats0.premiumRate)).eq(totals1.premiumRate);
+    // const pendingRate = stats0.premiumRate.mul(stats0.totalCovered).div(stats0.totalCovered.add(stats0.pendingCovered))
+    // console.log(totals0.premiumRate.sub(totals1.premiumRate).toString());
+    // console.log(stats0.premiumRate.toString());
+    // console.log(totals0.pendingCovered.sub(totals1.pendingCovered).toString());
   });
 
   // TODO apply delayed adjustments

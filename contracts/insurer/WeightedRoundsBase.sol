@@ -118,7 +118,7 @@ abstract contract WeightedRoundsBase {
       uint64 // remainingCount
     )
   {
-    console.log('\ninternalAddCoverageDemand', unitCount);
+    // console.log('\ninternalAddCoverageDemand', unitCount);
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
     require(entry.status == InsuredStatus.Accepted);
     if (unitCount == 0 || params.loopLimit == 0) {
@@ -133,7 +133,7 @@ abstract contract WeightedRoundsBase {
     Rounds.Demand memory demand;
 
     for (;;) {
-      console.log('addDemandLoop', thisBatch, isFirstOfOpen, b.totalUnitsBeforeBatch);
+      // console.log('addDemandLoop', thisBatch, isFirstOfOpen, b.totalUnitsBeforeBatch);
       params.loopLimit--;
 
       require(thisBatch != 0);
@@ -146,7 +146,7 @@ abstract contract WeightedRoundsBase {
           openRounds - _partial.roundNo,
           unitCount
         );
-        console.log('addDemandToEmpty', b.rounds, openRounds - _partial.roundNo);
+        // console.log('addDemandToEmpty', b.rounds, openRounds - _partial.roundNo);
 
         if (b.rounds > 0) {
           _openRounds = openRounds + b.rounds;
@@ -159,7 +159,7 @@ abstract contract WeightedRoundsBase {
       if (b.isOpen()) {
         if (b.rounds > 0) {
           (addPerRound, takeNext) = _addToBatch(unitCount, b, entry, params, isFirstOfOpen);
-          console.log('addToBatchResult', addPerRound, takeNext);
+          // console.log('addToBatchResult', addPerRound, takeNext);
         }
 
         if (isFirstOfOpen && b.isOpen()) {
@@ -320,12 +320,12 @@ abstract contract WeightedRoundsBase {
   ) private returns (uint16 addPerRound, bool takeNext) {
     require(b.isOpen() && b.rounds > 0); // TODO dev sanity check - remove later
 
-    console.log('addToBatch', unitCount, canClose);
+    // console.log('addToBatch', unitCount, canClose);
 
     if (unitCount < b.rounds) {
       // split the batch or return the non-allocated units
       uint24 splitRounds = internalBatchSplit(entry.demandedUnits, entry.minUnits, b.rounds, uint24(unitCount));
-      console.log('addToBatch-internalBatchSplit', splitRounds);
+      // console.log('addToBatch-internalBatchSplit', splitRounds);
       if (splitRounds == 0) {
         return (0, false);
       }
@@ -348,8 +348,8 @@ abstract contract WeightedRoundsBase {
         entry.maxShare
       );
 
-    console.log('addToBatch-checkLimits', b.unitPerRound, b.rounds);
-    console.log('addToBatch-limits', maxShareUnitsPerRound, minUnitsPerRound, maxUnitsPerRound);
+    // console.log('addToBatch-checkLimits', b.unitPerRound, b.rounds);
+    // console.log('addToBatch-limits', maxShareUnitsPerRound, minUnitsPerRound, maxUnitsPerRound);
 
     if (maxShareUnitsPerRound > 0 && b.unitPerRound < maxUnitsPerRound) {
       addPerRound = maxUnitsPerRound - b.unitPerRound;
@@ -408,7 +408,6 @@ abstract contract WeightedRoundsBase {
     require(b.rounds > remainingRounds, 'split beyond size');
 
     uint64 newBatchNo = ++_batchCount;
-    // // console.log(b.rounds, b.unitPerRound, b.nextBatchNo, b.totalUnitsBeforeBatch);
 
     _batches[newBatchNo] = Rounds.Batch({
       nextBatchNo: b.nextBatchNo,
@@ -425,7 +424,6 @@ abstract contract WeightedRoundsBase {
       _latestBatchNo = newBatchNo;
     }
     b.nextBatchNo = newBatchNo;
-    // // console.log(b.rounds, b.unitPerRound, b.nextBatchNo, b.totalUnitsBeforeBatch);
   }
 
   function _splitBatch(uint24 remainingRounds, uint64 batchNo) private returns (uint64) {
@@ -595,10 +593,8 @@ abstract contract WeightedRoundsBase {
       ? uint256(_unitSize).wadMulUp(coverage.premiumRate)
       : uint256(_unitSize).wadMul(coverage.premiumRate);
     coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
-    //    // console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
     if (coverage.premiumUpdatedAt != 0) {
       coverage.totalPremium += coverage.premiumRate * (block.timestamp - coverage.premiumUpdatedAt);
-      //      // console.log('calcPremium', coverage.totalPremium);
     }
   }
 
@@ -1416,6 +1412,8 @@ abstract contract WeightedRoundsBase {
     //   premium.coveragePremium +
     //   uint96(premium.coveragePremiumRate) *
     //   (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
+
+    // console.log('premiumRates', poolPremium.coveragePremiumRate, premium.coveragePremiumRate);
 
     poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
     _premiums[insured].coveragePremiumRate = 0;
