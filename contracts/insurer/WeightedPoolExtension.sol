@@ -41,7 +41,6 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     uint256 premiumRate,
     bool hasMore
   ) external override onlyActiveInsured returns (uint256 addedCount) {
-    // TODO access control
     AddCoverageDemandParams memory params;
     params.insured = msg.sender;
     require(premiumRate == (params.premiumRate = uint40(premiumRate)));
@@ -88,21 +87,23 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     onlyActiveInsured
     returns (uint256 payoutValue)
   {
-    (DemandedCoverage memory coverage, uint256 excessCoverage,
+    (
+      DemandedCoverage memory coverage,
+      uint256 excessCoverage,
       uint256 providedCoverage,
-      uint256 receivableCoverage) = super.internalCancelCoverage(insured);
-
+      uint256 receivableCoverage
+    ) = super.internalCancelCoverage(insured);
 
     // receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
     providedCoverage -= receivableCoverage;
 
-    // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc 
+    // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc
     // and the actual amount of protocol tokens made available during last sync
-    coverage; 
+    coverage;
     // so this is a sanity check - insurance must be sync'ed before cancellation
     // otherwise there will be premium without actual supply of protocol tokens
-    require(receivableCoverage <= (providedCoverage>>4), 'coverage must be received before cancellation');
+    require(receivableCoverage <= (providedCoverage >> 4), 'coverage must be received before cancellation');
     internalSetStatus(insured, InsuredStatus.Declined);
 
     payoutValue = providedCoverage.rayMul(payoutRatio);
@@ -113,7 +114,10 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
       transferCollateralFrom(insured, address(this), providedCoverage);
     }
     // this call is to consider / reinvest the released funds
-    WeightedPoolBase(address(this)).updateCoverageOnCancel(payoutValue, excessCoverage + providedCoverage + receivableCoverage);
+    WeightedPoolBase(address(this)).updateCoverageOnCancel(
+      payoutValue,
+      excessCoverage + providedCoverage + receivableCoverage
+    );
     // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
   }
 

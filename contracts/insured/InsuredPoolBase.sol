@@ -69,9 +69,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     uint256 amount,
     uint256 premiumRate
   ) internal override {
-    // console.log('internalCoverageDemandAdded', target, amount);
     _requiredCoverage = uint128(_requiredCoverage - amount);
     _demandedCoverage += uint128(amount);
+    console.log('internalCoverageDemandAdded', amount, _demandedCoverage);
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
   }
 
@@ -88,7 +88,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
       amountToAdd = amount;
     }
     premiumRate = _premiumRate;
-    // console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
+    console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
   }
 
   modifier onlyAdmin() virtual {

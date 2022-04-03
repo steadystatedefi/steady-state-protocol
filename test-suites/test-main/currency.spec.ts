@@ -11,7 +11,7 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
-  const poolDemand = 10000 * unitSize;
+  const poolDemand = 100000 * unitSize;
   let pool: MockWeightedPool;
   let insureds: MockInsuredPool[] = [];
   let insuredUnits: number[] = [];
@@ -196,63 +196,74 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     expect(await pool.withdrawable(user.address)).eq(unitSize * 10000);
   });
 
-  it('Use excess coverage', async () => {
-    for (const insured of insureds) {
-      await insured.pushCoverageDemandTo(pool.address, unitSize * 10000);
-    }
+  it.skip('Add fragmented demand', async () => {
+    console.log(await pool.dump());
+    await insureds[1].pushCoverageDemandTo(pool.address, unitSize * 50);
+    await insureds[2].pushCoverageDemandTo(pool.address, poolDemand);
+    console.log(await pool.dump());
+    //    await insureds[3].pushCoverageDemandTo(pool.address, poolDemand);
+  });
+
+  it.skip('Use excess coverage', async () => {
     expect(await pool.withdrawable(user.address)).eq(0);
+
+    for (const insured of insureds) {
+      await insured.pushCoverageDemandTo(pool.address, poolDemand);
+    }
   });
 
-  // it('Fails to cancel coverage with coverage demand present', async () => {
-  //   const insured = insureds[0];
-  //   await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('');
-  // });
-
-  // it('Cancel coverage demand', async () => {
-  //   const insured = insureds[0];
-
-  //   const { coverage: totals0 } = await pool.getTotals();
-  //   const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
-
-  //   await insured.testCancelCoverageDemand(pool.address, 1000000000);
-
-  //   const { coverage: totals1 } = await pool.getTotals();
-  //   const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
-
-  //   expect(stats0.totalCovered).eq(stats1.totalCovered);
-  //   expect(stats0.premiumRate).eq(stats1.premiumRate);
-  //   expect(stats0.pendingCovered).eq(stats1.pendingCovered);
-
-  //   expect(totals0.totalCovered).eq(totals1.totalCovered);
-  //   expect(totals0.premiumRate).eq(totals1.premiumRate);
-  //   expect(totals0.pendingCovered).eq(totals1.pendingCovered);
-
-  //   expect(stats0.totalDemand).gte(stats0.totalCovered);
-  //   expect(stats0.totalDemand).gt(stats1.totalDemand);
-  //   expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
-  // });
-
-  // it('Cancel coverage demand (2)', async () => {
-  //   const insured = insureds[0];
-
-  //   const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
-
-  //   await insured.testCancelCoverageDemand(pool.address, 1000000000);
-
-  //   const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
-
-  //   expect(stats0.totalCovered).eq(stats1.totalCovered);
-  //   expect(stats0.premiumRate).eq(stats1.premiumRate);
-  //   expect(stats0.pendingCovered).eq(stats1.pendingCovered);
-  //   expect(stats0.totalDemand).eq(stats1.totalDemand);
-  // });
-
-  it('Fails to cancel coverage without reconcillation', async () => {
+  it.skip('Fails to cancel coverage with coverage demand present', async () => {
     const insured = insureds[0];
-    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('coverage must be received before cancellation');
+    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('demand must be cancelled');
   });
 
-  it('Cancel coverage', async () => {
+  it.skip('Cancel coverage demand', async () => {
+    const insured = insureds[0];
+
+    const { coverage: totals0 } = await pool.getTotals();
+    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+
+    await insured.testCancelCoverageDemand(pool.address, 1000000000);
+
+    const { coverage: totals1 } = await pool.getTotals();
+    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(stats0.totalCovered).eq(stats1.totalCovered);
+    expect(stats0.premiumRate).eq(stats1.premiumRate);
+    expect(stats0.pendingCovered).eq(stats1.pendingCovered);
+
+    expect(totals0.totalCovered).eq(totals1.totalCovered);
+    expect(totals0.premiumRate).eq(totals1.premiumRate);
+    expect(totals0.pendingCovered).eq(totals1.pendingCovered);
+
+    expect(stats0.totalDemand).gte(stats0.totalCovered);
+    expect(stats0.totalDemand).gt(stats1.totalDemand);
+    expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
+  });
+
+  it.skip('Cancel coverage demand (2)', async () => {
+    const insured = insureds[0];
+
+    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+
+    await insured.testCancelCoverageDemand(pool.address, 1000000000);
+
+    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(stats0.totalCovered).eq(stats1.totalCovered);
+    expect(stats0.premiumRate).eq(stats1.premiumRate);
+    expect(stats0.pendingCovered).eq(stats1.pendingCovered);
+    expect(stats0.totalDemand).eq(stats1.totalDemand);
+  });
+
+  it.skip('Fails to cancel coverage without reconcillation', async () => {
+    const insured = insureds[0];
+    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith(
+      'coverage must be received before cancellation'
+    );
+  });
+
+  it.skip('Cancel coverage', async () => {
     const insured = insureds[0];
 
     await insured.reconcileWithAllInsurers(); // required for cancel

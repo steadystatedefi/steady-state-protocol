@@ -23,8 +23,9 @@ contract MockWeightedPool is WeightedPoolBase {
         riskWeightTarget: 1000, // 10%
         minInsuredShare: 100, // 1%
         maxInsuredShare: 4000, // 25%
+        minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
-        minUnitsPerRound: 20
+        overUnitsPerRound: 30
       })
     );
   }
