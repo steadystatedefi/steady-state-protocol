@@ -1,7 +1,5 @@
 import { addNamedDeployable, NamedDeployable, wrap, mock } from "./factory-wrapper";
 import * as types from "../types";
-//import { MockStable } from "../types/MockStable";
-//import { MockStableFactory } from "../types/MockStableFactory";
 
 export const Factories = {
   PriceOracle: wrap(types.PriceOracleFactory),

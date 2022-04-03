@@ -36,10 +36,12 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     tradebalanceOfA = trade['balanceOfA(address,address)'];
 
     //Approvals
-    await stable.connect(depositor1).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
-    await stable.connect(depositor2).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
-    await trade.connect(depositor1).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
-    await trade.connect(depositor2).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
+    await Promise.all([
+      stable.connect(depositor1).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals)),
+      stable.connect(depositor2).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals)),
+      trade.connect(depositor1).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals)),
+      trade.connect(depositor2).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals)),
+    ]);
 
     await pool.setPremiumRate(rate);
   });
