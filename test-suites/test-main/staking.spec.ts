@@ -52,7 +52,8 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
 
     //Advance by 10 seconds
     await advanceBlock((await currentTime()) + 10);
-    expect(await (await pool.interestRate(depositor1.address)).accumulated).eq(rate * unscaled * 10);
+    const interestRate = await pool.interestRate(depositor1.address);
+    expect(interestRate.accumulated).eq(rate * unscaled * 10);
 
     //Deposit into trade
     await trade.connect(depositor1).wrap(amt);
