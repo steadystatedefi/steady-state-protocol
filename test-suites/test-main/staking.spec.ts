@@ -23,7 +23,6 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
   let uniswapv2_factory_address = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f';
 
   let tradebalanceOf;
-  let tradebalanceOfA;
 
   before(async () => {
     [depositor1, depositor2] = await getSigners();
@@ -33,7 +32,6 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     stable = await Factories.MockStable.deploy();
 
     tradebalanceOf = trade['balanceOf(address)'];
-    tradebalanceOfA = trade['balanceOfA(address,address)'];
 
     //Approvals
     await Promise.all([

@@ -7,7 +7,6 @@ import '../interfaces/IInsurerPool.sol';
 
 contract TradeableToken is ERC20Base, SafeOwnable {
   struct PoolInfo {
-    //bool initialized;   //Can't rely on lastIndex as this token can be made before capital is in an index pool
     // Must store the contract that handles distributing rewards to users
     // For example, a curve pool holds the NYT tokens, so a contract must either monitor the
     // curve pool or stake LP tokens.
@@ -17,8 +16,7 @@ contract TradeableToken is ERC20Base, SafeOwnable {
     uint256 balance; //This should be accurate as its updated on _beforeTransfer
   }
 
-  mapping(address => PoolInfo) private pools; //Pools are the STAKING CONTRACT for a protocol
-  //mapping(address => address) private whitelist; //Pool (holding the NYT tokens) => Staking contract
+  mapping(address => PoolInfo) private pools; //Pools are indexed by where the tokens reside
 
   IInsurerPool public underlying;
   uint256 private index;
@@ -68,13 +66,15 @@ contract TradeableToken is ERC20Base, SafeOwnable {
 
   function updateGlobal() internal {
     uint256 currentPremium;
+    uint256 staked = totalStaked;
     (, currentPremium) = underlying.interestRate(address(this));
-    if (totalStaked == 0) {
+
+    if (staked == 0) {
       //TODO: Make a claimable field, so that before staking contracts are whitelisted
       // someone can just claim all the yield that no one has a right to
-      return;
+      staked = 1;
     }
-    index += ((currentPremium - lastPremium) * multiplier) / totalStaked;
+    index += ((currentPremium - lastPremium) * multiplier) / staked;
     lastPremium = currentPremium;
   }
 
@@ -90,13 +90,10 @@ contract TradeableToken is ERC20Base, SafeOwnable {
 
   ///@dev Updates the pool's earned premium
   function updatePoolEarned(PoolInfo memory p, uint256 ind) internal view {
-    if (p.lastIndex == 0) {
-      p.lastIndex = ind;
-      return;
+    if (p.lastIndex != 0) {
+      uint256 price = ind - p.lastIndex;
+      p.earned += (price * p.balance) / multiplier;
     }
-
-    uint256 price = ind - p.lastIndex;
-    p.earned += (price * p.balance) / multiplier;
     p.lastIndex = ind;
   }
 
@@ -138,16 +135,23 @@ contract TradeableToken is ERC20Base, SafeOwnable {
     address to,
     uint256 amount
   ) internal override {
-    bool fromOn = !(from == address(0));
-    bool toOn = !(to == address(0));
-    bool both = !(fromOn && toOn); //If this is true then staked amount won't change
-    if (fromOn || toOn) {
+    bool isFromStaking = (from != address(0));
+    if (isFromStaking) {
+      isFromStaking = (pools[from].stakingContract != address(0));
+    }
+    bool isToStaking = (to != address(0));
+    if (isToStaking) {
+      isToStaking = (pools[to].stakingContract != address(0));
+    }
+    bool stakeAmtChanged = !(isFromStaking && isToStaking);
+
+    if (isFromStaking || isToStaking) {
       updateGlobal();
-      if (fromOn) {
-        updatePoolOnTransfer(from, amount, true, both);
+      if (isFromStaking) {
+        updatePoolOnTransfer(from, amount, true, stakeAmtChanged);
       }
-      if (toOn) {
-        updatePoolOnTransfer(to, amount, false, both);
+      if (isToStaking) {
+        updatePoolOnTransfer(to, amount, false, stakeAmtChanged);
       }
     }
   }
