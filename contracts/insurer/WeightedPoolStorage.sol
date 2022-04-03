@@ -107,7 +107,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     override
     returns (
       uint16, // maxShareUnitsPerRound,
-      uint16 minUnitsPerRound,
+      uint16, // minUnitsPerRound,
       uint16, // readyUnitsPerRound
       uint16 // maxUnitsPerRound
     )

@@ -101,8 +101,7 @@
 
     "compile": "SKIP_LOAD=true TS_NODE_TRANSPILE_ONLY=1 hardhat compile",
     "test": "hardhat test ./test-suites/test-main/*.spec.ts",
-    "test-example": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/example.spec.ts",
-    "test-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-rounds.spec.ts",
+    "test-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-rounds.cov.spec.ts",
     "test-insurance": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/insurance.cov.spec.ts",
     "test-cancel": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/coverage-cancel.cov.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-pool.bench.ts",
