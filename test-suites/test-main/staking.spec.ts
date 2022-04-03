@@ -1,19 +1,18 @@
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { advanceBlock, currentTime, getSigners } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
-import { NoYieldToken, MockStable, MockPremiumEarningPool } from '../../types';
+import { TradeableToken, GenericStaking, MockStable, MockPremiumEarningPool } from '../../types';
 import { IUniswapV2Router01Factory } from '../../types/IUniswapV2Router01Factory';
 import { IUniswapV2FactoryFactory } from '../../types/IUniswapV2FactoryFactory';
 import { IUniswapV2PairFactory } from '../../types/IUniswapV2PairFactory';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber } from 'ethers';
-import { ethers } from 'hardhat';
-import { getAddress } from 'ethers/lib/utils';
 
 makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
-  let NYT: NoYieldToken;
+  let trade: TradeableToken;
   let pool: MockPremiumEarningPool;
+  let staker: GenericStaking;
   let stable: MockStable;
   let depositor1: SignerWithAddress;
   let depositor2: SignerWithAddress;
@@ -23,29 +22,29 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
   let uniswapv2_router_address = '0xf164fC0Ec4E93095b804a4795bBe1e041497b92a';
   let uniswapv2_factory_address = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f';
 
-  let NYTbalanceOf;
-  let NYTbalanceOfA;
+  let tradebalanceOf;
+  let tradebalanceOfA;
 
   before(async () => {
     [depositor1, depositor2] = await getSigners();
 
     pool = await Factories.MockPremiumEarningPool.deploy('Index Pool', 'IP', 18);
-    NYT = await Factories.NoYieldToken.deploy('NoYield Index Pool', 'NYT-IP', 18, pool.address);
+    trade = await Factories.TradeableToken.deploy('Tradeable Index Pool', 'trade-IP', 18, pool.address);
     stable = await Factories.MockStable.deploy();
 
-    NYTbalanceOf = NYT['balanceOf(address)'];
-    NYTbalanceOfA = NYT['balanceOfA(address,address)'];
+    tradebalanceOf = trade['balanceOf(address)'];
+    tradebalanceOfA = trade['balanceOfA(address,address)'];
 
     //Approvals
     await stable.connect(depositor1).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
     await stable.connect(depositor2).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
-    await NYT.connect(depositor1).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
-    await NYT.connect(depositor2).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
+    await trade.connect(depositor1).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
+    await trade.connect(depositor2).approve(uniswapv2_router_address, BigNumber.from(1000000).mul(decimals));
 
     await pool.setPremiumRate(rate);
   });
 
-  it('Deposit into NYT', async () => {
+  it('Deposit into trade', async () => {
     let unscaled = 100;
     let amt = BigNumber.from(unscaled).mul(decimals);
     await pool.mint(depositor1.address, amt);
@@ -55,14 +54,14 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     await advanceBlock((await currentTime()) + 10);
     expect(await (await pool.interestRate(depositor1.address)).accumulated).eq(rate * unscaled * 10);
 
-    //Deposit into NYT
-    await NYT.connect(depositor1).wrap(amt);
+    //Deposit into trade
+    await trade.connect(depositor1).wrap(amt);
     expect(await pool.balanceOf(depositor1.address)).eq(0);
-    expect(await NYTbalanceOf(depositor1.address)).eq(amt);
+    expect(await tradebalanceOf(depositor1.address)).eq(amt);
 
-    //NYT contract should now be getting premium
+    //trade contract should now be getting premium
     await advanceBlock((await currentTime()) + 10);
-    expect(await (await pool.interestRate(NYT.address)).accumulated).eq(rate * unscaled * 10);
+    expect(await (await pool.interestRate(trade.address)).accumulated).eq(rate * unscaled * 10);
   });
 
   it('Deposit into LP and stake', async () => {
@@ -80,7 +79,7 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
     await router
       .connect(depositor1)
       .addLiquidity(
-        NYT.address,
+        trade.address,
         stable.address,
         amt,
         amt,
@@ -90,17 +89,18 @@ makeSharedStateSuite('Collateral Fund Stable', (testEnv: TestEnv) => {
         (await currentTime()) + 100
       );
 
-    let pair = await IUniswapV2PairFactory.connect(await factory.getPair(NYT.address, stable.address), depositor1);
-    expect(await NYTbalanceOf(pair.address)).eq(amt);
-    await NYT.connect(depositor1).addToWhitelist(pair.address, pair.address);
+    let pair = await IUniswapV2PairFactory.connect(await factory.getPair(trade.address, stable.address), depositor1);
+    expect(await tradebalanceOf(pair.address)).eq(amt);
+
+    staker = await Factories.GenericStakingPool.deploy('STK-UNI', 'SUNI', 18, trade.address, pair.address);
+    await trade.connect(depositor1).addToWhitelist(pair.address, staker.address);
 
     //Approve LP tokens for transfer to contract
-    await pair.connect(depositor1).approve(NYT.address, BigNumber.from(2).pow(256).sub(1));
-    await NYT.connect(depositor1).stake(pair.address, await pair.balanceOf(depositor1.address));
+    await pair.connect(depositor1).approve(staker.address, BigNumber.from(2).pow(256).sub(1));
+    await staker.connect(depositor1).stake(await pair.balanceOf(depositor1.address));
 
-    expect(await NYT.totalStaked()).eq(amt);
     await advanceBlock((await currentTime()) + 10);
-    console.log(await NYT.getPoolPremium(pair.address));
-    console.log(await NYT.earned(depositor1.address, pair.address));
+    console.log(await trade.getPoolEarned(pair.address));
+    console.log(await staker.earned(depositor1.address));
   });
 });

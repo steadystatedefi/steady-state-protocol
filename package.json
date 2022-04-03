@@ -31,7 +31,7 @@
     "hardhat:bsc:fork": "KEY_SEL=BSC_FORK hardhat --network bsc_fork",
     "hardhat:avalanche:fork": "KEY_SEL=AVALANCHE_FORK hardhat --network avalanche_fork",
     "hardhat:avalanche-test:fork": "KEY_SEL=AVALANCHE_TESTNET_FORK hardhat --network avalanche_testnet_fork",
-    
+
     "hardhat:avalanche": "KEY_SEL=AVA hardhat --network avalanche",
     "hardhat:ava-test": "KEY_SEL=AVA hardhat --network avalanche_testnet",
 
@@ -79,7 +79,7 @@
     "verify:main": "npm run hardhat:main -- verify:verify-all-contracts",
     "verify:ropsten": "npm run hardhat:ropsten -- verify:verify-all-contracts",
     "verify:kovan": "npm run hardhat:kovan -- verify:verify-all-contracts",
-    
+
     "verify:rinkeby": "npm run hardhat:rinkeby -- verify:verify-all-contracts",
     "verify:bsc": "npm run hardhat:bsc -- verify:verify-all-contracts",
     "verify:bsc-test": "npm run hardhat:bsc-test -- verify:verify-all-contracts",
@@ -104,10 +104,11 @@
     "test-example": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/example.spec.ts",
     "test-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-rounds.spec.ts",
     "test-insurance": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/insurance.spec.ts",
+    "test-staking": "FORK=main hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/staking.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-pool.bench.ts",
-  
+
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 hardhat coverage --network coverage --testfiles \"test-suites/test-main/*.spec.ts\"",
-  
+
     "prettier:check": "npm prettier -c 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'",
     "prettier:write": "prettier --write 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'"
   },

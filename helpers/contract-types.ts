@@ -7,7 +7,8 @@ export const Factories = {
   PriceOracle: wrap(types.PriceOracleFactory),
   WeightedPoolExtension: wrap(types.WeightedPoolExtensionFactory),
   PremiumCollector: wrap(types.PremiumCollectorFactory),
-  NoYieldToken: wrap(types.NoYieldTokenFactory),
+  TradeableToken: wrap(types.TradeableTokenFactory),
+  GenericStakingPool: wrap(types.GenericStakingFactory),
 
   MockWeightedRounds: mock(types.MockWeightedRoundsFactory),
   MockCollateralFund: mock(types.MockCollateralFundFactory),
