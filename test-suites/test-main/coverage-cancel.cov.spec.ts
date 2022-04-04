@@ -324,7 +324,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
     expect(stats1.totalDemand).eq(0);
     expect(stats1.totalCovered).eq(0);
-    //    expect(stats1.totalPremium).gte(stats0.totalPremium); // TODO fix getter
+    expect(stats1.totalPremium).gte(stats0.totalPremium);
     expect(stats1.premiumRate).eq(0);
     expect(stats1.pendingCovered).eq(0);
 

@@ -455,31 +455,27 @@ abstract contract WeightedRoundsBase {
     Rounds.Demand[] storage demands = _demands[params.insured];
     premium = _premiums[params.insured];
 
-    uint256 demandLength = demands.length;
-    if (demandLength == 0) {
-      params.done = true;
-      return (coverage, covered, premium);
-    }
-    if (params.loopLimit == 0) {
-      return (coverage, covered, premium);
-    }
-
-    covered = _covered[params.insured];
-    params.receivedCoverage = covered.coveredUnits;
-
     (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
       premium.coveragePremium,
       premium.coveragePremiumRate,
       premium.lastUpdatedAt
     );
 
-    for (; params.loopLimit > 0; params.loopLimit--) {
-      if (
-        covered.lastUpdateIndex >= demandLength ||
-        !_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered, premium)
-      ) {
-        params.done = true;
-        break;
+    uint256 demandLength = demands.length;
+    if (demandLength == 0) {
+      params.done = true;
+    } else {
+      covered = _covered[params.insured];
+      params.receivedCoverage = covered.coveredUnits;
+
+      for (; params.loopLimit > 0; params.loopLimit--) {
+        if (
+          covered.lastUpdateIndex >= demandLength ||
+          !_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered, premium)
+        ) {
+          params.done = true;
+          break;
+        }
       }
     }
 
@@ -1344,7 +1340,7 @@ abstract contract WeightedRoundsBase {
     providedCoverage = covered.coveredUnits * _unitSize;
 
     if (part.batchNo > 0) {
-      excessCoverage = _cancelCovered(insured, part, d);
+      excessCoverage = _cancelCovered(insured, part, d, coverage.totalPremium);
     }
     _pendingCancelledCoverageUnits += covered.coveredUnits - uint64(covered.lastPartialRoundNo) * d.unitPerRound;
 
@@ -1375,13 +1371,14 @@ abstract contract WeightedRoundsBase {
   function _cancelCovered(
     address insured,
     PartialState memory part,
-    Rounds.Demand memory d
+    Rounds.Demand memory d,
+    uint256 finalPremium
   ) private returns (uint128 excessCoverage) {
     Rounds.Batch storage partBatch = _batches[part.batchNo];
     Rounds.Batch memory b = partBatch;
 
     _updateTimeMark(part, b.unitPerRound);
-    _cancelPremium(insured);
+    _cancelPremium(insured, finalPremium);
 
     if (d.unitPerRound > 0) {
       (partBatch.unitPerRound, partBatch.roundPremiumRateSum) = (
@@ -1410,20 +1407,24 @@ abstract contract WeightedRoundsBase {
     return premium;
   }
 
-  function _cancelPremium(address insured) private {
+  function _cancelPremium(address insured, uint256 finalPremium) private {
     Rounds.CoveragePremium memory poolPremium = _syncPremium(_poolPremium);
-    Rounds.CoveragePremium memory premium = _syncPremium(_premiums[insured]);
 
     // console.log('cancelPremium', _poolPremium.coveragePremiumRate, premium.coveragePremiumRate);
+    finalPremium = finalPremium.wadDiv(_unitSize);
+    require(finalPremium <= type(uint96).max);
 
     // TODO store coveragePremium of cancelled coverages in a separate field
-    // _premiumOfCancelled += premium.coveragePremium;
-    // poolPremium.coveragePremium -= premium.coveragePremium;
+    // _premiumOfCancelled += uint96(finalPremium);
+    // poolPremium.coveragePremium -= uint96(finalPremium);
 
-    poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
-    premium.coveragePremiumRate = 0;
+    poolPremium.coveragePremiumRate -= _premiums[insured].coveragePremiumRate;
 
-    _premiums[insured] = premium;
+    _premiums[insured] = Rounds.CoveragePremium({
+      coveragePremiumRate: 0,
+      coveragePremium: uint96(finalPremium),
+      lastUpdatedAt: poolPremium.lastUpdatedAt
+    });
     _poolPremium = poolPremium;
   }
 }
