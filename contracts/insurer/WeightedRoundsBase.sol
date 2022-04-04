@@ -67,6 +67,7 @@ abstract contract WeightedRoundsBase {
   }
   /// @dev segments of coverage integral NB! Each segment is independent, it does NOT include / cosider previous segments
   mapping(uint64 => TimeMark) private _marks;
+  // uint256 private _premiumOfCancelled;
 
   uint80 private _pendingCancelledCoverageUnits;
   uint80 private _pendingCancelledDemandUnits;
@@ -258,7 +259,7 @@ abstract contract WeightedRoundsBase {
             b.state = Rounds.State.Full;
 
             Rounds.CoveragePremium memory premium = _poolPremium;
-            _updateTotalPremium(thisBatchNo, premium, b);
+            _addPartialToTotalPremium(thisBatchNo, premium, b);
             _poolPremium = premium;
 
             _partial = PartialState({roundCoverage: 0, batchNo: b.nextBatchNo, roundNo: 0});
@@ -696,6 +697,7 @@ abstract contract WeightedRoundsBase {
 
     coverage.totalCovered = _adjustedTotalUnits(b.totalUnitsBeforeBatch) + uint256(part.roundNo) * b.unitPerRound;
     coverage.pendingCovered = part.roundCoverage;
+    // coverage.totalPremium += _premiumOfCancelled;
 
     _finalizePremium(coverage, false);
     coverage.totalCovered *= _unitSize;
@@ -852,7 +854,7 @@ abstract contract WeightedRoundsBase {
             if (!params.premiumUpdated) {
               params.premium = _poolPremium;
             }
-            _updateTotalPremium(part.batchNo, params.premium, b);
+            _addPartialToTotalPremium(part.batchNo, params.premium, b);
             params.premiumUpdated = true;
           }
         }
@@ -917,7 +919,7 @@ abstract contract WeightedRoundsBase {
     return (amount, loopLimit, b);
   }
 
-  function _updateTotalPremium(
+  function _addPartialToTotalPremium(
     uint64 batchNo,
     Rounds.CoveragePremium memory premium,
     Rounds.Batch memory b
@@ -1378,7 +1380,8 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch storage partBatch = _batches[part.batchNo];
     Rounds.Batch memory b = partBatch;
 
-    _cancelPremium(insured, part, b);
+    _updateTimeMark(part, b.unitPerRound);
+    _cancelPremium(insured);
 
     if (d.unitPerRound > 0) {
       (partBatch.unitPerRound, partBatch.roundPremiumRateSum) = (
@@ -1396,28 +1399,31 @@ abstract contract WeightedRoundsBase {
     }
   }
 
-  function _cancelPremium(
-    address insured,
-    PartialState memory part,
-    Rounds.Batch memory partBatch
-  ) internal {
-    Rounds.CoveragePremium memory poolPremium = _poolPremium;
-    Rounds.CoveragePremium memory premium = _premiums[insured];
+  function _syncPremium(Rounds.CoveragePremium memory premium) private view returns (Rounds.CoveragePremium memory) {
+    if (premium.lastUpdatedAt != 0) {
+      uint256 v = premium.coveragePremium +
+        uint256(premium.coveragePremiumRate) *
+        (uint32(block.timestamp) - premium.lastUpdatedAt);
+      require((premium.coveragePremium = uint96(v)) == v);
+    }
+    premium.lastUpdatedAt = uint32(block.timestamp);
+    return premium;
+  }
 
-    _updateTimeMark(part, partBatch.unitPerRound);
-    _updateTotalPremium(part.batchNo, poolPremium, partBatch);
+  function _cancelPremium(address insured) internal {
+    Rounds.CoveragePremium memory poolPremium = _syncPremium(_poolPremium);
+    Rounds.CoveragePremium memory premium = _syncPremium(_premiums[insured]);
+
+    // console.log('cancelPremium', _poolPremium.coveragePremiumRate, premium.coveragePremiumRate);
 
     // TODO store coveragePremium of cancelled coverages in a separate field
-
-    // poolPremium.coveragePremium -=
-    //   premium.coveragePremium +
-    //   uint96(premium.coveragePremiumRate) *
-    //   (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
-
-    // console.log('premiumRates', poolPremium.coveragePremiumRate, premium.coveragePremiumRate);
+    // _premiumOfCancelled += premium.coveragePremium;
+    // poolPremium.coveragePremium -= premium.coveragePremium;
 
     poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
-    _premiums[insured].coveragePremiumRate = 0;
+    premium.coveragePremiumRate = 0;
+
+    _premiums[insured] = premium;
     _poolPremium = poolPremium;
   }
 }

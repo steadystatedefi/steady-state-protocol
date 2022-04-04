@@ -289,16 +289,38 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
 
+    expect(
+      totals0.totalCovered
+        .add(totals0.pendingCovered)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    ).eq(totals0.premiumRate);
+    expect(
+      stats0.totalCovered
+        .add(stats0.pendingCovered)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    ).eq(stats0.premiumRate);
+
     expect(await pool.getExcessCoverage()).eq(0);
     await insured.cancelCoverage(zeroAddress(), 0);
-    {
-      const excessCoverage = await pool.getExcessCoverage();
-      expect(excessCoverage).gte(stats0.totalCovered);
-      expect(excessCoverage).lte(stats0.totalCovered.add(stats0.pendingCovered));
-    }
+
+    const excessCoverage = await pool.getExcessCoverage();
+    expect(excessCoverage).gte(stats0.totalCovered);
+    expect(excessCoverage).lte(stats0.totalCovered.add(stats0.pendingCovered));
 
     const { coverage: totals1 } = await pool.getTotals();
     const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(
+      totals1.totalCovered
+        .add(totals1.pendingCovered)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    ).eq(totals1.premiumRate);
 
     expect(stats1.totalDemand).eq(0);
     expect(stats1.totalCovered).eq(0);
@@ -308,13 +330,16 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
     expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand);
     expect(totals0.totalCovered.sub(totals1.totalCovered)).eq(stats0.totalCovered);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).lte(stats0.premiumRate);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).eq(
+      excessCoverage
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    );
     expect(totals0.totalPremium).lt(totals1.totalPremium);
-
-    // const pendingRate = stats0.premiumRate.mul(stats0.totalCovered).div(stats0.totalCovered.add(stats0.pendingCovered))
-    // console.log(totals0.premiumRate.sub(totals1.premiumRate).toString());
-    // console.log(stats0.premiumRate.toString());
-    // console.log(totals0.pendingCovered.sub(totals1.pendingCovered).toString());
   });
 
+  // TODO add more coverage and check premium (check for proper timemark)
   // TODO apply delayed adjustments
 });
