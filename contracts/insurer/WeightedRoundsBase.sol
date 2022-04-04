@@ -169,8 +169,12 @@ abstract contract WeightedRoundsBase {
       }
 
       if (_addToSlot(demand, demands, addPerRound, b.rounds)) {
-        demand.startBatchNo = thisBatch;
-        demand.premiumRate = params.premiumRate;
+        demand = Rounds.Demand({
+          startBatchNo: thisBatch,
+          premiumRate: params.premiumRate,
+          rounds: b.rounds,
+          unitPerRound: addPerRound
+        });
       }
 
       if (addPerRound > 0) {
@@ -297,15 +301,12 @@ abstract contract WeightedRoundsBase {
         demand.rounds = t;
         return false;
       }
-      demand.rounds = type(uint24).max;
-      batchRounds = t + 1;
+      // overflow on amount of rounds per slot
     }
 
     if (demand.unitPerRound != 0) {
       demands.push(demand);
     }
-    demand.rounds = batchRounds;
-    demand.unitPerRound = addPerRound;
     return true;
   }
 
