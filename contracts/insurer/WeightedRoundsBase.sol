@@ -1376,7 +1376,7 @@ abstract contract WeightedRoundsBase {
     address insured,
     PartialState memory part,
     Rounds.Demand memory d
-  ) internal returns (uint128 excessCoverage) {
+  ) private returns (uint128 excessCoverage) {
     Rounds.Batch storage partBatch = _batches[part.batchNo];
     Rounds.Batch memory b = partBatch;
 
@@ -1410,7 +1410,7 @@ abstract contract WeightedRoundsBase {
     return premium;
   }
 
-  function _cancelPremium(address insured) internal {
+  function _cancelPremium(address insured) private {
     Rounds.CoveragePremium memory poolPremium = _syncPremium(_poolPremium);
     Rounds.CoveragePremium memory premium = _syncPremium(_premiums[insured]);
 
