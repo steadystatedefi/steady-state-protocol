@@ -250,4 +250,20 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
   function withdrawAll() external override returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }
+
+  // function getUnadjusted()
+  //   external
+  //   view
+  //   returns (
+  //     uint256 total,
+  //     uint256 pendingCovered,
+  //     uint256 pendingDemand
+  //   )
+  // {
+  //   return internalGetUnadjustedUnits();
+  // }
+
+  // function applyAdjustments() external {
+  //   internalApplyAdjustmentsToTotals();
+  // }
 }

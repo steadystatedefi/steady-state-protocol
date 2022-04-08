@@ -95,4 +95,20 @@ contract MockWeightedPool is WeightedPoolBase {
   {
     return _dumpInsured(insured);
   }
+
+  function getUnadjusted()
+    external
+    view
+    returns (
+      uint256 total,
+      uint256 pendingCovered,
+      uint256 pendingDemand
+    )
+  {
+    return internalGetUnadjustedUnits();
+  }
+
+  function applyAdjustments() external {
+    internalApplyAdjustmentsToTotals();
+  }
 }

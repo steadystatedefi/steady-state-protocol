@@ -154,8 +154,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   };
 
   afterEach(async () => {
-    // TODO check totals
-    // await checkTotals();
+    await checkTotals();
   });
 
   let totalCoverageProvidedUnits = 0;
@@ -341,12 +340,17 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(stats0.totalDemand).gte(stats0.totalCovered);
     expect(stats0.totalDemand).gt(stats1.totalDemand);
     expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
+
+    const adj = await pool.getUnadjusted();
+    expect(adj.pendingDemand.mul(unitSize)).eq(stats0.totalDemand.sub(stats1.totalDemand));
+    expect(adj.pendingCovered).eq(0);
   });
 
   it('Repeat coverage demand cancellation for insureds[0]', async () => {
     const insured = insureds[0];
 
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const adj0 = await pool.getUnadjusted();
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
@@ -357,6 +361,10 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(stats0.pendingCovered).eq(stats1.pendingCovered);
     expect(stats0.totalDemand).eq(stats1.totalDemand);
     expect(stats0.totalPremium).lt(stats1.totalPremium);
+
+    const adj1 = await pool.getUnadjusted();
+    expect(adj0.pendingDemand).eq(adj1.pendingDemand);
+    expect(adj0.pendingCovered).eq(adj1.pendingCovered);
   });
 
   it('Fails to cancel coverage without reconcillation', async () => {
@@ -368,6 +376,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
   it('Cancel coverage', async () => {
     const insured = insureds[0];
+    const adj0 = await pool.getUnadjusted();
 
     await insured.reconcileWithAllInsurers(); // required for cancel
 
@@ -390,6 +399,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     ).eq(stats0.premiumRate);
 
     expect(await pool.getExcessCoverage()).eq(0);
+
     await insured.cancelCoverage(zeroAddress(), 0);
 
     const excessCoverage = await pool.getExcessCoverage();
@@ -423,7 +433,35 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
         .div(unitSize)
     );
     expect(totals0.totalPremium).lt(totals1.totalPremium);
+
+    const adj1 = await pool.getUnadjusted();
+    expect(adj0.pendingDemand).eq(adj1.pendingDemand);
+    // TODO expect(adj0.pendingCovered).eq(stats0.totalCovered);
   });
+
+  const callAndCheckTotals = async (fn: () => Promise<void>) => {
+    const { coverage: totals0, total: internals0 } = await pool.getTotals();
+
+    await fn();
+
+    const { coverage: totals1, total: internals1 } = await pool.getTotals();
+
+    expect(totals1.totalDemand).eq(totals0.totalDemand);
+    expect(totals1.totalCovered).eq(totals0.totalCovered);
+    expect(totals1.premiumRate).eq(totals0.premiumRate);
+    expect(totals1.premiumRateUpdatedAt).gte(totals0.premiumRateUpdatedAt);
+    if (totals0.premiumUpdatedAt != 0) {
+      expect(totals1.premiumUpdatedAt).gt(totals0.premiumUpdatedAt);
+      expect(totals1.totalPremium).eq(
+        totals0.totalPremium.add(totals0.premiumRate.mul(totals1.premiumUpdatedAt - totals0.premiumUpdatedAt))
+      );
+    }
+
+    expect(internals0.batchCount).eq(internals1.batchCount);
+    expect(internals0.openRounds).eq(internals1.openRounds);
+    expect(internals0.usableRounds).eq(internals1.usableRounds);
+    expect(internals0.totalCoverable).eq(internals1.totalCoverable);
+  };
 
   it('Cancel coverage demand for insureds[1] to create an inlined zero batch', async () => {
     const insured = insureds[1];
@@ -432,6 +470,8 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
+
+    const adj0 = await pool.getUnadjusted();
 
     const { coverage: totals1 } = await pool.getTotals();
     const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
@@ -459,23 +499,23 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(dump.batches[1].rounds).eq(0);
     expect(dump.batches[1].roundPremiumRateSum).eq(0);
     expect(dump.batches[1].state).eq(1); // this zero round MUST remain "ready to use" to avoid lockup
+
+    const adj1 = await pool.getUnadjusted();
+    expect(adj0.pendingDemand).eq(adj1.pendingDemand);
+    expect(adj0.pendingCovered).gt(0);
   });
 
-  it('Push the excess released by the cancellation', async () => {
-    // const insured = insureds[2];
-
+  it('Push the excess released by cancellations', async () => {
     const { coverage: totals0 } = await pool.getTotals();
-    // const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
     const excessCoverage = await pool.getExcessCoverage();
 
-    //    console.log(await pool.dump());
     await pool.pushCoverageExcess();
-    //    console.log(await pool.dump());
-    expect(await pool.getExcessCoverage()).eq(0);
 
     const { coverage: totals1 } = await pool.getTotals();
-    // const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+    expect(await pool.getExcessCoverage()).eq(0);
 
+    expect(totals1.premiumRateUpdatedAt).gt(totals0.premiumRateUpdatedAt);
+    expect(totals1.premiumUpdatedAt).gt(totals0.premiumUpdatedAt);
     expect(totals1.totalDemand).eq(totals0.totalDemand);
     expect(totals1.totalCovered.add(totals1.pendingCovered).sub(totals0.totalCovered.add(totals0.pendingCovered))).eq(
       excessCoverage
@@ -487,11 +527,48 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
         .div(unitSize)
     );
     expect(totals1.totalPremium).gt(totals0.totalPremium);
-
-    // expect(excessCoverage).gte(stats0.totalCovered);
-    // expect(excessCoverage).lte(stats0.totalCovered.add(stats0.pendingCovered));
   });
 
-  // TODO add more coverage and check premium (check for proper timemark)
-  // TODO apply delayed adjustments
+  it('Check totals after reconcile', async () => {
+    await callAndCheckTotals(async () => {
+      enum InsuredStatus {
+        Unknown,
+        JoinCancelled,
+        JoinRejected,
+        JoinFailed,
+        Declined,
+        Joining,
+        Accepted,
+        Banned,
+        NotApplicable,
+      }
+
+      for (const insured of insureds) {
+        if ((await pool.statusOf(insured.address)) != InsuredStatus.Accepted) {
+          continue;
+        }
+
+        const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+        await insured.reconcileWithAllInsurers();
+        const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+        expect(stats1.totalDemand).eq(stats0.totalDemand);
+        expect(stats1.totalCovered).eq(stats0.totalCovered);
+        expect(stats1.premiumRate).eq(stats0.premiumRate);
+        expect(stats1.premiumRateUpdatedAt).gte(stats0.premiumRateUpdatedAt);
+        if (stats0.premiumUpdatedAt != 0) {
+          expect(stats1.premiumUpdatedAt).gt(stats0.premiumUpdatedAt);
+          expect(stats1.totalPremium).eq(
+            stats0.totalPremium.add(stats0.premiumRate.mul(stats1.premiumUpdatedAt - stats0.premiumUpdatedAt))
+          );
+        }
+      }
+    });
+  });
+
+  it.skip('Apply delayed adjustments', async () => {
+    await callAndCheckTotals(async () => {
+      await pool.applyAdjustments();
+    });
+  });
 });
