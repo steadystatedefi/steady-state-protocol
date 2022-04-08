@@ -95,7 +95,10 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   });
 
   const checkTotals = async () => {
-    //    return;
+    if (testEnv.underCoverage) {
+      return;
+    }
+
     await advanceTimeAndBlock(10);
 
     let totalDemand = 0;
@@ -446,6 +449,10 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
     const { coverage: totals1, total: internals1 } = await pool.getTotals();
 
+    if (testEnv.underCoverage) {
+      return;
+    }
+
     expect(totals1.totalDemand).eq(totals0.totalDemand);
     expect(totals1.totalCovered).eq(totals0.totalCovered);
     expect(totals1.premiumRate).eq(totals0.premiumRate);
@@ -566,7 +573,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     });
   });
 
-  it.skip('Apply delayed adjustments', async () => {
+  it('Apply delayed adjustments', async () => {
     await callAndCheckTotals(async () => {
       await pool.applyAdjustments();
     });

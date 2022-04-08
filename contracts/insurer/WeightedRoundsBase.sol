@@ -1296,13 +1296,10 @@ abstract contract WeightedRoundsBase {
 
     uint64 batchNo = _partial.batchNo;
     totals = _batches[batchNo].totalUnitsBeforeBatch - totals;
-    batchNo = _batches[batchNo].nextBatchNo;
 
     for (; batchNo > 0; ) {
       Rounds.Batch storage b = _batches[batchNo];
-      if (b.totalUnitsBeforeBatch != totals) {
-        b.totalUnitsBeforeBatch = totals;
-      }
+      b.totalUnitsBeforeBatch = totals;
       totals += uint80(b.rounds) * b.unitPerRound;
       batchNo = b.nextBatchNo;
     }
