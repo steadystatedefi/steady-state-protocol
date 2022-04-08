@@ -169,7 +169,7 @@ abstract contract WeightedRoundsBase {
         }
       }
 
-      if (_addToSlot(demand, demands, addPerRound, b.rounds)) {
+      if (_addToSlot(demand, demands, addPerRound, b.rounds, params.premiumRate)) {
         demand = Rounds.Demand({
           startBatchNo: thisBatch,
           premiumRate: params.premiumRate,
@@ -291,9 +291,10 @@ abstract contract WeightedRoundsBase {
     Rounds.Demand memory demand,
     Rounds.Demand[] storage demands,
     uint16 addPerRound,
-    uint24 batchRounds
+    uint24 batchRounds,
+    uint40 premiumRate
   ) private returns (bool) {
-    if (demand.unitPerRound == addPerRound) {
+    if (demand.unitPerRound == addPerRound && demand.premiumRate == premiumRate) {
       uint24 t;
       unchecked {
         t = batchRounds + demand.rounds;
@@ -593,6 +594,8 @@ abstract contract WeightedRoundsBase {
     coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
     if (coverage.premiumUpdatedAt != 0) {
       coverage.totalPremium += coverage.premiumRate * (block.timestamp - coverage.premiumUpdatedAt);
+      coverage.premiumRateUpdatedAt = coverage.premiumUpdatedAt;
+      coverage.premiumUpdatedAt = uint32(block.timestamp);
     }
   }
 
@@ -601,7 +604,7 @@ abstract contract WeightedRoundsBase {
   function _calcPremium(
     Rounds.Demand memory d,
     Rounds.CoveragePremium memory premium,
-    uint256 rounds,
+    uint24 rounds,
     uint256 pendingCovered,
     uint256 premiumRate,
     uint256 batchUnitPerRound
@@ -622,6 +625,8 @@ abstract contract WeightedRoundsBase {
     uint256 v = premium.coveragePremium;
     if (premium.lastUpdatedAt != 0) {
       v += uint256(premium.coveragePremiumRate) * (mark.timestamp - premium.lastUpdatedAt);
+      // TODO consider if duration should be subtracted
+      // v += uint256(premium.coveragePremiumRate) * (mark.timestamp - mark.duration - premium.lastUpdatedAt);
     }
 
     lastUpdatedAt = mark.timestamp;
@@ -634,16 +639,13 @@ abstract contract WeightedRoundsBase {
     require(v <= type(uint96).max);
     coveragePremium = uint96(v);
 
+    v = premium.coveragePremiumRate + premiumRate * uint256(rounds) * d.unitPerRound;
     if (pendingCovered > 0) {
       // normalization by unitSize to reduce storage requirements
-      v = pendingCovered + (rounds * d.unitPerRound) * _unitSize;
-      v = (v * premiumRate + (_unitSize - 1)) / _unitSize;
-    } else {
-      v = premiumRate * (rounds * d.unitPerRound);
+      // roundup is aggresive here to ensure that this pools is guaranteed to pay not less that it pays out
+      v += (pendingCovered * premiumRate + (_unitSize - 1)) / _unitSize;
     }
-    v += premium.coveragePremiumRate;
-    require(v <= type(uint64).max);
-    coveragePremiumRate = uint64(v);
+    require((coveragePremiumRate = uint64(v)) == v);
     // console.log('premiumAfter', coveragePremium, coveragePremiumRate);
   }
 
@@ -968,6 +970,19 @@ abstract contract WeightedRoundsBase {
     uint64 firstOpenBatch;
     PartialState part;
     Rounds.Batch[] batches;
+  }
+
+  function _dumpInsured(address insured)
+    internal
+    view
+    returns (
+      Rounds.InsuredEntry memory,
+      Rounds.Demand[] memory,
+      Rounds.Coverage memory,
+      Rounds.CoveragePremium memory
+    )
+  {
+    return (_insureds[insured], _demands[insured], _covered[insured], _premiums[insured]);
   }
 
   function _dump() internal view returns (Dump memory dump) {
@@ -1377,7 +1392,9 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch storage partBatch = _batches[part.batchNo];
     Rounds.Batch memory b = partBatch;
 
+    // TODO reduce the integral sum proportionally and add that part into the total premium
     _updateTimeMark(part, b.unitPerRound);
+
     _cancelPremium(insured, finalPremium);
 
     if (d.unitPerRound > 0) {

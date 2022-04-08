@@ -12,6 +12,7 @@ struct DemandedCoverage {
   uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
   uint256 totalPremium; // time-cumulated of premiumRate
   uint32 premiumUpdatedAt;
+  uint32 premiumRateUpdatedAt;
 }
 
 struct TotalCoverage {

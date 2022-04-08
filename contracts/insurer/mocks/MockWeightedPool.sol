@@ -42,6 +42,10 @@ contract MockWeightedPool is WeightedPoolBase {
     return _excessCoverage;
   }
 
+  function setExcessCoverage(uint256 v) external {
+    _excessCoverage = v;
+  }
+
   function internalPostCoverageCancel() internal override {}
 
   function receivableDemandedCoverage(address insured)
@@ -77,5 +81,18 @@ contract MockWeightedPool is WeightedPoolBase {
 
   function dump() external view returns (Dump memory) {
     return _dump();
+  }
+
+  function dumpInsured(address insured)
+    external
+    view
+    returns (
+      Rounds.InsuredEntry memory,
+      Rounds.Demand[] memory,
+      Rounds.Coverage memory,
+      Rounds.CoveragePremium memory
+    )
+  {
+    return _dumpInsured(insured);
   }
 }

@@ -224,20 +224,58 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     expect(totalInsuredPremiumRate).eq(payList[0].amount);
   });
 
-  it('Check totals', async () => {
+  const checkTotals = async () => {
     let totalDemand = 0;
     let totalCovered = 0;
+    let totalRate = 0;
+    let totalPremium = 0;
+
+    let premiumRates: {
+      at: number;
+      rate: number;
+    }[] = [];
 
     for (const insured of insureds) {
       const { coverage } = await pool.receivableDemandedCoverage(insured.address);
       expect(coverage.totalDemand.toNumber()).gte(coverage.totalCovered.toNumber());
       totalCovered += coverage.totalCovered.toNumber();
       totalDemand += coverage.totalDemand.toNumber();
+      totalRate += coverage.premiumRate.toNumber();
+      totalPremium += coverage.totalPremium.toNumber();
+      premiumRates.push({
+        at: coverage.premiumUpdatedAt,
+        rate: coverage.premiumRate.toNumber(),
+      });
     }
 
     const totals = await pool.getTotals();
     expect(totalCovered).eq(totals.coverage.totalCovered);
     expect(totalDemand).eq(totals.coverage.totalDemand);
+
+    let precisionMargin = Math.round(insureds.length / 2);
+
+    // rounding may lead to a slightly higher sum of rates per insured
+    expect(totals.coverage.premiumRate.toNumber()).within(totalRate - precisionMargin, totalRate);
+
+    let i = 0;
+    for (const r of premiumRates) {
+      if (r.at == 0) {
+        continue;
+      }
+      const timeDelta = totals.coverage.premiumUpdatedAt - r.at;
+      expect(timeDelta).gte(0);
+      totalPremium += timeDelta * r.rate;
+      precisionMargin += r.at - insuredTS[i++];
+    }
+
+    expect(totals.coverage.totalPremium.toNumber()).within(
+      totalPremium > precisionMargin ? totalPremium - precisionMargin : 0,
+      totalPremium + 1
+    );
+  };
+
+  it('Check totals', async () => {
+    await checkTotals();
   });
 
   it('Reconcile', async () => {
