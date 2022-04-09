@@ -80,21 +80,20 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
   function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
     require(msg.sender == address(this));
 
-    DemandedCoverage memory premium = super.internalGetPremiumTotals();
+    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
 
+    uint256 excessCoverage = _excessCoverage + excess;
     if (paidoutCoverage > 0) {
-      uint256 total = premium.totalCovered + premium.pendingCovered;
-      _inverseExchangeRate = WadRayMath.RAY - (total - paidoutCoverage).rayDiv(total).rayMul(exchangeRate());
+      uint256 total = coverage.totalCovered + coverage.pendingCovered + excessCoverage;
+      _inverseExchangeRate = WadRayMath.RAY - total.rayDiv(total + paidoutCoverage).rayMul(exchangeRate());
     }
 
     if (excess > 0) {
-      _excessCoverage = (excess += _excessCoverage);
-      emit ExcessCoverageIncreased(excess);
-    } else {
-      excess = _excessCoverage;
+      _excessCoverage = excessCoverage;
+      emit ExcessCoverageIncreased(excessCoverage);
     }
-    _afterBalanceUpdate(excess, totals, premium);
+    _afterBalanceUpdate(excessCoverage, totals, coverage);
 
     internalPostCoverageCancel();
   }

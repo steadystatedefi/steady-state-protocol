@@ -1405,8 +1405,14 @@ abstract contract WeightedRoundsBase {
       b.roundPremiumRateSum - uint56(d.premiumRate) * d.unitPerRound
     );
 
-    if (part.roundCoverage > 0) {
+    // TODO optimize gas
+    if (b.unitPerRound == 0) {
+      excessCoverage = part.roundCoverage;
+      _partial.roundCoverage = part.roundCoverage = 0;
+      _partial.roundNo = part.roundNo = 0;
+    } else if (part.roundCoverage > 0) {
       excessCoverage = uint128(_unitSize) * b.unitPerRound;
+
       if (part.roundCoverage > excessCoverage) {
         (part.roundCoverage, excessCoverage) = (excessCoverage, part.roundCoverage - excessCoverage);
         _partial.roundCoverage = part.roundCoverage;

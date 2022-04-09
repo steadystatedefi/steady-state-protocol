@@ -371,7 +371,10 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(stats0.premiumRate).eq(stats1.premiumRate);
     expect(stats0.pendingCovered).eq(stats1.pendingCovered);
     expect(stats0.totalDemand).eq(stats1.totalDemand);
-    expect(stats0.totalPremium).lt(stats1.totalPremium);
+
+    if (!testEnv.underCoverage) {
+      expect(stats0.totalPremium).lt(stats1.totalPremium);
+    }
 
     const adj1 = await pool.getUnadjusted();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
@@ -425,7 +428,11 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
     expect(await pool.getExcessCoverage()).eq(0);
 
+    /*******************/
+    /* Cancel coverage */
     await insured.cancelCoverage(zeroAddress(), 0);
+    /*******************/
+    /*******************/
 
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
     expect(await cc.balanceOf(insured.address)).eq(0);
@@ -589,6 +596,11 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
         expect(stats1.totalCovered).eq(stats0.totalCovered);
         expect(stats1.premiumRate).eq(stats0.premiumRate);
         expect(stats1.premiumRateUpdatedAt).gte(stats0.premiumRateUpdatedAt);
+
+        if (testEnv.underCoverage) {
+          continue;
+        }
+
         if (stats0.premiumUpdatedAt != 0) {
           expect(stats1.premiumUpdatedAt).gt(stats0.premiumUpdatedAt);
           expect(stats1.totalPremium).eq(
@@ -609,6 +621,17 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const adj0 = await pool.getUnadjusted();
     expect(adj0.pendingDemand).eq(0);
     expect(adj0.pendingCovered).eq(0);
+  });
+
+  it('Check pool supply vs user balances (1)', async () => {
+    let total = await pool.totalSupply();
+
+    for (const user of testEnv.users) {
+      const balance = await pool.balanceOf(user.address);
+      total = total.sub(balance);
+    }
+
+    expect(total).eq(0);
   });
 
   it('Cancel coverage for insureds[1] with partial repayment', async () => {
@@ -632,13 +655,18 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const ptSupply0 = await pool.totalSupply();
     expect(ptSupply0).eq(totalInvested);
 
+    /*******************/
+    /* Cancel coverage */
     await insured.cancelCoverage(receiver, payoutAmount);
+    /*******************/
+    /*******************/
 
     expect(await pool.totalSupply()).eq(totalInvested - payoutAmount);
+    totalInvested -= payoutAmount;
 
     expect(await cc.balanceOf(insured.address)).eq(0);
     expect(await cc.balanceOf(receiver)).eq(payoutAmount);
-    expect(await cc.balanceOf(pool.address)).eq(totalInvested - receivedCollateral - payoutAmount);
+    expect(await cc.balanceOf(pool.address)).eq(totalInvested - receivedCollateral);
 
     const excessCoverage = await pool.getExcessCoverage();
     expect(excessCoverage).gte(stats0.totalCovered.sub(payoutAmount));
@@ -674,5 +702,94 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(totals0.totalPremium).lt(totals1.totalPremium);
   });
 
-  // TODO check balances after the partial repayment
+  it('Check pool supply vs user balances (2)', async () => {
+    let total = await pool.totalSupply();
+
+    for (const user of testEnv.users) {
+      const balance = await pool.balanceOf(user.address);
+      total = total.sub(balance);
+    }
+
+    expect(total).eq(0);
+  });
+
+  it('Cancel coverage for insureds[2] with full repayment', async () => {
+    expect(await pool.totalSupply()).eq(totalInvested);
+
+    const insured = insureds[2];
+
+    await insured.reconcileWithAllInsurers(); // required to cancel
+
+    const { coverage: totals0 } = await pool.getTotals();
+    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+
+    // collateral will be returned from the insured
+    receivedCollateral -= (await cc.balanceOf(insured.address)).toNumber();
+
+    const excessCoverage0 = await pool.getExcessCoverage();
+
+    const receiver = createRandomAddress();
+    const payoutAmount = stats0.totalCovered.toNumber();
+
+    const ptSupply0 = await pool.totalSupply();
+    expect(ptSupply0).eq(totalInvested);
+
+    /*******************/
+    /* Cancel coverage */
+    await insured.cancelCoverage(receiver, payoutAmount);
+    /*******************/
+    /*******************/
+
+    expect(await pool.totalSupply()).eq(totalInvested - payoutAmount);
+
+    expect(await cc.balanceOf(insured.address)).eq(0);
+    expect(await cc.balanceOf(receiver)).eq(payoutAmount);
+    expect(await cc.balanceOf(pool.address)).eq(totalInvested - receivedCollateral - payoutAmount);
+
+    const excessCoverage = (await pool.getExcessCoverage()).sub(excessCoverage0);
+    expect(excessCoverage).gte(stats0.totalCovered.sub(payoutAmount));
+    expect(excessCoverage).lte(stats0.totalCovered.sub(payoutAmount).add(stats0.pendingCovered));
+
+    const { coverage: totals1 } = await pool.getTotals();
+    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(
+      totals1.totalCovered
+        .add(totals1.pendingCovered)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    ).eq(totals1.premiumRate);
+
+    expect(stats1.totalDemand).eq(0);
+    expect(stats1.totalCovered).eq(0);
+    expect(stats1.totalPremium).gte(stats0.totalPremium);
+    expect(stats1.premiumRate).eq(0);
+    expect(stats1.pendingCovered).eq(0);
+
+    expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand);
+    expect(totals0.totalCovered.sub(totals1.totalCovered)).eq(stats0.totalCovered);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).lte(stats0.premiumRate);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).eq(
+      excessCoverage
+        .add(payoutAmount)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    );
+    expect(totals0.totalPremium).lt(totals1.totalPremium);
+  });
+
+  it('Check pool supply vs user balances (3)', async () => {
+    let total = await pool.totalSupply();
+
+    for (const user of testEnv.users) {
+      const balance = await pool.balanceOf(user.address);
+      total = total.sub(balance);
+    }
+
+    expect(total).eq(0);
+  });
+
+  // TODO check premium rates after partial cancel
 });
