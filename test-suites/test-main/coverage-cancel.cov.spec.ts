@@ -2,7 +2,7 @@ import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { Factories } from '../../helpers/contract-types';
 import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';
 import { expect } from 'chai';
-import { advanceTimeAndBlock, currentTime } from '../../helpers/runtime-utils';
+import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { zeroAddress } from 'ethereumjs-util';
 
@@ -581,5 +581,55 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const adj0 = await pool.getUnadjusted();
     expect(adj0.pendingDemand).eq(0);
     expect(adj0.pendingCovered).eq(0);
+  });
+
+  it('Cancel coverage for insureds[1] with repayment', async () => {
+    const insured = insureds[1];
+
+    await insured.reconcileWithAllInsurers(); // required for cancel
+
+    const { coverage: totals0 } = await pool.getTotals();
+    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(await pool.getExcessCoverage()).eq(0);
+
+    const receiver = createRandomAddress();
+    const payoutAmount = stats0.totalCovered.div(4);
+    await insured.cancelCoverage(receiver, payoutAmount);
+
+    expect(await cc.balanceOf(receiver)).eq(payoutAmount);
+
+    const excessCoverage = await pool.getExcessCoverage();
+    expect(excessCoverage).gte(stats0.totalCovered.sub(payoutAmount));
+    expect(excessCoverage).lte(stats0.totalCovered.sub(payoutAmount).add(stats0.pendingCovered));
+
+    const { coverage: totals1 } = await pool.getTotals();
+    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(
+      totals1.totalCovered
+        .add(totals1.pendingCovered)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    ).eq(totals1.premiumRate);
+
+    expect(stats1.totalDemand).eq(0);
+    expect(stats1.totalCovered).eq(0);
+    expect(stats1.totalPremium).gte(stats0.totalPremium);
+    expect(stats1.premiumRate).eq(0);
+    expect(stats1.pendingCovered).eq(0);
+
+    expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand);
+    expect(totals0.totalCovered.sub(totals1.totalCovered)).eq(stats0.totalCovered);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).lte(stats0.premiumRate);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).eq(
+      excessCoverage
+        .add(payoutAmount)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    );
+    expect(totals0.totalPremium).lt(totals1.totalPremium);
   });
 });

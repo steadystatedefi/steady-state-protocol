@@ -1343,9 +1343,9 @@ abstract contract WeightedRoundsBase {
     providedCoverage = covered.coveredUnits * _unitSize;
     _pendingCancelledCoverageUnits += covered.coveredUnits - uint64(covered.lastPartialRoundNo) * d.unitPerRound;
 
-    _premiums[insured] = _cancelPremium(premium, coverage.totalPremium);
-
-    if (part.batchNo > 0 && d.unitPerRound > 0) {
+    if (part.batchNo > 0) {
+      _premiums[insured] = _cancelPremium(premium, coverage.totalPremium);
+      // ATTN! There MUST be a call to _updateTimeMark AFTER _cancelPremium - this call is inside _cancelPartialCoverage
       excessCoverage = _cancelPartialCoverage(part, d);
     }
 
@@ -1381,9 +1381,14 @@ abstract contract WeightedRoundsBase {
   {
     Rounds.Batch storage partBatch = _batches[part.batchNo];
     Rounds.Batch memory b = partBatch;
-    require(d.unitPerRound <= b.unitPerRound);
 
+    // Call to _updateTimeMark is MUST, because of _cancelPremium updating _poolPremium's timestamp
     _updateTimeMark(part, b.unitPerRound);
+
+    if (d.unitPerRound == 0) {
+      return 0;
+    }
+    require(d.unitPerRound <= b.unitPerRound);
 
     {
       TimeMark storage mark = _marks[part.batchNo];
