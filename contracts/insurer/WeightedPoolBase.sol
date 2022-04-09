@@ -171,7 +171,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
 
   function totalSupply() public view override returns (uint256) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-    return coverage.totalCovered + coverage.pendingCovered;
+    return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
   /// @dev Returns the current rate that this user earns per-block, and the amount of premium accumulated
