@@ -382,7 +382,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     );
   });
 
-  it('Multiple insured', async () => {
+  it('Multiple insureds', async () => {
     const excess = await subj.excessCoverage();
 
     await subj.setRoundLimits(1, 2, 100);
