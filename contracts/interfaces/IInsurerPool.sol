@@ -36,7 +36,7 @@ interface IInsurerPoolCore is IInsurancePool, IInsurerPoolBase {
   function scaledBalanceOf(address account) external view returns (uint256);
 
   /// @dev returns reward / interest rate of the user
-  function interestRate(address account) external view returns (uint256 rate, uint256 accumulatedRate);
+  function interestOf(address account) external view returns (uint256 rate, uint256 accumulatedRate);
 
   /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY) and goes down with every insurance claim
   function exchangeRate() external view returns (uint256);

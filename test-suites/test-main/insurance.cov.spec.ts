@@ -117,7 +117,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       await fund
         .connect(user)
         .invest(pool.address, unitSize * _perUser, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
-      const interest = await pool.interestRate(user.address);
+      const interest = await pool.interestOf(user.address);
       expect(interest.accumulated).eq(0);
       expect(interest.rate).eq(premiumPerUnit * _perUser);
 
@@ -136,7 +136,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     for (let index = 0; index < testEnv.users.length; index++) {
       const user = testEnv.users[index];
       const balance = await pool.balanceOf(user.address);
-      const interest = await pool.interestRate(user.address);
+      const interest = await pool.interestOf(user.address);
 
       expect(balance).eq(unitSize * userUnits[index]);
       expect(interest.rate).eq(premiumPerUnit * userUnits[index]);

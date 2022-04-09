@@ -654,7 +654,7 @@ abstract contract WeightedRoundsBase {
   }
 
   ///@dev Update the premium totals of coverage by including batch b
-  function _collectPremiumTotals(
+  function _collectPremiumTotalsFromPartial(
     PartialState memory part,
     Rounds.Batch memory b,
     Rounds.CoveragePremium memory premium,
@@ -684,18 +684,20 @@ abstract contract WeightedRoundsBase {
   }
 
   function internalGetPremiumTotals() internal view returns (DemandedCoverage memory coverage) {
-    PartialState memory part = _partial;
-    if (part.batchNo != 0) {
-      return internalGetPremiumTotals(part, _batches[part.batchNo], _poolPremium);
-    }
+    return internalGetPremiumTotals(_partial, _poolPremium);
   }
 
-  function internalGetPremiumTotals(
-    PartialState memory part,
-    Rounds.Batch memory b,
-    Rounds.CoveragePremium memory premium
-  ) internal view returns (DemandedCoverage memory coverage) {
-    _collectPremiumTotals(part, b, premium, coverage);
+  function internalGetPremiumTotals(PartialState memory part, Rounds.CoveragePremium memory premium)
+    internal
+    view
+    returns (DemandedCoverage memory coverage)
+  {
+    if (part.batchNo == 0) {
+      return coverage;
+    }
+
+    Rounds.Batch memory b = _batches[part.batchNo];
+    _collectPremiumTotalsFromPartial(part, b, premium, coverage);
 
     coverage.totalCovered = _adjustedTotalUnits(b.totalUnitsBeforeBatch) + uint256(part.roundNo) * b.unitPerRound;
     coverage.pendingCovered = part.roundCoverage;
@@ -720,7 +722,7 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch memory b = _batches[thisBatch];
     // console.log('batch0', thisBatch, b.nextBatchNo, b.rounds);
     // console.log('batch1', part.roundNo);
-    _collectPremiumTotals(part, b, _poolPremium, coverage);
+    _collectPremiumTotalsFromPartial(part, b, _poolPremium, coverage);
 
     uint80 adjustedTotal = _adjustedTotalUnits(b.totalUnitsBeforeBatch);
     coverage.totalCovered = adjustedTotal + uint256(part.roundNo) * b.unitPerRound;
@@ -774,15 +776,17 @@ abstract contract WeightedRoundsBase {
       uint256 remainingAmount,
       uint256 remainingLoopLimit,
       AddCoverageParams memory params,
-      PartialState memory part,
-      Rounds.Batch memory b
+      PartialState memory part
     )
   {
     part = _partial;
 
     if (amount == 0 || loopLimit == 0 || part.batchNo == 0) {
-      return (amount, loopLimit, params, part, b);
+      return (amount, loopLimit, params, part);
     }
+
+    Rounds.Batch memory b;
+    params.premium = _poolPremium;
 
     (amount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
     if (params.batchUpdated) {
@@ -797,7 +801,7 @@ abstract contract WeightedRoundsBase {
     }
     _partial = part;
     // console.log('partial3', part.batchNo, part.roundNo, part.roundCoverage);
-    return (amount, loopLimit, params, part, b);
+    return (amount, loopLimit, params, part);
   }
 
   ///@dev Adds coverage to the pool and stops if there are no batches left to add coverage to
@@ -853,9 +857,6 @@ abstract contract WeightedRoundsBase {
             require(b.rounds == 0);
             // total premium doesn't need to be updated as the rate remains the same
           } else {
-            if (!params.premiumUpdated) {
-              params.premium = _poolPremium;
-            }
             _addPartialToTotalPremium(part.batchNo, params.premium, b);
             params.premiumUpdated = true;
           }

@@ -29,7 +29,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   mapping(address => UserBalance) internal _balances;
   mapping(address => uint256) internal _premiums;
 
-  Balances.RateAcc internal _totalRate;
+  Balances.RateAcc private _totalRate;
 
   uint256 internal _excessCoverage;
   uint256 internal _inverseExchangeRate;

@@ -136,14 +136,14 @@ abstract contract DirectPoolBase is
     )
   {
     coverageAmount = balanceOf(account);
-    (rate, premium) = interestRate(account);
+    (rate, premium) = interestOf(account);
   }
 
   function totalSupply() public view override returns (uint256) {
     return _totalBalance.rayMul(exchangeRate());
   }
 
-  function interestRate(address account) public view override returns (uint256 rate, uint256 premium) {
+  function interestOf(address account) public view override returns (uint256 rate, uint256 premium) {
     Balances.RateAcc memory b = _premiums[account];
     uint32 at = _cancelledAt;
     if (at == 0) {
