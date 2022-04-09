@@ -577,5 +577,9 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     await callAndCheckTotals(async () => {
       await pool.applyAdjustments();
     });
+
+    const adj0 = await pool.getUnadjusted();
+    expect(adj0.pendingDemand).eq(0);
+    expect(adj0.pendingCovered).eq(0);
   });
 });
