@@ -83,6 +83,7 @@
     "test-weighted": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/weighted-rounds.cov.spec.ts",
     "test-insurance": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/insurance.cov.spec.ts",
     "test-cancel": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/coverage-cancel.cov.spec.ts",
+    "test-currency": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/currency.cov.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/weighted-pool.bench.ts",
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 hardhat coverage --network coverage --testfiles \"test-suites/test-main/*.cov.spec.ts\"",
     "prettier:check": "npm prettier -c 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'",
