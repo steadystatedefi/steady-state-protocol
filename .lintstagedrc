@@ -1,0 +1,5 @@
+{
+  "*.{ts,js,json}": [
+    "pretty-quick --pattern '**/*.*(js|ts|json)' --staged"
+  ]
+}

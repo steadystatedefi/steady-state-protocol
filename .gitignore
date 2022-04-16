@@ -13,8 +13,6 @@ coverage
 .coverage_cache
 .coverage_contracts
 
-package-lock.json
-yarn.lock
 coverage.json
 
 deployed-contracts.json

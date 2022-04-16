@@ -48,11 +48,7 @@ abstract contract MarketAccessBitmaskMin {
   }
 
   modifier onlyRewardConfiguratorOrAdmin() {
-    _remoteAcl.requireAnyOf(
-      msg.sender,
-      AccessFlags.REWARD_CONFIG_ADMIN | AccessFlags.REWARD_CONFIGURATOR,
-      Errors.CALLER_NOT_REWARD_CONFIG_ADMIN
-    );
+    _remoteAcl.requireAnyOf(msg.sender, AccessFlags.REWARD_CONFIG_ADMIN | AccessFlags.REWARD_CONFIGURATOR, Errors.CALLER_NOT_REWARD_CONFIG_ADMIN);
     _;
   }
 }

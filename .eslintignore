@@ -4,3 +4,4 @@ types
 artifacts
 cache
 abi
+.eslintrc.js

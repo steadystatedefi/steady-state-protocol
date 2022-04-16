@@ -88,11 +88,7 @@ abstract contract WeightedRoundsBase {
     _insureds[account] = entry;
   }
 
-  function internalGetInsuredParams(address account)
-    internal
-    view
-    returns (InsuredStatus, Rounds.InsuredParams memory)
-  {
+  function internalGetInsuredParams(address account) internal view returns (InsuredStatus, Rounds.InsuredParams memory) {
     Rounds.InsuredEntry memory entry = _insureds[account];
 
     return (entry.status, Rounds.InsuredParams({minUnits: entry.minUnits, maxShare: entry.maxShare}));
@@ -455,10 +451,7 @@ abstract contract WeightedRoundsBase {
     );
 
     for (; params.loopLimit > 0; params.loopLimit--) {
-      if (
-        covered.lastUpdateIndex >= demandLength ||
-        !_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered, premium)
-      ) {
+      if (covered.lastUpdateIndex >= demandLength || !_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered, premium)) {
         params.done = true;
         break;
       }
@@ -470,10 +463,7 @@ abstract contract WeightedRoundsBase {
     params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
   }
 
-  function internalUpdateCoveredDemand(GetCoveredDemandParams memory params)
-    internal
-    returns (DemandedCoverage memory coverage)
-  {
+  function internalUpdateCoveredDemand(GetCoveredDemandParams memory params) internal returns (DemandedCoverage memory coverage) {
     (coverage, _covered[params.insured], _premiums[params.insured]) = internalGetCoveredDemand(params);
   }
 
@@ -547,9 +537,7 @@ abstract contract WeightedRoundsBase {
       // console.log('collectPartial', part.roundNo, part.roundCoverage);
       if (part.roundNo > 0 || part.roundCoverage > 0) {
         covered.coveredUnits += part.roundNo * d.unitPerRound;
-        coverage.pendingCovered =
-          (uint256(part.roundCoverage) * d.unitPerRound) /
-          _batches[d.startBatchNo].unitPerRound;
+        coverage.pendingCovered = (uint256(part.roundCoverage) * d.unitPerRound) / _batches[d.startBatchNo].unitPerRound;
 
         (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = _calcPremium(
           d,
@@ -568,9 +556,7 @@ abstract contract WeightedRoundsBase {
   ///@dev Calculate the actual premium values since variables keep track of number of coverage units instead of
   /// amount of coverage currency
   function _finalizePremium(DemandedCoverage memory coverage, bool roundUp) private view {
-    coverage.premiumRate = roundUp
-      ? uint256(_unitSize).wadMulUp(coverage.premiumRate)
-      : uint256(_unitSize).wadMul(coverage.premiumRate);
+    coverage.premiumRate = roundUp ? uint256(_unitSize).wadMulUp(coverage.premiumRate) : uint256(_unitSize).wadMul(coverage.premiumRate);
     coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
     //    // console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
     if (coverage.premiumUpdatedAt != 0) {
@@ -683,11 +669,7 @@ abstract contract WeightedRoundsBase {
 
   ///@dev Get the Pool's total amount of coverage that has been demanded, covered and allocated (partial round) and
   /// the corresponding premium based on these values
-  function internalGetTotals(uint256 loopLimit)
-    internal
-    view
-    returns (DemandedCoverage memory coverage, TotalCoverage memory total)
-  {
+  function internalGetTotals(uint256 loopLimit) internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     PartialState memory part = _partial;
     if (part.batchNo == 0) return (coverage, total);
 
@@ -931,9 +913,7 @@ abstract contract WeightedRoundsBase {
     uint32 duration = uint32(block.timestamp - mark.timestamp);
     if (duration == 0) return;
 
-    uint256 coverageTW = mark.coverageTW +
-      (uint256(_unitSize) * part.roundNo * batchUnitPerRound + part.roundCoverage) *
-      duration;
+    uint256 coverageTW = mark.coverageTW + (uint256(_unitSize) * part.roundNo * batchUnitPerRound + part.roundCoverage) * duration;
     require(coverageTW <= type(uint192).max);
     mark.coverageTW = uint192(coverageTW);
 
@@ -983,10 +963,7 @@ abstract contract WeightedRoundsBase {
     uint80 totalUnitsBeforeBatch;
   }
 
-  function internalCancelCoverageDemand(uint64 unitCount, CancelCoverageDemandParams memory params)
-    internal
-    returns (uint64)
-  {
+  function internalCancelCoverageDemand(uint64 unitCount, CancelCoverageDemandParams memory params) internal returns (uint64) {
     // TODO problems: consider zero-round batches when adding demand and coverage
 
     Rounds.InsuredEntry storage entry = _insureds[params.insured];
@@ -998,13 +975,11 @@ abstract contract WeightedRoundsBase {
 
     Rounds.Demand[] storage demands = _demands[params.insured];
 
-    (
-      uint256 index,
-      uint64 batchNo,
-      uint256 skippedRounds,
-      Rounds.Demand memory demand,
-      uint64 cancelledUnits
-    ) = _findAndAdjustUncovered(unitCount, demands, params);
+    (uint256 index, uint64 batchNo, uint256 skippedRounds, Rounds.Demand memory demand, uint64 cancelledUnits) = _findAndAdjustUncovered(
+      unitCount,
+      demands,
+      params
+    );
 
     if (cancelledUnits == 0) {
       return 0;
@@ -1063,11 +1038,7 @@ abstract contract WeightedRoundsBase {
       demand = demands[index];
 
       uint64 cancelUnits;
-      (params.done, batchNo, cancelUnits, skippedRounds) = _findUncoveredBatch(
-        part,
-        demand,
-        unitCount - cancelledUnits
-      );
+      (params.done, batchNo, cancelUnits, skippedRounds) = _findUncoveredBatch(part, demand, unitCount - cancelledUnits);
 
       cancelledUnits += cancelUnits;
       if (params.done) {
@@ -1179,12 +1150,7 @@ abstract contract WeightedRoundsBase {
           params.totalUnitsBeforeBatch = 0;
         }
       }
-      (batchNo, params.totalUnitsBeforeBatch) = _adjustUncoveredBatches(
-        d.startBatchNo,
-        d.rounds,
-        params.totalUnitsBeforeBatch,
-        d
-      );
+      (batchNo, params.totalUnitsBeforeBatch) = _adjustUncoveredBatches(d.startBatchNo, d.rounds, params.totalUnitsBeforeBatch, d);
       totalUnitsAdjustment += uint80(d.rounds) * d.unitPerRound;
     }
 
@@ -1247,11 +1213,7 @@ abstract contract WeightedRoundsBase {
     )
   {
     Rounds.Batch storage b = _batches[_partial.batchNo];
-    return (
-      uint256(b.totalUnitsBeforeBatch) + _partial.roundNo * b.unitPerRound,
-      _pendingCancelledCoverageUnits,
-      _pendingCancelledDemandUnits
-    );
+    return (uint256(b.totalUnitsBeforeBatch) + _partial.roundNo * b.unitPerRound, _pendingCancelledCoverageUnits, _pendingCancelledDemandUnits);
   }
 
   function internalApplyAdjustmentsToTotals() internal {

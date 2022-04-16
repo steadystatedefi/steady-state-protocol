@@ -10,14 +10,14 @@
   ],
   "scripts": {
     "run-env": "npm i && tail -f /dev/null",
-    "build:package": "rm -rf ./dist && tsc && cp types/*.d.ts dist/types && cp -R abi dist && cp -R contracts dist",
+    "build:package": "rm -rf ./dist && tsc -p tsconfig.build.json && cp types/*.d.ts dist/types && cp -R abi dist && cp -R contracts dist",
     "ci:test": "npm run compile && npm run test",
     "ci:clean": "rm -rf ./artifacts ./cache ./types ./dist",
     "eslint": "eslint . --ext .ts",
+    "eslint:fix": "npm run eslint -- --fix",
     "solhint": "solhint 'contracts/**/*.sol'",
     "sizes": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile && TS_NODE_TRANSPILE_ONLY=1 hardhat size-contracts",
     "console:fork": "FORK=main hardhat console",
-
     "hardhat": "hardhat",
     "hardhat:kovan": "hardhat --network kovan",
     "hardhat:rinkeby": "hardhat --network rinkeby",
@@ -31,74 +31,54 @@
     "hardhat:bsc:fork": "KEY_SEL=BSC_FORK hardhat --network bsc_fork",
     "hardhat:avalanche:fork": "KEY_SEL=AVALANCHE_FORK hardhat --network avalanche_fork",
     "hardhat:avalanche-test:fork": "KEY_SEL=AVALANCHE_TESTNET_FORK hardhat --network avalanche_testnet_fork",
-    
     "hardhat:avalanche": "KEY_SEL=AVA hardhat --network avalanche",
     "hardhat:ava-test": "KEY_SEL=AVA hardhat --network avalanche_testnet",
-
     "hardhat:fantom": "KEY_SEL=FNT hardhat --network fantom",
     "hardhat:fnt-test": "KEY_SEL=FNT hardhat --network fantom_testnet",
-
     "hardhat:arbitrum": "KEY_SEL=ARB hardhat --network arbitrum",
     "hardhat:arb-test": "KEY_SEL=ARB hardhat --network arbitrum_testnet",
-
     "hardhat:optimistic": "KEY_SEL=OPT hardhat --network optimistic",
     "hardhat:opt-test": "KEY_SEL=OPT hardhat --network optimistic_testnet",
-
     "test-deploy:hardhat": "hardhat deploy-full",
     "test-deploy:fork": "FORK=main hardhat deploy-full",
     "test-deploy:fork:incremental": "FORK=main hardhat deploy:test-incremental",
-
     "deploy:fork": "npm run compile && FORK=main hardhat deploy-full",
     "deploy:fork:bsc-test": "npm run compile && FORK=bsc_testnet hardhat deploy-full",
     "deploy:fork:bsc": "npm run compile && FORK=bsc hardhat deploy-full",
     "deploy:fork:avalanche": "npm run compile && FORK=avalanche hardhat deploy-full",
     "deploy:fork:avalanche-test": "npm run compile && FORK=avalanche_testnet hardhat deploy-full",
-
     "deploy:main": "npm run compile && npm run hardhat:main -- deploy-full",
     "deploy:ropsten": "npm run compile && npm run hardhat:ropsten -- deploy-full",
     "deploy:kovan": "npm run compile && npm run hardhat:kovan -- deploy-full",
     "deploy:rinkeby": "npm run compile && npm run hardhat:rinkeby -- deploy-full",
     "deploy:bsc": "npm run compile && npm run hardhat:bsc -- deploy-full",
     "deploy:bsc-test": "npm run compile && npm run hardhat:bsc-test -- deploy-full",
-
     "deploy:avalanche": "npm run compile && npm run hardhat:avalanche -- deploy-full",
     "deploy:ava-test": "npm run compile && npm run hardhat:ava-test -- deploy-full",
-
     "deploy:fantom": "npm run compile && npm run hardhat:fantom -- deploy-full",
     "deploy:fnt-test": "npm run compile && npm run hardhat:fnt-test -- deploy-full",
-
     "deploy:arbitrum": "npm run compile && npm run hardhat:arbitrum -- deploy-full",
     "deploy:arb-test": "npm run compile && npm run hardhat:arb-test -- deploy-full",
-
     "deploy:optimistic": "npm run compile && npm run hardhat:optimistic -- deploy-full",
     "deploy:opt-test": "npm run compile && npm run hardhat:opt-test -- deploy-full",
-
     "deploy:matic": "npm run compile && npm run hardhat:matic -- deploy-full",
     "deploy:mumbai": "npm run compile && npm run hardhat:mumbai -- deploy-full",
-
     "verify:main": "npm run hardhat:main -- verify:verify-all-contracts",
     "verify:ropsten": "npm run hardhat:ropsten -- verify:verify-all-contracts",
     "verify:kovan": "npm run hardhat:kovan -- verify:verify-all-contracts",
-    
     "verify:rinkeby": "npm run hardhat:rinkeby -- verify:verify-all-contracts",
     "verify:bsc": "npm run hardhat:bsc -- verify:verify-all-contracts",
     "verify:bsc-test": "npm run hardhat:bsc-test -- verify:verify-all-contracts",
-
     "verify:avalanche": "npm run hardhat:avalanche -- verify:verify-all-contracts",
     "verify:ava-test": "npm run hardhat:ava-test -- verify:verify-all-contracts",
-
     "verify:fantom": "npm run hardhat:fantom -- verify:verify-all-contracts",
     "verify:fnt-test": "npm run hardhat:fnt-test -- verify:verify-all-contracts",
-
     "verify:arbitrum": "npm run hardhat:arbitrum -- verify:verify-all-contracts",
     "verify:arb-test": "npm run hardhat:arb-test -- verify:verify-all-contracts",
-
     "verify:optimistic": "npm run hardhat:optimistic -- verify:verify-all-contracts",
     "verify:opt-test": "npm run hardhat:opt-test -- verify:verify-all-contracts",
-
     "verify:matic": "npm run hardhat:matic -- verify:verify-all-contracts",
     "verify:mumbai": "npm run hardhat:mumbai -- verify:verify-all-contracts",
-
     "compile": "SKIP_LOAD=true TS_NODE_TRANSPILE_ONLY=1 hardhat compile",
     "test": "hardhat test ./test-suites/test-main/*.spec.ts",
     "test-example": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/example.spec.ts",
@@ -106,58 +86,61 @@
     "test-insurance": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/insurance.spec.ts",
     "test-currency": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/currency.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.spec.ts test-suites/test-main/weighted-pool.bench.ts",
-  
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 hardhat coverage --network coverage --testfiles \"test-suites/test-main/*.spec.ts\"",
-  
-    "prettier:check": "npm prettier -c 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'",
-    "prettier:write": "prettier --write 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'"
+    "prettier:check": "prettier -c 'helpers/**/*.ts' 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'",
+    "prettier:write": "prettier --write 'helpers/**/*.ts' 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'",
+    "tsc": "tsc -p tsconfig.eslint.json",
+    "githook:precommit": "lint-staged && npm run tsc",
+    "prepare": "husky install"
   },
   "devDependencies": {
+    "@babel/core": "^7.17.9",
+    "@babel/eslint-parser": "^7.17.0",
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-etherscan": "^2.1.6",
     "@nomiclabs/hardhat-waffle": "^2.0.0",
     "@openzeppelin/contracts": "^4.3.0",
     "@tenderly/hardhat-tenderly": "^1.1.0-beta.4",
     "@typechain/ethers-v5": "^2.0.0",
-    "@types/chai": "4.2.11",
-    "@types/lowdb": "1.0.9",
-    "@types/mocha": "7.0.2",
-    "@types/node": "14.0.5",
-    "@typescript-eslint/eslint-plugin": "^4.25.0",
-    "@typescript-eslint/parser": "^4.25.0",
-    "bignumber.js": "9.0.0",
-    "chai": "4.2.0",
+    "@types/chai": "^4.3.1",
+    "@types/lowdb": "^1.0.11",
+    "@types/mocha": "^9.1.0",
+    "@types/node": "^16.11.27",
+    "@typescript-eslint/eslint-plugin": "^5.19.0",
+    "@typescript-eslint/parser": "^5.19.0",
+    "bignumber.js": "^9.0.2",
+    "chai": "^4.3.6",
     "chai-bignumber": "3.0.0",
-    "dotenv": "^8.2.0",
-    "eslint": "^7.27.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-prettier": "^3.4.0",
-    "eth-sig-util": "2.5.3",
+    "dotenv": "^16.0.0",
+    "eslint": "^8.13.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-json": "^3.1.0",
+    "eslint-plugin-playwright": "^0.8.0",
+    "eslint-plugin-prettier": "^4.0.0",
     "ethereum-waffle": "^3.2.0",
-    "ethereumjs-abi": "0.6.8",
     "ethereumjs-util": "7.0.2",
     "ethers": "^5.4.0",
-    "globby": "^11.0.1",
     "hardhat": "^2.6.0",
     "hardhat-abi-exporter": "^2.2.1",
     "hardhat-contract-sizer": "^2.1.1",
     "hardhat-gas-reporter": "^1.0.4",
     "hardhat-tracer": "^1.0.0-alpha.6",
     "hardhat-typechain": "^0.3.5",
-    "husky": "^4.2.5",
+    "husky": "^7.0.0",
+    "lint-staged": "^12.3.8",
     "lowdb": "1.0.0",
-    "moment": "^2.29.1",
-    "prettier": "^2.0.5",
+    "prettier": "^2.6.2",
     "prettier-plugin-solidity": "^1.0.0-beta.11",
-    "pretty-quick": "^3.1.0",
+    "pretty-quick": "^3.1.3",
     "solhint": "^3.3.6",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "0.7.16",
     "ts-generator": "^0.1.1",
     "ts-node": "^8.10.2",
     "typechain": "^4.0.3",
-    "typescript": "^4.0.5",
-    "underscore": "^1.13.1"
+    "typescript": "^4.0.5"
   },
   "husky": {
     "hooks": {
@@ -167,9 +150,6 @@
   "author": "Steady State",
   "contributors": [],
   "license": "AGPL-3.0",
-  "dependencies": {
-    "tmp-promise": "^3.0.2"
-  },
   "keywords": [
     "sst",
     "RISQ",

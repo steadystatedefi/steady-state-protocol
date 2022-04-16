@@ -1,10 +1,20 @@
-import { task, types } from 'hardhat/config';
-import { exit } from 'process';
 import { BigNumber } from 'ethers';
+import { task, types } from 'hardhat/config';
+
+import { exit } from 'process';
+
 import { ConfigNames } from '../../helpers/config-loader';
-import { getFirstSigner } from '../../helpers/runtime-utils';
 import { cleanupJsonDb, printContracts } from '../../helpers/deploy-db';
+import { getFirstSigner } from '../../helpers/runtime-utils';
 import { getDeploySteps } from '../deploy/deploy-steps';
+
+interface IActionArgs {
+  incremental: boolean;
+  secure: boolean;
+  strict: boolean;
+  verify: boolean;
+  skip: number;
+}
 
 task('deploy-full', 'Deploy full enviroment')
   .addFlag('incremental', 'Incremental deployment')
@@ -12,7 +22,7 @@ task('deploy-full', 'Deploy full enviroment')
   .addFlag('strict', 'Fail on warnings')
   .addFlag('verify', 'Verify contracts at Etherscan')
   .addOptionalParam('skip', 'Skip steps with less or equal index', 0, types.int)
-  .setAction(async ({ incremental, secure, strict, verify, skip: skipN }, DRE) => {
+  .setAction(async ({ incremental, secure, strict, verify, skip: skipN }: IActionArgs, DRE) => {
     const CONFIG_NAME = ConfigNames.Full;
     await DRE.run('set-DRE');
 
@@ -42,19 +52,22 @@ task('deploy-full', 'Deploy full enviroment')
       console.log('Deployment started\n');
       const trackVerify = true;
 
-      for (const step of await getDeploySteps('full', {
+      const steps = await getDeploySteps('full', {
         cfg: CONFIG_NAME,
         verify: trackVerify,
-      })) {
-        const stepId = '0' + step.seqId;
+      });
+
+      for (let index = 0; index < steps.length; index += 1) {
+        const step = steps[index];
+        const stepId = `0${step.seqId}`;
         console.log('\n======================================================================');
         console.log(stepId.substring(stepId.length - 2), step.stepName);
         console.log('======================================================================\n');
         if (step.seqId <= skipN) {
           console.log('STEP WAS SKIPPED\n');
-          continue;
+        } else {
+          await DRE.run(step.taskName, step.args);
         }
-        await DRE.run(step.taskName, step.args);
       }
 
       console.log('\n======================================================================');
@@ -68,18 +81,19 @@ task('deploy-full', 'Deploy full enviroment')
       await DRE.run('full:smoke-test', { cfg: CONFIG_NAME });
 
       {
-        const [entryMap, instanceCount, multiCount] = printContracts((await getFirstSigner()).address);
+        const signer = await getFirstSigner();
+        const [entryMap, instanceCount, multiCount] = printContracts(signer.address);
 
         let hasWarn = false;
         if (multiCount > 0) {
           console.error('WARNING: multi-deployed contract(s) detected');
           hasWarn = true;
-        } else if (entryMap.size != instanceCount) {
+        } else if (entryMap.size !== instanceCount) {
           console.error('WARNING: unknown contract(s) detected');
           hasWarn = true;
         }
 
-        entryMap.forEach((value, key, m) => {
+        entryMap.forEach((value, key) => {
           if (key.startsWith('Mock')) {
             console.error('WARNING: mock contract detected:', key);
             hasWarn = true;
@@ -87,7 +101,7 @@ task('deploy-full', 'Deploy full enviroment')
         });
 
         if (hasWarn && strict) {
-          throw 'warnings are present';
+          throw new Error('warnings are present');
         }
       }
 
@@ -114,8 +128,8 @@ task('deploy-full', 'Deploy full enviroment')
       console.log('======================================================================');
       console.log('Deployer end balance: ', endBalance.div(1e12).toNumber() / 1e6);
       console.log('Deploy expenses: ', startBalance.sub(endBalance).div(1e12).toNumber() / 1e6);
-      const gasPrice = DRE.network.config.gasPrice;
-      if (gasPrice != 'auto') {
+      const { gasPrice } = DRE.network.config;
+      if (gasPrice !== 'auto') {
         console.log(
           'Deploy gas     : ',
           startBalance.sub(endBalance).div(gasPrice).toNumber(),

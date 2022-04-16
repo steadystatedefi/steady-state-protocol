@@ -1,9 +1,11 @@
-import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { Factories } from '../../helpers/contract-types';
-import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';
-import { expect } from 'chai';
-import { currentTime } from '../../helpers/runtime-utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
+
+import { Factories } from '../../helpers/contract-types';
+import { currentTime } from '../../helpers/runtime-utils';
+import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';
+
+import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
   const decimals = 18;
@@ -12,14 +14,14 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 10000 * unitSize;
   let pool: MockWeightedPool;
-  let insureds: MockInsuredPool[] = [];
-  let insuredUnits: number[] = [];
-  let insuredTS: number[] = [];
+  const insureds: MockInsuredPool[] = [];
+  const insuredUnits: number[] = [];
+  const insuredTS: number[] = [];
   let cc: CollateralCurrency;
   let user: SignerWithAddress;
 
   before(async () => {
-    user = testEnv.users[0];
+    [user] = testEnv.users;
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
@@ -43,13 +45,13 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     const minUnits = 10;
     const riskWeight = 1000; // 10%
 
-    const joinPool = async (riskWeight: number) => {
+    const joinPool = async (riskWeightValue: number) => {
       const insured = await Factories.MockInsuredPool.deploy(
         cc.address,
         poolDemand,
         RATE,
         minUnits,
-        riskWeight,
+        riskWeightValue,
         decimals
       );
       await insured.joinPool(pool.address);
@@ -78,14 +80,14 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
       insuredUnits.push(1000);
     }
 
-    for (let i = 2; i > 0; i--) {
+    for (let i = 2; i > 0; i -= 1) {
       const coverage = await joinPool(riskWeight);
       expect(coverage.totalCovered).eq(0);
       expect(coverage.totalDemand).eq(4000 * unitSize);
       insuredUnits.push(4000);
     }
 
-    for (let i = 1; i > 0; i--) {
+    for (let i = 1; i > 0; i -= 1) {
       const coverage = await joinPool(riskWeight);
       expect(coverage.totalCovered).eq(0);
       expect(coverage.totalDemand).eq(0); // pool limit for uncovered demand is reached
@@ -102,23 +104,24 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
     let totalPremium = 0;
     let totalPremiumRate = 0;
 
-    let _perUser = 400;
-    for (const user of testEnv.users) {
+    let perUser = 400;
+    for (let index = 0; index < testEnv.users.length; index += 1) {
+      const testUser = testEnv.users[index];
       timestamps.push(await currentTime());
-      _perUser += 100;
-      totalCoverageProvidedUnits += _perUser;
-      userUnits.push(_perUser);
+      perUser += 100;
+      totalCoverageProvidedUnits += perUser;
+      userUnits.push(perUser);
 
-      await cc.mintAndTransfer(user.address, pool.address, unitSize * _perUser, {
+      await cc.mintAndTransfer(testUser.address, pool.address, unitSize * perUser, {
         gasLimit: testEnv.underCoverage ? 2000000 : undefined,
       });
 
-      const interest = await pool.interestRate(user.address);
+      const interest = await pool.interestRate(testUser.address);
       expect(interest.accumulated).eq(0);
-      expect(interest.rate).eq(premiumPerUnit * _perUser);
+      expect(interest.rate).eq(premiumPerUnit * perUser);
 
-      const balance = await pool.balanceOf(user.address);
-      expect(balance).eq(unitSize * _perUser);
+      const balance = await pool.balanceOf(testUser.address);
+      expect(balance).eq(unitSize * perUser);
     }
 
     {
@@ -129,10 +132,10 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
       );
     }
 
-    for (let index = 0; index < testEnv.users.length; index++) {
-      const user = testEnv.users[index];
-      const balance = await pool.balanceOf(user.address);
-      const interest = await pool.interestRate(user.address);
+    for (let index = 0; index < testEnv.users.length; index += 1) {
+      const testUser = testEnv.users[index];
+      const balance = await pool.balanceOf(testUser.address);
+      const interest = await pool.interestRate(testUser.address);
 
       expect(balance).eq(unitSize * userUnits[index]);
       expect(interest.rate).eq(premiumPerUnit * userUnits[index]);
@@ -154,8 +157,9 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
 
   it('Push excess coverage', async () => {
     let totalCoverageDemandedUnits = 0;
-    for (let u of insuredUnits) {
-      totalCoverageDemandedUnits += u;
+    for (let index = 0; index < insuredUnits.length; index += 1) {
+      const unit = insuredUnits[index];
+      totalCoverageDemandedUnits += unit;
     }
 
     expect(await pool.withdrawable(user.address)).eq(0);
@@ -163,7 +167,9 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
       user.address,
       pool.address,
       unitSize * (totalCoverageDemandedUnits - totalCoverageProvidedUnits),
-      { gasLimit: testEnv.underCoverage ? 2000000 : undefined }
+      {
+        gasLimit: testEnv.underCoverage ? 2000000 : undefined,
+      }
     );
     expect(await pool.withdrawable(user.address)).eq(0);
 
@@ -193,7 +199,8 @@ makeSharedStateSuite('Coverage Currency', (testEnv: TestEnv) => {
   });
 
   it('Use excess coverage', async () => {
-    for (const insured of insureds) {
+    for (let index = 0; index < insureds.length; index += 1) {
+      const insured = insureds[index];
       await insured.pushCoverageDemandTo(pool.address, unitSize * 10000);
     }
 

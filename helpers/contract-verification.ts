@@ -1,115 +1,133 @@
-import BigNumber from 'bignumber.js';
-import { Libraries } from '@nomiclabs/hardhat-etherscan/src/solc/libraries';
-import axios, { AxiosRequestConfig } from 'axios';
-import qs from 'qs';
 import { BigNumber as BigNumber2 } from '@ethersproject/bignumber';
 import { getEtherscanEndpoints } from '@nomiclabs/hardhat-etherscan/dist/src/network/prober';
+import { Libraries } from '@nomiclabs/hardhat-etherscan/dist/src/solc/libraries';
+import axios, { AxiosRequestConfig } from 'axios';
+import BigNumber from 'bignumber.js';
+import qs from 'qs';
+
 import { DRE } from './dre';
 import { sleep } from './runtime-utils';
 
-export const stringifyArgs = (args: any) =>
-  JSON.stringify(args, (key, value) => {
-    if (typeof value == 'number') {
+export const stringifyArgs = (args: unknown): string =>
+  JSON.stringify(args, (_key, value) => {
+    if (typeof value === 'number') {
       return new BigNumber(value).toFixed();
-    } else if (typeof value == 'object') {
+    }
+
+    if (typeof value === 'object') {
       if (value instanceof BigNumber) {
         return value.toFixed();
-      } else if (value instanceof BigNumber2) {
+      }
+
+      if (value instanceof BigNumber2) {
         return value.toString();
-      } else if (value.type == 'BigNumber') {
+      }
+
+      if ((value as { type: string }).type === 'BigNumber') {
         return BigNumber2.from(value).toString();
       }
     }
-    return value;
+
+    return value as unknown;
   });
 
 export const verifyContract = async (
   address: string,
   constructorArguments: (string | string[])[],
   libraries?: string
-) => _verifyContract(address, constructorArguments, libraries);
+): Promise<[ok: boolean, err: string]> => verify(address, constructorArguments, libraries);
 
-export const verifyContractStringified = async (address: string, constructorArguments: string, libraries?: string) =>
-  _verifyContract(address, JSON.parse(constructorArguments), libraries);
+export const verifyContractStringified = async (
+  address: string,
+  constructorArguments: string,
+  libraries?: string
+): Promise<[ok: boolean, err: string]> => verify(address, JSON.parse(constructorArguments) as unknown[], libraries);
 
 // extracted from hardhat-etherscan
 interface VerificationSubtaskArgs {
   address: string;
-  constructorArguments: any[];
+  constructorArguments: unknown[];
   // Fully qualified name of the contract
   contract?: string;
   libraries?: Libraries;
 }
 
-const _verifyContract = async (
+async function verify(
   address: string,
-  constructorArguments: any[],
+  constructorArguments: unknown[],
   libraries?: string
-): Promise<[ok: boolean, err: string]> => {
-  let params: VerificationSubtaskArgs = {
+): Promise<[ok: boolean, err: string]> {
+  const params: VerificationSubtaskArgs = {
     address,
     constructorArguments,
   };
+
   if (libraries) {
-    params.libraries = JSON.parse(libraries!);
+    params.libraries = JSON.parse(libraries) as Libraries;
   }
 
   try {
     await DRE.run('verify:verify', params);
-  } catch (error: any) {
-    if (error.message === 'Contract source code already verified') {
+  } catch (error) {
+    const { message } = error as Error;
+    if (message === 'Contract source code already verified') {
       return [true, ''];
     }
-    return [false, error.message];
+
+    return [false, message];
   }
 
   return [true, ''];
-};
+}
 
 export const verifyProxy = async (proxyAddr: string, implAddr: string): Promise<[ok: boolean, errMsg: string]> => {
   try {
-    await _verifyProxy(proxyAddr, implAddr);
-  } catch (error: any) {
-    return [false, error.message];
+    await internalVerifyProxy(proxyAddr, implAddr);
+  } catch (error) {
+    return [false, (error as Error).message];
   }
 
   return [true, ''];
 };
 
-const _verifyProxy = async (proxyAddr: string, implAddr: string) => {
+async function internalVerifyProxy(proxyAddr: string, implAddr: string) {
   const endpoints = await getEtherscanEndpoints(DRE.network.provider, DRE.network.name);
-  const apiKey = (<any>DRE.config).etherscan.apiKey!;
+  const { config } = DRE;
+  const apiKey = config.etherscan.apiKey as string;
   const baseUrl = `${endpoints.apiURL}?module=contract`;
 
   let guid: string;
   {
     const optionsVerify: AxiosRequestConfig = {
       method: 'POST',
-      url: baseUrl + `&action=verifyproxycontract&apikey=${apiKey}`,
+      url: `${baseUrl}&action=verifyproxycontract&apikey=${apiKey}`,
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       data: qs.stringify({ address: proxyAddr, expectedimplementation: implAddr }),
     };
     const result = await axios(optionsVerify);
-    const response = new EtherscanResponse(result.data);
+    const response = new EtherscanResponse(result.data as { status: string; result: string });
+
     if (!response.isOk()) {
       if (response.isProxyImplNotDetected()) {
-        if (await _verifyProxyByWebForm(endpoints.browserURL, proxyAddr, implAddr)) {
+        if (await internalVerifyProxyByWebForm(endpoints.browserURL, proxyAddr, implAddr)) {
           return;
         }
       }
       throw new Error(response.message);
     }
+
     guid = response.message;
   }
 
   {
     const optionsStatus: AxiosRequestConfig = {
       method: 'GET',
-      url: baseUrl + `&action=checkproxyverification&guid=${guid}&apikey=${apiKey}`,
+      url: `${baseUrl}&action=checkproxyverification&guid=${guid}&apikey=${apiKey}`,
     };
-    for (let i = 0; ; i++) {
+    for (let i = 0; ; i += 1) {
       const result = await axios(optionsStatus);
-      const response = new EtherscanResponse(result.data);
+      const response = new EtherscanResponse(result.data as { status: string; result: string });
+
       if (response.isOk()) {
         console.log();
         console.log(response.message);
@@ -118,27 +136,29 @@ const _verifyProxy = async (proxyAddr: string, implAddr: string) => {
 
       if (!response.isPending()) {
         if (response.isProxyImplNotDetected()) {
-          if (await _verifyProxyByWebForm(endpoints.browserURL, proxyAddr, implAddr)) {
+          if (await internalVerifyProxyByWebForm(endpoints.browserURL, proxyAddr, implAddr)) {
             return;
           }
         }
 
         throw Error(response.message);
       }
+
       if (i >= 20) {
         throw Error('Too many retries');
       }
+
       await sleep(100 + i * 200);
     }
   }
-};
+}
 
 class EtherscanResponse {
   public readonly status: number;
 
   public readonly message: string;
 
-  public constructor(response: any) {
+  public constructor(response: { status: string; result: string }) {
     this.status = parseInt(response.status, 10);
     this.message = response.result;
   }
@@ -172,12 +192,12 @@ class EtherscanResponse {
 let lastCallAt = 0;
 const defaultWebFormDelay = 3000; // millis
 
-const _verifyProxyByWebForm = async (endpoint: string, proxyAddr: string, implAddr: string): Promise<boolean> => {
+async function internalVerifyProxyByWebForm(endpoint: string, proxyAddr: string, implAddr: string): Promise<boolean> {
   const baseUrl = `${endpoint}/proxyContractChecker?a=${proxyAddr}`;
   console.log(`\n\tVerifying proxy via the web form...`);
 
   const fillForm = (s: string) => {
-    let form = {
+    const form = {
       __VIEWSTATE: '',
       __VIEWSTATEGENERATOR: '',
       __EVENTVALIDATION: '',
@@ -187,9 +207,15 @@ const _verifyProxyByWebForm = async (endpoint: string, proxyAddr: string, implAd
     const re = / id="(__(VIEWSTATE|VIEWSTATEGENERATOR|EVENTVALIDATION))" +value="([^"]+)"/g;
 
     let m: RegExpExecArray | null;
+    // eslint-disable-next-line no-cond-assign
     while ((m = re.exec(s))) {
-      form[m[1]] = m[3];
+      const index = m[1];
+      const value = m[3];
+
+      form[index] = value;
     }
+
+    // eslint-disable-next-line no-underscore-dangle
     if (!form.__EVENTVALIDATION || !form.__VIEWSTATE || !form.__VIEWSTATEGENERATOR) {
       console.log(s);
       throw new Error('Unable to find fields required for the web form');
@@ -200,7 +226,7 @@ const _verifyProxyByWebForm = async (endpoint: string, proxyAddr: string, implAd
 
   let webFormDelay = defaultWebFormDelay;
   const sendRequest = async (optionsVerify: AxiosRequestConfig, reqType: string) => {
-    for (let i = 10; i > 0; i--) {
+    for (let i = 10; i > 0; i -= 1) {
       {
         const current = new Date().getTime();
         const remains = lastCallAt + webFormDelay - current;
@@ -211,7 +237,7 @@ const _verifyProxyByWebForm = async (endpoint: string, proxyAddr: string, implAd
       }
 
       const result = await axios(optionsVerify);
-      if (result.status != 200) {
+      if (result.status !== 200) {
         console.log('Unexpected response:', reqType, result.status, result.statusText);
         return undefined;
       }
@@ -272,7 +298,7 @@ const _verifyProxyByWebForm = async (endpoint: string, proxyAddr: string, implAd
     }
 
     const foundImpl = m[1];
-    if (foundImpl.toLowerCase() != implAddr.toLowerCase()) {
+    if (foundImpl.toLowerCase() !== implAddr.toLowerCase()) {
       throw new Error(`Proxy implementation mismatched: expected=${implAddr}, found=${foundImpl}`);
     }
 
@@ -293,4 +319,4 @@ const _verifyProxyByWebForm = async (endpoint: string, proxyAddr: string, implAd
 
     return true;
   }
-};
+}

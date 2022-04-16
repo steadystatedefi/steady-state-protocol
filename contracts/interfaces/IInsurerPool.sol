@@ -63,16 +63,11 @@ interface IInsurerPoolDemand is IInsurancePool, IInsurerPoolBase, IJoinable {
   function cancelCoverageDemand(uint256 unitCount) external returns (uint256 cancelledUnits);
 
   /// @dev returns coverage info for the insured
-  function receivableDemandedCoverage(address insured)
-    external
-    view
-    returns (uint256 receivedCoverage, DemandedCoverage memory);
+  function receivableDemandedCoverage(address insured) external view returns (uint256 receivedCoverage, DemandedCoverage memory);
 
   /// @dev when charteredDemand is true and insured has incomplete demand, then this function will transfer $CC collected for the insured
   /// when charteredDemand is false or demand was fulfilled, then there is no need to call this function.
-  function receiveDemandedCoverage(address insured)
-    external
-    returns (uint256 receivedCoverage, DemandedCoverage memory);
+  function receiveDemandedCoverage(address insured) external returns (uint256 receivedCoverage, DemandedCoverage memory);
 }
 
 interface IInsurerPool is IERC20, IInsurerPoolCore, IInsurerPoolDemand {

@@ -1,5 +1,7 @@
 import { task, types } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+
+import { verifyContractStringified, verifyProxy } from '../../helpers/contract-verification';
 import {
   DbInstanceEntry,
   getExternalsFromJsonDb,
@@ -7,8 +9,15 @@ import {
   getVerifiedFromJsonDb,
   setVerifiedToJsonDb,
 } from '../../helpers/deploy-db';
-import { verifyContractStringified, verifyProxy } from '../../helpers/contract-verification';
 import { falsyOrZeroAddress } from '../../helpers/runtime-utils';
+
+interface IActionArgs {
+  n: number;
+  of: number;
+  filter: string[];
+  proxy: string;
+  force: boolean;
+}
 
 task('verify-all-contracts', 'Verify contracts listed in DeployDB')
   .addFlag('force', 'Ignore verified status')
@@ -16,17 +25,18 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
   .addOptionalParam('of', 'Total number of batches, > 0', 1, types.int)
   .addOptionalParam('proxy', 'Proxy verification mode: auto, full, min', 'auto', types.string)
   .addOptionalVariadicPositionalParam('filter', 'Names or addresses of contracts to verify', [], types.string)
-  .setAction(async ({ n, of, filter, proxy, force }, DRE: HardhatRuntimeEnvironment) => {
+  .setAction(async ({ n, of, filter, proxy, force }: IActionArgs, DRE: HardhatRuntimeEnvironment) => {
     await DRE.run('set-DRE');
 
     if (n >= of) {
-      throw 'invalid batch parameters';
+      throw new Error('invalid batch parameters');
     }
 
     let filterProxy: () => boolean;
     switch (proxy.toLowerCase()) {
-      case 'auto':
+      case 'auto': {
         let hasFirst = false;
+
         filterProxy = () => {
           if (hasFirst) {
             return false;
@@ -35,6 +45,7 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
           return true;
         };
         break;
+      }
       case 'full':
         filterProxy = () => true;
         break;
@@ -45,7 +56,7 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
     }
 
     const filterSet = new Map<string, string>();
-    (<string[]>filter).forEach((value) => {
+    filter.forEach((value) => {
       filterSet.set(value.toUpperCase(), value);
     });
     const hasFilter = filterSet.size > 0;
@@ -54,53 +65,65 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
     const entryList: DbInstanceEntry[] = [];
     let batchIndex = 0;
 
-    const addEntry = (addr: string, entry: DbInstanceEntry) => {
+    const addEntry = (address: string, entry: DbInstanceEntry) => {
       if (!entry.verify) {
         return;
       }
 
       if (hasFilter) {
         let found = false;
-        for (const key of [addr, entry.id]) {
+        const values = [address, entry.id];
+
+        for (let index = 0; index < values.length; index += 1) {
+          const key = values[index];
           const kv = key.toUpperCase();
+
           if (filterSet.has(kv)) {
             found = true;
-            if (key == addr) {
+            if (key === address) {
               filterSet.delete(kv);
             }
             break;
           }
         }
+
         if (!found) {
           return;
         }
       }
 
-      if (batchIndex++ % of != n) {
+      batchIndex += 1;
+      if ((batchIndex - 1) % of !== n) {
         return;
       }
-      addrList.push(addr);
+      addrList.push(address);
       entryList.push(entry);
     };
 
-    for (const [key, entry] of getInstancesFromJsonDb()) {
+    const instances = getInstancesFromJsonDb();
+    for (let index = 0; index < instances.length; index += 1) {
+      const [key, entry] = instances[index];
       addEntry(key, entry);
     }
 
-    for (const [key, entry] of getExternalsFromJsonDb()) {
+    const externals = getExternalsFromJsonDb();
+    for (let index = 0; index < externals.length; index += 1) {
+      const [key, entry] = externals[index];
       addEntry(key, entry);
     }
 
-    for (const [key, value] of filterSet) {
-      if (!falsyOrZeroAddress(value)) {
-        addEntry(value, {
-          id: 'ID_' + key,
-          verify: {
-            args: '[]',
-          },
-        });
+    filterSet.forEach((value, key) => {
+      if (falsyOrZeroAddress(value)) {
+        return;
       }
-    }
+
+      addEntry(value, {
+        id: `ID_${key}`,
+        verify: {
+          args: '[]',
+        },
+      });
+    });
 
     console.log('======================================================================');
     console.log('======================================================================');
@@ -108,33 +131,34 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
     console.log('======================================================================');
 
     const summary: string[] = [];
-    for (let i = 0; i < addrList.length; i++) {
+    for (let i = 0; i < addrList.length; i += 1) {
       const addr = addrList[i];
       const entry = entryList[i];
 
-      const params = entry.verify!;
+      const params = entry.verify;
 
       console.log('\n======================================================================');
       console.log(`[${i}/${addrList.length}] Verify contract: ${entry.id} ${addr}`);
-      console.log('\tArgs:', params.args);
+      console.log('\tArgs:', params?.args);
 
       let fullVerify = true;
-      if (params.impl) {
+      if (params?.impl) {
         console.log('\tProxy impl: ', params.impl);
         fullVerify = filterProxy();
       }
 
       if (!force && (await getVerifiedFromJsonDb(addr))) {
         console.log('Already verified');
+        // eslint-disable-next-line no-continue
         continue;
       }
 
-      let [ok, err] = fullVerify ? await verifyContractStringified(addr, params.args!) : [true, ''];
+      let [ok, err] = fullVerify ? await verifyContractStringified(addr, params?.args ?? '') : [true, ''];
       if (err) {
         console.log(err);
       }
-      if (ok && params.impl) {
-        [ok, err] = await verifyProxy(addr, params.impl!);
+      if (ok && params?.impl) {
+        [ok, err] = await verifyProxy(addr, params.impl);
         if (err) {
           console.log(err);
         }

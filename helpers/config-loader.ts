@@ -1,12 +1,10 @@
-import { FullConfig } from "./config/full";
-import { IConfiguration } from "./types";
+import { FullConfig } from './config/full';
+import { IConfiguration } from './types';
 
 export enum ConfigNames {
   Test = 'Test',
-  Full = 'Full'
+  Full = 'Full',
 }
-
-export const loadTestConfig = () => loadRuntimeConfig(ConfigNames.Test);
 
 export const loadRuntimeConfig = (configName: ConfigNames): IConfiguration => {
   switch (configName) {
@@ -15,6 +13,10 @@ export const loadRuntimeConfig = (configName: ConfigNames): IConfiguration => {
     case ConfigNames.Test:
       return FullConfig;
     default:
-      throw new Error(`Unsupported pool configuration: ${configName} ${Object.values(ConfigNames)}`);
+      throw new Error(
+        `Unsupported pool configuration: ${configName as string} ${JSON.stringify(Object.values(ConfigNames))}`
+      );
   }
 };
+
+export const loadTestConfig = (): IConfiguration => loadRuntimeConfig(ConfigNames.Test);

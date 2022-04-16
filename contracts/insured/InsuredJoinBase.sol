@@ -85,9 +85,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     (uint256 amountAdd, uint256 premiumRate) = internalAllocateCoverageDemand(address(target), amount, unitSize);
     require(amountAdd <= amount);
 
-    amountAdd = amountAdd < unitSize
-      ? 0
-      : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0);
+    amountAdd = amountAdd < unitSize ? 0 : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0);
     if (amountAdd == 0) {
       return false;
     }

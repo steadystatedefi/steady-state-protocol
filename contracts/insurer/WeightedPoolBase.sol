@@ -57,8 +57,10 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
 
     uint256 excessCoverage = _excessCoverage;
     if (coverageAmount > 0 || excessCoverage > 0) {
-      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
-        .internalAddCoverage(coverageAmount + excessCoverage, type(uint256).max);
+      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super.internalAddCoverage(
+        coverageAmount + excessCoverage,
+        type(uint256).max
+      );
 
       if (newExcess != excessCoverage) {
         _excessCoverage = newExcess;
@@ -109,8 +111,10 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
 
     Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
 
-    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
-      .internalAddCoverage(excessCoverage, type(uint256).max);
+    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super.internalAddCoverage(
+      excessCoverage,
+      type(uint256).max
+    );
 
     if (newExcess != excessCoverage) {
       _excessCoverage = newExcess;

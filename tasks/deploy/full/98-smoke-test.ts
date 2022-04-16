@@ -1,11 +1,10 @@
 import { task } from 'hardhat/config';
-import { ConfigNames, loadRuntimeConfig } from '../../../helpers/config-loader';
-import { eNetwork } from '../../../helpers/types';
-import { deployTask } from '../deploy-steps';
+
+import { ConfigNames } from '../../../helpers/config-loader';
 
 task(`full:smoke-test`, 'Smoke test')
-  .addParam('cfg', `Configuration name: ${Object.values(ConfigNames)}`)
-  .setAction(async ({ cfg }, localBRE) => {
+  .addParam('cfg', `Configuration name: ${JSON.stringify(Object.values(ConfigNames))}`)
+  .setAction(async () => {
     // await localBRE.run('set-DRE');
     // const network = <eNetwork>localBRE.network.name;
     // const poolConfig = loadRuntimeConfig(pool);
