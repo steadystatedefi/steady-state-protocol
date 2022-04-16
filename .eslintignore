@@ -5,3 +5,6 @@ artifacts
 cache
 abi
 .eslintrc.js
+.solcover.js
+package-lock.json
+package.json

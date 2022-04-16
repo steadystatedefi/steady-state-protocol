@@ -60,6 +60,8 @@ library Rounds {
     uint64 lastUpdateBatchNo;
     /// @dev number of rounds within the Demand (lastUpdateIndex) starting from Demand's startBatchNo till lastUpdateBatchNo
     uint24 lastUpdateRounds;
+    /// @dev number of rounds of a partial batch included into coveredUnits
+    uint24 lastPartialRoundNo;
   }
 
   struct CoveragePremium {

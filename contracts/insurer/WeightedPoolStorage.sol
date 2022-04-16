@@ -29,7 +29,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   mapping(address => UserBalance) internal _balances;
   mapping(address => uint256) internal _premiums;
 
-  Balances.RateAcc internal _totalRate;
+  Balances.RateAcc private _totalRate;
 
   uint256 internal _excessCoverage;
   uint256 internal _inverseExchangeRate;
@@ -61,13 +61,14 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     uint64 unitCount
   ) internal view override returns (uint24) {
     WeightedPoolParams memory params = _params;
+
     uint256 min = params.minAdvanceUnits / params.maxUnitsPerRound;
     uint256 max = params.maxAdvanceUnits / params.maxUnitsPerRound;
     if (min > type(uint24).max) {
-      min = type(uint24).max;
       if (openRounds + min > max) {
         return 0;
       }
+      min = type(uint24).max;
     }
 
     if (openRounds + min > max) {
@@ -105,34 +106,37 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     view
     override
     returns (
-      uint16 maxAddUnitsPerRound,
+      uint16, // maxShareUnitsPerRound,
       uint16, // minUnitsPerRound,
+      uint16, // readyUnitsPerRound
       uint16 // maxUnitsPerRound
     )
   {
-    require(maxShare > 0);
     WeightedPoolParams memory params = _params;
 
-    // console.log('internalRoundLimits-0', totalUnitsBeforeBatch, demandedUnits, batchRounds);
-    // console.log('internalRoundLimits-1', unitPerRound, params.minUnitsPerRound, maxShare);
-
-    uint256 x = (totalUnitsBeforeBatch + uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound) * batchRounds)
+    // max units that can be added in total for the share not to be exceeded
+    uint256 x = (totalUnitsBeforeBatch + uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound + 1) * batchRounds)
       .percentMul(maxShare);
 
-    if (x > demandedUnits) {
-      x = (x - demandedUnits + (batchRounds >> 1)) / batchRounds;
-      maxAddUnitsPerRound = x >= type(uint16).max ? type(uint16).max : uint16(x);
+    if (x < demandedUnits + batchRounds) {
+      x = 0;
+    } else {
+      unchecked {
+        x = (x - demandedUnits) / batchRounds;
+      }
+      if (unitPerRound + x >= params.maxUnitsPerRound) {
+        if (unitPerRound < params.minUnitsPerRound) {
+          // this prevents lockup of a batch when demand is added by small portions
+          params.minUnitsPerRound = unitPerRound + 1;
+        }
+      }
+
+      if (x > type(uint16).max) {
+        x = type(uint16).max;
+      }
     }
 
-    x = uint256(maxAddUnitsPerRound) + unitPerRound;
-    if (params.maxUnitsPerRound >= x) {
-      x = params.maxUnitsPerRound;
-    } else if (x > type(uint16).max) {
-      x = type(uint16).max;
-    }
-
-    // console.log('internalRoundLimits-3', maxAddUnitsPerRound, x);
-    return (maxAddUnitsPerRound, params.minUnitsPerRound, uint16(x));
+    return (uint16(x), params.minUnitsPerRound, params.maxUnitsPerRound, params.overUnitsPerRound);
   }
 
   function internalBatchSplit(
@@ -211,4 +215,5 @@ struct WeightedPoolParams {
   uint16 maxInsuredShare;
   uint16 minUnitsPerRound;
   uint16 maxUnitsPerRound;
+  uint16 overUnitsPerRound;
 }

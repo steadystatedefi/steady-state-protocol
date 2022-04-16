@@ -34,7 +34,7 @@ abstract contract TokenDelegateBase is ERC20Base {
     address recipient,
     uint256 amount
   ) private {
-    if (_flags[recipient] & FLAG_TRANSFER_CALLBACK != 0) {
+    if (msg.sender != recipient && _flags[recipient] & FLAG_TRANSFER_CALLBACK != 0) {
       IERC1363Receiver(recipient).onTransferReceived(msg.sender, sender, amount, '');
     }
   }

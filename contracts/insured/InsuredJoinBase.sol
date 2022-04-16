@@ -52,7 +52,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
       require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
       internalSetServiceAccountStatus(insurer, uint16(index));
-      _pushCoverageDemand(IInsurerPool(insurer), getDemandOnJoin());
+      _addCoverageDemandTo(IInsurerPool(insurer), getDemandOnJoin());
     } else {
       internalSetServiceAccountStatus(insurer, STATUS_NOT_JOINED);
     }
@@ -65,17 +65,13 @@ abstract contract InsuredJoinBase is IInsuredPool {
     }
 
     require(status > 0);
-    return _pushCoverageDemand(IInsurerPool(msg.sender), 0);
+    return _addCoverageDemandTo(IInsurerPool(msg.sender), 0);
   }
 
   function internalPushCoverageDemandTo(IInsurerPool target, uint256 amount) internal {
     uint16 status = getAccountStatus(address(target));
     require(status > 0 && status <= INDEX_MAX);
-    _pushCoverageDemand(target, amount);
-  }
-
-  function _pushCoverageDemand(IInsurerPool target, uint256 amount) private returns (bool) {
-    return _addCoverageDemandTo(target, amount);
+    _addCoverageDemandTo(target, amount);
   }
 
   ///@dev Add coverage demand to the Insurer and return if there is more demand that can be added(?)

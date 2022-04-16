@@ -32,13 +32,14 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     await collector.setPremiumScale(payInToken, [fund.address], [RAY]);
 
     await pool.setPoolParams({
-      maxAdvanceUnits: 10000000,
-      minAdvanceUnits: 1000,
-      riskWeightTarget: 1000,
+      maxAdvanceUnits: 10_000_000,
+      minAdvanceUnits: 1_000,
+      riskWeightTarget: 1_000,
       minInsuredShare: 100,
-      maxInsuredShare: 1500,
+      maxInsuredShare: 1_500,
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
+      overUnitsPerRound: 0,
     });
   });
 

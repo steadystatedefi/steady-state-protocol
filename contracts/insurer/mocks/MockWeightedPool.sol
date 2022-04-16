@@ -19,8 +19,9 @@ contract MockWeightedPool is WeightedPoolBase {
         riskWeightTarget: 1000, // 10%
         minInsuredShare: 100, // 1%
         maxInsuredShare: 4000, // 25%
+        minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
-        minUnitsPerRound: 20
+        overUnitsPerRound: 30
       })
     );
   }
@@ -32,6 +33,16 @@ contract MockWeightedPool is WeightedPoolBase {
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return internalGetTotals(type(uint256).max);
   }
+
+  function getExcessCoverage() external view returns (uint256) {
+    return _excessCoverage;
+  }
+
+  function setExcessCoverage(uint256 v) external {
+    _excessCoverage = v;
+  }
+
+  function internalPostCoverageCancel() internal override {}
 
   function receivableDemandedCoverage(address insured) external view returns (uint256 availableCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
@@ -53,7 +64,40 @@ contract MockWeightedPool is WeightedPoolBase {
     receivedCoverage += params.receivedCoverage;
   }
 
-  function cancelCoverage(uint256) external pure override returns (uint256) {
-    revert Errors.NotImplemented();
+  function cancelCoverage(uint256) external override returns (uint256) {
+    _delegate(_extension);
+  }
+
+  function dump() external view returns (Dump memory) {
+    return _dump();
+  }
+
+  function dumpInsured(address insured)
+    external
+    view
+    returns (
+      Rounds.InsuredEntry memory,
+      Rounds.Demand[] memory,
+      Rounds.Coverage memory,
+      Rounds.CoveragePremium memory
+    )
+  {
+    return _dumpInsured(insured);
+  }
+
+  function getUnadjusted()
+    external
+    view
+    returns (
+      uint256 total,
+      uint256 pendingCovered,
+      uint256 pendingDemand
+    )
+  {
+    return internalGetUnadjustedUnits();
+  }
+
+  function applyAdjustments() external {
+    internalApplyAdjustmentsToTotals();
   }
 }
