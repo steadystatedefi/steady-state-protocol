@@ -54,10 +54,11 @@ contract MockWeightedRounds is WeightedRoundsBase {
     returns (
       uint16,
       uint16,
+      uint16,
       uint16
     )
   {
-    return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound);
+    return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound, _maxUnitsPerRound);
   }
 
   uint32 private _splitRounds = type(uint32).max;
@@ -84,7 +85,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function addCoverage(uint256 amount) external {
-    (amount, , , , ) = super.internalAddCoverage(amount, type(uint256).max);
+    (amount, , , ) = super.internalAddCoverage(amount, type(uint256).max);
     excessCoverage += amount;
   }
 

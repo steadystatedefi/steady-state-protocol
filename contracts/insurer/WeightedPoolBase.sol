@@ -57,8 +57,10 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
 
     uint256 excessCoverage = _excessCoverage;
     if (coverageAmount > 0 || excessCoverage > 0) {
-      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
-        .internalAddCoverage(coverageAmount + excessCoverage, type(uint256).max);
+      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
+        coverageAmount + excessCoverage,
+        type(uint256).max
+      );
 
       if (newExcess != excessCoverage) {
         _excessCoverage = newExcess;
@@ -67,7 +69,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
         }
       }
 
-      totals = _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
+      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
     }
 
     emit Transfer(address(0), account, coverageAmount);
@@ -80,22 +82,25 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
   function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
     require(msg.sender == address(this));
 
-    DemandedCoverage memory premium = super.internalGetPremiumTotals();
+    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
 
+    uint256 excessCoverage = _excessCoverage + excess;
     if (paidoutCoverage > 0) {
-      uint256 total = premium.totalCovered + premium.pendingCovered;
-      _inverseExchangeRate = WadRayMath.RAY - (total - paidoutCoverage).rayDiv(total).rayMul(exchangeRate());
+      uint256 total = coverage.totalCovered + coverage.pendingCovered + excessCoverage;
+      _inverseExchangeRate = WadRayMath.RAY - total.rayDiv(total + paidoutCoverage).rayMul(exchangeRate());
     }
 
     if (excess > 0) {
-      _excessCoverage = (excess += _excessCoverage);
-      emit ExcessCoverageIncreased(excess);
-    } else {
-      excess = _excessCoverage;
+      _excessCoverage = excessCoverage;
+      emit ExcessCoverageIncreased(excessCoverage);
     }
-    _afterBalanceUpdate(excess, totals, premium);
+    _afterBalanceUpdate(excessCoverage, totals, coverage);
 
+    internalPostCoverageCancel();
+  }
+
+  function internalPostCoverageCancel() internal virtual {
     pushCoverageExcess();
   }
 
@@ -107,15 +112,14 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       return;
     }
 
-    Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
+    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
+      excessCoverage,
+      type(uint256).max
+    );
 
-    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
-      .internalAddCoverage(excessCoverage, type(uint256).max);
-
-    if (newExcess != excessCoverage) {
-      _excessCoverage = newExcess;
-      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
-    }
+    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
+    _excessCoverage = newExcess;
+    _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
   }
 
   function internalBurn(address account, uint256 coverageAmount) internal returns (uint256) {
@@ -156,23 +160,23 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       uint256 premium
     )
   {
-    scaled = _balances[account].balance;
+    scaled = scaledBalanceOf(account);
     coverage = scaled.rayMul(exchangeRate());
-    (, premium) = interestRate(account);
+    (, premium) = interestOf(account);
   }
 
-  function scaledBalanceOf(address account) external view override returns (uint256) {
+  function scaledBalanceOf(address account) public view override returns (uint256) {
     return _balances[account].balance;
   }
 
   function totalSupply() public view override returns (uint256) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-    return coverage.totalCovered + coverage.pendingCovered;
+    return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
   /// @dev Returns the current rate that this user earns per-block, and the amount of premium accumulated
-  function interestRate(address account) public view override returns (uint256 rate, uint256 accumulated) {
-    Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
+  function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
+    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
     UserBalance memory b = _balances[account];
 
     accumulated = _premiums[account];
@@ -226,12 +230,11 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     bytes calldata data
   ) internal override onlyCollateralCurrency {
     require(data.length == 0);
+    require(
+      operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown
+    );
 
-    if (internalGetStatus(operator) == InsuredStatus.Unknown) {
-      _mintForCoverage(account, amount);
-    } else {
-      // return of funds from insureds
-    }
+    _mintForCoverage(account, amount);
   }
 
   function withdrawable(address account) public view override returns (uint256 amount) {
@@ -247,4 +250,20 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
   function withdrawAll() external override returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }
+
+  // function getUnadjusted()
+  //   external
+  //   view
+  //   returns (
+  //     uint256 total,
+  //     uint256 pendingCovered,
+  //     uint256 pendingDemand
+  //   )
+  // {
+  //   return internalGetUnadjustedUnits();
+  // }
+
+  // function applyAdjustments() external {
+  //   internalApplyAdjustmentsToTotals();
+  // }
 }

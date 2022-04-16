@@ -22,4 +22,8 @@ contract MockInsuredPool is InsuredPoolBase {
   function externalGetAccountStatus(address account) external view returns (uint16) {
     return getAccountStatus(account);
   }
+
+  function testCancelCoverageDemand(address insurer, uint64 unitCount) external {
+    IInsurerPool(insurer).cancelCoverageDemand(unitCount);
+  }
 }
