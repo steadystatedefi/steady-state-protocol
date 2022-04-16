@@ -2,5 +2,8 @@
   "*.{ts,js,json}": [
     "pretty-quick --pattern '**/*.*(js|ts|json)' --staged",
     "npm run eslint:fix"
+  ],
+  "*.sol": [
+    "pretty-quick --staged --pattern 'contracts/**/*.sol' --staged"
   ]
 }

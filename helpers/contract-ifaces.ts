@@ -1,8 +1,10 @@
 import { Contract } from '@ethersproject/contracts';
 import { Signer } from 'ethers';
 
-import { IERC20DetailedFactory } from '../types/IERC20DetailedFactory';
-import { IInsurerPoolFactory } from '../types/IInsurerPoolFactory';
+import {
+  IERC20Detailed__factory as IERC20DetailedFactory,
+  IInsurerPool__factory as IInsurerPoolFactory,
+} from '../types';
 
 import { getDefaultDeployer, UnnamedAttachable } from './factory-wrapper';
 import { TEthereumAddress } from './types';

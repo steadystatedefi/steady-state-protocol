@@ -1,7 +1,7 @@
 const { accounts } = require(`./helpers/test-wallets.json`);
 
 module.exports = {
-  client: require('ganache-cli'),
+  client: require('ganache-core'),
   skipFiles: [
     './access',
     './access/interfaces',

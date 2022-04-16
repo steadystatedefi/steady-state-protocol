@@ -2,12 +2,12 @@ import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
 import '@tenderly/hardhat-tenderly';
+import '@typechain/hardhat';
 import dotenv from 'dotenv';
 import 'hardhat-abi-exporter';
 import 'hardhat-contract-sizer';
 import 'hardhat-gas-reporter';
 import 'hardhat-tracer';
-import 'hardhat-typechain';
 import { HardhatUserConfig } from 'hardhat/types';
 import 'solidity-coverage';
 
