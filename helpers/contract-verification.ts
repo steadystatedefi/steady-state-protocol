@@ -1,4 +1,5 @@
 import { BigNumber as BigNumber2 } from '@ethersproject/bignumber';
+import { chainConfig } from '@nomiclabs/hardhat-etherscan/dist/src/ChainConfig';
 import { getEtherscanEndpoints } from '@nomiclabs/hardhat-etherscan/dist/src/network/prober';
 import { Libraries } from '@nomiclabs/hardhat-etherscan/dist/src/solc/libraries';
 import axios, { AxiosRequestConfig } from 'axios';
@@ -91,10 +92,10 @@ export const verifyProxy = async (proxyAddr: string, implAddr: string): Promise<
 };
 
 async function internalVerifyProxy(proxyAddr: string, implAddr: string) {
-  const endpoints = await getEtherscanEndpoints(DRE.network.provider, DRE.network.name);
   const { config } = DRE;
   const apiKey = config.etherscan.apiKey as string;
-  const baseUrl = `${endpoints.apiURL}?module=contract`;
+  const endpoints = await getEtherscanEndpoints(DRE.network.provider, DRE.network.name, chainConfig);
+  const baseUrl = `${endpoints.urls.apiURL}?module=contract`;
 
   let guid: string;
   {
@@ -109,7 +110,7 @@ async function internalVerifyProxy(proxyAddr: string, implAddr: string) {
 
     if (!response.isOk()) {
       if (response.isProxyImplNotDetected()) {
-        if (await internalVerifyProxyByWebForm(endpoints.browserURL, proxyAddr, implAddr)) {
+        if (await internalVerifyProxyByWebForm(endpoints.urls.browserURL, proxyAddr, implAddr)) {
           return;
         }
       }
@@ -136,7 +137,7 @@ async function internalVerifyProxy(proxyAddr: string, implAddr: string) {
 
       if (!response.isPending()) {
         if (response.isProxyImplNotDetected()) {
-          if (await internalVerifyProxyByWebForm(endpoints.browserURL, proxyAddr, implAddr)) {
+          if (await internalVerifyProxyByWebForm(endpoints.urls.browserURL, proxyAddr, implAddr)) {
             return;
           }
         }
