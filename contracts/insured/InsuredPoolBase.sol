@@ -3,7 +3,6 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 
@@ -12,6 +11,8 @@ import 'hardhat/console.sol';
 // Insured pool tracks how much coverage was requested to Insurer pool and how much is provided
 // reconcilation will ensure the correct amount of premium is paid
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
+  using WadRayMath for uint256;
+
   uint128 private _requiredCoverage;
   uint128 private _demandedCoverage;
 
@@ -68,32 +69,10 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     uint256 amount,
     uint256 premiumRate
   ) internal override {
-    // console.log('internalCoverageDemandAdded', target, amount, _totalDemand);
     _requiredCoverage = uint128(_requiredCoverage - amount);
     _demandedCoverage += uint128(amount);
-    InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate, address(0));
-  }
-
-  ///@dev Adjusts the required and demanded coverage from an investment
-  ///TODO: premiumrate(?)
-  function internalHandleDirectInvestment(
-    uint256 amount,
-    uint256 minAmount,
-    uint256
-  ) internal override returns (uint256 availableAmount, uint64 premiumRate) {
-    availableAmount = _requiredCoverage;
-    if (availableAmount > amount) {
-      _requiredCoverage = uint128(availableAmount - amount);
-      availableAmount = amount;
-    } else if (availableAmount > 0 && availableAmount >= minAmount) {
-      _requiredCoverage = 0;
-    } else {
-      return (0, _premiumRate);
-    }
-
-    require((_demandedCoverage = uint128(amount = _demandedCoverage + availableAmount)) == amount);
-
-    return (availableAmount, _premiumRate);
+    // console.log('internalCoverageDemandAdded', amount, _demandedCoverage);
+    InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
   }
 
   function internalAllocateCoverageDemand(
@@ -101,16 +80,19 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     uint256 amount,
     uint256 unitSize
   ) internal view override returns (uint256 amountToAdd, uint256 premiumRate) {
-    // console.log('internalAllocateCoverageDemand', target, amount, unitSize);
-    // console.log('internalAllocateCoverageDemand', _totalDemand, _premiumRate);
     target;
-    amount;
     unitSize;
-    return (_requiredCoverage, _premiumRate);
+
+    amountToAdd = _requiredCoverage;
+    if (amountToAdd > amount) {
+      amountToAdd = amount;
+    }
+    premiumRate = _premiumRate;
+    // console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
   }
 
   modifier onlyAdmin() virtual {
-    _;
+    _; // TODO
   }
 
   function joinPool(IJoinable pool) external onlyAdmin {
@@ -229,7 +211,65 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _reconcileWithInsurersView(0, type(uint256).max);
   }
 
+  function cancelCoverage(address payoutReceiver, uint256 payoutAmount) external onlyAdmin {
+    internalCancelRates();
+
+    uint256 payoutRatio = totalCollateral();
+    if (payoutRatio > 0) {
+      payoutRatio = payoutAmount.rayDiv(payoutRatio);
+    } else {
+      require(payoutAmount == 0);
+    }
+
+    uint256 totalPayout = internalCancelInsurers(getCharteredInsurers(), payoutRatio);
+    totalPayout += internalCancelInsurers(getGenericInsurers(), payoutRatio);
+
+    require(totalPayout >= payoutAmount);
+    if (payoutAmount > 0) {
+      require(payoutReceiver != address(0));
+      IERC20(collateral()).transfer(payoutReceiver, payoutAmount);
+    }
+  }
+
+  function internalCancelInsurers(address[] storage insurers, uint256 payoutRatio)
+    private
+    returns (uint256 totalPayout)
+  {
+    IERC20 t = IERC20(collateral());
+
+    for (uint256 i = insurers.length; i > 0; ) {
+      address insurer = insurers[--i];
+      t.approve(insurer, type(uint256).max);
+      totalPayout += IInsurerPoolCore(insurer).cancelCoverage(payoutRatio);
+      t.approve(insurer, 0);
+    }
+  }
+
+  function totalCollateral() public view returns (uint256) {
+    return IERC20(collateral()).balanceOf(address(this));
+  }
+
   // function totalCoverage() public view returns(uint256 required, uint256 demanded, uint256 received) {
   //   return (_requiredCoverage, _demandedCoverage, IERC20(collateral()).balanceOf(address(this)));
   // }
+
+  function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
+    return internalOfferCoverage(msg.sender, offeredAmount);
+  }
+
+  function internalOfferCoverage(address account, uint256 offeredAmount)
+    private
+    returns (uint256 acceptedAmount, uint256 rate)
+  {
+    _ensureHolder(account);
+    acceptedAmount = _requiredCoverage;
+    if (acceptedAmount <= offeredAmount) {
+      _requiredCoverage = 0;
+    } else {
+      _requiredCoverage = uint128(acceptedAmount - offeredAmount);
+      acceptedAmount = offeredAmount;
+    }
+    rate = _premiumRate;
+    InsuredBalancesBase.internalMintForCoverage(account, acceptedAmount, rate);
+  }
 }

@@ -65,10 +65,10 @@ abstract contract InsurerJoinBase is IJoinEvents {
         emit JoinProcessed(insured, accepted);
         return internalGetStatus(insured);
       } catch Error(string memory reason) {
-        console.log('JoinFailed', reason);
+        // console.log('JoinFailed', reason);
         emit JoinFailed(insured, reason);
       } catch {
-        console.log('JoinFailedUnknown');
+        // console.log('JoinFailedUnknown');
         emit JoinFailed(insured, '<unknown>');
       }
       status = InsuredStatus.JoinFailed;

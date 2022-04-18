@@ -3,7 +3,6 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
@@ -31,8 +30,16 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return (_genericInsurers, _charteredInsurers);
   }
 
+  function getGenericInsurers() internal view returns (address[] storage) {
+    return _genericInsurers;
+  }
+
   function getCharteredInsurers() internal view returns (address[] storage) {
     return _charteredInsurers;
+  }
+
+  function getDemandOnJoin() internal view virtual returns (uint256) {
+    return ~uint256(0);
   }
 
   ///@dev Add the Insurer pool if accepted, and set the status of it
@@ -45,7 +52,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
       require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
       internalSetServiceAccountStatus(insurer, uint16(index));
-      _pushCoverageDemand(IInsurerPool(insurer), 0);
+      _addCoverageDemandTo(IInsurerPool(insurer), getDemandOnJoin());
     } else {
       internalSetServiceAccountStatus(insurer, STATUS_NOT_JOINED);
     }
@@ -58,38 +65,33 @@ abstract contract InsuredJoinBase is IInsuredPool {
     }
 
     require(status > 0);
-    return _pushCoverageDemand(IInsurerPool(msg.sender), 0);
+    return _addCoverageDemandTo(IInsurerPool(msg.sender), 0);
   }
 
   function internalPushCoverageDemandTo(IInsurerPool target, uint256 amount) internal {
     uint16 status = getAccountStatus(address(target));
     require(status > 0 && status <= INDEX_MAX);
-    _pushCoverageDemand(target, amount);
-  }
-
-  function _pushCoverageDemand(IInsurerPool target, uint256 amount) private returns (bool) {
-    return _addCoverageDemandTo(target, amount);
+    _addCoverageDemandTo(target, amount);
   }
 
   ///@dev Add coverage demand to the Insurer and return if there is more demand that can be added(?)
   function _addCoverageDemandTo(IInsurerPool target, uint256 amount) private returns (bool) {
     uint256 unitSize = IInsurerPool(target).coverageUnitSize();
-    uint256 premiumRate;
-    (amount, premiumRate) = internalAllocateCoverageDemand(address(target), amount, unitSize);
-    if (amount < unitSize) {
+
+    (uint256 amountAdd, uint256 premiumRate) = internalAllocateCoverageDemand(address(target), amount, unitSize);
+    require(amountAdd <= amount);
+
+    amountAdd = amountAdd < unitSize
+      ? 0
+      : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0);
+    if (amountAdd == 0) {
       return false;
     }
 
-    uint256 amountAdded = target.addCoverageDemand(amount / unitSize, premiumRate, amount % unitSize != 0);
-    if (amountAdded == 0) {
-      return false;
-    }
+    amountAdd *= unitSize;
+    internalCoverageDemandAdded(address(target), amountAdd, premiumRate);
 
-    amountAdded *= unitSize;
-    require(amountAdded <= amount);
-    internalCoverageDemandAdded(address(target), amountAdded, premiumRate);
-
-    return amountAdded < amount;
+    return amountAdd < amount;
   }
 
   function internalAllocateCoverageDemand(

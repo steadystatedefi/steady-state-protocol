@@ -9,6 +9,7 @@ import 'hardhat/console.sol';
 
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;
+  using Rounds for Rounds.State;
   using WadRayMath for uint256;
 
   uint256 private immutable _unitSize;
@@ -37,6 +38,7 @@ abstract contract WeightedRoundsBase {
   /// @dev points to an earliest round that is open, can not be zero
   uint64 private _firstOpenBatchNo;
   /// @dev number of open rounds starting from the partial one to _latestBatchNo
+  /// @dev it is provided to the logic distribution control logic
   uint32 private _openRounds;
   /// @dev summary of total pool premium (covers all batches before the partial)
   Rounds.CoveragePremium private _poolPremium;
@@ -65,6 +67,10 @@ abstract contract WeightedRoundsBase {
   }
   /// @dev segments of coverage integral NB! Each segment is independent, it does NOT include / cosider previous segments
   mapping(uint64 => TimeMark) private _marks;
+  // uint256 private _premiumOfCancelled;
+
+  uint80 private _pendingCancelledCoverageUnits;
+  uint80 private _pendingCancelledDemandUnits;
 
   function internalSetInsuredStatus(address account, InsuredStatus status) internal {
     _insureds[account].status = status;
@@ -113,15 +119,14 @@ abstract contract WeightedRoundsBase {
       uint64 // remainingCount
     )
   {
-    // console.log('\ninternalAddCoverageDemand');
+    // console.log('\ninternalAddCoverageDemand', unitCount);
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
     require(entry.status == InsuredStatus.Accepted);
-
-    Rounds.Demand[] storage demands = _demands[params.insured];
-
     if (unitCount == 0 || params.loopLimit == 0) {
       return unitCount;
     }
+
+    Rounds.Demand[] storage demands = _demands[params.insured];
 
     (Rounds.Batch memory b, uint64 thisBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.nextBatchNo);
 
@@ -129,15 +134,21 @@ abstract contract WeightedRoundsBase {
     Rounds.Demand memory demand;
 
     for (;;) {
-      // console.log('addDLoop', nextBatch, isFirstOfOpen, totalUnitsBeforeBatch);
+      // console.log('addDemandLoop', thisBatch, isFirstOfOpen, b.totalUnitsBeforeBatch);
       params.loopLimit--;
 
       require(thisBatch != 0);
       if (b.rounds == 0) {
-        require(b.nextBatchNo == 0);
+        // NB! empty batches can also be produced by cancellation
 
         uint32 openRounds = _openRounds;
-        b.rounds = internalBatchAppend(b.totalUnitsBeforeBatch, openRounds, unitCount);
+        b.rounds = internalBatchAppend(
+          _adjustedTotalUnits(b.totalUnitsBeforeBatch),
+          openRounds - _partial.roundNo,
+          unitCount
+        );
+        // console.log('addDemandToEmpty', b.rounds, openRounds - _partial.roundNo);
+
         if (b.rounds > 0) {
           _openRounds = openRounds + b.rounds;
           _initTimeMark(_latestBatchNo = b.nextBatchNo = ++_batchCount);
@@ -149,6 +160,7 @@ abstract contract WeightedRoundsBase {
       if (b.isOpen()) {
         if (b.rounds > 0) {
           (addPerRound, takeNext) = _addToBatch(unitCount, b, entry, params, isFirstOfOpen);
+          // console.log('addToBatchResult', addPerRound, takeNext);
         }
 
         if (isFirstOfOpen && b.isOpen()) {
@@ -157,9 +169,13 @@ abstract contract WeightedRoundsBase {
         }
       }
 
-      if (_addToSlot(demand, demands, addPerRound, b.rounds)) {
-        demand.startBatchNo = thisBatch;
-        demand.premiumRate = params.premiumRate;
+      if (_addToSlot(demand, demands, addPerRound, b.rounds, params.premiumRate)) {
+        demand = Rounds.Demand({
+          startBatchNo: thisBatch,
+          premiumRate: params.premiumRate,
+          rounds: b.rounds,
+          unitPerRound: addPerRound
+        });
       }
 
       if (addPerRound > 0) {
@@ -178,7 +194,7 @@ abstract contract WeightedRoundsBase {
       entry.nextBatchNo = thisBatch = b.nextBatchNo;
       require(thisBatch != 0);
 
-      uint64 totalUnitsBeforeBatch = b.totalUnitsBeforeBatch + uint64(b.unitPerRound) * b.rounds;
+      uint80 totalUnitsBeforeBatch = b.totalUnitsBeforeBatch + uint80(b.unitPerRound) * b.rounds;
       b = _batches[thisBatch];
 
       if (unitCount == 0 || params.loopLimit == 0) {
@@ -243,7 +259,7 @@ abstract contract WeightedRoundsBase {
             b.state = Rounds.State.Full;
 
             Rounds.CoveragePremium memory premium = _poolPremium;
-            _updateTotalPremium(thisBatchNo, premium, b);
+            _addPartialToTotalPremium(thisBatchNo, premium, b);
             _poolPremium = premium;
 
             _partial = PartialState({roundCoverage: 0, batchNo: b.nextBatchNo, roundNo: 0});
@@ -260,10 +276,14 @@ abstract contract WeightedRoundsBase {
     return (b, thisBatchNo, thisBatchNo == firstOpen);
   }
 
-  function _calcCoveredUnits() private view returns (uint64) {
-    PartialState memory part = _partial;
-    Rounds.Batch memory b = _batches[part.batchNo];
-    return b.totalUnitsBeforeBatch + part.roundNo * b.unitPerRound;
+  function _adjustedTotalUnits(uint80 units) private view returns (uint80 n) {
+    n = _pendingCancelledCoverageUnits;
+    if (n >= units) {
+      return 0;
+    }
+    unchecked {
+      return units - n;
+    }
   }
 
   ///@dev adds the demand to the list of demands
@@ -271,9 +291,10 @@ abstract contract WeightedRoundsBase {
     Rounds.Demand memory demand,
     Rounds.Demand[] storage demands,
     uint16 addPerRound,
-    uint24 batchRounds
+    uint24 batchRounds,
+    uint40 premiumRate
   ) private returns (bool) {
-    if (demand.unitPerRound == addPerRound) {
+    if (demand.unitPerRound == addPerRound && demand.premiumRate == premiumRate) {
       uint24 t;
       unchecked {
         t = batchRounds + demand.rounds;
@@ -282,19 +303,16 @@ abstract contract WeightedRoundsBase {
         demand.rounds = t;
         return false;
       }
-      demand.rounds = type(uint24).max;
-      batchRounds = t + 1;
+      // overflow on amount of rounds per slot
     }
 
     if (demand.unitPerRound != 0) {
       demands.push(demand);
     }
-    demand.rounds = batchRounds;
-    demand.unitPerRound = addPerRound;
     return true;
   }
 
-  ///@dev Adds units to the batch by reducing the batch to the unit size and splitting if need be.
+  ///@dev Adds units to the batch. Can split the batch when the number of units is less than the number of rounds inside the batch.
   /// The unitCount units are evenly distributed across rounds by increase the # of units per round
   function _addToBatch(
     uint64 unitCount,
@@ -305,10 +323,12 @@ abstract contract WeightedRoundsBase {
   ) private returns (uint16 addPerRound, bool takeNext) {
     require(b.isOpen() && b.rounds > 0); // TODO dev sanity check - remove later
 
+    // console.log('addToBatch', unitCount, canClose);
+
     if (unitCount < b.rounds) {
       // split the batch or return the non-allocated units
       uint24 splitRounds = internalBatchSplit(entry.demandedUnits, entry.minUnits, b.rounds, uint24(unitCount));
-      // console.log('post-internalBatchSplit', splitRounds, unitCount);
+      // console.log('addToBatch-internalBatchSplit', splitRounds);
       if (splitRounds == 0) {
         return (0, false);
       }
@@ -318,13 +338,21 @@ abstract contract WeightedRoundsBase {
       // console.log('batchSplit-after', b.rounds, b.nextBatchNo);
     }
 
-    (uint16 maxShareUnitsPerRound, uint16 minUnitsPerRound, uint16 maxUnitsPerRound) = internalRoundLimits(
-      b.totalUnitsBeforeBatch,
-      b.rounds,
-      b.unitPerRound,
-      entry.demandedUnits,
-      entry.maxShare
-    );
+    (
+      uint16 maxShareUnitsPerRound,
+      uint16 minUnitsPerRound,
+      uint16 readyUnitsPerRound,
+      uint16 maxUnitsPerRound
+    ) = internalRoundLimits(
+        _adjustedTotalUnits(b.totalUnitsBeforeBatch),
+        b.rounds,
+        b.unitPerRound,
+        entry.demandedUnits,
+        entry.maxShare
+      );
+
+    // console.log('addToBatch-checkLimits', b.unitPerRound, b.rounds);
+    // console.log('addToBatch-limits', maxShareUnitsPerRound, minUnitsPerRound, maxUnitsPerRound);
 
     if (maxShareUnitsPerRound > 0 && b.unitPerRound < maxUnitsPerRound) {
       addPerRound = maxUnitsPerRound - b.unitPerRound;
@@ -342,13 +370,13 @@ abstract contract WeightedRoundsBase {
     }
 
     if (b.unitPerRound >= minUnitsPerRound) {
-      b.state = canClose && b.unitPerRound >= maxUnitsPerRound ? Rounds.State.Ready : Rounds.State.ReadyMin;
+      b.state = canClose && b.unitPerRound >= readyUnitsPerRound ? Rounds.State.Ready : Rounds.State.ReadyMin;
     }
     return (addPerRound, true);
   }
 
   function internalRoundLimits(
-    uint64 totalUnitsBeforeBatch,
+    uint80 totalUnitsBeforeBatch,
     uint24 batchRounds,
     uint16 unitPerRound,
     uint64 demandedUnits,
@@ -359,6 +387,7 @@ abstract contract WeightedRoundsBase {
     returns (
       uint16 maxAddUnitsPerRound,
       uint16 minUnitsPerRound,
+      uint16 readyUnitsPerRound,
       uint16 maxUnitsPerRound
     );
 
@@ -370,7 +399,7 @@ abstract contract WeightedRoundsBase {
   ) internal virtual returns (uint24 splitRounds);
 
   function internalBatchAppend(
-    uint64 totalUnitsBeforeBatch,
+    uint80 totalUnitsBeforeBatch,
     uint32 openRounds,
     uint64 unitCount
   ) internal virtual returns (uint24 rounds);
@@ -382,11 +411,10 @@ abstract contract WeightedRoundsBase {
     require(b.rounds > remainingRounds, 'split beyond size');
 
     uint64 newBatchNo = ++_batchCount;
-    // // console.log(b.rounds, b.unitPerRound, b.nextBatchNo, b.totalUnitsBeforeBatch);
 
     _batches[newBatchNo] = Rounds.Batch({
       nextBatchNo: b.nextBatchNo,
-      totalUnitsBeforeBatch: b.totalUnitsBeforeBatch + remainingRounds * b.unitPerRound,
+      totalUnitsBeforeBatch: b.totalUnitsBeforeBatch + uint80(remainingRounds) * b.unitPerRound,
       rounds: b.rounds - remainingRounds,
       unitPerRound: b.unitPerRound,
       state: b.state,
@@ -399,7 +427,13 @@ abstract contract WeightedRoundsBase {
       _latestBatchNo = newBatchNo;
     }
     b.nextBatchNo = newBatchNo;
-    // // console.log(b.rounds, b.unitPerRound, b.nextBatchNo, b.totalUnitsBeforeBatch);
+  }
+
+  function _splitBatch(uint24 remainingRounds, uint64 batchNo) private returns (uint64) {
+    Rounds.Batch memory b = _batches[batchNo];
+    _splitBatch(remainingRounds, b);
+    _batches[batchNo] = b;
+    return b.nextBatchNo;
   }
 
   struct GetCoveredDemandParams {
@@ -422,31 +456,27 @@ abstract contract WeightedRoundsBase {
     Rounds.Demand[] storage demands = _demands[params.insured];
     premium = _premiums[params.insured];
 
-    uint256 demandLength = demands.length;
-    if (demandLength == 0) {
-      params.done = true;
-      return (coverage, covered, premium);
-    }
-    if (params.loopLimit == 0) {
-      return (coverage, covered, premium);
-    }
-
-    covered = _covered[params.insured];
-    params.receivedCoverage = covered.coveredUnits;
-
     (coverage.totalPremium, coverage.premiumRate, coverage.premiumUpdatedAt) = (
       premium.coveragePremium,
       premium.coveragePremiumRate,
       premium.lastUpdatedAt
     );
 
-    for (; params.loopLimit > 0; params.loopLimit--) {
-      if (
-        covered.lastUpdateIndex >= demandLength ||
-        !_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered, premium)
-      ) {
-        params.done = true;
-        break;
+    uint256 demandLength = demands.length;
+    if (demandLength == 0) {
+      params.done = true;
+    } else {
+      covered = _covered[params.insured];
+      params.receivedCoverage = covered.coveredUnits;
+
+      for (; params.loopLimit > 0; params.loopLimit--) {
+        if (
+          covered.lastUpdateIndex >= demandLength ||
+          !_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered, premium)
+        ) {
+          params.done = true;
+          break;
+        }
       }
     }
 
@@ -463,7 +493,7 @@ abstract contract WeightedRoundsBase {
     (coverage, _covered[params.insured], _premiums[params.insured]) = internalGetCoveredDemand(params);
   }
 
-  ///@dev Sets the function paramaters to their correct values by:
+  ///@dev Sets the function parameters to their correct values by:
   /// - Setting d.startBatchNo to the first open batch and calculating # of full rounds and premium accrued from full batches
   /// - Set covered to the premium values from the newly counted full batches
   /// - RETURN true if the demand has been completely filled
@@ -474,12 +504,16 @@ abstract contract WeightedRoundsBase {
     Rounds.Coverage memory covered,
     Rounds.CoveragePremium memory premium
   ) private view returns (bool) {
-    // console.log('collect', d.rounds, covered.lastOpenBatchNo, covered.lastUpdateRounds);
+    // console.log('collect', d.rounds, covered.lastUpdateBatchNo, covered.lastUpdateRounds);
 
     uint24 fullRounds;
     if (covered.lastUpdateRounds > 0) {
-      d.rounds -= covered.lastUpdateRounds; //Reduce by # of full rounds that was kept track of until lastOpenBatchNo
-      d.startBatchNo = covered.lastOpenBatchNo;
+      d.rounds -= covered.lastUpdateRounds; //Reduce by # of full rounds that was kept track of until lastUpdateBatchNo
+      d.startBatchNo = covered.lastUpdateBatchNo;
+    }
+    if (covered.lastPartialRoundNo > 0) {
+      covered.coveredUnits -= uint64(covered.lastPartialRoundNo) * d.unitPerRound;
+      covered.lastPartialRoundNo = 0;
     }
 
     Rounds.Batch memory b;
@@ -490,17 +524,20 @@ abstract contract WeightedRoundsBase {
 
       if (!b.isFull()) break;
       // console.log('collectBatch1');
-      require(b.rounds > 0);
-      fullRounds += b.rounds;
 
-      (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
-        d,
-        premium,
-        b.rounds,
-        0,
-        d.premiumRate,
-        b.unitPerRound
-      );
+      // zero rounds may be present due to cancellations
+      if (b.rounds > 0) {
+        fullRounds += b.rounds;
+
+        (premium.coveragePremium, premium.coveragePremiumRate, premium.lastUpdatedAt) = _calcPremium(
+          d,
+          premium,
+          b.rounds,
+          0,
+          d.premiumRate,
+          b.unitPerRound
+        );
+      }
       d.startBatchNo = b.nextBatchNo;
     }
 
@@ -511,10 +548,10 @@ abstract contract WeightedRoundsBase {
       premium.lastUpdatedAt
     );
 
-    //If the covered.lastUpdateIndex demand has been fully covered
+    // if the covered.lastUpdateIndex demand has been fully covered
     if (d.rounds == fullRounds) {
       covered.lastUpdateRounds = 0;
-      covered.lastOpenBatchNo = 0;
+      covered.lastUpdateBatchNo = 0;
       covered.lastUpdateIndex++;
       return true;
     }
@@ -522,14 +559,14 @@ abstract contract WeightedRoundsBase {
     require(d.rounds > fullRounds);
     require(d.startBatchNo != 0);
     covered.lastUpdateRounds += fullRounds;
-    covered.lastOpenBatchNo = d.startBatchNo;
+    covered.lastUpdateBatchNo = d.startBatchNo;
 
     PartialState memory part = _partial;
-    // console.log('collectCheck', part.batchNo, covered.lastOpenBatchNo);
+    // console.log('collectCheck', part.batchNo, covered.lastUpdateBatchNo);
     if (part.batchNo == d.startBatchNo) {
       // console.log('collectPartial', part.roundNo, part.roundCoverage);
       if (part.roundNo > 0 || part.roundCoverage > 0) {
-        covered.coveredUnits += part.roundNo * d.unitPerRound;
+        covered.coveredUnits += uint64(covered.lastPartialRoundNo = part.roundNo) * d.unitPerRound;
         coverage.pendingCovered =
           (uint256(part.roundCoverage) * d.unitPerRound) /
           _batches[d.startBatchNo].unitPerRound;
@@ -555,10 +592,10 @@ abstract contract WeightedRoundsBase {
       ? uint256(_unitSize).wadMulUp(coverage.premiumRate)
       : uint256(_unitSize).wadMul(coverage.premiumRate);
     coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
-    //    // console.log('calcPremium', premium.lastUpdatedAt, block.timestamp, coverage.premiumRate);
     if (coverage.premiumUpdatedAt != 0) {
       coverage.totalPremium += coverage.premiumRate * (block.timestamp - coverage.premiumUpdatedAt);
-      //      // console.log('calcPremium', coverage.totalPremium);
+      coverage.premiumRateUpdatedAt = coverage.premiumUpdatedAt;
+      coverage.premiumUpdatedAt = uint32(block.timestamp);
     }
   }
 
@@ -567,7 +604,7 @@ abstract contract WeightedRoundsBase {
   function _calcPremium(
     Rounds.Demand memory d,
     Rounds.CoveragePremium memory premium,
-    uint256 rounds,
+    uint24 rounds,
     uint256 pendingCovered,
     uint256 premiumRate,
     uint256 batchUnitPerRound
@@ -589,32 +626,35 @@ abstract contract WeightedRoundsBase {
     if (premium.lastUpdatedAt != 0) {
       v += uint256(premium.coveragePremiumRate) * (mark.timestamp - premium.lastUpdatedAt);
     }
-
     lastUpdatedAt = mark.timestamp;
 
     if (mark.coverageTW > 0) {
       // normalization by unitSize to reduce storage requirements
-      batchUnitPerRound *= _unitSize;
-      v += (premiumRate * d.unitPerRound * mark.coverageTW + (batchUnitPerRound - 1)) / batchUnitPerRound;
+      v += _calcTimeMarkPortion(premiumRate * mark.coverageTW, d.unitPerRound, uint256(_unitSize) * batchUnitPerRound);
     }
     require(v <= type(uint96).max);
     coveragePremium = uint96(v);
 
+    v = premium.coveragePremiumRate + premiumRate * uint256(rounds) * d.unitPerRound;
     if (pendingCovered > 0) {
       // normalization by unitSize to reduce storage requirements
-      v = pendingCovered + (rounds * d.unitPerRound) * _unitSize;
-      v = (v * premiumRate + (_unitSize - 1)) / _unitSize;
-    } else {
-      v = premiumRate * (rounds * d.unitPerRound);
+      // roundup is aggresive here to ensure that this pools is guaranteed to pay not less that it pays out
+      v += (pendingCovered * premiumRate + (_unitSize - 1)) / _unitSize;
     }
-    v += premium.coveragePremiumRate;
-    require(v <= type(uint64).max);
-    coveragePremiumRate = uint64(v);
+    require((coveragePremiumRate = uint64(v)) == v);
     // console.log('premiumAfter', coveragePremium, coveragePremiumRate);
   }
 
+  function _calcTimeMarkPortion(
+    uint256 tw,
+    uint16 unitPerRound,
+    uint256 batchRoundUnits
+  ) private pure returns (uint256) {
+    return (tw * unitPerRound + (batchRoundUnits - 1)) / batchRoundUnits;
+  }
+
   ///@dev Update the premium totals of coverage by including batch b
-  function _collectPremiumTotals(
+  function _collectPremiumTotalsFromPartial(
     PartialState memory part,
     Rounds.Batch memory b,
     Rounds.CoveragePremium memory premium,
@@ -644,20 +684,24 @@ abstract contract WeightedRoundsBase {
   }
 
   function internalGetPremiumTotals() internal view returns (DemandedCoverage memory coverage) {
-    PartialState memory part = _partial;
-    if (part.batchNo == 0) return (coverage);
-    internalGetPremiumTotals(part, _batches[part.batchNo], _poolPremium);
+    return internalGetPremiumTotals(_partial, _poolPremium);
   }
 
-  function internalGetPremiumTotals(
-    PartialState memory part,
-    Rounds.Batch memory b,
-    Rounds.CoveragePremium memory premium
-  ) internal view returns (DemandedCoverage memory coverage) {
-    _collectPremiumTotals(part, b, premium, coverage);
+  function internalGetPremiumTotals(PartialState memory part, Rounds.CoveragePremium memory premium)
+    internal
+    view
+    returns (DemandedCoverage memory coverage)
+  {
+    if (part.batchNo == 0) {
+      return coverage;
+    }
 
-    coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
+    Rounds.Batch memory b = _batches[part.batchNo];
+    _collectPremiumTotalsFromPartial(part, b, premium, coverage);
+
+    coverage.totalCovered = _adjustedTotalUnits(b.totalUnitsBeforeBatch) + uint256(part.roundNo) * b.unitPerRound;
     coverage.pendingCovered = part.roundCoverage;
+    // coverage.totalPremium += _premiumOfCancelled;
 
     _finalizePremium(coverage, false);
     coverage.totalCovered *= _unitSize;
@@ -678,10 +722,11 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch memory b = _batches[thisBatch];
     // console.log('batch0', thisBatch, b.nextBatchNo, b.rounds);
     // console.log('batch1', part.roundNo);
-    _collectPremiumTotals(part, b, _poolPremium, coverage);
+    _collectPremiumTotalsFromPartial(part, b, _poolPremium, coverage);
 
-    coverage.totalCovered = b.totalUnitsBeforeBatch + uint256(part.roundNo) * b.unitPerRound;
-    coverage.totalDemand = b.totalUnitsBeforeBatch + uint256(b.rounds) * b.unitPerRound;
+    uint80 adjustedTotal = _adjustedTotalUnits(b.totalUnitsBeforeBatch);
+    coverage.totalCovered = adjustedTotal + uint256(part.roundNo) * b.unitPerRound;
+    coverage.totalDemand = adjustedTotal + uint256(b.rounds) * b.unitPerRound;
     coverage.pendingCovered = part.roundCoverage;
     total.batchCount = 1;
 
@@ -731,15 +776,17 @@ abstract contract WeightedRoundsBase {
       uint256 remainingAmount,
       uint256 remainingLoopLimit,
       AddCoverageParams memory params,
-      PartialState memory part,
-      Rounds.Batch memory b
+      PartialState memory part
     )
   {
     part = _partial;
 
     if (amount == 0 || loopLimit == 0 || part.batchNo == 0) {
-      return (amount, loopLimit, params, part, b);
+      return (amount, loopLimit, params, part);
     }
+
+    Rounds.Batch memory b;
+    params.premium = _poolPremium;
 
     (amount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
     if (params.batchUpdated) {
@@ -754,7 +801,7 @@ abstract contract WeightedRoundsBase {
     }
     _partial = part;
     // console.log('partial3', part.batchNo, part.roundNo, part.roundCoverage);
-    return (amount, loopLimit, params, part, b);
+    return (amount, loopLimit, params, part);
   }
 
   ///@dev Adds coverage to the pool and stops if there are no batches left to add coverage to
@@ -795,9 +842,8 @@ abstract contract WeightedRoundsBase {
     params.openBatchNo = _firstOpenBatchNo;
     while (true) {
       loopLimit--;
-      require(b.unitPerRound > 0, 'empty round');
 
-      //If filled in the final round of a batch
+      // if filled in the final round of a batch
       if (part.roundNo >= b.rounds) {
         require(part.roundNo == b.rounds);
         require(part.roundCoverage == 0);
@@ -806,11 +852,14 @@ abstract contract WeightedRoundsBase {
           b.state = Rounds.State.Full;
           params.batchUpdated = true;
 
-          if (!params.premiumUpdated) {
-            params.premium = _poolPremium;
+          if (b.unitPerRound == 0) {
+            // this is a special case when all units were removed by cancellations
+            require(b.rounds == 0);
+            // total premium doesn't need to be updated as the rate remains the same
+          } else {
+            _addPartialToTotalPremium(part.batchNo, params.premium, b);
+            params.premiumUpdated = true;
           }
-          _updateTotalPremium(part.batchNo, params.premium, b);
-          params.premiumUpdated = true;
         }
 
         if (params.batchUpdated) {
@@ -825,22 +874,21 @@ abstract contract WeightedRoundsBase {
 
         if (b.nextBatchNo == 0) break;
 
-        // DO NOT do like this here:  part = PartialState({batchNo: b.nextBatchNo, roundNo: 0, roundCoverage: 0});
-        part.batchNo = b.nextBatchNo;
-        part.roundNo = 0;
-        part.roundCoverage = 0;
+        // do NOT do like this here:  part = PartialState({batchNo: b.nextBatchNo, roundNo: 0, roundCoverage: 0});
+        (part.batchNo, part.roundNo, part.roundCoverage) = (b.nextBatchNo, 0, 0);
         // console.log('partial0', part.batchNo, part.roundNo, part.roundCoverage);
 
-        _openRounds -= b.rounds;
-        {
-          uint64 totalUnitsBeforeBatch = b.totalUnitsBeforeBatch + uint64(b.rounds) * b.unitPerRound;
+        uint80 totalUnitsBeforeBatch = b.totalUnitsBeforeBatch;
+        if (b.rounds > 0) {
+          _openRounds -= b.rounds;
+          totalUnitsBeforeBatch += uint80(b.rounds) * b.unitPerRound;
+        }
 
-          b = _batches[part.batchNo];
+        b = _batches[part.batchNo];
 
-          if (totalUnitsBeforeBatch != b.totalUnitsBeforeBatch) {
-            b.totalUnitsBeforeBatch = totalUnitsBeforeBatch;
-            params.batchUpdated = true;
-          }
+        if (totalUnitsBeforeBatch != b.totalUnitsBeforeBatch) {
+          b.totalUnitsBeforeBatch = totalUnitsBeforeBatch;
+          params.batchUpdated = true;
         }
 
         if (amount == 0) break;
@@ -874,7 +922,7 @@ abstract contract WeightedRoundsBase {
     return (amount, loopLimit, b);
   }
 
-  function _updateTotalPremium(
+  function _addPartialToTotalPremium(
     uint64 batchNo,
     Rounds.CoveragePremium memory premium,
     Rounds.Batch memory b
@@ -929,6 +977,19 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch[] batches;
   }
 
+  function _dumpInsured(address insured)
+    internal
+    view
+    returns (
+      Rounds.InsuredEntry memory,
+      Rounds.Demand[] memory,
+      Rounds.Coverage memory,
+      Rounds.CoveragePremium memory
+    )
+  {
+    return (_insureds[insured], _demands[insured], _covered[insured], _premiums[insured]);
+  }
+
   function _dump() internal view returns (Dump memory dump) {
     dump.batchCount = _batchCount;
     dump.latestBatch = _latestBatchNo;
@@ -948,7 +1009,459 @@ abstract contract WeightedRoundsBase {
   }
 
   function internalCanAddCoverage() internal view returns (bool) {
+    PartialState memory part = _partial; // TODO check if using storage is better for gas
+    return part.batchNo != 0 && (part.roundCoverage > 0 || _batches[part.batchNo].state.isReady());
+  }
+
+  struct CancelCoverageDemandParams {
+    uint256 loopLimit;
+    address insured;
+    bool done;
+    // temp var
+    uint80 totalUnitsBeforeBatch;
+  }
+
+  function internalCancelCoverageDemand(uint64 unitCount, CancelCoverageDemandParams memory params)
+    internal
+    returns (uint64)
+  {
+    // TODO problems: consider zero-round batches when adding demand and coverage
+
+    Rounds.InsuredEntry storage entry = _insureds[params.insured];
+    require(entry.status == InsuredStatus.Accepted);
+
+    if (unitCount == 0 || params.loopLimit == 0 || entry.demandedUnits == _covered[params.insured].coveredUnits) {
+      return 0;
+    }
+
+    Rounds.Demand[] storage demands = _demands[params.insured];
+
+    (
+      uint256 index,
+      uint64 batchNo,
+      uint256 skippedRounds,
+      Rounds.Demand memory demand,
+      uint64 cancelledUnits
+    ) = _findAndAdjustUncovered(unitCount, demands, params);
+
+    if (cancelledUnits == 0) {
+      return 0;
+    }
+
+    entry.nextBatchNo = batchNo;
+    entry.demandedUnits -= cancelledUnits;
+
+    uint24 cancelFirstSlotRounds = uint24(demand.rounds - skippedRounds);
+    require(cancelFirstSlotRounds > 0);
+
+    demand.rounds = uint24(skippedRounds);
+
+    (batchNo, params.totalUnitsBeforeBatch) = _adjustUncoveredBatches(
+      batchNo,
+      cancelFirstSlotRounds,
+      _batches[batchNo].totalUnitsBeforeBatch,
+      demand
+    );
+
+    _adjustUncoveredSlots(batchNo, uint80(cancelFirstSlotRounds) * demand.unitPerRound, demands, index + 1, params);
+
+    for (uint256 i = demands.length - index; i > 1; i--) {
+      demands.pop();
+    }
+
+    if (demand.rounds == 0) {
+      demands.pop();
+    } else {
+      demands[index] = demand;
+    }
+
+    return cancelledUnits;
+  }
+
+  function _findAndAdjustUncovered(
+    uint64 unitCount,
+    Rounds.Demand[] storage demands,
+    CancelCoverageDemandParams memory params
+  )
+    private
+    returns (
+      uint256 index,
+      uint64 batchNo,
+      uint256 skippedRounds,
+      Rounds.Demand memory demand,
+      uint64 cancelledUnits
+    )
+  {
     PartialState memory part = _partial;
-    return part.batchNo != 0 && (part.roundCoverage > 0 || _batches[part.batchNo].isReady());
+
+    for (index = demands.length; index > 0 && params.loopLimit > 0; params.loopLimit--) {
+      index--;
+
+      Rounds.Demand memory prev = demand;
+      demand = demands[index];
+
+      uint64 cancelUnits;
+      (params.done, batchNo, cancelUnits, skippedRounds) = _findUncoveredBatch(
+        part,
+        demand,
+        unitCount - cancelledUnits
+      );
+
+      cancelledUnits += cancelUnits;
+      if (params.done) {
+        if (skippedRounds == demand.rounds) {
+          // the whole demand slot was skipped, so use the previous one
+          require(cancelUnits == 0);
+          index++;
+          demand = prev;
+          batchNo = prev.startBatchNo;
+          skippedRounds = 0;
+        }
+        break;
+      }
+
+      require(skippedRounds == 0);
+    }
+  }
+
+  function _findUncoveredBatch(
+    PartialState memory part,
+    Rounds.Demand memory demand,
+    uint256 unitCount
+  )
+    private
+    returns (
+      bool done,
+      uint64 batchNo,
+      uint64 cancelUnits,
+      uint256 skippedRounds
+    )
+  {
+    batchNo = demand.startBatchNo;
+
+    uint256 partialRounds;
+    if (batchNo == part.batchNo) {
+      done = true;
+    } else if (_batches[batchNo].state.isFull()) {
+      for (;;) {
+        Rounds.Batch storage batch = _batches[batchNo];
+        skippedRounds += batch.rounds;
+        if (skippedRounds >= demand.rounds) {
+          require(skippedRounds == demand.rounds);
+          return (true, batchNo, 0, skippedRounds);
+        }
+        batchNo = batch.nextBatchNo;
+        if (batchNo == part.batchNo) {
+          break;
+        }
+      }
+      done = true;
+    }
+    if (done) {
+      partialRounds = part.roundCoverage == 0 ? part.roundNo : part.roundNo + 1;
+    }
+
+    uint256 neededRounds = (uint256(unitCount) + demand.unitPerRound - 1) / demand.unitPerRound;
+
+    if (demand.rounds <= skippedRounds + partialRounds + neededRounds) {
+      // we should cancel all demands of this slot
+      if (partialRounds > 0) {
+        // the partial batch can alway be split
+        batchNo = _splitBatch(uint24(partialRounds), batchNo);
+        skippedRounds += partialRounds;
+      }
+      neededRounds = demand.rounds - skippedRounds;
+    } else {
+      // there is more demand in this slot than needs to be cancelled
+      // so some batches may be skipped
+      done = true;
+      uint256 excessRounds = uint256(demand.rounds) - skippedRounds - neededRounds;
+
+      for (; excessRounds > 0; ) {
+        Rounds.Batch storage batch = _batches[batchNo];
+
+        uint24 rounds = batch.rounds;
+        if (rounds > excessRounds) {
+          uint24 remainingRounds;
+          unchecked {
+            remainingRounds = rounds - uint24(excessRounds);
+          }
+          if (batchNo == part.batchNo || internalCanSplitBatchOnCancel(batchNo, remainingRounds)) {
+            // partial batch can always be split, otherwise the policy decides
+            batchNo = _splitBatch(remainingRounds, batchNo);
+          } else {
+            // cancel more than actually requested to avoid fragmentation of batches
+            neededRounds += remainingRounds;
+          }
+          break;
+        } else {
+          skippedRounds += rounds;
+          excessRounds -= rounds;
+          batchNo = batch.nextBatchNo;
+        }
+      }
+    }
+    cancelUnits = uint64(neededRounds * demand.unitPerRound);
+  }
+
+  function internalCanSplitBatchOnCancel(uint64 batchNo, uint24 remainingRounds) internal view virtual returns (bool) {}
+
+  function _adjustUncoveredSlots(
+    uint64 batchNo,
+    uint80 totalUnitsAdjustment,
+    Rounds.Demand[] storage demands,
+    uint256 startFrom,
+    CancelCoverageDemandParams memory params
+  ) private {
+    uint256 maxIndex = demands.length;
+
+    for (uint256 i = startFrom; i < maxIndex; i++) {
+      Rounds.Demand memory d = demands[i];
+      if (d.startBatchNo != batchNo) {
+        params.totalUnitsBeforeBatch = _batches[d.startBatchNo].totalUnitsBeforeBatch;
+        if (params.totalUnitsBeforeBatch > totalUnitsAdjustment) {
+          params.totalUnitsBeforeBatch -= totalUnitsAdjustment;
+        } else {
+          params.totalUnitsBeforeBatch = 0;
+        }
+      }
+      (batchNo, params.totalUnitsBeforeBatch) = _adjustUncoveredBatches(
+        d.startBatchNo,
+        d.rounds,
+        params.totalUnitsBeforeBatch,
+        d
+      );
+      totalUnitsAdjustment += uint80(d.rounds) * d.unitPerRound;
+    }
+
+    if (totalUnitsAdjustment > 0) {
+      _pendingCancelledDemandUnits += totalUnitsAdjustment;
+    }
+  }
+
+  function _adjustUncoveredBatches(
+    uint64 batchNo,
+    uint256 rounds,
+    uint80 totalUnitsBeforeBatch,
+    Rounds.Demand memory demand
+  ) private returns (uint64, uint80) {
+    for (; rounds > 0; ) {
+      Rounds.Batch storage batch = _batches[batchNo];
+      (uint24 br, uint16 bupr) = (batch.rounds, batch.unitPerRound);
+      rounds -= br;
+      if (bupr == demand.unitPerRound) {
+        (batch.rounds, batch.roundPremiumRateSum, bupr) = (0, 0, 0);
+        _openRounds -= br;
+      } else {
+        bupr -= demand.unitPerRound;
+        batch.roundPremiumRateSum -= uint56(demand.unitPerRound) * demand.premiumRate;
+      }
+
+      batch.unitPerRound = bupr;
+      batch.totalUnitsBeforeBatch = totalUnitsBeforeBatch;
+
+      totalUnitsBeforeBatch += uint80(br) * bupr;
+
+      if (batch.state == Rounds.State.Ready) {
+        batch.state = Rounds.State.ReadyMin;
+      }
+
+      batchNo = batch.nextBatchNo;
+    }
+    return (batchNo, totalUnitsBeforeBatch);
+  }
+
+  function internalGetUnadjustedUnits()
+    internal
+    view
+    returns (
+      uint256 total,
+      uint256 pendingCovered,
+      uint256 pendingDemand
+    )
+  {
+    Rounds.Batch storage b = _batches[_partial.batchNo];
+    return (
+      uint256(b.totalUnitsBeforeBatch) + _partial.roundNo * b.unitPerRound,
+      _pendingCancelledCoverageUnits,
+      _pendingCancelledDemandUnits
+    );
+  }
+
+  function internalApplyAdjustmentsToTotals() internal {
+    uint80 totals = _pendingCancelledCoverageUnits;
+    if (totals == 0 && _pendingCancelledDemandUnits == 0) {
+      return;
+    }
+    (_pendingCancelledCoverageUnits, _pendingCancelledDemandUnits) = (0, 0);
+
+    uint64 batchNo = _partial.batchNo;
+    totals = _batches[batchNo].totalUnitsBeforeBatch - totals;
+
+    for (; batchNo > 0; ) {
+      Rounds.Batch storage b = _batches[batchNo];
+      b.totalUnitsBeforeBatch = totals;
+      totals += uint80(b.rounds) * b.unitPerRound;
+      batchNo = b.nextBatchNo;
+    }
+  }
+
+  function internalCancelCoverage(address insured)
+    internal
+    returns (
+      DemandedCoverage memory coverage,
+      uint256 excessCoverage,
+      uint256 providedCoverage,
+      uint256 receivedCoverage
+    )
+  {
+    Rounds.InsuredEntry storage entry = _insureds[insured];
+    if (entry.demandedUnits == 0) {
+      return (coverage, 0, 0, 0);
+    }
+
+    Rounds.Coverage memory covered;
+    Rounds.CoveragePremium memory premium;
+    (coverage, covered, premium, receivedCoverage) = _syncBeforeCancelCoverage(insured);
+
+    Rounds.Demand[] storage demands = _demands[insured];
+    Rounds.Demand memory d;
+    PartialState memory part = _partial;
+
+    if (covered.lastUpdateIndex < demands.length) {
+      require(
+        covered.lastUpdateIndex == demands.length - 1 &&
+          covered.lastUpdateBatchNo == part.batchNo &&
+          covered.lastPartialRoundNo == part.roundNo,
+        'demand must be cancelled'
+      );
+
+      d = demands[covered.lastUpdateIndex];
+    } else {
+      require(entry.demandedUnits == covered.coveredUnits);
+    }
+
+    providedCoverage = covered.coveredUnits * _unitSize;
+    _pendingCancelledCoverageUnits += covered.coveredUnits - uint64(covered.lastPartialRoundNo) * d.unitPerRound;
+
+    if (part.batchNo > 0) {
+      _premiums[insured] = _cancelPremium(premium, coverage.totalPremium);
+      // ATTN! There MUST be a call to _updateTimeMark AFTER _cancelPremium - this call is inside _cancelPartialCoverage
+      excessCoverage = _cancelPartialCoverage(part, d);
+    }
+
+    entry.demandedUnits = 0;
+    entry.nextBatchNo = 0;
+    delete (_covered[insured]);
+    delete (_demands[insured]);
+  }
+
+  function _syncBeforeCancelCoverage(address insured)
+    private
+    view
+    returns (
+      DemandedCoverage memory coverage,
+      Rounds.Coverage memory covered,
+      Rounds.CoveragePremium memory premium,
+      uint256 receivedCoverage
+    )
+  {
+    GetCoveredDemandParams memory params;
+    params.insured = insured;
+    params.loopLimit = ~uint256(0);
+
+    (coverage, covered, premium) = internalGetCoveredDemand(params);
+    require(params.done);
+
+    receivedCoverage = params.receivedCoverage;
+  }
+
+  function _cancelPartialCoverage(PartialState memory part, Rounds.Demand memory d)
+    private
+    returns (uint128 excessCoverage)
+  {
+    Rounds.Batch storage partBatch = _batches[part.batchNo];
+    Rounds.Batch memory b = partBatch;
+
+    // Call to _updateTimeMark is MUST, because of _cancelPremium updating _poolPremium's timestamp
+    _updateTimeMark(part, b.unitPerRound);
+
+    if (d.unitPerRound == 0) {
+      return 0;
+    }
+    require(d.unitPerRound <= b.unitPerRound);
+
+    {
+      TimeMark storage mark = _marks[part.batchNo];
+      uint192 coverageTW = mark.coverageTW;
+      if (coverageTW > 0) {
+        // reduce the integral summ proportionally - the relevant part was added to finalPremium already
+        uint256 delta = _calcTimeMarkPortion(coverageTW, d.unitPerRound, b.unitPerRound);
+        mark.coverageTW = uint192(coverageTW - delta);
+      }
+    }
+
+    (partBatch.unitPerRound, partBatch.roundPremiumRateSum) = (
+      b.unitPerRound -= d.unitPerRound,
+      b.roundPremiumRateSum - uint56(d.premiumRate) * d.unitPerRound
+    );
+
+    // TODO optimize gas
+    if (b.unitPerRound == 0) {
+      excessCoverage = part.roundCoverage;
+      _partial.roundCoverage = part.roundCoverage = 0;
+      _partial.roundNo = part.roundNo = 0;
+    } else if (part.roundCoverage > 0) {
+      excessCoverage = uint128(_unitSize) * b.unitPerRound;
+
+      if (part.roundCoverage > excessCoverage) {
+        (part.roundCoverage, excessCoverage) = (excessCoverage, part.roundCoverage - excessCoverage);
+        _partial.roundCoverage = part.roundCoverage;
+      }
+    }
+  }
+
+  function _syncPremium(Rounds.CoveragePremium memory premium) private view returns (Rounds.CoveragePremium memory) {
+    if (premium.lastUpdatedAt != 0) {
+      uint256 v = premium.coveragePremium +
+        uint256(premium.coveragePremiumRate) *
+        (uint32(block.timestamp) - premium.lastUpdatedAt);
+      require((premium.coveragePremium = uint96(v)) == v);
+    }
+    premium.lastUpdatedAt = uint32(block.timestamp);
+    return premium;
+  }
+
+  function _cancelPremium(Rounds.CoveragePremium memory premiun, uint256 finalPremium)
+    private
+    returns (Rounds.CoveragePremium memory)
+  {
+    Rounds.CoveragePremium memory poolPremium = _syncPremium(_poolPremium);
+
+    finalPremium = finalPremium.wadDiv(_unitSize);
+    require(finalPremium <= type(uint96).max);
+
+    poolPremium.coveragePremiumRate -= premiun.coveragePremiumRate;
+    poolPremium.coveragePremium += uint96(finalPremium - premiun.coveragePremium);
+
+    if (premiun.lastUpdatedAt != poolPremium.lastUpdatedAt) {
+      // avoid double-counting when premiuns are not synced
+      poolPremium.coveragePremium -=
+        uint96(premiun.coveragePremiumRate) *
+        (poolPremium.lastUpdatedAt - premiun.lastUpdatedAt);
+    }
+
+    // TODO store coveragePremium of cancelled coverages in a separate field
+    // _premiumOfCancelled += x
+    // poolPremium.coveragePremium -= x
+
+    _poolPremium = poolPremium;
+
+    return
+      Rounds.CoveragePremium({
+        coveragePremiumRate: 0,
+        coveragePremium: uint96(finalPremium),
+        lastUpdatedAt: poolPremium.lastUpdatedAt
+      });
   }
 }

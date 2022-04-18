@@ -4,7 +4,7 @@ import { Factories } from '../../helpers/contract-types';
 import { MockWeightedRounds } from '../../types';
 import { tEthereumAddress } from '../../helpers/types';
 import { expect } from 'chai';
-import { stringifyArgs } from '../../helpers/etherscan-verification';
+import { stringifyArgs } from '../../helpers/contract-verification';
 import { BigNumber } from 'ethers';
 
 makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
@@ -85,6 +85,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     // console.log('====getTotals');
     const tt = await subj.getTotals();
     const t = tt.coverage;
+    expect(t.premiumUpdatedAt).lte(await currentTime());
 
     // console.log('\n======= Parts:');
     // parts.forEach((v) => console.log(stringifyArgs(v)));
@@ -99,23 +100,21 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.totalCovered).eq(parts.reduce((p, v) => p.add(v.totalCovered), z));
       expect(t.totalDemand).eq(parts.reduce((p, v) => p.add(v.totalDemand), z));
       expect(t.premiumRate).eq(parts.reduce((p, v) => p.add(v.premiumRate), z));
-      expect(t.totalPremium).eq(parts.reduce((p, v) => p.add(v.totalPremium), z));
+      expect(t.totalPremium).eq(
+        parts.reduce((p, v) => p.add(v.totalPremium.sub(v.premiumRate.mul(v.premiumUpdatedAt - t.premiumUpdatedAt))), z)
+      );
     }
 
-    const at = await currentTime();
+    expect(t.premiumUpdatedAt).gte(t.premiumRateUpdatedAt);
+
     if (totalPremiumAt != 0) {
       expect(t.premiumUpdatedAt).gte(totalPremiumAt);
-      totalPremium = totalPremium.add(totalPremiumRate.mul(t.premiumUpdatedAt - totalPremiumAt));
+      expect(t.totalPremium).eq(totalPremium.add(totalPremiumRate.mul(t.premiumUpdatedAt - totalPremiumAt)));
     }
 
-    expect(t.premiumUpdatedAt).lte(at);
-    const expected = totalPremium.add(t.premiumRate.mul(at - t.premiumUpdatedAt));
-
+    totalPremium = t.totalPremium;
     totalPremiumAt = t.premiumUpdatedAt;
     totalPremiumRate = t.premiumRate;
-    // console.log('======= After:');
-    // console.log(totalPremium.toString(), totalPremiumRate.toString(), totalPremiumAt, expected.toString());
-    expect(t.totalPremium).eq(expected);
   };
 
   it('Add demand', async () => {
@@ -383,7 +382,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     );
   });
 
-  it('Multiple insured', async () => {
+  it('Multiple insureds', async () => {
     const excess = await subj.excessCoverage();
 
     await subj.setRoundLimits(1, 2, 100);

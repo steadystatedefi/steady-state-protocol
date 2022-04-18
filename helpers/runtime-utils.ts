@@ -1,10 +1,33 @@
 import { Wallet, ContractTransaction, BigNumber } from 'ethers';
-import { tEthereumAddress } from './types';
 import { isAddress } from 'ethers/lib/utils';
 import { isZeroAddress } from 'ethereumjs-util';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { DRE } from './dre';
 import { Provider } from '@ethersproject/abstract-provider';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
+import { eNetwork, isAutoGasNetwork, tEthereumAddress } from './types';
+
+export const isForkNetwork = (): boolean => {
+  return process.env.FORK ? true : false;
+};
+
+export const getNetworkName = (x?: string | HardhatRuntimeEnvironment): eNetwork => {
+  const FORK = process.env.FORK;
+  if (FORK) {
+    return <eNetwork>FORK;
+  }
+  if (typeof x === 'string') {
+    return <eNetwork>x;
+  }
+  if (x === undefined) {
+    return <eNetwork>DRE.network.name;
+  }
+  return <eNetwork>x.network.name;
+};
+
+export const autoGas = (n: number, name?: string) => {
+  return isAutoGasNetwork(name ?? DRE.network.name) ? undefined : n;
+};
 
 export const sleep = (milliseconds: number) => {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -108,3 +131,5 @@ export const getContractFactory = async (abi: any[], bytecode: string) =>
 
 export const getEthersProvider = () => ((<any>DRE).ethers.provider) as Provider;
 export const createUserWallet = () => Wallet.createRandom().connect(getEthersProvider());
+
+export const nameTags = () => (<any>DRE).tracer.nameTags;

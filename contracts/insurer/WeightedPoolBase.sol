@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/upgradeability/Delegator.sol';
+import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
@@ -51,56 +51,16 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return true;
   }
 
-  /// @dev Performed before balance updates. The total rate accum by the pool is updated, and then the user balance is updated
-  function _beforeBalanceUpdate(address account)
-    private
-    returns (UserBalance memory b, Balances.RateAcc memory totals)
-  {
-    totals = _totalRate.sync(uint32(block.timestamp));
-    b = _syncBalance(account, totals);
-  }
-
-  /// @dev Updates _premiums with total premium earned by user. Each user's balance is marked by the amount
-  ///  of premium collected by the pool at time of update
-  function _syncBalance(address account, Balances.RateAcc memory totals) private returns (UserBalance memory b) {
-    b = _balances[account];
-    if (b.balance > 0) {
-      uint256 premiumDiff = totals.accum - b.premiumBase;
-      if (premiumDiff > 0) {
-        _premiums[account] += premiumDiff.rayMul(b.balance);
-      }
-    }
-    b.premiumBase = totals.accum;
-  }
-
-  /// @dev After the balance of the pool is updated, update the _totalRate
-  function _afterBalanceUpdate(
-    uint256 newExcess,
-    Balances.RateAcc memory totals,
-    DemandedCoverage memory coverage
-  ) private returns (Balances.RateAcc memory) {
-    uint256 rate = coverage.premiumRate.rayMul(exchangeRate()); //$CC earned per block
-    // console.log('_afterBalanceUpdate0', coverage.premiumRate, rate, newExcess);
-
-    rate = (rate * WadRayMath.RAY) / (newExcess + coverage.totalCovered + coverage.pendingCovered);
-
-    // console.log('_afterBalanceUpdate1', rate, coverage.totalCovered, coverage.pendingCovered);
-    if (totals.rate != rate) {
-      _totalRate = totals.setRateAfterSync(rate);
-    } else {
-      require(totals.updatedAt == block.timestamp);
-    }
-    return totals;
-  }
-
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  function internalMintForCoverage(address account, uint256 coverageAmount) internal {
+  function _mintForCoverage(address account, uint256 coverageAmount) private {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
     uint256 excessCoverage = _excessCoverage;
     if (coverageAmount > 0 || excessCoverage > 0) {
-      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
-        .internalAddCoverage(coverageAmount + excessCoverage, type(uint256).max);
+      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
+        coverageAmount + excessCoverage,
+        type(uint256).max
+      );
 
       if (newExcess != excessCoverage) {
         _excessCoverage = newExcess;
@@ -109,7 +69,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
         }
       }
 
-      totals = _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
+      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
     }
 
     emit Transfer(address(0), account, coverageAmount);
@@ -117,6 +77,31 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     uint256 amount = coverageAmount.rayDiv(exchangeRate()) + b.balance;
     require(amount == (b.balance = uint128(amount)));
     _balances[account] = b;
+  }
+
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
+    require(msg.sender == address(this));
+
+    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
+    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
+
+    uint256 excessCoverage = _excessCoverage + excess;
+    if (paidoutCoverage > 0) {
+      uint256 total = coverage.totalCovered + coverage.pendingCovered + excessCoverage;
+      _inverseExchangeRate = WadRayMath.RAY - total.rayDiv(total + paidoutCoverage).rayMul(exchangeRate());
+    }
+
+    if (excess > 0) {
+      _excessCoverage = excessCoverage;
+      emit ExcessCoverageIncreased(excessCoverage);
+    }
+    _afterBalanceUpdate(excessCoverage, totals, coverage);
+
+    internalPostCoverageCancel();
+  }
+
+  function internalPostCoverageCancel() internal virtual {
+    pushCoverageExcess();
   }
 
   ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
@@ -127,27 +112,30 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       return;
     }
 
-    Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
+    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
+      excessCoverage,
+      type(uint256).max
+    );
 
-    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part, Rounds.Batch memory bp) = super
-      .internalAddCoverage(excessCoverage, type(uint256).max);
-
-    if (newExcess != excessCoverage) {
-      _excessCoverage = newExcess;
-      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, bp, p.premium));
-    }
+    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
+    _excessCoverage = newExcess;
+    _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
   }
 
-  function internalBurn(address account, uint256 amount) internal returns (uint256 coverageAmount) {
+  function internalBurn(address account, uint256 coverageAmount) internal returns (uint256) {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
-    if (amount == type(uint256).max) {
-      (amount, b.balance) = (b.balance, 0);
-    } else {
-      b.balance = uint128(b.balance - amount);
+
+    {
+      uint256 balance = uint256(b.balance).rayMul(exchangeRate());
+      if (coverageAmount >= balance) {
+        coverageAmount = balance;
+        b.balance = 0;
+      } else {
+        b.balance = uint128(b.balance - coverageAmount.rayDiv(exchangeRate()));
+      }
     }
 
-    if (amount > 0) {
-      coverageAmount = amount.rayMul(exchangeRate());
+    if (coverageAmount > 0) {
       totals = _afterBalanceUpdate(_excessCoverage -= coverageAmount, totals, super.internalGetPremiumTotals());
     }
     emit Transfer(account, address(0), coverageAmount);
@@ -158,7 +146,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return coverageAmount;
   }
 
-  function balanceOf(address account) external view override returns (uint256) {
+  function balanceOf(address account) public view override returns (uint256) {
     return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
@@ -172,23 +160,23 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       uint256 premium
     )
   {
-    scaled = _balances[account].balance;
+    scaled = scaledBalanceOf(account);
     coverage = scaled.rayMul(exchangeRate());
-    (, premium) = interestRate(account);
+    (, premium) = interestOf(account);
   }
 
-  function scaledBalanceOf(address account) external view override returns (uint256) {
+  function scaledBalanceOf(address account) public view override returns (uint256) {
     return _balances[account].balance;
   }
 
   function totalSupply() public view override returns (uint256) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-    return coverage.totalCovered + coverage.pendingCovered;
+    return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
   /// @dev Returns the current rate that this user earns per-block, and the amount of premium accumulated
-  function interestRate(address account) public view override returns (uint256 rate, uint256 accumulated) {
-    Balances.RateAcc memory totals = _totalRate.sync(uint32(block.timestamp));
+  function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
+    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
     UserBalance memory b = _balances[account];
 
     accumulated = _premiums[account];
@@ -204,8 +192,8 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return (0, accumulated);
   }
 
-  function exchangeRate() public view override returns (uint256) {
-    return WadRayMath.RAY - _inverseExchangeRate;
+  function exchangeRate() public view override(IInsurerPoolCore, WeightedPoolStorage) returns (uint256) {
+    return WeightedPoolStorage.exchangeRate();
   }
 
   function statusOf(address account) external view returns (InsuredStatus status) {
@@ -213,39 +201,6 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       status = InsuredStatus.NotApplicable;
     }
     return status;
-  }
-
-  /// @dev ERC1363-like receiver, invoked by the collateral fund for transfers/investments from user.
-  /// mints $IC tokens when $CC is received from a user
-  function internalReceiveTransfer(
-    address operator,
-    address,
-    uint256 value,
-    bytes calldata data
-  ) internal override onlyCollateralFund {
-    if (internalIsInvestor(operator)) {
-      if (value == 0) return;
-      internalHandleInvestment(operator, value, data);
-    } else {
-      InsuredStatus status = internalGetStatus(operator);
-      if (status != InsuredStatus.Unknown) {
-        // TODO return of funds from insured
-        Errors.notImplemented();
-        return;
-      }
-    }
-    internalHandleInvestment(operator, value, data);
-  }
-
-  function internalHandleInvestment(
-    address investor,
-    uint256 amount,
-    bytes memory data
-  ) internal virtual {
-    if (data.length > 0) {
-      abi.decode(data, ());
-    }
-    internalMintForCoverage(investor, amount);
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
@@ -267,4 +222,48 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     require((b.balance = uint128(amount)) == amount);
     _balances[recipient] = b;
   }
+
+  function internalReceiveTransfer(
+    address operator,
+    address account,
+    uint256 amount,
+    bytes calldata data
+  ) internal override onlyCollateralCurrency {
+    require(data.length == 0);
+    require(
+      operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown
+    );
+
+    _mintForCoverage(account, amount);
+  }
+
+  function withdrawable(address account) public view override returns (uint256 amount) {
+    amount = _excessCoverage;
+    if (amount > 0) {
+      uint256 bal = balanceOf(account);
+      if (amount > bal) {
+        amount = bal;
+      }
+    }
+  }
+
+  function withdrawAll() external override returns (uint256) {
+    return internalBurn(msg.sender, _excessCoverage);
+  }
+
+  // function getUnadjusted()
+  //   external
+  //   view
+  //   returns (
+  //     uint256 total,
+  //     uint256 pendingCovered,
+  //     uint256 pendingDemand
+  //   )
+  // {
+  //   return internalGetUnadjustedUnits();
+  // }
+
+  // function applyAdjustments() external {
+  //   internalApplyAdjustmentsToTotals();
+  // }
 }

@@ -2,20 +2,17 @@
 pragma solidity ^0.8.4;
 
 import '../../tools/tokens/IERC20.sol';
+import '../../tools/Errors.sol';
 
 abstract contract ERC20NoTransferBase is IERC20 {
   function transfer(address, uint256) public pure override returns (bool) {
-    notSupported();
-    return false;
+    revert Errors.NotSupported();
   }
 
-  function allowance(address, address) public pure override returns (uint256) {
-    return 0;
-  }
+  function allowance(address, address) public pure override returns (uint256) {}
 
   function approve(address, uint256) public pure override returns (bool) {
-    notSupported();
-    return false;
+    revert Errors.NotSupported();
   }
 
   function transferFrom(
@@ -23,11 +20,6 @@ abstract contract ERC20NoTransferBase is IERC20 {
     address,
     uint256
   ) public pure override returns (bool) {
-    notSupported();
-    return false;
-  }
-
-  function notSupported() private pure {
-    revert('NOT_SUPPORTED');
+    revert Errors.NotSupported();
   }
 }

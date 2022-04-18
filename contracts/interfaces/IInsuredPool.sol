@@ -11,6 +11,8 @@ interface IInsuredPool is IInsurancePool {
   function pullCoverageDemand() external returns (bool);
 
   function insuredParams() external returns (InsuredParams memory);
+
+  function offerCoverage(uint256 offeredAmount) external returns (uint256 acceptedAmount, uint256 rate);
 }
 
 struct InsuredParams {
@@ -25,11 +27,9 @@ interface DInsuredPoolTransfer {
     uint256 minPremiumRate,
     address insurerPool
   ) external;
-
-  function addCoverageByInsurer() external;
 }
 
 interface IInsuredEvents {
-  event TransferToHold(address indexed from, address indexed to, uint256 value);
-  event TransferFromHold(address indexed from, address indexed to, uint256 value);
+  // event TransferToHold(address indexed from, address indexed to, uint256 value);
+  // event TransferFromHold(address indexed from, address indexed to, uint256 value);
 }

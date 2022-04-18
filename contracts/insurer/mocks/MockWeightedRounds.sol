@@ -42,7 +42,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalRoundLimits(
-    uint64,
+    uint80,
     uint24,
     uint16,
     uint64,
@@ -54,10 +54,11 @@ contract MockWeightedRounds is WeightedRoundsBase {
     returns (
       uint16,
       uint16,
+      uint16,
       uint16
     )
   {
-    return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound);
+    return (_maxAddUnitsPerRound, _minUnitsPerRound, _maxUnitsPerRound, _maxUnitsPerRound);
   }
 
   uint32 private _splitRounds = type(uint32).max;
@@ -76,7 +77,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function internalBatchAppend(
-    uint64,
+    uint80,
     uint32,
     uint64 unitCount
   ) internal pure override returns (uint24) {
@@ -84,7 +85,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
   }
 
   function addCoverage(uint256 amount) external {
-    (amount, , , , ) = super.internalAddCoverage(amount, type(uint256).max);
+    (amount, , , ) = super.internalAddCoverage(amount, type(uint256).max);
     excessCoverage += amount;
   }
 

@@ -46,6 +46,9 @@ library Rounds {
     uint16 maxShare;
     /// @dev status of the insured pool
     InsuredStatus status;
+
+    // TODO bool fullyCovered;
+    // uint64 cancelledUnits;
   }
 
   struct Coverage {
@@ -54,9 +57,11 @@ library Rounds {
     /// @dev index of Demand entry that is covered partially or will be covered next
     uint64 lastUpdateIndex;
     /// @dev Batch that is a part of the partially covered Demand
-    uint64 lastOpenBatchNo;
-    /// @dev number of rounds within the Demand (lastUpdateIndex) starting from Demand's startBatchNo till lastOpenBatchNo
+    uint64 lastUpdateBatchNo;
+    /// @dev number of rounds within the Demand (lastUpdateIndex) starting from Demand's startBatchNo till lastUpdateBatchNo
     uint24 lastUpdateRounds;
+    /// @dev number of rounds of a partial batch included into coveredUnits
+    uint24 lastPartialRoundNo;
   }
 
   struct CoveragePremium {
@@ -86,7 +91,7 @@ library Rounds {
     /// @dev next batch number (one-way linked list)
     uint64 nextBatchNo;
     /// @dev total number of units befor this batch, this value may not be exact for non-ready batches
-    uint64 totalUnitsBeforeBatch;
+    uint80 totalUnitsBeforeBatch;
     /// @dev number of rounds within the batch, can only be zero for an empty (not initialized batch)
     uint24 rounds;
     /// @dev number of units for each round of this batch
@@ -96,18 +101,35 @@ library Rounds {
   }
 
   function isFull(Batch memory b) internal pure returns (bool) {
-    return b.state == State.Full;
+    return isFull(b.state);
   }
 
   function isOpen(Batch memory b) internal pure returns (bool) {
-    return b.state <= State.ReadyMin;
+    return isOpen(b.state);
   }
 
   function isReady(Batch memory b) internal pure returns (bool) {
-    return b.state >= State.ReadyMin && b.state <= State.Ready;
+    return isReady(b.state);
+  }
+
+  function isDraft(State state) internal pure returns (bool) {
+    return state == State.Draft;
+  }
+
+  function isFull(State state) internal pure returns (bool) {
+    return state == State.Full;
+  }
+
+  function isOpen(State state) internal pure returns (bool) {
+    return state <= State.ReadyMin;
+  }
+
+  function isReady(State state) internal pure returns (bool) {
+    return state >= State.ReadyMin && state <= State.Ready;
   }
 }
 
+// TODO rename to Join or Member Status
 enum InsuredStatus {
   Unknown,
   JoinCancelled,

@@ -33,22 +33,22 @@ export async function initializeMakeSuite(underCoverage: boolean) {
   // Set TestEnv variables
 }
 
-const setHead = async () => {
+export const setSuiteState = async () => {
   setSnapshotId(await evmSnapshot());
 };
 
-const revertHead = async () => {
+export const revertSuiteState = async () => {
   await evmRevert(snapshotId);
 };
 
 export function makeSharedStateSuite(name: string, tests: (testEnv: TestEnv) => void) {
   describe(name, () => {
     before(async () => {
-      await setHead();
+      await setSuiteState();
     });
     tests(testEnv);
     after(async () => {
-      await revertHead();
+      await revertSuiteState();
     });
   });
 }
@@ -56,11 +56,11 @@ export function makeSharedStateSuite(name: string, tests: (testEnv: TestEnv) => 
 export function makeSuite(name: string, tests: (testEnv: TestEnv) => void) {
   describe(name, () => {
     beforeEach(async () => {
-      await setHead();
+      await setSuiteState();
     });
     tests(testEnv);
     afterEach(async () => {
-      await revertHead();
+      await revertSuiteState();
     });
   });
 }

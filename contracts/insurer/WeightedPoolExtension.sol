@@ -31,11 +31,6 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return internalUnitSize();
   }
 
-  function onCoverageDeclined(address insured) external override onlyCollateralFund {
-    insured;
-    Errors.notImplemented();
-  }
-
   ///@notice Add coverage demand to the pool, called by insured
   ///@param unitCount The number of units to demand
   ///@param premiumRate The rate that will be paid on this coverage
@@ -46,7 +41,6 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     uint256 premiumRate,
     bool hasMore
   ) external override onlyActiveInsured returns (uint256 addedCount) {
-    // TODO access control
     AddCoverageDemandParams memory params;
     params.insured = msg.sender;
     require(premiumRate == (params.premiumRate = uint40(premiumRate)));
@@ -63,20 +57,68 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return addedCount;
   }
 
-  ///@notice Cancel coverage that has been demanded - must be unfilled
+  ///@notice Cancel coverage that has been demanded, but not filled yet
   ///@param unitCount The number of units that wishes to be cancelled
-  ///@param hasMore Whether the Insured has more demand to cancel
   ///@return cancelledUnits The amount of units that were cancelled
-  function cancelCoverageDemand(uint256 unitCount, bool hasMore)
+  function cancelCoverageDemand(uint256 unitCount)
     external
     override
     onlyActiveInsured
     returns (uint256 cancelledUnits)
   {
-    unitCount;
-    hasMore;
-    Errors.notImplemented();
-    return 0;
+    CancelCoverageDemandParams memory params;
+    params.insured = msg.sender;
+    params.loopLimit = ~params.loopLimit;
+
+    if (unitCount > type(uint64).max) {
+      unitCount = type(uint64).max;
+    }
+
+    // TODO event
+    return internalCancelCoverageDemand(uint64(unitCount), params);
+  }
+
+  function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
+    return internalCancelCoverage(msg.sender, payoutRatio);
+  }
+
+  function internalCancelCoverage(address insured, uint256 payoutRatio)
+    private
+    onlyActiveInsured
+    returns (uint256 payoutValue)
+  {
+    (
+      DemandedCoverage memory coverage,
+      uint256 excessCoverage,
+      uint256 providedCoverage,
+      uint256 receivableCoverage
+    ) = super.internalCancelCoverage(insured);
+
+    // receivableCoverage was not yet received by the insured, it was found during the cancallation
+    // and caller relies on a coverage provided earlier
+    providedCoverage -= receivableCoverage;
+
+    // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc
+    // and the actual amount of protocol tokens made available during last sync
+    coverage;
+    // so this is a sanity check - insurance must be sync'ed before cancellation
+    // otherwise there will be premium without actual supply of protocol tokens
+    require(receivableCoverage <= (providedCoverage >> 4), 'coverage must be received before cancellation');
+    internalSetStatus(insured, InsuredStatus.Declined);
+
+    payoutValue = providedCoverage.rayMul(payoutRatio);
+
+    providedCoverage -= payoutValue;
+    if (providedCoverage > 0) {
+      // take back the unused provided coverage
+      transferCollateralFrom(insured, address(this), providedCoverage);
+    }
+    // this call is to consider / reinvest the released funds
+    WeightedPoolBase(address(this)).updateCoverageOnCancel(
+      payoutValue,
+      excessCoverage + providedCoverage + receivableCoverage
+    );
+    // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
   }
 
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
@@ -112,11 +154,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     coverage = internalUpdateCoveredDemand(params);
 
     if (params.receivedCoverage > 0) {
-      transferCollateral(
-        insured,
-        params.receivedCoverage,
-        abi.encodeWithSelector(DInsuredPoolTransfer.addCoverageByInsurer.selector)
-      );
+      transferCollateral(insured, params.receivedCoverage);
     }
 
     return (params.receivedCoverage, coverage);
@@ -167,14 +205,5 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
 
   function internalSetStatus(address account, InsuredStatus status) internal override {
     return super.internalSetInsuredStatus(account, status);
-  }
-
-  function onTransferReceived(
-    address,
-    address,
-    uint256,
-    bytes memory
-  ) external pure override returns (bytes4) {
-    revert();
   }
 }
