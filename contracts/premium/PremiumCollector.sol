@@ -139,7 +139,7 @@ contract PremiumCollector {
       i--;
       address token = amounts[i].token;
       TokenBalance storage b = _balances[protocol][token];
-      require(b.timestamp != 0); // Protocol-token combinations was not registred
+      require(b.timestamp != 0); // Protocol-token combination was not registred
 
       uint256 amount = amounts[i].amount;
       if (amount == 0) continue;
@@ -242,10 +242,10 @@ contract PremiumCollector {
   function withdraw(
     address protocol,
     TokenAmount[] calldata amounts,
-    bool forceReconsile
+    bool forceReconcile
   ) external onlyProtocolOrRole(protocol, ProtocolAccessFlags.Withdraw) {
     amounts;
-    forceReconsile;
+    forceReconcile;
     Errors.notImplemented();
   }
 }
