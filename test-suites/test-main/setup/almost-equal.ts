@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import BigNumber from 'bignumber.js';
 
 function almostEqualAssertion(this: any, expected: any, actual: any, message: string): any {

@@ -1,7 +1,7 @@
-const accounts = require(`./helpers/test-wallets.js`).accounts;
+const { accounts } = require(`./helpers/test-wallets.json`);
 
 module.exports = {
-  client: require('ganache-cli'),
+  client: require('ganache-core'),
   skipFiles: [
     './access',
     './access/interfaces',
@@ -12,7 +12,7 @@ module.exports = {
     './pricing/interfaces',
     './interfaces',
     './dependencies',
-    './tools'
+    './tools',
   ],
   mocha: {
     enableTimeouts: false,
@@ -21,4 +21,3 @@ module.exports = {
     accounts,
   },
 };
-

@@ -38,28 +38,15 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _params;
   }
 
-  function internalSetServiceAccountStatus(address account, uint16 status)
-    internal
-    override(InsuredBalancesBase, InsuredJoinBase)
-  {
+  function internalSetServiceAccountStatus(address account, uint16 status) internal override(InsuredBalancesBase, InsuredJoinBase) {
     return InsuredBalancesBase.internalSetServiceAccountStatus(account, status);
   }
 
-  function getAccountStatus(address account)
-    internal
-    view
-    override(InsuredBalancesBase, InsuredJoinBase)
-    returns (uint16)
-  {
+  function getAccountStatus(address account) internal view override(InsuredBalancesBase, InsuredJoinBase) returns (uint16) {
     return InsuredBalancesBase.getAccountStatus(account);
   }
 
-  function internalIsAllowedAsHolder(uint16 status)
-    internal
-    view
-    override(InsuredBalancesBase, InsuredJoinBase)
-    returns (bool)
-  {
+  function internalIsAllowedAsHolder(uint16 status) internal view override(InsuredBalancesBase, InsuredJoinBase) returns (bool) {
     return InsuredJoinBase.internalIsAllowedAsHolder(status);
   }
 
@@ -154,10 +141,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
       }
     }
     for (; startIndex < max; startIndex++) {
-      (uint256 c, DemandedCoverage memory cov) = internalReconcileWithInsurer(
-        IInsurerPoolDemand(insurers[startIndex]),
-        false
-      );
+      (uint256 c, DemandedCoverage memory cov) = internalReconcileWithInsurer(IInsurerPoolDemand(insurers[startIndex]), false);
       receivedCoverage += c;
       demandedCoverage += cov.totalDemand;
       providedCoverage += cov.totalCovered;
@@ -185,10 +169,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
     Balances.RateAcc memory totals = internalSyncTotals();
     for (; startIndex < max; startIndex++) {
-      (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(
-        IInsurerPoolDemand(insurers[startIndex]),
-        totals
-      );
+      (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(IInsurerPoolDemand(insurers[startIndex]), totals);
       demandedCoverage += cov.totalDemand;
       providedCoverage += cov.totalCovered;
       receivableCoverage += c;
@@ -231,10 +212,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
-  function internalCancelInsurers(address[] storage insurers, uint256 payoutRatio)
-    private
-    returns (uint256 totalPayout)
-  {
+  function internalCancelInsurers(address[] storage insurers, uint256 payoutRatio) private returns (uint256 totalPayout) {
     IERC20 t = IERC20(collateral());
 
     for (uint256 i = insurers.length; i > 0; ) {
@@ -257,10 +235,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return internalOfferCoverage(msg.sender, offeredAmount);
   }
 
-  function internalOfferCoverage(address account, uint256 offeredAmount)
-    private
-    returns (uint256 acceptedAmount, uint256 rate)
-  {
+  function internalOfferCoverage(address account, uint256 offeredAmount) private returns (uint256 acceptedAmount, uint256 rate) {
     _ensureHolder(account);
     acceptedAmount = _requiredCoverage;
     if (acceptedAmount <= offeredAmount) {

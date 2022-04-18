@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { Factories } from '../../helpers/contract-types';
 import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';

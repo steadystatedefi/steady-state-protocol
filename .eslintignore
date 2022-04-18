@@ -3,4 +3,11 @@ dist
 types
 artifacts
 cache
+coverage
+coverage.json
 abi
+package-lock.json
+package.json
+deployed-contracts.json
+.eslintrc.js
+.solcover.js

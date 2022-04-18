@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { Factories } from '../../helpers/contract-types';
 import { RAY } from '../../helpers/constants';
@@ -38,6 +40,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       maxInsuredShare: 1500,
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
+      overUnitsPerRound: 0,
     });
   });
 

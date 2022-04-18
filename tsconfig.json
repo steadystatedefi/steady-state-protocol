@@ -1,20 +1,17 @@
 {
   "compilerOptions": {
-    "target": "es2019",
+    "target": "es2020",
     "module": "commonjs",
     "strict": true,
     "esModuleInterop": true,
     "outDir": "dist",
+    "skipLibCheck": true,
     "noImplicitAny": false,
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "importHelpers": true,
     "declaration": true,
     "sourceMap": true,
-    "allowSyntheticDefaultImports": true,
-  },
-  "include": [
-    "./types",
-    "index.ts"
-  ],
+    "allowSyntheticDefaultImports": true
+  }
 }

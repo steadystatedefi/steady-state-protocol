@@ -60,12 +60,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
   ///@notice Cancel coverage that has been demanded, but not filled yet
   ///@param unitCount The number of units that wishes to be cancelled
   ///@return cancelledUnits The amount of units that were cancelled
-  function cancelCoverageDemand(uint256 unitCount)
-    external
-    override
-    onlyActiveInsured
-    returns (uint256 cancelledUnits)
-  {
+  function cancelCoverageDemand(uint256 unitCount) external override onlyActiveInsured returns (uint256 cancelledUnits) {
     CancelCoverageDemandParams memory params;
     params.insured = msg.sender;
     params.loopLimit = ~params.loopLimit;
@@ -82,17 +77,10 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return internalCancelCoverage(msg.sender, payoutRatio);
   }
 
-  function internalCancelCoverage(address insured, uint256 payoutRatio)
-    private
-    onlyActiveInsured
-    returns (uint256 payoutValue)
-  {
-    (
-      DemandedCoverage memory coverage,
-      uint256 excessCoverage,
-      uint256 providedCoverage,
-      uint256 receivableCoverage
-    ) = super.internalCancelCoverage(insured);
+  function internalCancelCoverage(address insured, uint256 payoutRatio) private onlyActiveInsured returns (uint256 payoutValue) {
+    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
+      insured
+    );
 
     // receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
@@ -114,10 +102,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
       transferCollateralFrom(insured, address(this), providedCoverage);
     }
     // this call is to consider / reinvest the released funds
-    WeightedPoolBase(address(this)).updateCoverageOnCancel(
-      payoutValue,
-      excessCoverage + providedCoverage + receivableCoverage
-    );
+    WeightedPoolBase(address(this)).updateCoverageOnCancel(payoutValue, excessCoverage + providedCoverage + receivableCoverage);
     // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
   }
 
@@ -125,12 +110,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
   ///@param insured The insured pool
   ///@return receivedCoverage The amount of $CC that has been covered
   ///@return coverage All the details relating to the coverage, demand and premium
-  function receivableDemandedCoverage(address insured)
-    external
-    view
-    override
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
-  {
+  function receivableDemandedCoverage(address insured) external view override returns (uint256 receivedCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
     params.loopLimit = ~params.loopLimit;
@@ -172,10 +152,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
       maxShare = params.minInsuredShare;
     }
 
-    super.internalSetInsuredParams(
-      insured,
-      Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)})
-    );
+    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
   }
 
   function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
@@ -185,21 +162,11 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
   }
 
   ///@dev Return if an account has a balance or premium earned
-  function internalIsInvestor(address account)
-    internal
-    view
-    override(InsurerJoinBase, WeightedPoolStorage)
-    returns (bool)
-  {
+  function internalIsInvestor(address account) internal view override(InsurerJoinBase, WeightedPoolStorage) returns (bool) {
     return WeightedPoolStorage.internalIsInvestor(account);
   }
 
-  function internalGetStatus(address account)
-    internal
-    view
-    override(InsurerJoinBase, WeightedPoolStorage)
-    returns (InsuredStatus)
-  {
+  function internalGetStatus(address account) internal view override(InsurerJoinBase, WeightedPoolStorage) returns (InsuredStatus) {
     return WeightedPoolStorage.internalGetStatus(account);
   }
 
