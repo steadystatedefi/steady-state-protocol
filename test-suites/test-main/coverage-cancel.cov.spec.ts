@@ -611,7 +611,6 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
         const status = await pool.statusOf(insured.address);
 
         if (status !== InsuredStatus.Accepted) {
-          // eslint-disable-next-line no-continue
           continue;
         }
 
@@ -632,7 +631,6 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
         expect(stats1.premiumRateUpdatedAt).gte(stats0.premiumRateUpdatedAt);
 
         if (testEnv.underCoverage) {
-          // eslint-disable-next-line no-continue
           continue;
         }
 

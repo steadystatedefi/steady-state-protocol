@@ -31,6 +31,7 @@ module.exports = {
     'no-await-in-loop': 'off', // TODO: enable to improve performance
     'no-restricted-syntax': 'off', // Not critical for backend part
     'prefer-destructuring': 'off',
+    'no-continue': 'off',
     'no-redeclare': [
       'error',
       {
