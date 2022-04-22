@@ -1,13 +1,13 @@
-/* eslint-disable */
-// TODO: enable later
 import { subtask } from 'hardhat/config';
+
 import { DRE, setDRE, DREWithPlugins } from '../../helpers/dre';
 
-subtask(`set-DRE`, `Inits the DRE, to have access to all the plugins' objects`).setAction(async (_, _DRE) => {
+subtask(`set-DRE`, `Inits the DRE, to have access to all the plugins' objects`).setAction(async (_, dre) => {
   if (DRE) {
-    return;
+    return Promise.resolve(undefined);
   }
 
-  setDRE(_DRE as DREWithPlugins);
-  return _DRE;
+  setDRE(dre as DREWithPlugins);
+
+  return Promise.resolve(dre);
 });
