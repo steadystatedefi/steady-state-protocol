@@ -6,7 +6,7 @@ export enum ConfigNames {
   Full = 'Full',
 }
 
-export const configNameParams = JSON.stringify(Object.values(ConfigNames));
+export const NamesOfConfig = JSON.stringify(Object.values(ConfigNames));
 
 export const loadRuntimeConfig = (configName: ConfigNames): IConfiguration => {
   switch (configName) {
@@ -15,7 +15,7 @@ export const loadRuntimeConfig = (configName: ConfigNames): IConfiguration => {
     case ConfigNames.Test:
       return FullConfig;
     default:
-      throw new Error(`Unsupported pool configuration: ${String(configName)} ${configNameParams}`);
+      throw new Error(`Unsupported pool configuration: ${String(configName)} ${NamesOfConfig}`);
   }
 };
 

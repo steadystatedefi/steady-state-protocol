@@ -1,9 +1,9 @@
 import { task } from 'hardhat/config';
 
-import { configNameParams } from '../../../helpers/config-loader';
+import { NamesOfConfig } from '../../../helpers/config-loader';
 
 task(`full:access-test`, 'Smoke test')
-  .addParam('cfg', `Configuration name: ${configNameParams}`)
+  .addParam('cfg', `Configuration name: ${NamesOfConfig}`)
   .setAction(async () => {
     // await localBRE.run('set-DRE');
     // const network = <eNetwork>localBRE.network.name;
