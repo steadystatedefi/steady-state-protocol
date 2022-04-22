@@ -1,9 +1,11 @@
-import { FullConfig } from "./config/full";
-import { IConfiguration } from "./types";
+/* eslint-disable */
+// TODO: enable later
+import { FullConfig } from './config/full';
+import { IConfiguration } from './types';
 
 export enum ConfigNames {
   Test = 'Test',
-  Full = 'Full'
+  Full = 'Full',
 }
 
 export const loadTestConfig = () => loadRuntimeConfig(ConfigNames.Test);

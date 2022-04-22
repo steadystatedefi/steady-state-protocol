@@ -112,10 +112,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
       return;
     }
 
-    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
-      excessCoverage,
-      type(uint256).max
-    );
+    (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(excessCoverage, type(uint256).max);
 
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
     _excessCoverage = newExcess;
@@ -230,9 +227,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     bytes calldata data
   ) internal override onlyCollateralCurrency {
     require(data.length == 0);
-    require(
-      operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown
-    );
+    require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
 
     _mintForCoverage(account, amount);
   }

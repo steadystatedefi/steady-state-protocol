@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { task } from 'hardhat/config';
 import { exit } from 'process';
 import { ConfigNames } from '../../helpers/config-loader';

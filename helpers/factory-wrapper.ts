@@ -1,19 +1,24 @@
-import { Signer } from "ethers";
-import { Contract, ContractFactory } from "@ethersproject/contracts";
+/* eslint-disable */
+// TODO: enable later
+import { Signer } from 'ethers';
+import { Contract, ContractFactory } from '@ethersproject/contracts';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { addContractToJsonDb, getFromJsonDb } from "./deploy-db";
-import { falsyOrZeroAddress } from "./runtime-utils";
+import { addContractToJsonDb, getFromJsonDb } from './deploy-db';
+import { falsyOrZeroAddress } from './runtime-utils';
 
 interface Deployable<TArgs extends any[] = any[], TResult extends Contract = Contract> extends ContractFactory {
   attach(address: string): TResult;
   deploy(...args: TArgs): Promise<TResult>;
 }
 
-type FactoryConstructor<TDeployArgs extends any[], TResult extends Contract> = new (signer: Signer) => Deployable<TDeployArgs, TResult>;
+type FactoryConstructor<TDeployArgs extends any[], TResult extends Contract> = new (signer: Signer) => Deployable<
+  TDeployArgs,
+  TResult
+>;
 
 interface Named {
   toString(): string;
-  name(): (string | undefined);
+  name(): string | undefined;
   isMock(): boolean;
 }
 
@@ -24,10 +29,11 @@ export interface UnnamedAttachable<TResult extends Contract = Contract> {
 export interface NamedGettable<TResult extends Contract = Contract> extends Named {
   attach(address: string): TResult;
   get(signer?: Signer, name?: string): TResult;
-  findInstance(name?: string): (string | undefined);
+  findInstance(name?: string): string | undefined;
 }
 
-export interface NamedDeployable<DeployArgs extends any[] = any[], TResult extends Contract = Contract> extends NamedGettable<TResult> {
+export interface NamedDeployable<DeployArgs extends any[] = any[], TResult extends Contract = Contract>
+  extends NamedGettable<TResult> {
   deploy(...args: DeployArgs): Promise<TResult>;
   connectAndDeploy(deployer: Signer, deployName: string, args: DeployArgs): Promise<TResult>;
 }
@@ -36,14 +42,17 @@ let deployer: SignerWithAddress;
 
 export const setDefaultDeployer = (d: SignerWithAddress) => {
   deployer = d;
-}
+};
 
 export const getDefaultDeployer = () => {
   return deployer;
-}
+};
 
-export const wrapFactory = <TArgs extends any[], TResult extends Contract>(f: FactoryConstructor<TArgs, TResult>, mock: boolean): NamedDeployable<TArgs, TResult> => {
-  return new class implements NamedDeployable<TArgs, TResult>{
+export const wrapFactory = <TArgs extends any[], TResult extends Contract>(
+  f: FactoryConstructor<TArgs, TResult>,
+  mock: boolean
+): NamedDeployable<TArgs, TResult> => {
+  return new (class implements NamedDeployable<TArgs, TResult> {
     deploy(...args: TArgs): Promise<TResult> {
       return this.connectAndDeploy(deployer, '', args);
     }
@@ -67,15 +76,15 @@ export const wrapFactory = <TArgs extends any[], TResult extends Contract>(f: Fa
       return this.name() || 'unknown';
     }
 
-    name(): (string | undefined) {
+    name(): string | undefined {
       return nameByFactory.get(this);
     }
 
-    findInstance(name?: string): (string | undefined) {
+    findInstance(name?: string): string | undefined {
       name = name ?? this.name();
       return name === undefined ? undefined : getFromJsonDb(name)?.address;
     }
-    
+
     get(signer?: Signer, name?: string): TResult {
       name = name ?? this.name();
       if (name === undefined) {
@@ -91,11 +100,15 @@ export const wrapFactory = <TArgs extends any[], TResult extends Contract>(f: Fa
     isMock(): boolean {
       return mock ?? false;
     }
-  };
+  })();
 };
 
-export const wrap = <TArgs extends any[], TResult extends Contract>(f: FactoryConstructor<TArgs, TResult>): NamedDeployable<TArgs, TResult> => wrapFactory(f, false);
-export const mock = <TArgs extends any[], TResult extends Contract>(f: FactoryConstructor<TArgs, TResult>): NamedDeployable<TArgs, TResult> => wrapFactory(f, true);
+export const wrap = <TArgs extends any[], TResult extends Contract>(
+  f: FactoryConstructor<TArgs, TResult>
+): NamedDeployable<TArgs, TResult> => wrapFactory(f, false);
+export const mock = <TArgs extends any[], TResult extends Contract>(
+  f: FactoryConstructor<TArgs, TResult>
+): NamedDeployable<TArgs, TResult> => wrapFactory(f, true);
 
 const nameByFactory = new Map<NamedDeployable, string>();
 

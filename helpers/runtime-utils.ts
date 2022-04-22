@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { Wallet, ContractTransaction, BigNumber } from 'ethers';
 import { isAddress } from 'ethers/lib/utils';
 import { isZeroAddress } from 'ethereumjs-util';
@@ -129,7 +131,7 @@ export const getSignerN = async (n: number) => (await getSigners())[n];
 export const getContractFactory = async (abi: any[], bytecode: string) =>
   await (<any>DRE).ethers.getContractFactory(abi, bytecode);
 
-export const getEthersProvider = () => ((<any>DRE).ethers.provider) as Provider;
+export const getEthersProvider = () => (<any>DRE).ethers.provider as Provider;
 export const createUserWallet = () => Wallet.createRandom().connect(getEthersProvider());
 
 export const nameTags = () => (<any>DRE).tracer.nameTags;

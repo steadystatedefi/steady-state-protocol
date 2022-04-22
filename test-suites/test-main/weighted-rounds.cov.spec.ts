@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 import { createRandomAddress, currentTime, increaseTime } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';

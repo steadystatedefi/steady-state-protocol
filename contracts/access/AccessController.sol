@@ -44,10 +44,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   }
 
   function _onlyAdmin() private view {
-    require(
-      msg.sender == owner() || (msg.sender == _tempAdmin && _expiresAt > block.number),
-      Errors.TXT_OWNABLE_CALLER_NOT_OWNER
-    );
+    require(msg.sender == owner() || (msg.sender == _tempAdmin && _expiresAt > block.number), Errors.TXT_OWNABLE_CALLER_NOT_OWNER);
   }
 
   modifier onlyAdmin() {

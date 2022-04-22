@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { Signer } from 'ethers';
 import rawBRE from 'hardhat';
 

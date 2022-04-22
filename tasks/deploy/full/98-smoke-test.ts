@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { task } from 'hardhat/config';
 import { ConfigNames, loadRuntimeConfig } from '../../../helpers/config-loader';
 import { eNetwork } from '../../../helpers/types';

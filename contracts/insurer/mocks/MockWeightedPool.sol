@@ -10,11 +10,7 @@ contract MockWeightedPool is WeightedPoolBase {
     uint256 unitSize,
     uint8 decimals,
     WeightedPoolExtension extension
-  )
-    ERC20DetailsBase('WeightedPoolToken', '$IC', decimals)
-    WeightedPoolBase(unitSize, extension)
-    InsurancePoolBase(collateral_)
-  {
+  ) ERC20DetailsBase('WeightedPoolToken', '$IC', decimals) WeightedPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
     _joinHandler = address(this);
     internalSetPoolParams(
       WeightedPoolParams({
@@ -48,11 +44,7 @@ contract MockWeightedPool is WeightedPoolBase {
 
   function internalPostCoverageCancel() internal override {}
 
-  function receivableDemandedCoverage(address insured)
-    external
-    view
-    returns (uint256 availableCoverage, DemandedCoverage memory coverage)
-  {
+  function receivableDemandedCoverage(address insured) external view returns (uint256 availableCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
     params.loopLimit = ~params.loopLimit;
@@ -63,10 +55,7 @@ contract MockWeightedPool is WeightedPoolBase {
 
   uint256 public receivedCoverage;
 
-  function receiveDemandedCoverage(address insured, uint16 loopLimit)
-    external
-    returns (DemandedCoverage memory coverage)
-  {
+  function receiveDemandedCoverage(address insured, uint16 loopLimit) external returns (DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
     params.loopLimit = loopLimit == 0 ? ~params.loopLimit : loopLimit;

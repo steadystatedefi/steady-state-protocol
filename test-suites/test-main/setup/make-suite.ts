@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import chai from 'chai';
 import bignumberChai from 'chai-bignumber';
 import { almostEqual } from './almost-equal';
