@@ -85,15 +85,11 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       return stats.coverage;
     };
 
-    await Promise.all(
-      [10_000, 100_000, 1_000_000].map((poolDemand) =>
-        Promise.all([
-          joinPool(poolDemand, riskWeight),
-          joinPool(poolDemand, riskWeight),
-          joinPool(poolDemand, riskWeight),
-        ])
-      )
-    );
+    for (const poolDemand of [10_000, 100_000, 1_000_000]) {
+      await joinPool(poolDemand, riskWeight);
+      await joinPool(poolDemand, riskWeight);
+      await joinPool(poolDemand, riskWeight);
+    }
 
     await joinPool(100000, riskWeight / 8);
   };
