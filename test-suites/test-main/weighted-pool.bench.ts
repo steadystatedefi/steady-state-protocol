@@ -1,17 +1,18 @@
-import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { Factories } from '../../helpers/contract-types';
-import { RAY } from '../../helpers/constants';
-import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+import { BigNumber } from '@ethersproject/bignumber';
+import { Wallet } from '@ethersproject/wallet';
 import { expect } from 'chai';
+
+import { RAY } from '../../helpers/constants';
+import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
-import { Wallet } from '@ethersproject/wallet';
-import { BigNumber } from '@ethersproject/bignumber';
+import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+
+import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   const decimals = 18;
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
-  const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let payInToken: tEthereumAddress;
   let pool: MockWeightedPool;
@@ -31,13 +32,14 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     await collector.setPremiumScale(payInToken, [fund.address], [RAY]);
 
     await pool.setPoolParams({
-      maxAdvanceUnits: 10000000,
-      minAdvanceUnits: 1000,
-      riskWeightTarget: 1000,
+      maxAdvanceUnits: 10_000_000,
+      minAdvanceUnits: 1_000,
+      riskWeightTarget: 1_000,
       minInsuredShare: 100,
-      maxInsuredShare: 1500,
+      maxInsuredShare: 1_500,
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
+      overUnitsPerRound: 0,
     });
   });
 
@@ -58,13 +60,13 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     const riskWeight = 1000; // 10%
     const protocol = Wallet.createRandom();
 
-    const joinPool = async (poolDemand: number, riskWeight: number) => {
+    const joinPool = async (poolDemand: number, riskWeightValue: number) => {
       const insured = await Factories.MockInsuredPool.deploy(
         fund.address,
         BigNumber.from(unitSize).mul(poolDemand),
         RATE,
         minUnits,
-        riskWeight,
+        riskWeightValue,
         decimals
       );
       const tx = await mustWaitTx(insured.joinPool(pool.address));
@@ -75,22 +77,25 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
       const stats = await pool.receivableDemandedCoverage(insured.address);
       insureds.push(insured);
-      weights.push(riskWeight);
+      weights.push(riskWeightValue);
       collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
-      console.log(`${iteration}\tDemand\t${insured.address}\t${stats.coverage.totalDemand.toString()}\t${tx.gasUsed}`);
+      console.log(
+        `${iteration}\tDemand\t${insured.address}\t${stats.coverage.totalDemand.toString()}\t${tx.gasUsed.toString()}`
+      );
       return stats.coverage;
     };
 
-    for (let poolDemand of [10000, 100000, 1000000]) {
+    for (const poolDemand of [10_000, 100_000, 1_000_000]) {
       await joinPool(poolDemand, riskWeight);
       await joinPool(poolDemand, riskWeight);
       await joinPool(poolDemand, riskWeight);
     }
+
     await joinPool(100000, riskWeight / 8);
   };
 
   it('Create 10 insured pools', async () => {
-    iteration++;
+    iteration += 1;
     await deployProtocolPools();
   });
 
@@ -104,7 +109,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     const invest = async (kind: string, investment: number) => {
       const v = BigNumber.from(unitSize).mul(investment);
       const tx = await mustWaitTx(fund.connect(user).invest(pool.address, v));
-      console.log(`${iteration}\tInvest\t${user.address}\t${v.toString()}\t${tx.gasUsed}\t${kind}`);
+      console.log(`${iteration}\tInvest\t${user.address}\t${v.toString()}\t${tx.gasUsed.toString()}\t${kind}`);
     };
 
     const smallInvestment = 10;
@@ -126,7 +131,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       const tx = await mustWaitTx(insured.reconcileWithAllInsurers());
       const coverage = await insured.receivableByReconcileWithAllInsurers();
       console.log(
-        `${iteration}\tReconcile\t${insured.address}\t${coverage.providedCoverage.toString()}\t${tx.gasUsed}`
+        `${iteration}\tReconcile\t${insured.address}\t${coverage.providedCoverage.toString()}\t${tx.gasUsed.toString()}`
       );
     }
   };
@@ -134,7 +139,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   it('Reconcile pools', reconcilePools);
 
   it('Create 10 insured pools (20 total)', async () => {
-    iteration++;
+    iteration += 1;
     await deployProtocolPools();
   });
 
@@ -147,7 +152,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   it('Reconcile pools', reconcilePools);
 
   it('Create 30 insured pools (50 total)', async () => {
-    iteration++;
+    iteration += 1;
     for (let i = 3; i > 0; i--) {
       await deployProtocolPools();
     }
@@ -162,7 +167,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   it('Reconcile pools', reconcilePools);
 
   it('Invest by 35 users', async () => {
-    iteration++;
+    iteration += 1;
     for (let i = 35; i > 0; i--) {
       await investByUser();
     }
@@ -171,7 +176,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   it('Reconcile pools', reconcilePools);
 
   it('Create 50 insured pools (100 total)', async () => {
-    iteration++;
+    iteration += 1;
     for (let i = 5; i > 0; i--) {
       await deployProtocolPools();
     }
@@ -186,7 +191,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   it('Reconcile pools', reconcilePools);
 
   it('Create 100 insured pools (200 total)', async () => {
-    iteration++;
+    iteration += 1;
     for (let i = 10; i > 0; i--) {
       await deployProtocolPools();
     }
@@ -201,7 +206,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   it('Reconcile pools', reconcilePools);
 
   it('Create 300 insured pools (500 total)', async () => {
-    iteration++;
+    iteration += 1;
     for (let i = 30; i > 0; i--) {
       await deployProtocolPools();
     }

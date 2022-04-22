@@ -1,4 +1,6 @@
-import { getNetworkName } from "./runtime-utils";
+/* eslint-disable */
+// TODO: enable later
+import { getNetworkName } from './runtime-utils';
 
 export interface SymbolMap<T> {
   [symbol: string]: T;

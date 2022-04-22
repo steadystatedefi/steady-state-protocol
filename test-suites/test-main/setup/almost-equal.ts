@@ -1,6 +1,12 @@
 import BigNumber from 'bignumber.js';
+import baseChai from 'chai';
 
-function almostEqualAssertion(this: any, expected: any, actual: any, message: string): any {
+function almostEqualAssertion(
+  this: typeof chai.Assertion,
+  expected: BigNumber,
+  actual: BigNumber,
+  message: string
+): void {
   this.assert(
     expected.plus(new BigNumber(1)).eq(actual) ||
       expected.plus(new BigNumber(2)).eq(actual) ||
@@ -15,17 +21,27 @@ function almostEqualAssertion(this: any, expected: any, actual: any, message: st
 }
 
 export function almostEqual() {
-  return function (chai: any, utils: any) {
-    chai.Assertion.overwriteMethod('almostEqual', function (original: any) {
-      return function (this: any, value: any, message: string) {
-        if (utils.flag(this, 'bignumber')) {
-          var expected = new BigNumber(value);
-          var actual = new BigNumber(this._obj);
-          almostEqualAssertion.apply(this, [expected, actual, message]);
-        } else {
-          original.apply(this, arguments);
+  return function equal(
+    chai: typeof baseChai,
+    utils: { flag: (ctx: typeof chai.Assertion, key: string) => boolean }
+  ): void {
+    chai.Assertion.overwriteMethod(
+      'almostEqual',
+      (original: typeof chai.Assertion) =>
+        function assertion(this: typeof chai.Assertion, value: BigNumber.Value, message: string) {
+          if (utils.flag(this, 'bignumber')) {
+            const expected = new BigNumber(value);
+            // eslint-disable-next-line no-underscore-dangle
+            const actual = new BigNumber(this._obj as BigNumber.Value);
+            almostEqualAssertion.apply(this, [expected, actual, message]);
+          } else {
+            // TODO: use rest params instead
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            // eslint-disable-next-line prefer-rest-params
+            original.apply(this, arguments);
+          }
         }
-      };
-    });
+    );
   };
 }

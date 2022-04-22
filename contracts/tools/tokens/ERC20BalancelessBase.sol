@@ -19,10 +19,7 @@ abstract contract ERC20BalancelessBase is ERC20DetailsBase, ERC20AllowanceBase, 
     _approve(owner, spender, value);
   }
 
-  function _approveTransferFrom(address owner, uint256 amount)
-    internal
-    override(ERC20AllowanceBase, ERC20TransferBase)
-  {
+  function _approveTransferFrom(address owner, uint256 amount) internal override(ERC20AllowanceBase, ERC20TransferBase) {
     ERC20AllowanceBase._approveTransferFrom(owner, amount);
   }
 }

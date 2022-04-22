@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import low from 'lowdb';
 import FileSync from 'lowdb/adapters/FileSync';
 import { Contract } from 'ethers';
@@ -129,10 +131,9 @@ export const addNamedToJsonDb = (contractId: string, contractAddress: string) =>
   const nodeValue = db.get(node).value();
 
   db.set(`${currentNetwork}.named.${contractId}`, {
-      address: contractAddress,
-      count: 1 + (nodeValue?.count || 0),
-    })
-    .write();
+    address: contractAddress,
+    count: 1 + (nodeValue?.count || 0),
+  }).write();
 };
 
 export const setVerifiedToJsonDb = (address: string, verified: boolean) => {
@@ -144,7 +145,7 @@ export const setVerifiedToJsonDb = (address: string, verified: boolean) => {
 export const getVerifiedFromJsonDb = (address: string) => {
   const currentNetwork = DRE.network.name;
   const db = getDb();
-  return (db.get(`${currentNetwork}.verified.${address}`).value()) as boolean;
+  return db.get(`${currentNetwork}.verified.${address}`).value() as boolean;
 };
 
 export const getInstanceFromJsonDb = (addr: tEthereumAddress) =>

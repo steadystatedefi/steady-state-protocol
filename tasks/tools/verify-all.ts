@@ -1,3 +1,5 @@
+/* eslint-disable */
+// TODO: enable later
 import { task, types } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import {

@@ -1,6 +1,6 @@
-import { IConfiguration } from "../types";
+import { IConfiguration } from '../types';
 
 export const FullConfig: IConfiguration = {
-    Owner: {},
-    DepositTokens: {},
+  Owner: {},
+  DepositTokens: {},
 };
