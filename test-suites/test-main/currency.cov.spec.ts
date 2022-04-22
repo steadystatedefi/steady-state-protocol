@@ -14,7 +14,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   let user: SignerWithAddress;
 
   before(async () => {
-    [user] = testEnv.users;
+    user = testEnv.users[0];
     cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
   });
 

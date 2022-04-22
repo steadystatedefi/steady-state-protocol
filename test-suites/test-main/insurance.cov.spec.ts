@@ -86,14 +86,14 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       insuredUnits.push(1000);
     }
 
-    for (let i = 2; i > 0; i -= 1) {
+    for (let i = 2; i > 0; i--) {
       const coverage = await joinPool(riskWeight);
       expect(coverage.totalCovered).eq(0);
       expect(coverage.totalDemand).eq(4000 * unitSize);
       insuredUnits.push(4000);
     }
 
-    for (let i = 1; i > 0; i -= 1) {
+    for (let i = 1; i > 0; i--) {
       const coverage = await joinPool(riskWeight);
       expect(coverage.totalCovered).eq(0);
       expect(coverage.totalDemand).eq(0); // pool limit for uncovered demand is reached
@@ -111,9 +111,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     let totalPremiumRate = 0;
 
     let perUser = 4;
-    for (let index = 0; index < testEnv.users.length; index += 1) {
-      const user = testEnv.users[index];
-
+    for (const user of testEnv.users) {
       timestamps.push(await currentTime());
       perUser += 1;
       totalCoverageProvidedUnits += perUser;
@@ -137,7 +135,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       );
     }
 
-    for (let index = 0; index < testEnv.users.length; index += 1) {
+    for (let index = 0; index < testEnv.users.length; index++) {
       const user = testEnv.users[index];
       const balance = await pool.balanceOf(user.address);
       const interest = await pool.interestOf(user.address);
@@ -167,7 +165,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     const totals = await pool.getTotals();
     const totalDemandUnits = totals.coverage.totalDemand.div(unitSize).toNumber();
 
-    for (let index = 0; index < insureds.length; index += 1) {
+    for (let index = 0; index < insureds.length; index++) {
       const insured = insureds[index];
       const { coverage } = await pool.receivableDemandedCoverage(insured.address);
       expect(coverage.totalDemand).eq(insuredUnits[index] * unitSize);
@@ -239,8 +237,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       rate: number;
     }[] = [];
 
-    for (let index = 0; index < insureds.length; index += 1) {
-      const insured = insureds[index];
+    for (const insured of insureds) {
       const { coverage } = await pool.receivableDemandedCoverage(insured.address);
       expect(coverage.totalDemand.toNumber()).gte(coverage.totalCovered.toNumber());
       totalCovered += coverage.totalCovered.toNumber();
@@ -263,9 +260,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     expect(totals.coverage.premiumRate.toNumber()).within(totalRate - precisionMargin, totalRate);
 
     let i = 0;
-    for (let index = 0; index < premiumRates.length; index += 1) {
-      const rate = premiumRates[index];
-
+    for (const rate of premiumRates) {
       if (rate.at !== 0) {
         const timeDelta = totals.coverage.premiumUpdatedAt - rate.at;
         expect(timeDelta).gte(0);
@@ -286,8 +281,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   });
 
   it('Reconcile', async () => {
-    for (let index = 0; index < insureds.length; index += 1) {
-      const insured = insureds[index];
+    for (const insured of insureds) {
       const { coverage: coverage0 } = await pool.receivableDemandedCoverage(insured.address);
       await insured.reconcileWithAllInsurers();
 
@@ -322,8 +316,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     let totalDemand = 0;
     let totalCovered = 0;
 
-    for (let index = 0; index < insureds.length; index += 1) {
-      const insured = insureds[index];
+    for (const insured of insureds) {
       const { coverage } = await pool.receivableDemandedCoverage(insured.address);
       totalInsuredPremium += coverage.totalPremium.toNumber();
       totalInsuredPremiumRate += coverage.premiumRate.toNumber();

@@ -29,6 +29,8 @@ module.exports = {
     'no-plusplus': ['error', { allowForLoopAfterthoughts: true }],
     'no-underscore-dangle': 'error',
     'no-await-in-loop': 'off', // TODO: enable to improve performance
+    'no-restricted-syntax': 'off', // Not critical for backend part
+    'prefer-destructuring': 'off',
     'no-redeclare': [
       'error',
       {

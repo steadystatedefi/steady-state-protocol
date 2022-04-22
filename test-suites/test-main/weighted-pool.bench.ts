@@ -125,15 +125,13 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   };
 
   it('Invest by 5 users', async () => {
-    for (let i = 5; i > 0; i -= 1) {
+    for (let i = 5; i > 0; i--) {
       await investByUser();
     }
   });
 
   const reconcilePools = async () => {
-    for (let index = 0; index < insureds.length; index += 1) {
-      const insured = insureds[index];
-
+    for (const insured of insureds) {
       const tx = await mustWaitTx(insured.reconcileWithAllInsurers());
       const coverage = await insured.receivableByReconcileWithAllInsurers();
       console.log(
@@ -150,7 +148,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   });
 
   it('Invest by 5 users', async () => {
-    for (let i = 5; i > 0; i -= 1) {
+    for (let i = 5; i > 0; i--) {
       await investByUser();
     }
   });
@@ -159,13 +157,13 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   it('Create 30 insured pools (50 total)', async () => {
     iteration += 1;
-    for (let i = 3; i > 0; i -= 1) {
+    for (let i = 3; i > 0; i--) {
       await deployProtocolPools();
     }
   });
 
   it('Invest by 5 users', async () => {
-    for (let i = 5; i > 0; i -= 1) {
+    for (let i = 5; i > 0; i--) {
       await investByUser();
     }
   });
@@ -174,7 +172,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   it('Invest by 35 users', async () => {
     iteration += 1;
-    for (let i = 35; i > 0; i -= 1) {
+    for (let i = 35; i > 0; i--) {
       await investByUser();
     }
   });
@@ -183,13 +181,13 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   it('Create 50 insured pools (100 total)', async () => {
     iteration += 1;
-    for (let i = 5; i > 0; i -= 1) {
+    for (let i = 5; i > 0; i--) {
       await deployProtocolPools();
     }
   });
 
   it('Invest by 50 users', async () => {
-    for (let i = 50; i > 0; i -= 1) {
+    for (let i = 50; i > 0; i--) {
       await investByUser();
     }
   });
@@ -198,13 +196,13 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   it('Create 100 insured pools (200 total)', async () => {
     iteration += 1;
-    for (let i = 10; i > 0; i -= 1) {
+    for (let i = 10; i > 0; i--) {
       await deployProtocolPools();
     }
   });
 
   it('Invest by 100 users', async () => {
-    for (let i = 100; i > 0; i -= 1) {
+    for (let i = 100; i > 0; i--) {
       await investByUser();
     }
   });
@@ -213,13 +211,13 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   it('Create 300 insured pools (500 total)', async () => {
     iteration += 1;
-    for (let i = 30; i > 0; i -= 1) {
+    for (let i = 30; i > 0; i--) {
       await deployProtocolPools();
     }
   });
 
   it('Invest by 300 users', async () => {
-    for (let i = 300; i > 0; i -= 1) {
+    for (let i = 300; i > 0; i--) {
       await investByUser();
     }
   });

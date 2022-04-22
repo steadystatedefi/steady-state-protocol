@@ -385,7 +385,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     const excess = await subj.excessCoverage();
 
     await subj.setRoundLimits(1, 2, 100);
-    for (let i = 10; i > 0; i -= 1) {
+    for (let i = 10; i > 0; i--) {
       const insured = createRandomAddress();
       await subj.addInsured(insured);
       await subj.addCoverageDemand(insured, 100, RATE, false);
@@ -507,7 +507,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     expect(info0.availableCoverage).eq(info0.coverage.totalCovered);
 
     const count = 10;
-    for (let i = count; i > 0; i -= 1) {
+    for (let i = count; i > 0; i--) {
       await subj.receiveDemandedCoverage(insured3, i > 1 ? 1 : 65535);
       const info1 = await subj.receivableDemandedCoverage(insured3);
 
