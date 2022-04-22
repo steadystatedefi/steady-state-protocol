@@ -607,11 +607,6 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
     await callAndCheckTotals(async () => {
-      // eslint-disable-next-line no-restricted-syntax
-      for (const a of insureds) {
-        console.log(a);
-      }
-
       for (const insured of insureds) {
         const status = await pool.statusOf(insured.address);
 
