@@ -37,7 +37,7 @@ export const sleep = (milliseconds: number) => {
 
 export const createRandomAddress = () => Wallet.createRandom().address;
 
-export const evmSnapshot = async () => await (<any>DRE).ethers.provider.send('evm_snapshot', []);
+export const evmSnapshot = async (): Promise<string> => await (<any>DRE).ethers.provider.send('evm_snapshot', []);
 
 export const evmRevert = async (id: string) => (<any>DRE).ethers.provider.send('evm_revert', [id]);
 

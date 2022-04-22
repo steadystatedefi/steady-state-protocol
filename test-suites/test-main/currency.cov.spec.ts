@@ -1,21 +1,15 @@
-/* eslint-disable */
-// TODO: enable later
-import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { Factories } from '../../helpers/contract-types';
-import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';
-import { expect } from 'chai';
-import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { zeroAddress } from 'ethereumjs-util';
+import { expect } from 'chai';
+
+import { Factories } from '../../helpers/contract-types';
+import { CollateralCurrency, MockWeightedPool } from '../../types';
+
+import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   const decimals = 18;
-  const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
-  const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
-  const poolDemand = 100000 * unitSize;
   let pool: MockWeightedPool;
-  let insureds: MockInsuredPool[] = [];
   let cc: CollateralCurrency;
   let user: SignerWithAddress;
 

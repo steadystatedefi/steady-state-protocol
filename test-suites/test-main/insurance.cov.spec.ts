@@ -1,13 +1,13 @@
-/* eslint-disable */
-// TODO: enable later
-import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { Factories } from '../../helpers/contract-types';
-import { RAY } from '../../helpers/constants';
-import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+import { Wallet } from '@ethersproject/wallet';
 import { expect } from 'chai';
+
+import { RAY } from '../../helpers/constants';
+import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
-import { Wallet } from '@ethersproject/wallet';
+import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+
+import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const decimals = 18;
@@ -20,9 +20,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   let pool: MockWeightedPool;
   let fund: MockCollateralCurrency;
   let collector: PremiumCollector;
-  let insureds: MockInsuredPool[] = [];
-  let insuredUnits: number[] = [];
-  let insuredTS: number[] = [];
+  const insureds: MockInsuredPool[] = [];
+  const insuredUnits: number[] = [];
+  const insuredTS: number[] = [];
 
   before(async () => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
@@ -50,13 +50,13 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     const minUnits = 10;
     const riskWeight = 1000; // 10%
 
-    const joinPool = async (riskWeight: number) => {
+    const joinPool = async (riskWeightValue: number) => {
       const insured = await Factories.MockInsuredPool.deploy(
         fund.address,
         poolDemand,
         RATE,
         minUnits,
-        riskWeight,
+        riskWeightValue,
         decimals
       );
       await insured.joinPool(pool.address);
@@ -110,21 +110,21 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     let totalPremium = 0;
     let totalPremiumRate = 0;
 
-    let _perUser = 4;
+    let perUser = 4;
     for (const user of testEnv.users) {
       timestamps.push(await currentTime());
-      _perUser++;
-      totalCoverageProvidedUnits += _perUser;
-      userUnits.push(_perUser);
+      perUser += 1;
+      totalCoverageProvidedUnits += perUser;
+      userUnits.push(perUser);
       await fund
         .connect(user)
-        .invest(pool.address, unitSize * _perUser, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+        .invest(pool.address, unitSize * perUser, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
       const interest = await pool.interestOf(user.address);
       expect(interest.accumulated).eq(0);
-      expect(interest.rate).eq(premiumPerUnit * _perUser);
+      expect(interest.rate).eq(premiumPerUnit * perUser);
 
       const balance = await pool.balanceOf(user.address);
-      expect(balance).eq(unitSize * _perUser);
+      expect(balance).eq(unitSize * perUser);
     }
 
     {
@@ -212,7 +212,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       }
     }
     expect(totalInsuredPremiumRate).eq(totalDemandUnits * premiumPerUnit);
-    if (totalInsuredPremium == 0) {
+    if (totalInsuredPremium === 0) {
       expect(0).gt(totals.coverage.premiumRate);
       expect(0).gt(totals.coverage.totalPremium);
     } else {
@@ -232,7 +232,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     let totalRate = 0;
     let totalPremium = 0;
 
-    let premiumRates: {
+    const premiumRates: {
       at: number;
       rate: number;
     }[] = [];
@@ -260,14 +260,14 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     expect(totals.coverage.premiumRate.toNumber()).within(totalRate - precisionMargin, totalRate);
 
     let i = 0;
-    for (const r of premiumRates) {
-      if (r.at == 0) {
-        continue;
+    for (const rate of premiumRates) {
+      if (rate.at !== 0) {
+        const timeDelta = totals.coverage.premiumUpdatedAt - rate.at;
+        expect(timeDelta).gte(0);
+        totalPremium += timeDelta * rate.rate;
+        precisionMargin += rate.at - insuredTS[i];
+        i += 1;
       }
-      const timeDelta = totals.coverage.premiumUpdatedAt - r.at;
-      expect(timeDelta).gte(0);
-      totalPremium += timeDelta * r.rate;
-      precisionMargin += r.at - insuredTS[i++];
     }
 
     expect(totals.coverage.totalPremium.toNumber()).within(

@@ -1,13 +1,12 @@
-/* eslint-disable */
-// TODO: enable later
-import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { createRandomAddress, currentTime, increaseTime } from '../../helpers/runtime-utils';
-import { Factories } from '../../helpers/contract-types';
-import { MockWeightedRounds } from '../../types';
-import { tEthereumAddress } from '../../helpers/types';
 import { expect } from 'chai';
-import { stringifyArgs } from '../../helpers/contract-verification';
 import { BigNumber } from 'ethers';
+
+import { Factories } from '../../helpers/contract-types';
+import { createRandomAddress, currentTime, increaseTime } from '../../helpers/runtime-utils';
+import { tEthereumAddress } from '../../helpers/types';
+import { MockWeightedRounds } from '../../types';
+
+import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
@@ -21,7 +20,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   let totalPremium = BigNumber.from(0);
   let totalPremiumRate = BigNumber.from(0);
   let totalPremiumAt = 0;
-  let overrides = { gasLimit: undefined as undefined | number };
+  const overrides = { gasLimit: undefined as undefined | number };
 
   before(async () => {
     if (testEnv.underCoverage) {
@@ -39,24 +38,24 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
     await subj.addInsured(insured3);
   });
 
-  const dumpState = async () => {
-    const dump = await subj.dump();
-    console.log(
-      'batchCount:',
-      dump.batchCount.toNumber(),
-      '\tlatestBatch:',
-      dump.latestBatch.toNumber(),
-      '\tfirstOpen:',
-      dump.firstOpenBatch.toNumber(),
-      'partialBatch:',
-      dump.part.batchNo.toNumber(),
-      'partialRound:',
-      dump.part.roundNo,
-      'partialRoundCoverage:',
-      dump.part.roundCoverage.toString()
-    );
-    console.log(`batches (${dump.batches.length}):\n`, stringifyArgs(dump.batches));
-  };
+  // const dumpState = async () => {
+  //   const dump = await subj.dump();
+  //   console.log(
+  //     'batchCount:',
+  //     dump.batchCount.toNumber(),
+  //     '\tlatestBatch:',
+  //     dump.latestBatch.toNumber(),
+  //     '\tfirstOpen:',
+  //     dump.firstOpenBatch.toNumber(),
+  //     'partialBatch:',
+  //     dump.part.batchNo.toNumber(),
+  //     'partialRound:',
+  //     dump.part.roundNo,
+  //     'partialRoundCoverage:',
+  //     dump.part.roundCoverage.toString()
+  //   );
+  //   console.log(`batches (${dump.batches.length}):\n`, stringifyArgs(dump.batches));
+  // };
 
   type CoverageInfo = {
     totalDemand: BigNumber;
@@ -109,7 +108,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
 
     expect(t.premiumUpdatedAt).gte(t.premiumRateUpdatedAt);
 
-    if (totalPremiumAt != 0) {
+    if (totalPremiumAt !== 0) {
       expect(t.premiumUpdatedAt).gte(totalPremiumAt);
       expect(t.totalPremium).eq(totalPremium.add(totalPremiumRate.mul(t.premiumUpdatedAt - totalPremiumAt)));
     }
@@ -214,15 +213,13 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       await expectCoverage(insured3, 2000, 10, halfRoundSize / 3)
     );
 
-    {
-      await increaseTime(5);
+    await increaseTime(5);
 
-      await checkTotals(
-        await expectCoverage(insured1, 1000, 10, halfRoundSize / 3),
-        await expectCoverage(insured2, 100, 10, halfRoundSize / 3),
-        await expectCoverage(insured3, 2000, 10, halfRoundSize / 3)
-      );
-    }
+    await checkTotals(
+      await expectCoverage(insured1, 1000, 10, halfRoundSize / 3),
+      await expectCoverage(insured2, 100, 10, halfRoundSize / 3),
+      await expectCoverage(insured3, 2000, 10, halfRoundSize / 3)
+    );
 
     await subj.addCoverage(roundSize / 2);
 

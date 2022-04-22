@@ -1,12 +1,12 @@
-/* eslint-disable */
-// TODO: enable later
-import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
-import { Factories } from '../../helpers/contract-types';
-import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';
-import { expect } from 'chai';
-import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
+
+import { Factories } from '../../helpers/contract-types';
+import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
+import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';
+
+import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   const decimals = 18;
@@ -15,9 +15,9 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 100000 * unitSize;
   let pool: MockWeightedPool;
-  let insureds: MockInsuredPool[] = [];
-  let insuredUnits: number[] = [];
-  let insuredTS: number[] = [];
+  const insureds: MockInsuredPool[] = [];
+  const insuredUnits: number[] = [];
+  const insuredTS: number[] = [];
   let cc: CollateralCurrency;
   let user: SignerWithAddress;
 
@@ -46,13 +46,13 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const minUnits = 10;
     const riskWeight = 1000; // 10%
 
-    const joinPool = async (riskWeight: number) => {
+    const joinPool = async (riskWeightValue: number) => {
       const insured = await Factories.MockInsuredPool.deploy(
         cc.address,
         poolDemand,
         RATE,
         minUnits,
-        riskWeight,
+        riskWeightValue,
         decimals
       );
       await insured.joinPool(pool.address);
@@ -102,7 +102,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     let totalRate = 0;
     let totalPremium = 0;
 
-    let premiumRates: {
+    const premiumRates: {
       at: number;
       rate: number;
     }[] = [];
@@ -134,14 +134,14 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(totals.coverage.premiumRate.toNumber()).within(totalRate - precisionMargin, totalRate);
 
     let i = 0;
-    for (const r of premiumRates) {
-      if (r.at == 0) {
-        continue;
+    for (const rate of premiumRates) {
+      if (rate.at !== 0) {
+        const timeDelta = totals.coverage.premiumUpdatedAt - rate.at;
+        expect(timeDelta).gte(0);
+        totalPremium += timeDelta * rate.rate;
+        precisionMargin += rate.at - insuredTS[i];
+        i += 1;
       }
-      const timeDelta = totals.coverage.premiumUpdatedAt - r.at;
-      expect(timeDelta).gte(0);
-      totalPremium += timeDelta * r.rate;
-      precisionMargin += r.at - insuredTS[i++];
     }
 
     // console.log('::::: ', totalPremium - precisionMargin, totals.coverage.totalPremium.toNumber(), totalPremium + 1);
@@ -159,11 +159,11 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     } = await pool.getTotals();
 
     // console.log('\n>>>>', totalRatetOfUsers.toString(), totalInterestOfUsers.toString());
-    for (const user of testEnv.users) {
-      const balance = await pool.balanceOf(user.address);
+    for (const testUser of testEnv.users) {
+      const balance = await pool.balanceOf(testUser.address);
       total = total.sub(balance);
 
-      const interest = await pool.interestOf(user.address);
+      const interest = await pool.interestOf(testUser.address);
       totalRate = totalRate.sub(interest.rate);
       totalInterest = totalInterest.sub(interest.accumulated);
       // console.log('    ', interest.rate.toString(), interest.accumulated.toString());
@@ -199,27 +199,28 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     let totalPremium = 0;
     let totalPremiumRate = 0;
 
-    let _perUser = 400;
-    for (const user of testEnv.users) {
-      timestamps.push(await currentTime());
-      _perUser += 100;
-      totalCoverageProvidedUnits += _perUser;
-      userUnits.push(_perUser);
+    let perUser = 400;
+    for (const testUser of testEnv.users) {
+      const time = await currentTime();
+      timestamps.push(time);
+      perUser += 100;
+      totalCoverageProvidedUnits += perUser;
+      userUnits.push(perUser);
 
-      const investment = unitSize * _perUser;
+      const investment = unitSize * perUser;
       totalInvested += investment;
-      await cc.mintAndTransfer(user.address, pool.address, investment, {
+      await cc.mintAndTransfer(testUser.address, pool.address, investment, {
         gasLimit: testEnv.underCoverage ? 2000000 : undefined,
       });
 
       expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
-      const interest = await pool.interestOf(user.address);
+      const interest = await pool.interestOf(testUser.address);
       expect(interest.accumulated).eq(0);
-      expect(interest.rate).eq(premiumPerUnit * _perUser);
+      expect(interest.rate).eq(premiumPerUnit * perUser);
 
-      const balance = await pool.balanceOf(user.address);
-      expect(balance).eq(unitSize * _perUser);
+      const balance = await pool.balanceOf(testUser.address);
+      expect(balance).eq(unitSize * perUser);
 
       if (!testEnv.underCoverage) {
         await checkTotals();
@@ -235,14 +236,15 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     }
 
     for (let index = 0; index < testEnv.users.length; index++) {
-      const user = testEnv.users[index];
-      const balance = await pool.balanceOf(user.address);
-      const interest = await pool.interestOf(user.address);
+      const { address } = testEnv.users[index];
+      const balance = await pool.balanceOf(address);
+      const interest = await pool.interestOf(address);
 
       expect(balance).eq(unitSize * userUnits[index]);
       expect(interest.rate).eq(premiumPerUnit * userUnits[index]);
       if (!testEnv.underCoverage) {
-        expect(interest.accumulated).eq(interest.rate.mul((await currentTime()) - timestamps[index] - 1));
+        const time = await currentTime();
+        expect(interest.accumulated).eq(interest.rate.mul(time - timestamps[index] - 1));
       }
 
       totalPremium += interest.accumulated.toNumber();
@@ -259,11 +261,11 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
   it('Push excess coverage (1)', async () => {
     let totalCoverageDemandedUnits = 0;
-    for (let u of insuredUnits) {
-      totalCoverageDemandedUnits += u;
+    for (const unit of insuredUnits) {
+      totalCoverageDemandedUnits += unit;
     }
 
-    let missingCoverage = totalCoverageDemandedUnits - totalCoverageProvidedUnits;
+    const missingCoverage = totalCoverageDemandedUnits - totalCoverageProvidedUnits;
     expect(await pool.withdrawable(user.address)).eq(0);
     await cc.mintAndTransfer(user.address, pool.address, unitSize * missingCoverage, {
       gasLimit: testEnv.underCoverage ? 2000000 : undefined,
@@ -457,11 +459,11 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
     expect(await pool.getExcessCoverage()).eq(0);
 
-    /*******************/
+    /** **************** */
     /* Cancel coverage */
     await insured.cancelCoverage(zeroAddress(), 0);
-    /*******************/
-    /*******************/
+    /** **************** */
+    /** **************** */
 
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
     expect(await cc.balanceOf(insured.address)).eq(0);
@@ -520,7 +522,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     expect(totals1.totalCovered).eq(totals0.totalCovered);
     expect(totals1.premiumRate).eq(totals0.premiumRate);
     expect(totals1.premiumRateUpdatedAt).gte(totals0.premiumRateUpdatedAt);
-    if (totals0.premiumUpdatedAt != 0) {
+    if (totals0.premiumUpdatedAt !== 0) {
       expect(totals1.premiumUpdatedAt).gt(totals0.premiumUpdatedAt);
       expect(totals1.totalPremium).eq(
         totals0.totalPremium.add(totals0.premiumRate.mul(totals1.premiumUpdatedAt - totals0.premiumUpdatedAt))
@@ -606,7 +608,9 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
     await callAndCheckTotals(async () => {
       for (const insured of insureds) {
-        if ((await pool.statusOf(insured.address)) != InsuredStatus.Accepted) {
+        const status = await pool.statusOf(insured.address);
+
+        if (status !== InsuredStatus.Accepted) {
           continue;
         }
 
@@ -630,7 +634,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
           continue;
         }
 
-        if (stats0.premiumUpdatedAt != 0) {
+        if (stats0.premiumUpdatedAt !== 0) {
           expect(stats1.premiumUpdatedAt).gt(stats0.premiumUpdatedAt);
           expect(stats1.totalPremium).eq(
             stats0.totalPremium.add(stats0.premiumRate.mul(stats1.premiumUpdatedAt - stats0.premiumUpdatedAt))
@@ -655,8 +659,8 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   it('Check pool supply vs user balances (1)', async () => {
     let total = await pool.totalSupply();
 
-    for (const user of testEnv.users) {
-      const balance = await pool.balanceOf(user.address);
+    for (const testUser of testEnv.users) {
+      const balance = await pool.balanceOf(testUser.address);
       total = total.sub(balance);
     }
 
@@ -684,11 +688,11 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const ptSupply0 = await pool.totalSupply();
     expect(ptSupply0).eq(totalInvested);
 
-    /*******************/
+    /** **************** */
     /* Cancel coverage */
     await insured.cancelCoverage(receiver, payoutAmount);
-    /*******************/
-    /*******************/
+    /** **************** */
+    /** **************** */
 
     expect(await pool.totalSupply()).eq(totalInvested - payoutAmount);
     totalInvested -= payoutAmount;
@@ -734,8 +738,8 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   it('Check pool supply vs user balances (2)', async () => {
     let total = await pool.totalSupply();
 
-    for (const user of testEnv.users) {
-      const balance = await pool.balanceOf(user.address);
+    for (const testUser of testEnv.users) {
+      const balance = await pool.balanceOf(testUser.address);
       total = total.sub(balance);
     }
 
@@ -763,11 +767,11 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const ptSupply0 = await pool.totalSupply();
     expect(ptSupply0).eq(totalInvested);
 
-    /*******************/
+    /** **************** */
     /* Cancel coverage */
     await insured.cancelCoverage(receiver, payoutAmount);
-    /*******************/
-    /*******************/
+    /** **************** */
+    /** **************** */
 
     expect(await pool.totalSupply()).eq(totalInvested - payoutAmount);
 
@@ -812,8 +816,8 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   it('Check pool supply vs user balances (3)', async () => {
     let total = await pool.totalSupply();
 
-    for (const user of testEnv.users) {
-      const balance = await pool.balanceOf(user.address);
+    for (const testUser of testEnv.users) {
+      const balance = await pool.balanceOf(testUser.address);
       total = total.sub(balance);
     }
 
