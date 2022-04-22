@@ -1,17 +1,15 @@
-/* eslint-disable */
-// TODO: enable later
 import { Signer } from 'ethers';
 import rawBRE from 'hardhat';
 
-import _ from 'lodash';
-import { loadTestConfig } from '../../helpers/config-loader';
 import { setDefaultDeployer } from '../../helpers/factory-wrapper';
 import { getSigners, isForkNetwork } from '../../helpers/runtime-utils';
+
 import { initializeMakeSuite } from './setup/make-suite';
 
-const deployConfig = loadTestConfig();
+// const deployConfig = loadTestConfig();
 
-const buildTestEnv = async (deployer: Signer, secondaryWallet: Signer) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const buildTestEnv = (_deployer: Signer, _secondaryWallet: Signer) => {
   console.time('setup');
 
   // Do whole setup here
@@ -30,10 +28,10 @@ before(async () => {
     await rawBRE.run('deploy:full');
   } else {
     console.log('-> Deploying test environment...');
-    await buildTestEnv(deployer, secondaryWallets);
+    buildTestEnv(deployer, secondaryWallets);
   }
 
-  await initializeMakeSuite(rawBRE.network.name == 'coverage');
+  await initializeMakeSuite(rawBRE.network.name === 'coverage');
   console.log('\n***************');
   console.log('Setup and snapshot finished');
   console.log('***************\n');
