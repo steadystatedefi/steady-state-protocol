@@ -1,9 +1,9 @@
 import { task } from 'hardhat/config';
 
-import { ConfigNames } from '../../../helpers/config-loader';
+import { configNameParams } from '../../../helpers/config-loader';
 
 task(`full:deploy-finalize`, 'Finalize deploy')
-  .addParam('cfg', `Configuration name: ${JSON.stringify(Object.values(ConfigNames))}`)
+  .addParam('cfg', `Configuration name: ${configNameParams}`)
   .addFlag('register', `Register access controller`)
   .setAction(async () => {
     // await localBRE.run('set-DRE');
