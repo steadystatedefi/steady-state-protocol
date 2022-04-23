@@ -136,7 +136,7 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
         fullVerify = filterProxy();
       }
 
-      const verifiedEntity = getVerifiedFromJsonDb(addr);
+      const verifiedEntity = await getVerifiedFromJsonDb(addr);
       if (!force && verifiedEntity) {
         console.log('Already verified');
         continue;
