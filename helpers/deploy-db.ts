@@ -102,8 +102,8 @@ export const addProxyToJsonDb = (
     },
   };
 
-  if (verifyArgs !== undefined && logEntry.verify) {
-    logEntry.verify.args = stringifyArgs(verifyArgs);
+  if (verifyArgs !== undefined) {
+    logEntry.verify!.args = stringifyArgs(verifyArgs);
   }
 
   db.set(`${currentNetwork}.external.${proxyAddress}`, logEntry).write();
@@ -118,8 +118,8 @@ export const addExternalToJsonDb = (id: string, address: tEthereumAddress, verif
     verify: {},
   };
 
-  if (verifyArgs !== undefined && logEntry.verify) {
-    logEntry.verify.args = stringifyArgs(verifyArgs);
+  if (verifyArgs !== undefined) {
+    logEntry.verify!.args = stringifyArgs(verifyArgs);
   }
 
   db.set(`${currentNetwork}.external.${address}`, logEntry).write();
