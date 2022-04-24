@@ -19,6 +19,7 @@ import 'solidity-coverage';
 import 'hardhat-abi-exporter';
 import 'hardhat-contract-sizer';
 import 'hardhat-tracer';
+import 'hardhat-storage-layout';
 
 dotenv.config();
 
@@ -151,6 +152,11 @@ const buidlerConfig: HardhatUserConfig = {
         settings: {
           optimizer: { enabled: true, runs: 200 },
           evmVersion: 'istanbul',
+          outputSelection: {
+            "*": {
+              "*": ["storageLayout"],
+            },
+          },
         },
       },
     ],
