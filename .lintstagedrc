@@ -1,0 +1,11 @@
+{
+  "*.{ts,js,json}": [
+    "pretty-quick --pattern '**/*.*(js|ts|json)' --staged"
+  ],
+  "*.{ts,js}": [
+    "npm run eslint"
+  ],
+  "*.sol": [
+    "pretty-quick --staged --pattern 'contracts/**/*.sol' --staged"
+  ]
+}

@@ -1,25 +1,25 @@
-import path from 'path';
-import fs from 'fs';
-import dotenv from 'dotenv';
-import { HardhatUserConfig } from 'hardhat/types';
-// @ts-ignore
-import { accounts } from './helpers/test-wallets.js';
-import { eEthereumNetwork, eNetwork, eOtherNetwork, ePolygonNetwork } from './helpers/types';
-import { BUIDLEREVM_CHAINID, COVERAGE_CHAINID } from './helpers/buidler-constants';
-import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS, FORK_RPC_URL } from './helper-hardhat-config';
-
-import 'hardhat-tracer';
 import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
-import 'hardhat-gas-reporter';
-import 'hardhat-typechain';
+import '@nomiclabs/hardhat-waffle';
 import '@tenderly/hardhat-tenderly';
-import 'solidity-coverage';
+import '@typechain/hardhat';
+import dotenv from 'dotenv';
 import 'hardhat-abi-exporter';
 import 'hardhat-contract-sizer';
-import 'hardhat-tracer';
+import 'hardhat-gas-reporter';
 import 'hardhat-storage-layout';
+import 'hardhat-tracer';
+import { HardhatUserConfig } from 'hardhat/types';
+import 'solidity-coverage';
+
+import fs from 'fs';
+import path from 'path';
+
+import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS, FORK_RPC_URL } from './helper-hardhat-config';
+import { BUIDLEREVM_CHAINID, COVERAGE_CHAINID } from './helpers/buidler-constants';
+import testWalletsData from './helpers/test-wallets.json';
+import { eEthereumNetwork, eNetwork, eOtherNetwork, ePolygonNetwork } from './helpers/types';
+import './tasks/subtasks/set-dre';
 
 dotenv.config();
 
@@ -30,35 +30,29 @@ const HARDFORK = 'istanbul';
 const MNEMONIC_PATH = "m/44'/60'/0'/0";
 const MNEMONIC = process.env.MNEMONIC || '';
 const BSC_FORK_URL = process.env.BSC_FORK_URL || '';
-const FORK = process.env.FORK;
-const IS_FORK = FORK ? true : false;
+const { FORK } = process.env;
+const IS_FORK = !!FORK;
 
 const KEY_SEL = process.env.KEY_SEL || '';
 
-const keySelector = (keyName: string) => {
-  return (KEY_SEL != '' ? process.env[`${keyName}_${KEY_SEL}`] : undefined) || process.env[keyName];
-};
+const keySelector = (keyName: string) =>
+  (KEY_SEL !== '' ? process.env[`${keyName}_${KEY_SEL}`] : undefined) || process.env[keyName];
 
 const ETHERSCAN_KEY = keySelector('ETHERSCAN_KEY') || '';
 const COINMARKETCAP_KEY = keySelector('COINMARKETCAP_KEY') || '';
 const MNEMONIC_MAIN = IS_FORK ? MNEMONIC : keySelector('MNEMONIC_MAIN') || MNEMONIC;
 
-
 // Prevent to load scripts before compilation and typechain
 if (!SKIP_LOAD) {
-  ['tools', 'migrations', 'deploy', 'deploy/dev', 'deploy/full', 'subtasks'].forEach(
-    (folder) => {
-      const tasksPath = path.join(__dirname, 'tasks', folder);
-      fs.readdirSync(tasksPath)
-        .filter((pth) => pth.includes('.ts'))
-        .forEach((task) => {
-          require(`${tasksPath}/${task}`);
-        });
-    }
-  );
+  ['tools', 'migrations', 'deploy', 'deploy/dev', 'deploy/full', 'subtasks'].forEach((folder) => {
+    const tasksPath = path.join(__dirname, 'tasks', folder);
+    fs.readdirSync(tasksPath)
+      .filter((pth) => pth.includes('.ts'))
+      .forEach((task) => {
+        import(`${tasksPath}/${task}`);
+      });
+  });
 }
-
-require(path.join(__dirname, 'tasks/subtasks', 'set-dre.ts'));
 
 const getCommonNetworkConfig = (networkName: eNetwork, networkId: number, mnemonic?: string) => ({
   url: NETWORKS_RPC_URL[networkName],
@@ -108,13 +102,13 @@ const mainnetFork = () => {
   if (!FORK) {
     return undefined;
   }
-  let url = NETWORKS_RPC_URL[FORK];
+  let url = NETWORKS_RPC_URL[FORK] as string;
   if (!url) {
-    throw new Error('Unknown network to fork: ' + FORK);
+    throw new Error(`Unknown network to fork: ${FORK}`);
   }
   if (FORK_RPC_URL[FORK]) {
-    url = FORK_RPC_URL[FORK];
-  } else if (FORK == eOtherNetwork.bsc) {
+    url = FORK_RPC_URL[FORK] as string;
+  } else if (FORK === eOtherNetwork.bsc) {
     console.log('==================================================================================');
     console.log('==================================================================================');
     console.log('WARNING!  Forking of BSC requires a 3rd party provider or a special workaround');
@@ -128,8 +122,8 @@ const mainnetFork = () => {
   };
 
   return {
-    blockNumber: blockNumbers[FORK],
-    url: url,
+    blockNumber: blockNumbers[FORK] as number | undefined,
+    url,
   };
 };
 
@@ -153,8 +147,8 @@ const buidlerConfig: HardhatUserConfig = {
           optimizer: { enabled: true, runs: 200 },
           evmVersion: 'istanbul',
           outputSelection: {
-            "*": {
-              "*": ["storageLayout"],
+            '*': {
+              '*': ['storageLayout'],
             },
           },
         },
@@ -174,7 +168,7 @@ const buidlerConfig: HardhatUserConfig = {
   tenderly: {
     project: process.env.TENDERLY_PROJECT || '',
     username: process.env.TENDERLY_USERNAME || '',
-    forkNetwork: '1', //Network id of the network we want to fork
+    forkNetwork: '1', // Network id of the network we want to fork
   },
   networks: {
     coverage: {
@@ -209,7 +203,7 @@ const buidlerConfig: HardhatUserConfig = {
       chainId: BUIDLEREVM_CHAINID,
       throwOnTransactionFailures: true,
       throwOnCallFailures: true,
-      accounts: accounts.map(({ secretKey, balance }: { secretKey: string; balance: string }) => ({
+      accounts: testWalletsData.accounts.map(({ secretKey, balance }: { secretKey: string; balance: string }) => ({
         privateKey: secretKey,
         balance,
       })),

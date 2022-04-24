@@ -24,10 +24,7 @@ library ERC1363 {
     uint256 value,
     bytes memory data
   ) internal {
-    require(
-      IERC1363Receiver(receiver).onTransferReceived(operator, from, value, data) ==
-        IERC1363Receiver.onTransferReceived.selector
-    );
+    require(IERC1363Receiver(receiver).onTransferReceived(operator, from, value, data) == IERC1363Receiver.onTransferReceived.selector);
   }
 }
 

@@ -1,4 +1,4 @@
-import { getNetworkName } from "./runtime-utils";
+import { getNetworkName } from './runtime-utils';
 
 export interface SymbolMap<T> {
   [symbol: string]: T;
@@ -33,17 +33,12 @@ export enum ePolygonNetwork {
   optimistic = 'optimistic',
 }
 
-export const isPolygonNetwork = (name: string) => {
-  return ePolygonNetwork[name] !== undefined;
-};
+export const isPolygonNetwork = (name: string): boolean => ePolygonNetwork[name] !== undefined;
 
-export const isKnownNetworkName = (name: string) => {
-  return isPolygonNetwork(name) || eEthereumNetwork[name] !== undefined || eOtherNetwork[name] !== undefined;
-};
+export const isKnownNetworkName = (name: string): boolean =>
+  isPolygonNetwork(name) || eEthereumNetwork[name] !== undefined || eOtherNetwork[name] !== undefined;
 
-export const isAutoGasNetwork = (name: string) => {
-  return isPolygonNetwork(name);
-};
+export const isAutoGasNetwork = (name: string): boolean => isPolygonNetwork(name);
 
 export enum NetworkNames {
   kovan = 'kovan',
@@ -81,7 +76,7 @@ const tokenSymbols: iAssetBase<string> = {
 export type iAssetsWithoutUSD<T> = Omit<iAssetBase<T>, 'USD'>;
 export type iAssetsWithoutUSDOpt<T> = OmitOpt<iAssetBase<T>, 'USD'>;
 
-export type RecordOpt<K extends keyof any, T> = {
+export type RecordOpt<K extends keyof unknown, T> = {
   [P in K]?: T;
 };
 
@@ -93,7 +88,7 @@ export type AllOpt<T> = {
   [P in keyof T]?: T[P];
 };
 
-export type OmitOpt<T, K extends keyof any> = PickOpt<T, Exclude<keyof T, K>>;
+export type OmitOpt<T, K extends keyof never> = PickOpt<T, Exclude<keyof T, K>>;
 
 export const DefaultTokenSymbols: string[] = Object.keys(tokenSymbols);
 
@@ -176,6 +171,5 @@ export interface IDependencies {
   UniswapV2Router?: tEthereumAddress;
 }
 
-export const getParamPerNetwork = <T>(param: iParamsPerNetwork<T> | iParamsPerNetworkOpt<T>, network?: eNetwork): T => {
-  return param[getNetworkName(network)]!;
-};
+export const getParamPerNetwork = <T>(param: iParamsPerNetwork<T> | iParamsPerNetworkOpt<T>, network?: eNetwork): T =>
+  param[getNetworkName(network)] as T;

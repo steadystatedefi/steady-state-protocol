@@ -131,10 +131,7 @@ contract PremiumCollector {
 
   /// @dev adds tokens to protocol's deposits. Protocol can only supply an agreed set of tokens, e.g. protocol's token & USDx
   /// @dev only users allowed by IProtocol.hasRole(DEPOSIT) can do this
-  function deposit(address protocol, TokenAmount[] calldata amounts)
-    external
-    onlyProtocolOrRole(protocol, ProtocolAccessFlags.Deposit)
-  {
+  function deposit(address protocol, TokenAmount[] calldata amounts) external onlyProtocolOrRole(protocol, ProtocolAccessFlags.Deposit) {
     for (uint256 i = amounts.length; i > 0; ) {
       i--;
       address token = amounts[i].token;
@@ -166,10 +163,7 @@ contract PremiumCollector {
       address token = tokens[i];
       TokenBalance memory b = _balances[protocol][token];
       uint256 expectedBalance = _balanceOf(token, b.deductable, at, _pools[protocol][token]);
-      list[i] = TokenAmount(
-        token,
-        at > 0 ? expectedBalance : (expectedBalance >= b.balance ? 0 : b.balance - expectedBalance)
-      );
+      list[i] = TokenAmount(token, at > 0 ? expectedBalance : (expectedBalance >= b.balance ? 0 : b.balance - expectedBalance));
     }
   }
 

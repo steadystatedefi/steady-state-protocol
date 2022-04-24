@@ -1,10 +1,20 @@
-import { task, types } from 'hardhat/config';
-import { exit } from 'process';
 import { BigNumber } from 'ethers';
+import { task, types } from 'hardhat/config';
+
+import { exit } from 'process';
+
 import { ConfigNames } from '../../helpers/config-loader';
-import { getFirstSigner } from '../../helpers/runtime-utils';
 import { cleanupJsonDb, printContracts } from '../../helpers/deploy-db';
+import { getFirstSigner } from '../../helpers/runtime-utils';
 import { getDeploySteps } from '../deploy/deploy-steps';
+
+interface IDeployFullArgs {
+  incremental: boolean;
+  secure: boolean;
+  strict: boolean;
+  verify: boolean;
+  skip: number;
+}
 
 task('deploy-full', 'Deploy full enviroment')
   .addFlag('incremental', 'Incremental deployment')
@@ -12,7 +22,7 @@ task('deploy-full', 'Deploy full enviroment')
   .addFlag('strict', 'Fail on warnings')
   .addFlag('verify', 'Verify contracts at Etherscan')
   .addOptionalParam('skip', 'Skip steps with less or equal index', 0, types.int)
-  .setAction(async ({ incremental, secure, strict, verify, skip: skipN }, DRE) => {
+  .setAction(async ({ incremental, secure, strict, verify, skip: skipN }: IDeployFullArgs, DRE) => {
     const CONFIG_NAME = ConfigNames.Full;
     await DRE.run('set-DRE');
 
@@ -46,7 +56,7 @@ task('deploy-full', 'Deploy full enviroment')
         cfg: CONFIG_NAME,
         verify: trackVerify,
       })) {
-        const stepId = '0' + step.seqId;
+        const stepId = `0${step.seqId}`;
         console.log('\n======================================================================');
         console.log(stepId.substring(stepId.length - 2), step.stepName);
         console.log('======================================================================\n');
@@ -74,12 +84,12 @@ task('deploy-full', 'Deploy full enviroment')
         if (multiCount > 0) {
           console.error('WARNING: multi-deployed contract(s) detected');
           hasWarn = true;
-        } else if (entryMap.size != instanceCount) {
+        } else if (entryMap.size !== instanceCount) {
           console.error('WARNING: unknown contract(s) detected');
           hasWarn = true;
         }
 
-        entryMap.forEach((value, key, m) => {
+        entryMap.forEach((_, key) => {
           if (key.startsWith('Mock')) {
             console.error('WARNING: mock contract detected:', key);
             hasWarn = true;
@@ -87,7 +97,7 @@ task('deploy-full', 'Deploy full enviroment')
         });
 
         if (hasWarn && strict) {
-          throw 'warnings are present';
+          throw new Error('warnings are present');
         }
       }
 
@@ -115,7 +125,7 @@ task('deploy-full', 'Deploy full enviroment')
       console.log('Deployer end balance: ', endBalance.div(1e12).toNumber() / 1e6);
       console.log('Deploy expenses: ', startBalance.sub(endBalance).div(1e12).toNumber() / 1e6);
       const gasPrice = DRE.network.config.gasPrice;
-      if (gasPrice != 'auto') {
+      if (gasPrice !== 'auto') {
         console.log(
           'Deploy gas     : ',
           startBalance.sub(endBalance).div(gasPrice).toNumber(),

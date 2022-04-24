@@ -97,11 +97,7 @@ contract PriceOracle is IManagerPriceOracle {
     return result;
   }
 
-  function setPriceSources(address[] calldata assets, PriceSource[] calldata sources)
-    external
-    override
-    onlyOracleAdmin
-  {
+  function setPriceSources(address[] calldata assets, PriceSource[] calldata sources) external override onlyOracleAdmin {
     address weth = WETH;
     for (uint256 i = assets.length; i > 0; ) {
       i--;

@@ -56,7 +56,7 @@ export const FORK_RPC_URL: iParamsPerNetworkOpt<string> = {
     : 'https://api.avax.network/ext/bc/C/rpc',
 };
 
-const gasPrice = (def: number) => (process.env.GAS_PRICE ? parseInt(process.env.GAS_PRICE) : def) * GWEI;
+const gasPrice = (def: number) => (process.env.GAS_PRICE ? parseInt(process.env.GAS_PRICE, 10) : def) * GWEI;
 
 export const NETWORKS_DEFAULT_GAS: iParamsPerNetwork<number | 'auto'> = {
   [eEthereumNetwork.kovan]: gasPrice(1),

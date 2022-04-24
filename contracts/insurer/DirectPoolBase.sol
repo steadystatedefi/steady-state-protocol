@@ -13,13 +13,7 @@ import './WeightedPoolExtension.sol';
 import '../insurance/InsurancePoolBase.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract DirectPoolBase is
-  IInsurerPoolCore,
-  InsurancePoolBase,
-  InsurerJoinBase,
-  ERC20BalancelessBase,
-  ERC1363ReceiverBase
-{
+abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, InsurerJoinBase, ERC20BalancelessBase, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -207,10 +201,7 @@ abstract contract DirectPoolBase is
   }
 
   function internalGetStatus(address account) internal view override returns (InsuredStatus) {
-    return
-      _insured == account
-        ? (_cancelledAt == 0 ? InsuredStatus.Accepted : InsuredStatus.Declined)
-        : InsuredStatus.Unknown;
+    return _insured == account ? (_cancelledAt == 0 ? InsuredStatus.Accepted : InsuredStatus.Declined) : InsuredStatus.Unknown;
   }
 
   function internalSetStatus(address account, InsuredStatus s) internal override {

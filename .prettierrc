@@ -4,12 +4,13 @@
   "semi": true,
   "singleQuote": true,
   "tabWidth": 2,
-  "endOfLine": "auto",
+  "endOfLine": "lf",
   "overrides": [
     {
       "files": "*.sol",
       "options": {
-        "semi": true,
+        "printWidth": 150,
+        "semi": true
       }
     }
   ]

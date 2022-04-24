@@ -115,9 +115,8 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     WeightedPoolParams memory params = _params;
 
     // max units that can be added in total for the share not to be exceeded
-    uint256 x = (totalUnitsBeforeBatch +
-      uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound + 1) *
-      batchRounds).percentMul(maxShare);
+    uint256 x = (totalUnitsBeforeBatch + uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound + 1) * batchRounds)
+      .percentMul(maxShare);
 
     if (x < demandedUnits + batchRounds) {
       x = 0;
@@ -175,10 +174,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   }
 
   /// @dev Performed before balance updates. The total rate accum by the pool is updated, and then the user balance is updated
-  function _beforeBalanceUpdate(address account)
-    internal
-    returns (UserBalance memory b, Balances.RateAcc memory totals)
-  {
+  function _beforeBalanceUpdate(address account) internal returns (UserBalance memory b, Balances.RateAcc memory totals) {
     totals = _beforeAnyBalanceUpdate();
     b = _syncBalance(account, totals);
   }
@@ -203,9 +199,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     DemandedCoverage memory coverage
   ) internal returns (Balances.RateAcc memory) {
     // console.log('_afterBalanceUpdate', coverage.premiumRate, newExcess, coverage.totalCovered + coverage.pendingCovered);
-    uint256 rate = coverage.premiumRate == 0
-      ? 0
-      : uint256(coverage.premiumRate).rayDiv(newExcess + coverage.totalCovered + coverage.pendingCovered); // earns per second * 10^27
+    uint256 rate = coverage.premiumRate == 0 ? 0 : uint256(coverage.premiumRate).rayDiv(newExcess + coverage.totalCovered + coverage.pendingCovered); // earns per second * 10^27
     _totalRate = totals.setRateAfterSync(rate.rayMul(exchangeRate()));
     return totals;
   }
