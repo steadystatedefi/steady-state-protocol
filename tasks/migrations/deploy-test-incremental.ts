@@ -1,15 +1,15 @@
-/* eslint-disable */
-// TODO: enable later
 import { task } from 'hardhat/config';
+
 import { exit } from 'process';
+
 import { ConfigNames } from '../../helpers/config-loader';
-import { setDefaultDeployer } from '../../helpers/factory-wrapper';
 import { cleanupJsonDb, getInstanceCountFromJsonDb, printContracts } from '../../helpers/deploy-db';
+import { setDefaultDeployer } from '../../helpers/factory-wrapper';
 import { getFirstSigner, isForkNetwork } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
 import { getDeploySteps } from '../deploy/deploy-steps';
 
-task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, DRE) => {
+task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, DRE) => {
   const CONFIG_NAME = ConfigNames.Full;
   await DRE.run('set-DRE');
   cleanupJsonDb(DRE.network.name);
@@ -37,18 +37,22 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
     for (let maxStep = 1; ; maxStep++) {
       if (maxStep > 1) {
         const [entryMap, instanceCount, multiCount] = printContracts((await getFirstSigner()).address);
+
         if (multiCount > 0) {
-          throw `illegal multi-deployment detected after step ${maxStep}`;
+          throw new Error(`illegal multi-deployment detected after step ${maxStep}`);
         }
+
         if (lastInstanceCount > instanceCount || lastEntryMap.size > entryMap.size) {
-          throw `impossible / jsonDb is broken after step ${maxStep}`;
+          throw new Error(`impossible / jsonDb is broken after step ${maxStep}`);
         }
+
         if (!checkUnchanged(lastEntryMap, entryMap)) {
-          throw `some contracts were redeployed after step ${maxStep}`;
+          throw new Error(`some contracts were redeployed after step ${maxStep}`);
         }
-        entryMap.forEach((value, key, m) => {
+
+        entryMap.forEach((_value, key) => {
           if (key.startsWith('Mock')) {
-            throw 'mock contract(s) detected';
+            throw new Error('mock contract(s) detected');
           }
         });
 
@@ -64,22 +68,26 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
       console.log(`Incremental deploy cycle #${maxStep} started\n`);
       let step = maxStep;
 
+      // TODO: move function outside the loop
+      // eslint-disable-next-line no-loop-func
       const isLastStep = () => {
-        if (step == 2) {
-          if (lastInstanceCount != getInstanceCountFromJsonDb()) {
-            throw `unexpected contracts were deployed at step #${1 + maxStep - step}`;
+        if (step === 2) {
+          if (lastInstanceCount !== getInstanceCountFromJsonDb()) {
+            throw new Error(`unexpected contracts were deployed at step #${1 + maxStep - step}`);
           }
         }
-        return --step == 0;
+        // eslint-disable-next-line no-plusplus
+        return --step === 0;
       };
 
       stop = true;
-      for (const step of steps) {
-        const stepId = '0' + step.seqId;
+      for (const deployStep of steps) {
+        const stepId = `0${deployStep.seqId}`;
         console.log('\n======================================================================');
-        console.log(stepId.substring(stepId.length - 2), step.stepName);
+        console.log(stepId.substring(stepId.length - 2), deployStep.stepName);
         console.log('======================================================================\n');
-        await DRE.run(step.taskName, step.args);
+        await DRE.run(deployStep.taskName, deployStep.args);
+
         if (isLastStep()) {
           stop = false;
           break;
@@ -97,14 +105,16 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async ({}, 
   cleanupJsonDb(DRE.network.name);
 });
 
-const checkUnchanged = <T1, T2>(prev: Map<T1, T2>, next: Map<T1, T2>) => {
+function checkUnchanged<T1, T2>(prev: Map<T1, T2>, next: Map<T1, T2>) {
   let unchanged = true;
-  prev.forEach((value, key, m) => {
+
+  prev.forEach((value, key) => {
     const nextValue = next.get(key);
-    if (nextValue != value) {
-      console.log(`${key} was changed: ${value} => ${nextValue}`);
+    if (nextValue !== value) {
+      console.log(`${String(key)} was changed: ${String(value)} => ${String(nextValue)}`);
       unchanged = false;
     }
   });
+
   return unchanged;
-};
+}

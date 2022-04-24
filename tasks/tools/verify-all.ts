@@ -1,7 +1,7 @@
-/* eslint-disable */
-// TODO: enable later
 import { task, types } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+
+import { verifyContractStringified, verifyProxy } from '../../helpers/contract-verification';
 import {
   DbInstanceEntry,
   getExternalsFromJsonDb,
@@ -9,8 +9,15 @@ import {
   getVerifiedFromJsonDb,
   setVerifiedToJsonDb,
 } from '../../helpers/deploy-db';
-import { verifyContractStringified, verifyProxy } from '../../helpers/contract-verification';
 import { falsyOrZeroAddress } from '../../helpers/runtime-utils';
+
+interface IVerifyAllContractsArgs {
+  n: number;
+  of: number;
+  filter: string[];
+  proxy: string;
+  force: boolean;
+}
 
 task('verify-all-contracts', 'Verify contracts listed in DeployDB')
   .addFlag('force', 'Ignore verified status')
@@ -18,16 +25,16 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
   .addOptionalParam('of', 'Total number of batches, > 0', 1, types.int)
   .addOptionalParam('proxy', 'Proxy verification mode: auto, full, min', 'auto', types.string)
   .addOptionalVariadicPositionalParam('filter', 'Names or addresses of contracts to verify', [], types.string)
-  .setAction(async ({ n, of, filter, proxy, force }, DRE: HardhatRuntimeEnvironment) => {
+  .setAction(async ({ n, of, filter, proxy, force }: IVerifyAllContractsArgs, DRE: HardhatRuntimeEnvironment) => {
     await DRE.run('set-DRE');
 
     if (n >= of) {
-      throw 'invalid batch parameters';
+      throw new Error('invalid batch parameters');
     }
 
     let filterProxy: () => boolean;
     switch (proxy.toLowerCase()) {
-      case 'auto':
+      case 'auto': {
         let hasFirst = false;
         filterProxy = () => {
           if (hasFirst) {
@@ -37,6 +44,7 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
           return true;
         };
         break;
+      }
       case 'full':
         filterProxy = () => true;
         break;
@@ -47,7 +55,7 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
     }
 
     const filterSet = new Map<string, string>();
-    (<string[]>filter).forEach((value) => {
+    filter.forEach((value) => {
       filterSet.set(value.toUpperCase(), value);
     });
     const hasFilter = filterSet.size > 0;
@@ -67,20 +75,22 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
           const kv = key.toUpperCase();
           if (filterSet.has(kv)) {
             found = true;
-            if (key == addr) {
+            if (key === addr) {
               filterSet.delete(kv);
             }
             break;
           }
         }
+
         if (!found) {
           return;
         }
       }
 
-      if (batchIndex++ % of != n) {
+      if (batchIndex % of !== n) {
         return;
       }
+      batchIndex += 1;
       addrList.push(addr);
       entryList.push(entry);
     };
@@ -96,7 +106,7 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
     for (const [key, value] of filterSet) {
       if (!falsyOrZeroAddress(value)) {
         addEntry(value, {
-          id: 'ID_' + key,
+          id: `ID_${key}`,
           verify: {
             args: '[]',
           },
@@ -114,29 +124,30 @@ task('verify-all-contracts', 'Verify contracts listed in DeployDB')
       const addr = addrList[i];
       const entry = entryList[i];
 
-      const params = entry.verify!;
+      const params = entry.verify;
 
       console.log('\n======================================================================');
       console.log(`[${i}/${addrList.length}] Verify contract: ${entry.id} ${addr}`);
-      console.log('\tArgs:', params.args);
+      console.log('\tArgs:', params?.args);
 
       let fullVerify = true;
-      if (params.impl) {
+      if (params?.impl) {
         console.log('\tProxy impl: ', params.impl);
         fullVerify = filterProxy();
       }
 
-      if (!force && (await getVerifiedFromJsonDb(addr))) {
+      const verifiedEntity = await getVerifiedFromJsonDb(addr);
+      if (!force && verifiedEntity) {
         console.log('Already verified');
         continue;
       }
 
-      let [ok, err] = fullVerify ? await verifyContractStringified(addr, params.args!) : [true, ''];
+      let [ok, err] = fullVerify ? await verifyContractStringified(addr, params?.args ?? '') : [true, ''];
       if (err) {
         console.log(err);
       }
-      if (ok && params.impl) {
-        [ok, err] = await verifyProxy(addr, params.impl!);
+      if (ok && params?.impl) {
+        [ok, err] = await verifyProxy(addr, params.impl);
         if (err) {
           console.log(err);
         }
