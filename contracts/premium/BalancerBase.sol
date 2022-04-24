@@ -2,6 +2,8 @@
 pragma solidity ^0.8.4;
 
 import '../tools/math/Math.sol';
+import '../tools/math/PercentageMath.sol';
+import '../interfaces/IPremiumSource.sol';
 
 import 'hardhat/console.sol';
 
@@ -10,10 +12,13 @@ contract BalancerBase {
     uint128 availableAmount;
     uint128 availableValue;
     uint128 totalAmount;
-    uint128 saturationAmount;
+    uint16 saturationPct;
+    uint32 lastUpdateAt;
   }
 
-  mapping(address => TokenBalance) private _balances;
+  mapping(address => TokenBalance) private _balances; // [token]
+  mapping(address => IPremiumSource) private _sources;
+
   uint152 private _totalValue;
   uint104 private _totalFeeValue;
 
@@ -29,13 +34,12 @@ contract BalancerBase {
     require((b.totalAmount = uint128(b.totalAmount + amount)) >= amount);
     require((b.availableAmount = uint128(b.availableAmount + amount)) >= amount);
     require((b.availableValue = uint128(b.availableValue + value)) >= value);
-    b.saturationAmount = (1 + b.totalAmount) >> 4;
 
     _balances[token] = b;
     _totalBaseValue += value;
   }
 
-  function buyToken(
+  function takeLiquidity(
     address token,
     uint256 maxValue,
     uint256 minAmount
@@ -51,10 +55,18 @@ contract BalancerBase {
       _balances[token] = b;
 
       if (fee > 0) {
-        // TODO fee value
-        // _totalFeeValue = x
+        require((_totalFeeValue += uint104(fee)) >= fee);
       }
     }
+  }
+
+  function transferPremium(
+    address token,
+    address insurer,
+    address to,
+    uint256 amount
+  ) internal {
+    _sources[token].transferPremium(insurer, to, amount);
   }
 
   function _calcAmount(
@@ -66,12 +78,16 @@ contract BalancerBase {
     uint256 x0;
     uint256 x;
 
-    if (b.availableAmount > b.saturationAmount) {
+    uint256 saturationAmount = PercentageMath.percentMul(b.totalAmount, b.saturationPct);
+
+    if (b.availableAmount > saturationAmount) {
       // price segment starts at the flat section of the curve
 
       (x0, x) = _calcFlat(b, tv0, maxValue);
 
-      if (x < b.saturationAmount) {
+      if (x < saturationAmount) {
+        // TODO _pullSource(b); // updates totalVelue and saturation amount
+
         // TODO x == 0 ?
         // ... and ends at the steep section of the curve
         // so, 2 parts of the segment should be calculated separately
@@ -82,22 +98,23 @@ contract BalancerBase {
         }
 
         fee = x;
-        uint128 valueFlat = _calcFlatRev(b, tv0, x0 - b.saturationAmount);
+        uint128 valueFlat = _calcFlatRev(b, tv0, x0 - saturationAmount);
         // update state - here
-        b.availableAmount = b.saturationAmount;
+        b.availableAmount = uint128(saturationAmount);
         b.availableValue += valueFlat;
 
-        (, x) = _calcSteep(b, tv0 + valueFlat, maxValue - valueFlat);
+        (, x) = _calcSteep(b, tv0 + valueFlat, maxValue - valueFlat, saturationAmount);
         fee = x - fee;
         b.availableValue -= valueFlat;
       }
     } else {
-      (x0, x) = _calcSteep(b, tv0, maxValue);
+      // TODO _pullSource(b);
+      (x0, x) = _calcSteep(b, tv0, maxValue, saturationAmount);
     }
 
     if ((amount = x0 - x) >= minAmount) {
       b.availableAmount = uint128(x);
-      b.availableValue += uint128(maxValue);
+      b.availableValue -= uint128(maxValue);
     } else {
       amount = 0;
     }
@@ -117,9 +134,10 @@ contract BalancerBase {
   function _calcSteep(
     TokenBalance memory b,
     uint256 tv0,
-    uint256 dy
+    uint256 dy,
+    uint256 saturationAmount
   ) private view returns (uint256 x0, uint256 x) {
-    x0 = (b.totalAmount * b.availableAmount) / b.saturationAmount;
+    x0 = (b.totalAmount * b.availableAmount) / saturationAmount;
     uint256 tv = tv0 + dy;
     uint256 y0 = (b.availableValue * _totalBaseValue) / tv;
     x = (x0 * y0) / (y0 + dy);
