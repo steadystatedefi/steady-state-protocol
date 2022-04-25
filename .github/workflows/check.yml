@@ -29,14 +29,14 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: npm install
 
+      - name: Compile
+        run: npm run compile
+
       - name: Lint
         run: npm run eslint
 
       - name: Types
         run: npm run tsc
-
-      - name: Compile
-        run: npm run compile
 
       - name: Tests
         run: npm run test
