@@ -18,11 +18,11 @@
     "solidity"
   ],
   "engines": {
-    "node": "16.x"
+    "node": "^16 || ^18"
   },
   "scripts": {
     "run-env": "npm i && tail -f /dev/null",
-    "build:package": "rm -rf ./dist && tsc -p tsconfig.build.json && cp types/*.d.ts dist/types && cp -R abi dist && cp -R contracts dist",
+    "build:package": "rm -rf ./dist && tsc -p tsconfig.build.json && cp types/*.d.ts dist/types && cp -R artifacts dist && cp -R contracts dist",
     "ci:test": "npm run compile && npm run test",
     "ci:clean": "rm -rf ./artifacts ./cache ./types ./dist",
     "eslint": "eslint . --ext=ts,js",
