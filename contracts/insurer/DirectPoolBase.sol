@@ -12,7 +12,8 @@ import './WeightedPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 import '../insurance/InsurancePoolBase.sol';
 
-// Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
+/// @title Direct Pool Base
+/// @notice Handles capital providing actions involving adding coverage DIRECTLY to an insured
 abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, InsurerJoinBase, ERC20BalancelessBase, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -61,6 +62,10 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _premiums[account].sync(at);
   }
 
+  /// @notice Cancel coverage and payout
+  /// @dev Called only by insureds
+  /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
+  /// @return payoutValue The amount of coverage paid out to the insured
   function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     uint256 total = _totalBalance.rayMul(exchangeRate());
 
@@ -78,6 +83,7 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
   }
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
+  /// @return excess The amount of coverage that is over the limit
   function internalMintForCoverage(address account, uint256 providedAmount) internal returns (uint256 excess) {
     require(account != address(0));
     require(_cancelledAt == 0);
@@ -98,6 +104,8 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     _totalBalance += coverageAmount;
   }
 
+  /// @dev Burn all of a user's provided coverage
+  /// TODO: transfer event emitted without transferring
   function internalBurnAll(address account) internal returns (uint256 coverageAmount) {
     uint32 cancelledAt = _cancelledAt;
     require(cancelledAt != 0);
@@ -137,6 +145,10 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _totalBalance.rayMul(exchangeRate());
   }
 
+  /// @notice The interest of the account is their earned premium amount
+  /// @param account The account to query
+  /// @return rate The current interest rate of the account
+  /// @return premium The current earned premium of the account
   function interestOf(address account) public view override returns (uint256 rate, uint256 premium) {
     Balances.RateAcc memory b = _premiums[account];
     uint32 at = _cancelledAt;
@@ -147,6 +159,9 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     premium = b.sync(at).accum;
   }
 
+  /// @notice Get the status of the insured account
+  /// @param account The account to query
+  /// @return status The status of the insured. NotApplicable if the caller is an investor
   function statusOf(address account) external view returns (InsuredStatus status) {
     if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
       status = InsuredStatus.NotApplicable;
@@ -234,10 +249,15 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     }
   }
 
+  /// @notice Withdrawable amount of this account
+  /// @param account The account to query
+  /// @return amount The amount withdrawable
   function withdrawable(address account) public view override returns (uint256 amount) {
     return _cancelledAt == 0 ? 0 : balanceOf(account);
   }
 
+  /// @notice Withdraw all of a user's coverage
+  /// @return The amount withdrawn
   function withdrawAll() external override returns (uint256) {
     return _cancelledAt == 0 ? 0 : internalBurnAll(msg.sender);
   }

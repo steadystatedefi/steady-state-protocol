@@ -7,6 +7,8 @@ import '../libraries/Rounds.sol';
 
 import 'hardhat/console.sol';
 
+/// @title A calculator for allocating coverage
+/// @notice Coverage is demanded and provided through batches.
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;
   using Rounds for Rounds.State;
@@ -105,10 +107,10 @@ abstract contract WeightedRoundsBase {
     uint40 premiumRate;
   }
 
-  ///@dev Adds coverage demand by performing the following:
-  /// Find which batch to first append to
-  /// Fill the batch, and create new batches if needed, looping under either all units added to batch or loopLimit
-  //  Return the remaining demanded units
+  /// @dev Adds coverage demand by performing the following:
+  /// @dev - Find which batch to first append to
+  /// @dev - Fill the batch, and create new batches if needed, looping under either all units added to batch or loopLimit
+  /// @return The remaining demanded units
   function internalAddCoverageDemand(uint64 unitCount, AddCoverageDemandParams memory params)
     internal
     returns (
@@ -209,7 +211,9 @@ abstract contract WeightedRoundsBase {
   }
 
   /// @dev Finds which batch to add coverage demand to. Attempts to use nextBatchNo if it is accepting coverage demand
-  ///   Returns the current batch, its number and whether batches were filled
+  /// @return b Returns the current batch, its number and whether batches were filled
+  /// @return thisBatchNo
+  /// @return isFirstOfOpen
   function _findBatchToAppend(uint64 nextBatchNo)
     private
     returns (
@@ -273,7 +277,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
-  ///@dev adds the demand to the list of demands
+  /// @dev adds the demand to the list of demands
   function _addToSlot(
     Rounds.Demand memory demand,
     Rounds.Demand[] storage demands,
@@ -299,7 +303,7 @@ abstract contract WeightedRoundsBase {
     return true;
   }
 
-  ///@dev Adds units to the batch. Can split the batch when the number of units is less than the number of rounds inside the batch.
+  /// @dev Adds units to the batch. Can split the batch when the number of units is less than the number of rounds inside the batch.
   /// The unitCount units are evenly distributed across rounds by increase the # of units per round
   function _addToBatch(
     uint64 unitCount,
@@ -386,8 +390,10 @@ abstract contract WeightedRoundsBase {
     uint64 unitCount
   ) internal virtual returns (uint24 rounds);
 
-  ///@dev Reduces the current batch's rounds to remainingRounds and adds the leftover rounds to a new batch.
-  /// Also checks if this is the new latest batch
+  /// @dev Reduces the current batch's rounds and adds the leftover rounds to a new batch.
+  /// @dev Checks if this is the new latest batch
+  /// @param remainingRounds Number of rounds to reduce the current batch to
+  /// @param b The batch to add leftover rounds to
   function _splitBatch(uint24 remainingRounds, Rounds.Batch memory b) private {
     if (b.rounds == remainingRounds) return;
     require(b.rounds > remainingRounds, 'split beyond size');
@@ -425,7 +431,11 @@ abstract contract WeightedRoundsBase {
     bool done;
   }
 
-  ///@dev Get the amount of demand that has been covered and the premium earned from it
+  /// @dev Get the amount of demand that has been covered and the premium earned from it
+  /// @param params Updates the received coverage
+  /// @return coverage The values in this struct ONLY reflect the insured. IS FINALIZED
+  /// @return covered Updated information based on newly collected coverage
+  /// @return premium The premium paid and new premium rate
   function internalGetCoveredDemand(GetCoveredDemandParams memory params)
     internal
     view
@@ -469,11 +479,12 @@ abstract contract WeightedRoundsBase {
     (coverage, _covered[params.insured], _premiums[params.insured]) = internalGetCoveredDemand(params);
   }
 
-  ///@dev Sets the function parameters to their correct values by:
-  /// - Setting d.startBatchNo to the first open batch and calculating # of full rounds and premium accrued from full batches
-  /// - Set covered to the premium values from the newly counted full batches
-  /// - RETURN true if the demand has been completely filled
-  /// - Updated with partional round info for number of covered units and the premium earned on them
+  /// @dev Sets the function parameters to their correct values by calculating on new full batches
+  /// @param d Update startBatchNo is set to the first open batch and rounds from last updated
+  /// @param covered Update covered units and last known info based on the newly counted full batches
+  /// @param premium Update total premium collected and the new premium rate for full batches
+  /// @param coverage Update total premium collected and the new premium rate including the partial batch
+  /// @return true if the demand has been completely filled
   function _collectCoveredDemandSlot(
     Rounds.Demand memory d,
     DemandedCoverage memory coverage,
@@ -559,8 +570,9 @@ abstract contract WeightedRoundsBase {
     return false;
   }
 
-  ///@dev Calculate the actual premium values since variables keep track of number of coverage units instead of
-  /// amount of coverage currency
+  /// @dev Calculate the actual premium values since variables keep track of number of coverage units instead of
+  /// amount of coverage currency (coverage units * unit size).
+  /// @dev NOTE: The effects from this should not be used in any calculations for modifying state
   function _finalizePremium(DemandedCoverage memory coverage, bool roundUp) private view {
     coverage.premiumRate = roundUp ? uint256(_unitSize).wadMulUp(coverage.premiumRate) : uint256(_unitSize).wadMul(coverage.premiumRate);
     coverage.totalPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
@@ -571,7 +583,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
-  ///@dev Calculate the new premium values by including the rounds that have been filled for demand d and
+  /// @dev Calculate the new premium values by including the rounds that have been filled for demand d and
   /// the partial rounds
   function _calcPremium(
     Rounds.Demand memory d,
@@ -659,6 +671,8 @@ abstract contract WeightedRoundsBase {
     return internalGetPremiumTotals(_partial, _poolPremium);
   }
 
+  /// @return coverage All the coverage and premium values
+  /// @dev IS FINALIZED
   function internalGetPremiumTotals(PartialState memory part, Rounds.CoveragePremium memory premium)
     internal
     view
@@ -679,8 +693,9 @@ abstract contract WeightedRoundsBase {
     coverage.totalCovered *= _unitSize;
   }
 
-  ///@dev Get the Pool's total amount of coverage that has been demanded, covered and allocated (partial round) and
+  /// @dev Get the Pool's total amount of coverage that has been demanded, covered and allocated (partial round) and
   /// the corresponding premium based on these values
+  /// @dev IS FINALIZED
   function internalGetTotals(uint256 loopLimit) internal view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     PartialState memory part = _partial;
     if (part.batchNo == 0) return (coverage, total);
@@ -738,6 +753,7 @@ abstract contract WeightedRoundsBase {
     Rounds.CoveragePremium premium;
   }
 
+  /// @dev Satisfy coverage demand by adding coverage
   function internalAddCoverage(uint256 amount, uint256 loopLimit)
     internal
     returns (
@@ -772,7 +788,8 @@ abstract contract WeightedRoundsBase {
     return (amount, loopLimit, params, part);
   }
 
-  ///@dev Adds coverage to the pool and stops if there are no batches left to add coverage to
+  /// @dev Adds coverage to the pool and stops if there are no batches left to add coverage to or
+  /// if the current batch is not ready to accept coverage
   function _addCoverage(
     uint256 amount,
     uint256 loopLimit,
@@ -781,7 +798,7 @@ abstract contract WeightedRoundsBase {
   )
     internal
     returns (
-      uint256 remainingAmount,
+      uint256 remainingAmount, //TODO: Unused named return variables
       uint256 remainingLoopLimit,
       Rounds.Batch memory b
     )
@@ -890,6 +907,7 @@ abstract contract WeightedRoundsBase {
     return (amount, loopLimit, b);
   }
 
+  /// @dev Sets the values of premium to include the partial batch b
   function _addPartialToTotalPremium(
     uint64 batchNo,
     Rounds.CoveragePremium memory premium,
@@ -910,8 +928,8 @@ abstract contract WeightedRoundsBase {
     _marks[batchNo].timestamp = 1;
   }
 
-  ///@dev Updates the timeMark for this batch which calculates the "area under the curve" of the coverage curve
-  /// over time
+  /// @dev Updates the timeMark for the partial batch which calculates the "area under the curve"
+  /// of the coverage curve over time
   function _updateTimeMark(PartialState memory part, uint256 batchUnitPerRound) private {
     // console.log('==updateTimeMark', part.batchNo);
     require(part.batchNo != 0);
@@ -943,6 +961,7 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch[] batches;
   }
 
+  /// @dev Return coverage and premium information for an insured
   function _dumpInsured(address insured)
     internal
     view
@@ -956,6 +975,7 @@ abstract contract WeightedRoundsBase {
     return (_insureds[insured], _demands[insured], _covered[insured], _premiums[insured]);
   }
 
+  /// @return dump The current state of the batches of the system
   function _dump() internal view returns (Dump memory dump) {
     dump.batchCount = _batchCount;
     dump.latestBatch = _latestBatchNo;
@@ -974,6 +994,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  /// @return If coverage can be added to the partial state
   function internalCanAddCoverage() internal view returns (bool) {
     PartialState memory part = _partial; // TODO check if using storage is better for gas
     return part.batchNo != 0 && (part.roundCoverage > 0 || _batches[part.batchNo].state.isReady());
@@ -987,6 +1008,8 @@ abstract contract WeightedRoundsBase {
     uint80 totalUnitsBeforeBatch;
   }
 
+  /// @dev Try to cancel `unitCount` units of coverage demand
+  /// @return The amount of units that were cancelled
   function internalCancelCoverageDemand(uint64 unitCount, CancelCoverageDemandParams memory params) internal returns (uint64) {
     // TODO problems: consider zero-round batches when adding demand and coverage
 
@@ -1039,6 +1062,7 @@ abstract contract WeightedRoundsBase {
     return cancelledUnits;
   }
 
+  /// @dev Remove coverage demand from batches
   function _findAndAdjustUncovered(
     uint64 unitCount,
     Rounds.Demand[] storage demands,
@@ -1081,6 +1105,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  /// @dev Find the batch to remove coverage demand from
   function _findUncoveredBatch(
     PartialState memory part,
     Rounds.Demand memory demand,
@@ -1254,6 +1279,12 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  /// @dev Cancel ALL coverage for the insured, including in the partial state
+  /// @dev Deletes the coverage information and demands of the insured
+  /// @return coverage The coverage info of the insured. IS FINALIZED
+  /// @return excessCoverage The new amount of excess coverage
+  /// @return providedCoverage Amount of coverage provided before cancellation
+  /// @return receivedCoverage Amount of coverage received from the sync before cancelling
   function internalCancelCoverage(address insured)
     internal
     returns (
@@ -1302,6 +1333,11 @@ abstract contract WeightedRoundsBase {
     delete (_demands[insured]);
   }
 
+  /// @dev Sync the insured's amount of coverage and premium paid
+  /// @return coverage FINAZLIED coverage amounts ONLY for the insured
+  /// @return covered Updated coverage info from sync
+  /// @return premium Total premium collected and rate after sync
+  /// @return receivedCoverage FINALIZED amount of covered units during this sync
   function _syncBeforeCancelCoverage(address insured)
     private
     view
@@ -1322,6 +1358,8 @@ abstract contract WeightedRoundsBase {
     receivedCoverage = params.receivedCoverage;
   }
 
+  /// @dev Cancel coverage in the partial state
+  /// @return excessCoverage The new amount of excess coverage
   function _cancelPartialCoverage(PartialState memory part, Rounds.Demand memory d) private returns (uint128 excessCoverage) {
     Rounds.Batch storage partBatch = _batches[part.batchNo];
     Rounds.Batch memory b = partBatch;
@@ -1364,6 +1402,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  /// @dev Update the premium based on time elapsed and premium rate
   function _syncPremium(Rounds.CoveragePremium memory premium) private view returns (Rounds.CoveragePremium memory) {
     if (premium.lastUpdatedAt != 0) {
       uint256 v = premium.coveragePremium + uint256(premium.coveragePremiumRate) * (uint32(block.timestamp) - premium.lastUpdatedAt);
@@ -1373,18 +1412,22 @@ abstract contract WeightedRoundsBase {
     return premium;
   }
 
-  function _cancelPremium(Rounds.CoveragePremium memory premiun, uint256 finalPremium) private returns (Rounds.CoveragePremium memory) {
+  /// @dev Cancel premium according to the parameters, and adjust the global pool's premium rate
+  /// @param premium The premium info of the insured
+  /// @param finalPremium The REAL amount of premium collected from the insured (multiplied by unitSize)
+  /// @return A new CoveragePremium struct with the rate set to 0
+  function _cancelPremium(Rounds.CoveragePremium memory premium, uint256 finalPremium) private returns (Rounds.CoveragePremium memory) {
     Rounds.CoveragePremium memory poolPremium = _syncPremium(_poolPremium);
 
     finalPremium = finalPremium.wadDiv(_unitSize);
     require(finalPremium <= type(uint96).max);
 
-    poolPremium.coveragePremiumRate -= premiun.coveragePremiumRate;
-    poolPremium.coveragePremium += uint96(finalPremium - premiun.coveragePremium);
+    poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
+    poolPremium.coveragePremium += uint96(finalPremium - premium.coveragePremium);
 
-    if (premiun.lastUpdatedAt != poolPremium.lastUpdatedAt) {
+    if (premium.lastUpdatedAt != poolPremium.lastUpdatedAt) {
       // avoid double-counting when premiuns are not synced
-      poolPremium.coveragePremium -= uint96(premiun.coveragePremiumRate) * (poolPremium.lastUpdatedAt - premiun.lastUpdatedAt);
+      poolPremium.coveragePremium -= uint96(premium.coveragePremiumRate) * (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
     }
 
     // TODO store coveragePremium of cancelled coverages in a separate field

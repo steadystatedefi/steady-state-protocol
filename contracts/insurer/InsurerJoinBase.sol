@@ -9,7 +9,8 @@ import '../libraries/Rounds.sol';
 
 import 'hardhat/console.sol';
 
-// InsurerJoinBase handles Insured's requests on joining this Insurer
+/// @title InsurerJoinBase
+/// @notice Handles Insured's requests on joining this Insurer
 abstract contract InsurerJoinBase is IJoinEvents {
   function internalGetStatus(address) internal view virtual returns (InsuredStatus);
 
