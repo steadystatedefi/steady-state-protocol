@@ -50,6 +50,7 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     _;
   }
 
+  /// @inheritdoc IInsurerPoolBase
   function charteredDemand() external pure override returns (bool) {
     return false;
   }
@@ -62,10 +63,7 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _premiums[account].sync(at);
   }
 
-  /// @notice Cancel coverage and payout
-  /// @dev Called only by insureds
-  /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
-  /// @return payoutValue The amount of coverage paid out to the insured
+  /// @inheritdoc IInsurerPoolBase
   function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     uint256 total = _totalBalance.rayMul(exchangeRate());
 
@@ -145,18 +143,15 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _totalBalance.rayMul(exchangeRate());
   }
 
-  /// @notice The interest of the account is their earned premium amount
-  /// @param account The account to query
-  /// @return rate The current interest rate of the account
-  /// @return premium The current earned premium of the account
-  function interestOf(address account) public view override returns (uint256 rate, uint256 premium) {
+  /// @inheritdoc IInsurerPoolCore
+  function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory b = _premiums[account];
     uint32 at = _cancelledAt;
     if (at == 0) {
       rate = b.rate;
       at = uint32(block.timestamp);
     }
-    premium = b.sync(at).accum;
+    accumulated = b.sync(at).accum;
   }
 
   /// @notice Get the status of the insured account
@@ -249,15 +244,12 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     }
   }
 
-  /// @notice Withdrawable amount of this account
-  /// @param account The account to query
-  /// @return amount The amount withdrawable
+  /// @inheritdoc IInsurerPoolCore
   function withdrawable(address account) public view override returns (uint256 amount) {
     return _cancelledAt == 0 ? 0 : balanceOf(account);
   }
 
-  /// @notice Withdraw all of a user's coverage
-  /// @return The amount withdrawn
+  /// @inheritdoc IInsurerPoolCore
   function withdrawAll() external override returns (uint256) {
     return _cancelledAt == 0 ? 0 : internalBurnAll(msg.sender);
   }

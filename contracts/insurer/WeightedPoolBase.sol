@@ -183,7 +183,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
-  /// @dev Returns the current rate that this user earns per-block, and the amount of premium accumulated
+  /// @inheritdoc IInsurerPoolCore
   function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
     UserBalance memory b = _balances[account];
@@ -246,8 +246,8 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     _mintForCoverage(account, amount);
   }
 
-  /// @notice Return how much is withdrawable based on the excess amount not assigned to coverage demand
-  /// @return amount The amount of $CC that can be removed
+  /// @inheritdoc IInsurerPoolCore
+  /// @dev Max amount withdrawable is the amount of excess coverage
   function withdrawable(address account) public view override returns (uint256 amount) {
     amount = _excessCoverage;
     if (amount > 0) {
@@ -258,6 +258,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     }
   }
 
+  /// @inheritdoc IInsurerPoolCore
   function withdrawAll() external override returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }

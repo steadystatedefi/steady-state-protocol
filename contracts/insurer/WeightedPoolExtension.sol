@@ -34,11 +34,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return internalUnitSize();
   }
 
-  /// @notice Add coverage demand to the pool, called by insured
-  /// @param unitCount The number of units to demand
-  /// @param premiumRate The rate that will be paid on this coverage
-  /// @param hasMore Whether the Insured has more demand it would like to request after this
-  /// @return addedCount The amount of coverage demand added
+  /// @inheritdoc IInsurerPoolDemand
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
@@ -60,9 +56,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return addedCount;
   }
 
-  /// @notice Cancel coverage that has been demanded, but not filled yet
-  /// @param unitCount The number of units that wishes to be cancelled
-  /// @return cancelledUnits The amount of units that were cancelled
+  /// @inheritdoc IInsurerPoolDemand
   function cancelCoverageDemand(uint256 unitCount) external override onlyActiveInsured returns (uint256 cancelledUnits) {
     CancelCoverageDemandParams memory params;
     params.insured = msg.sender;
@@ -76,11 +70,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
-  /// @notice Cancel coverage for the sender
-  /// @dev Called by insureds
-  /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
-  /// @dev e.g payoutRatio = 5e17 means 50% of coverage is paid
-  /// @return payoutValue The amount of coverage paid out to the insured
+  /// @inheritdoc IInsurerPoolBase
   function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     return internalCancelCoverage(msg.sender, payoutRatio);
   }
@@ -118,10 +108,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
   }
 
-  ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
-  ///@param insured The insured pool
-  ///@return receivedCoverage The amount of $CC that has been covered
-  ///@return coverage All the details relating to the coverage, demand and premium
+  /// @inheritdoc IInsurerPoolDemand
   function receivableDemandedCoverage(address insured) external view override returns (uint256 receivedCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
@@ -131,10 +118,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return (params.receivedCoverage, coverage);
   }
 
-  /// @notice Transfer the amount of coverage that been filled to the insured
-  /// @param insured The insured to be updated
-  /// @return receivedCoverage amount of coverage the Insured received
-  /// @return coverage
+  /// @inheritdoc IInsurerPoolDemand
   function receiveDemandedCoverage(address insured)
     external
     override
