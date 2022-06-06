@@ -110,7 +110,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   }
 
   ///@notice Reconcile with all chartered insurers
-  ///@return receivedCoverage returns the total amount of received coverage
+  /// @return receivedCoverage Returns the amount of newly received coverage
+  /// @return demandedCoverage Total amount of coverage demanded
+  /// @return providedCoverage Total coverage provided (demand satisfied)
   function reconcileWithAllInsurers()
     external
     onlyAdmin
