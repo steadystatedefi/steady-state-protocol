@@ -8,8 +8,9 @@ import './InsuredJoinBase.sol';
 
 import 'hardhat/console.sol';
 
-// Insured pool tracks how much coverage was requested to Insurer pool and how much is provided
-// reconcilation will ensure the correct amount of premium is paid
+/// @title Insured Pool Base
+/// @notice The base pool that tracks how much coverage is requested, provided and paid
+/// @dev Reconcilation must be called for the most accurate information
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
   using WadRayMath for uint256;
 

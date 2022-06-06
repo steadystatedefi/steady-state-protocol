@@ -80,11 +80,13 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
 
   function internalIsAllowedAsHolder(uint16 status) internal view virtual returns (bool);
 
+  /// @dev Cancel this policy
   function internalCancelRates() internal {
     require(_cancelledAt == 0);
     _cancelledAt = uint32(block.timestamp);
   }
 
+  /// @dev Return timestamp or time that the cancelled state occurred
   function _syncTimestamp() private view returns (uint32) {
     uint32 ts = _cancelledAt;
     return ts > 0 ? ts : uint32(block.timestamp);

@@ -6,7 +6,8 @@ import '../tools/math/WadRayMath.sol';
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
-//InsuredJoinBase handles Insured pool requesting to join an Insurer
+/// @title Insured Join Base
+/// @notice Handles tracking and joining insurers
 abstract contract InsuredJoinBase is IInsuredPool {
   address[] private _genericInsurers; // IInsurerPool[]
   address[] private _charteredInsurers;
