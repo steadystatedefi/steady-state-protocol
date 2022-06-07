@@ -205,7 +205,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return WeightedPoolStorage.exchangeRate();
   }
 
-  /// @return status The status of the account, NotApplicable if not known
+  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
   function statusOf(address account) external view returns (InsuredStatus status) {
     if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
       status = InsuredStatus.NotApplicable;

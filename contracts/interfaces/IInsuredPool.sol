@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import './IInsurancePool.sol';
 
 interface IInsuredPool is IInsurancePool {
-  /// @notice Called by insurer during or after requestJoin() to inform this insured if it was accepted
+  /// @notice Called by insurer during or after requestJoin() to inform this insured if it was accepted or not
   /// @param accepted true if accepted by the insurer
   function joinProcessed(bool accepted) external;
 

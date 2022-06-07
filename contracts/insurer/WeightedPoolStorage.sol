@@ -186,7 +186,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     b = _syncBalance(account, totals);
   }
 
-  /// @dev Update the premium earned by a user, and then sets their premiumBase to the current pool accumulated
+  /// @dev Update the premium earned by a user, and then sets their premiumBase to the current pool accumulated per unit
   /// @return b The user's balance struct
   function _syncBalance(address account, Balances.RateAcc memory totals) internal returns (UserBalance memory b) {
     b = _balances[account];
