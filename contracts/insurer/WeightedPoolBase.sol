@@ -7,11 +7,11 @@ import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
-import './WeightedPoolStorage.sol';
+import './PerpetualPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage, Delegator, ERC1363ReceiverBase {
+abstract contract WeightedPoolBase is IInsurerPoolCore, PerpetualPoolStorage, Delegator, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -179,7 +179,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     accumulated = _premiums[account];
 
     if (b.balance > 0) {
-      uint256 premiumDiff = totals.accum - b.premiumBase;
+      uint256 premiumDiff = totals.accum - b.extra;
       if (premiumDiff > 0) {
         accumulated += uint256(b.balance).rayMul(premiumDiff);
       }

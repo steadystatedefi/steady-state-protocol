@@ -4,6 +4,8 @@ pragma solidity ^0.8.4;
 import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsuredPool.sol';
+import '../interfaces/IInsurerPool.sol';
+import '../interfaces/IJoinHandler.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
