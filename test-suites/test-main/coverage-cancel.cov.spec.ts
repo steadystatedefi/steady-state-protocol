@@ -201,8 +201,6 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
     let perUser = 400;
     for (const testUser of testEnv.users) {
-      const time = await currentTime();
-      timestamps.push(time);
       perUser += 100;
       totalCoverageProvidedUnits += perUser;
       userUnits.push(perUser);
@@ -212,6 +210,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
       await cc.mintAndTransfer(testUser.address, pool.address, investment, {
         gasLimit: testEnv.underCoverage ? 2000000 : undefined,
       });
+      timestamps.push(await currentTime());
 
       expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
@@ -239,12 +238,12 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
       const { address } = testEnv.users[index];
       const balance = await pool.balanceOf(address);
       const interest = await pool.interestOf(address);
+      const time = await currentTime();
 
       expect(balance).eq(unitSize * userUnits[index]);
       expect(interest.rate).eq(premiumPerUnit * userUnits[index]);
       if (!testEnv.underCoverage) {
-        const time = await currentTime();
-        expect(interest.accumulated).eq(interest.rate.mul(time - timestamps[index] - 1));
+        expect(interest.accumulated).eq(interest.rate.mul(time - timestamps[index]));
       }
 
       totalPremium += interest.accumulated.toNumber();

@@ -112,13 +112,14 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
     let perUser = 4;
     for (const user of testEnv.users) {
-      timestamps.push(await currentTime());
       perUser += 1;
       totalCoverageProvidedUnits += perUser;
       userUnits.push(perUser);
       await fund
         .connect(user)
         .invest(pool.address, unitSize * perUser, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+
+      timestamps.push(await currentTime());
       const interest = await pool.interestOf(user.address);
       expect(interest.accumulated).eq(0);
       expect(interest.rate).eq(premiumPerUnit * perUser);
@@ -139,11 +140,12 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       const user = testEnv.users[index];
       const balance = await pool.balanceOf(user.address);
       const interest = await pool.interestOf(user.address);
+      const time = await currentTime();
 
       expect(balance).eq(unitSize * userUnits[index]);
       expect(interest.rate).eq(premiumPerUnit * userUnits[index]);
       if (!testEnv.underCoverage) {
-        expect(interest.accumulated).eq(interest.rate.mul((await currentTime()) - timestamps[index] - 1));
+        expect(interest.accumulated).eq(interest.rate.mul(time - timestamps[index]));
       }
 
       totalPremium += interest.accumulated.toNumber();
