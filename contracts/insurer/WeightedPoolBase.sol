@@ -154,7 +154,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, WeightedPoolTokenStorage
     return uint256(_balances[account].balance).rayMul(exchangeRate());
   }
 
-  ///@dev returns the ($CC coverage, $PC coverage, premium accumulated) of a user
+  /// @dev returns the ($CC coverage, $PC coverage, premium accumulated) of a user
   /// @return coverage The amount of coverage user is providing
   /// @return scaled The number of tokens `coverage` is equal to
   /// @return premium The amount of premium earned by the user

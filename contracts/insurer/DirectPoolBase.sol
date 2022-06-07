@@ -164,10 +164,10 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return status;
   }
 
-  ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
-  ///@param sender  The sender
-  ///@param recipient The receiver
-  ///@param amount  Amount to transfer
+  /// @notice Transfer a balance to a recipient, syncs the balances before performing the transfer
+  /// @param sender  The sender
+  /// @param recipient The receiver
+  /// @param amount  Amount to transfer
   function transferBalance(
     address sender,
     address recipient,

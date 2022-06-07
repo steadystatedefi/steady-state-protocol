@@ -108,8 +108,8 @@ abstract contract WeightedRoundsBase {
   }
 
   /// @dev Adds coverage demand by performing the following:
-  /// @dev - Find which batch to first append to
-  /// @dev - Fill the batch, and create new batches if needed, looping under either all units added to batch or loopLimit
+  /// @dev Find which batch to first append to
+  /// @dev Fill the batch, and create new batches if needed, looping under either all units added to batch or loopLimit
   /// @return The remaining demanded units
   function internalAddCoverageDemand(uint64 unitCount, AddCoverageDemandParams memory params)
     internal
@@ -210,7 +210,8 @@ abstract contract WeightedRoundsBase {
     return unitCount;
   }
 
-  /// @dev Finds which batch to add coverage demand to. Attempts to use nextBatchNo if it is accepting coverage demand
+  /// @dev Finds which batch to add coverage demand to.
+  /// @param nextBatchNo Attempts to use if it is accepting coverage demand
   /// @return b Returns the current batch, its number and whether batches were filled
   /// @return thisBatchNo
   /// @return isFirstOfOpen
@@ -637,7 +638,7 @@ abstract contract WeightedRoundsBase {
     return (tw * unitPerRound + (batchRoundUnits - 1)) / batchRoundUnits;
   }
 
-  ///@dev Update the premium totals of coverage by including batch b
+  /// @dev Update the premium totals of coverage by including batch b
   function _collectPremiumTotalsFromPartial(
     PartialState memory part,
     Rounds.Batch memory b,

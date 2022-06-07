@@ -138,7 +138,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return (params.receivedCoverage, coverage);
   }
 
-  ///@dev Prepare for an insured pool to join by setting the parameters
+  /// @dev Prepare for an insured pool to join by setting the parameters
   function internalPrepareJoin(address insured) internal override {
     WeightedPoolParams memory params = _params;
     InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
