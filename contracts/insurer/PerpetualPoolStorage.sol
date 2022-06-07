@@ -13,19 +13,21 @@ abstract contract PerpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessB
 
   Balances.RateAcc private _totalRate;
 
-  /// @dev Performed before balance updates. The total rate accum by the pool is updated, and then the user balance is updated
+  /// @dev Performed before all balance updates. The total rate accum by the pool is updated
+  /// @return totals The new totals of the pool
   function _beforeAnyBalanceUpdate() internal view returns (Balances.RateAcc memory totals) {
     totals = _totalRate.sync(uint32(block.timestamp));
   }
 
-  /// @dev Performed before balance updates. The total rate accum by the pool is updated, and then the user balance is updated
+  /// @dev Performed before balance updates.
+  /// @dev Update the total, and then the account's premium
   function _beforeBalanceUpdate(address account) internal returns (UserBalance memory b, Balances.RateAcc memory totals) {
     totals = _beforeAnyBalanceUpdate();
     b = _syncBalance(account, totals);
   }
 
-  /// @dev Updates _premiums with total premium earned by user. Each user's balance is marked by the amount
-  ///  of premium collected by the pool at time of update
+  /// @dev Update the premium earned by a user, and then sets their premiumBase to the current pool accumulated per unit
+  /// @return b The user's balance struct
   function _syncBalance(address account, Balances.RateAcc memory totals) internal returns (UserBalance memory b) {
     b = _balances[account];
     if (b.balance > 0) {

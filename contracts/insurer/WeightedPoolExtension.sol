@@ -24,19 +24,18 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     internalRequestJoin(insured);
   }
 
+  /// @inheritdoc IInsurerPoolBase
   function charteredDemand() external pure override returns (bool) {
     return true;
   }
 
+  /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
+  /// @return The coverage unit size
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
   }
 
-  ///@notice Add coverage demand to the pool, called by insured
-  ///@param unitCount The number of units to demand
-  ///@param premiumRate The rate that will be paid on this coverage
-  ///@param hasMore Whether the Insured has more demand it would like to request after this
-  ///@return addedCount The amount of coverage demand added
+  /// @inheritdoc IInsurerPoolDemand
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
@@ -58,9 +57,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return addedCount;
   }
 
-  ///@notice Cancel coverage that has been demanded, but not filled yet
-  ///@param unitCount The number of units that wishes to be cancelled
-  ///@return cancelledUnits The amount of units that were cancelled
+  /// @inheritdoc IInsurerPoolDemand
   function cancelCoverageDemand(uint256 unitCount) external override onlyActiveInsured returns (uint256 cancelledUnits) {
     CancelCoverageDemandParams memory params;
     params.insured = msg.sender;
@@ -74,10 +71,15 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
+  /// @inheritdoc IInsurerPoolBase
   function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     return internalCancelCoverage(msg.sender, payoutRatio);
   }
 
+  /// @dev Cancel all coverage for the insured and payout
+  /// @param insured The address of the insured to cancel
+  /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
+  /// @return payoutValue The amount of coverage paid out to the insured
   function internalCancelCoverage(address insured, uint256 payoutRatio) private onlyActiveInsured returns (uint256 payoutValue) {
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
       insured
@@ -107,10 +109,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
   }
 
-  ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
-  ///@param insured The insured pool
-  ///@return receivedCoverage The amount of $CC that has been covered
-  ///@return coverage All the details relating to the coverage, demand and premium
+  /// @inheritdoc IInsurerPoolDemand
   function receivableDemandedCoverage(address insured) external view override returns (uint256 receivedCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
@@ -120,8 +119,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return (params.receivedCoverage, coverage);
   }
 
-  ///@notice Transfer the amount of coverage that been filled to the insured
-  ///TODO
+  /// @inheritdoc IInsurerPoolDemand
   function receiveDemandedCoverage(address insured)
     external
     override
@@ -141,7 +139,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return (params.receivedCoverage, coverage);
   }
 
-  ///@dev Prepare for an insured pool to join by setting the parameters
+  /// @dev Prepare for an insured pool to join by setting the parameters
   function internalPrepareJoin(address insured) internal override {
     WeightedPoolParams memory params = _params;
     InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();

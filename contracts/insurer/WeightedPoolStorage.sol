@@ -22,6 +22,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   }
   mapping(address => UserBalance) internal _balances;
 
+  /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;
   uint256 internal _inverseExchangeRate;
 
@@ -45,7 +46,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     _;
   }
 
-  ///@dev Used to determine the number of rounds to initialize a new batch
+  ///@return The number of rounds to initialize a new batch
   function internalBatchAppend(
     uint80,
     uint32 openRounds,
@@ -86,6 +87,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     return uint24(min);
   }
 
+  /// @dev Calculate the limits of the number of units that can be added to a round
   function internalRoundLimits(
     uint80 totalUnitsBeforeBatch,
     uint24 batchRounds,
@@ -99,7 +101,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     returns (
       uint16, // maxShareUnitsPerRound,
       uint16, // minUnitsPerRound,
-      uint16, // readyUnitsPerRound
+      uint16, // readyUnitsPerRound //TODO: These labels do not correspond with actual return values
       uint16 // maxUnitsPerRound
     )
   {
@@ -130,6 +132,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     return (uint16(x), params.minUnitsPerRound, params.maxUnitsPerRound, params.overUnitsPerRound);
   }
 
+  /// TODO
   function internalBatchSplit(
     uint64 demandedUnits,
     uint64 minUnits,
@@ -150,6 +153,8 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     return super.internalGetInsuredStatus(account);
   }
 
+  /// @notice The exchange rate from shares to $CC
+  /// @return The exchange rate
   function exchangeRate() public view virtual returns (uint256) {
     return WadRayMath.RAY - _inverseExchangeRate;
   }
