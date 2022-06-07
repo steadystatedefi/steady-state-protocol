@@ -8,8 +8,9 @@ import './InsuredJoinBase.sol';
 
 import 'hardhat/console.sol';
 
-// Insured pool tracks how much coverage was requested to Insurer pool and how much is provided
-// reconcilation will ensure the correct amount of premium is paid
+/// @title Insured Pool Base
+/// @notice The base pool that tracks how much coverage is requested, provided and paid
+/// @dev Reconcilation must be called for the most accurate information
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
   using WadRayMath for uint256;
 
@@ -34,6 +35,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     _params = params;
   }
 
+  /// @inheritdoc IInsuredPool
   function insuredParams() public view override returns (InsuredParams memory) {
     return _params;
   }
@@ -50,7 +52,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return InsuredJoinBase.internalIsAllowedAsHolder(status);
   }
 
-  ///@dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
+  /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
+  /// @dev Mints to the appropriate insurer
   function internalCoverageDemandAdded(
     address target,
     uint256 amount,
@@ -62,6 +65,12 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
   }
 
+  /// @dev Calculate how much coverage demand to add
+  /// @param target The insurer demand is being added to
+  /// @param amount The amount of coverage demand to add
+  /// @param unitSize The unit size of the insurer
+  /// @return amountToAdd Amount of coverage demand to add
+  /// @return premiumRate The rate to pay for the coverage to add
   function internalAllocateCoverageDemand(
     address target,
     uint256 amount,
@@ -82,20 +91,28 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     _; // TODO
   }
 
+  /// @notice Attempt to join an insurer
   function joinPool(IJoinable pool) external onlyAdmin {
     internalJoinPool(pool);
   }
 
+  /// @notice Add coverage demand to the desired insurer
+  /// @param target The insurer to add
+  /// @param amount The amount of coverage demand to request
   function pushCoverageDemandTo(IInsurerPool target, uint256 amount) external onlyAdmin {
     internalPushCoverageDemandTo(target, amount);
   }
 
+  /// @notice Called when the insurer has process this insured
+  /// @param accepted True if this insured was accepted to the pool
   function joinProcessed(bool accepted) external override {
     internalJoinProcessed(msg.sender, accepted);
   }
 
   ///@notice Reconcile with all chartered insurers
-  ///@return receivedCoverage returns the total amount of received coverage
+  /// @return receivedCoverage Returns the amount of newly received coverage
+  /// @return demandedCoverage Total amount of coverage demanded
+  /// @return providedCoverage Total coverage provided (demand satisfied)
   function reconcileWithAllInsurers()
     external
     onlyAdmin
@@ -108,10 +125,12 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _reconcileWithInsurers(0, type(uint256).max);
   }
 
-  ///@notice Reconcile the coverage and premium with chartered insurers
-  ///@param startIndex index to start at
-  ///@param count Max amount of insurers to reconcile with
-  ///@return receivedCoverage returns the total amount of received coverage
+  /// @notice Reconcile the coverage and premium with chartered insurers
+  /// @param startIndex Index to start at
+  /// @param count Max amount of insurers to reconcile with
+  /// @return receivedCoverage Returns the amount of newly received coverage
+  /// @return demandedCoverage Total amount of coverage demanded
+  /// @return providedCoverage Total coverage provided (demand satisfied)
   function reconcileWithInsurers(uint256 startIndex, uint256 count)
     external
     onlyAdmin
@@ -124,7 +143,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _reconcileWithInsurers(startIndex, count);
   }
 
-  ///@dev Go through each insurer and reconcile with them, but don't update the rate
+  /// @dev Go through each insurer and reconcile with them
+  /// @dev Does NOT sync the rate
   function _reconcileWithInsurers(uint256 startIndex, uint256 count)
     private
     returns (
@@ -148,7 +168,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
-  ///@dev Get the values if reconciliation were to occur with the desired Insurers
+  /// @dev Get the values if reconciliation were to occur with the desired Insurers
+  /// @dev DOES sync the rate (for the view)
   function _reconcileWithInsurersView(uint256 startIndex, uint256 count)
     private
     view
@@ -177,7 +198,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     (rate, accumulated) = (totals.rate, totals.accum);
   }
 
-  ///@dev Get the values if reconciliation were to occur with all insurers
+  /// @notice Get the values if reconciliation were to occur with all insurers
   function receivableByReconcileWithAllInsurers()
     external
     view
@@ -192,6 +213,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _reconcileWithInsurersView(0, type(uint256).max);
   }
 
+  /// @notice Cancel coverage and get paid out the coverage amount
+  /// @param payoutReceiver The receiver of the collateral currency
+  /// @param payoutAmount Amount to get paid out for
   function cancelCoverage(address payoutReceiver, uint256 payoutAmount) external onlyAdmin {
     internalCancelRates();
 
@@ -212,6 +236,11 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
+  /// @dev Goes through the insurers and cancels with the payout ratio
+  /// @param insurers The insurers to cancel with
+  /// @param payoutRatio The ratio of coverage to get paid out
+  /// @dev e.g payoutRatio = 7e26 means 30% of coverage is sent back to the insurer
+  /// @return totalPayout total amount of coverage paid out to this insured
   function internalCancelInsurers(address[] storage insurers, uint256 payoutRatio) private returns (uint256 totalPayout) {
     IERC20 t = IERC20(collateral());
 
@@ -223,6 +252,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
+  /// @return The current amount of collateral currency held by this insured
   function totalCollateral() public view returns (uint256) {
     return IERC20(collateral()).balanceOf(address(this));
   }
@@ -231,10 +261,13 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   //   return (_requiredCoverage, _demandedCoverage, IERC20(collateral()).balanceOf(address(this)));
   // }
 
+  /// @inheritdoc IInsuredPool
   function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
     return internalOfferCoverage(msg.sender, offeredAmount);
   }
 
+  /// @dev Must be whitelisted to do this
+  /// @dev Maximum is _requiredCoverage
   function internalOfferCoverage(address account, uint256 offeredAmount) private returns (uint256 acceptedAmount, uint256 rate) {
     _ensureHolder(account);
     acceptedAmount = _requiredCoverage;
