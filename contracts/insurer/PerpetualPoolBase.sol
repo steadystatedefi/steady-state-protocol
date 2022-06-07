@@ -11,7 +11,7 @@ import './PerpetualPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 
 // Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
-abstract contract WeightedPoolBase is IInsurerPoolCore, PerpetualPoolStorage, Delegator, ERC1363ReceiverBase {
+abstract contract PerpetualPoolBase is IInsurerPoolCore, PerpetualPoolStorage, Delegator, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -79,7 +79,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, PerpetualPoolStorage, De
     _balances[account] = b;
   }
 
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public override {
     require(msg.sender == address(this));
 
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
@@ -106,7 +106,7 @@ abstract contract WeightedPoolBase is IInsurerPoolCore, PerpetualPoolStorage, De
 
   ///@dev Attempt to take the excess coverage and fill batches. AKA if the pool is full, a user deposits and then
   /// an insured adds more demand
-  function pushCoverageExcess() public {
+  function pushCoverageExcess() public override {
     uint256 excessCoverage = _excessCoverage;
     if (excessCoverage == 0) {
       return;

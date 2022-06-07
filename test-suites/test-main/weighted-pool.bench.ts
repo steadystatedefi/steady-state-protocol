@@ -6,7 +6,7 @@ import { RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
-import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool, PremiumCollector } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -15,7 +15,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let payInToken: tEthereumAddress;
-  let pool: MockWeightedPool;
+  let pool: MockPerpetualPool;
   let fund: MockCollateralCurrency;
   let collector: PremiumCollector;
   let iteration = 0;
@@ -25,7 +25,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   before(async () => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
-    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, decimals, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
     collector = await Factories.PremiumCollector.deploy();
 
     payInToken = createRandomAddress();

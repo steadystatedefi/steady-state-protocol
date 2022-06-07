@@ -4,7 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { CollateralCurrency, MockInsuredPool, MockWeightedPool } from '../../types';
+import { CollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -14,7 +14,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 100000 * unitSize;
-  let pool: MockWeightedPool;
+  let pool: MockPerpetualPool;
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
@@ -26,7 +26,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
-    pool = await Factories.MockWeightedPool.deploy(cc.address, unitSize, decimals, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
     await cc.registerInsurer(pool.address);
   });
 

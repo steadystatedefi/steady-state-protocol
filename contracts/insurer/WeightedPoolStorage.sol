@@ -160,6 +160,12 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   }
 }
 
+interface IExcessHandler {
+  function pushCoverageExcess() external;
+
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) external;
+}
+
 struct WeightedPoolParams {
   uint32 maxAdvanceUnits;
   uint32 minAdvanceUnits;

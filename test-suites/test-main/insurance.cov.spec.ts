@@ -5,7 +5,7 @@ import { RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
-import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool, PremiumCollector } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -17,7 +17,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const poolDemand = 10000 * unitSize;
   let payInToken: tEthereumAddress;
   const protocol = Wallet.createRandom();
-  let pool: MockWeightedPool;
+  let pool: MockPerpetualPool;
   let fund: MockCollateralCurrency;
   let collector: PremiumCollector;
   const insureds: MockInsuredPool[] = [];
@@ -27,7 +27,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   before(async () => {
     const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
-    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, decimals, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
     collector = await Factories.PremiumCollector.deploy();
 
     payInToken = createRandomAddress();

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../WeightedPoolBase.sol';
+import '../PerpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
 
-contract MockWeightedPool is WeightedPoolBase {
+contract MockPerpetualPool is PerpetualPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
     uint8 decimals,
     WeightedPoolExtension extension
-  ) ERC20DetailsBase('WeightedPoolToken', '$IC', decimals) WeightedPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
+  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
     _joinHandler = address(this);
     internalSetPoolParams(
       WeightedPoolParams({

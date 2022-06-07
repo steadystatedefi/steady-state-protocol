@@ -10,7 +10,7 @@ export const Factories = {
 
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),
   MockCollateralCurrency: mock(types.MockCollateralCurrency__factory),
-  MockWeightedPool: mock(types.MockWeightedPool__factory),
+  MockPerpetualPool: mock(types.MockPerpetualPool__factory),
   MockInsuredPool: mock(types.MockInsuredPool__factory),
 };
 
