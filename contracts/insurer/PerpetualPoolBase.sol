@@ -201,8 +201,8 @@ abstract contract PerpetualPoolBase is IInsurerPoolCore, PerpetualPoolStorage, D
     return (0, accumulated);
   }
 
-  function exchangeRate() public view override(IInsurerPoolCore, WeightedPoolStorage) returns (uint256) {
-    return WeightedPoolStorage.exchangeRate();
+  function exchangeRate() public view override(IInsurerPoolCore, PerpetualPoolStorage) returns (uint256) {
+    return PerpetualPoolStorage.exchangeRate();
   }
 
   /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor

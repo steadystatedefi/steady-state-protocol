@@ -24,7 +24,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;
-  uint256 internal _inverseExchangeRate;
 
   address internal _joinHandler;
 
@@ -87,6 +86,8 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
     return uint24(min);
   }
 
+  function internalGetPassiveCoverageUnits() internal view returns (uint256) {}
+
   /// @dev Calculate the limits of the number of units that can be added to a round
   function internalRoundLimits(
     uint80 totalUnitsBeforeBatch,
@@ -107,9 +108,14 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
   {
     WeightedPoolParams memory params = _params;
 
-    // max units that can be added in total for the share not to be exceeded
-    uint256 x = (totalUnitsBeforeBatch + uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound + 1) * batchRounds)
-      .percentMul(maxShare);
+    // total # of units could be allocated when this round if full
+    uint256 x = uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound + 1) *
+      batchRounds +
+      totalUnitsBeforeBatch +
+      internalGetPassiveCoverageUnits();
+
+    // max of units that can be added in total for the share not to be exceeded
+    x = x.percentMul(maxShare);
 
     if (x < demandedUnits + batchRounds) {
       x = 0;
@@ -151,12 +157,6 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
   function internalGetStatus(address account) internal view virtual returns (InsuredStatus) {
     return super.internalGetInsuredStatus(account);
-  }
-
-  /// @notice The exchange rate from shares to $CC
-  /// @return The exchange rate
-  function exchangeRate() public view virtual returns (uint256) {
-    return WadRayMath.RAY - _inverseExchangeRate;
   }
 
   function internalIsInvestor(address account) internal view virtual returns (bool) {

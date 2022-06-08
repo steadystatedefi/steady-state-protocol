@@ -13,6 +13,14 @@ abstract contract PerpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessB
 
   Balances.RateAcc private _totalRate;
 
+  uint256 internal _inverseExchangeRate;
+
+  /// @notice The exchange rate from shares to $CC
+  /// @return The exchange rate
+  function exchangeRate() public view virtual returns (uint256) {
+    return WadRayMath.RAY - _inverseExchangeRate;
+  }
+
   /// @dev Performed before all balance updates. The total rate accum by the pool is updated
   /// @return totals The new totals of the pool
   function _beforeAnyBalanceUpdate() internal view returns (Balances.RateAcc memory totals) {
