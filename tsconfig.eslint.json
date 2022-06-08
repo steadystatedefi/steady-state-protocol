@@ -5,7 +5,7 @@
     "esModuleInterop": true,
     "noEmit": true
   },
-  "exclude": ["node_modules"],
+  "exclude": ["node_modules", ".*", "soljson-*"],
   "include": [
     "./types",
     "./helpers",

@@ -10,4 +10,4 @@ package-lock.json
 package.json
 deployed-contracts.json
 .*.js
-soljson-*
+soljson-*.js
