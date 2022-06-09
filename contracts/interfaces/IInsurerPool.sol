@@ -95,8 +95,15 @@ interface IInsurerPoolDemand is IInsurancePool, IInsurerPoolBase, IJoinable {
   /// @dev No use in calling this after coverage demand is fully fulfilled
   /// @param insured The insured to be updated
   /// @return receivedCoverage amount of coverage the Insured received
+  /// @return receivedCollateral amount of collateral sent to the Insured
   /// @return coverage Up to date information for this insured
-  function receiveDemandedCoverage(address insured) external returns (uint256 receivedCoverage, DemandedCoverage memory);
+  function receiveDemandedCoverage(address insured)
+    external
+    returns (
+      uint256 receivedCoverage,
+      uint256 receivedCollateral,
+      DemandedCoverage memory
+    );
 }
 
 interface IInsurerPool is IERC20, IInsurerPoolCore, IInsurerPoolDemand {

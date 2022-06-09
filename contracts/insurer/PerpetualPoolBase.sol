@@ -8,7 +8,7 @@ import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import './PerpetualPoolStorage.sol';
-import './WeightedPoolExtension.sol';
+import './PerpetualPoolExtension.sol';
 
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
@@ -19,7 +19,7 @@ abstract contract PerpetualPoolBase is IInsurerPoolCore, PerpetualPoolStorage, D
 
   address internal immutable _extension;
 
-  constructor(uint256 unitSize, WeightedPoolExtension extension) WeightedRoundsBase(unitSize) {
+  constructor(uint256 unitSize, PerpetualPoolExtension extension) WeightedRoundsBase(unitSize) {
     require(extension.coverageUnitSize() == unitSize);
     _extension = address(extension);
   }
@@ -85,7 +85,7 @@ abstract contract PerpetualPoolBase is IInsurerPoolCore, PerpetualPoolStorage, D
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
   /// @dev Call _afterBalanceUpdate to update the rate of the pool
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public override {
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
     require(msg.sender == address(this));
 
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();

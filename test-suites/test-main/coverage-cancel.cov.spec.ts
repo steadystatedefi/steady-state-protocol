@@ -23,7 +23,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
   before(async () => {
     user = testEnv.users[0];
-    const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
+    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
     pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
@@ -413,9 +413,7 @@ makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
 
   it('Fails to cancel coverage without reconcillation', async () => {
     const insured = insureds[0];
-    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith(
-      'coverage must be received before cancellation'
-    );
+    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('must be reconciled');
   });
 
   it('Cancel coverage', async () => {

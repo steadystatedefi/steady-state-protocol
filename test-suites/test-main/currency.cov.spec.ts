@@ -19,7 +19,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   });
 
   it('Create an insurer', async () => {
-    const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
+    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
   });
 

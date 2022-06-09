@@ -25,7 +25,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const insuredTS: number[] = [];
 
   before(async () => {
-    const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
+    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
     collector = await Factories.PremiumCollector.deploy();

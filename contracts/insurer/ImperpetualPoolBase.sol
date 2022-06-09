@@ -76,7 +76,7 @@ abstract contract ImperpetualPoolBase is IInsurerPoolCore, ImperpetualPoolStorag
   }
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public override {
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
     require(msg.sender == address(this));
 
     uint256 excessCoverage = _excessCoverage + excess;

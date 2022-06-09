@@ -10,7 +10,7 @@ import './WeightedPoolStorage.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
-contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedPoolStorage {
+abstract contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -84,32 +84,43 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
       insured
     );
-
-    // TODO Apply MCD
-
+    coverage;
     // receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
-    providedCoverage -= receivableCoverage;
-
-    // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc
-    // and the actual amount of protocol tokens made available during last sync
-    coverage;
-    // so this is a sanity check - insurance must be sync'ed before cancellation
-    // otherwise there will be premium without actual supply of protocol tokens
-    require(receivableCoverage <= (providedCoverage >> 4), 'coverage must be received before cancellation');
-    internalSetStatus(insured, InsuredStatus.Declined);
 
     payoutValue = providedCoverage.rayMul(payoutRatio);
 
-    providedCoverage -= payoutValue;
-    if (providedCoverage > 0) {
-      // take back the unused provided coverage
-      transferCollateralFrom(insured, address(this), providedCoverage);
-    }
-    // this call is to consider / reinvest the released funds
-    IExcessHandler(address(this)).updateCoverageOnCancel(payoutValue, excessCoverage + providedCoverage + receivableCoverage);
-    // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
+    /* TODO Apply MCD
+      actual providedCoverage is tracked
+      move transferCollateralFrom to the other side and do calcs there?
+    */
+
+    // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc
+    // and the actual amount of protocol tokens made available during last sync
+    // so this is a sanity check - insurance must be sync'ed before cancellation
+    // otherwise there will be premium without actual supply of protocol tokens
+
+    require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
+    internalSetStatus(insured, InsuredStatus.Declined);
+
+    return internalTransferCancelledCoverage(insured, payoutValue, excessCoverage, providedCoverage, providedCoverage - receivableCoverage);
   }
+
+  /* payout, excess, providedCoverage, receivedCoverage
+
+  PERP: transferCollateralFrom(insured, address(this), receivedCoverage - payout);
+
+  IMPERP: transferCollateralFrom(insured, address(this), givenCoverage - payout); or
+  IMPERP: transferCollateralTo(insured, min(payout, providedCoverage*(1-CCD)) - givenCoverage); or
+
+  */
+  function internalTransferCancelledCoverage(
+    address insured,
+    uint256 payoutValue,
+    uint256 excessCoverage,
+    uint256 providedCoverage,
+    uint256 receivedCoverage
+  ) internal virtual returns (uint256);
 
   /// @inheritdoc IInsurerPoolDemand
   function receivableDemandedCoverage(address insured) external view override returns (uint256 receivedCoverage, DemandedCoverage memory coverage) {
@@ -126,21 +137,32 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     external
     override
     onlyActiveInsured
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
+    returns (
+      uint256 receivedCoverage,
+      uint256 receivedCollateral,
+      DemandedCoverage memory coverage
+    )
   {
     GetCoveredDemandParams memory params;
     params.insured = insured;
     params.loopLimit = ~params.loopLimit;
 
     coverage = internalUpdateCoveredDemand(params);
+    receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
 
-    if (params.receivedCoverage > 0) {
-      // TODO apply MCD
-      transferCollateral(insured, params.receivedCoverage);
-    }
-
-    return (params.receivedCoverage, coverage);
+    return (params.receivedCoverage, receivedCollateral, coverage);
   }
+
+  /* TODO apply MCD
+          keep track of MCD-deducted amount 
+          compare with maxDrawdown
+          withheld or give out more
+      */
+  function internalTransferDemandedCoverage(
+    address insured,
+    uint256 receivedCoverage,
+    DemandedCoverage memory coverage
+  ) internal virtual returns (uint256);
 
   /// @dev Prepare for an insured pool to join by setting the parameters
   function internalPrepareJoin(address insured) internal override {

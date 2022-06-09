@@ -4,7 +4,7 @@ import { addNamedDeployable, NamedDeployable, wrap, mock } from './factory-wrapp
 
 export const Factories = {
   PriceOracle: wrap(types.PriceOracle__factory),
-  WeightedPoolExtension: wrap(types.WeightedPoolExtension__factory),
+  PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   PremiumCollector: wrap(types.PremiumCollector__factory),
   CollateralCurrency: wrap(types.CollateralCurrency__factory),
 
