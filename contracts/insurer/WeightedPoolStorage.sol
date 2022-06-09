@@ -24,6 +24,7 @@ abstract contract WeightedPoolStorage is WeightedRoundsBase, InsurancePoolBase {
 
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;
+  event ExcessCoverageIncreased(uint256 coverageExcess);
 
   address internal _joinHandler;
 
