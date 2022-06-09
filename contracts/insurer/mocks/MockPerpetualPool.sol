@@ -21,7 +21,8 @@ contract MockPerpetualPool is PerpetualPoolBase {
         maxInsuredShare: 4000, // 25%
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
-        overUnitsPerRound: 30
+        overUnitsPerRound: 30,
+        maxDrawdown: 0
       })
     );
   }

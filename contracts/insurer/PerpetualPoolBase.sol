@@ -43,6 +43,9 @@ abstract contract PerpetualPoolBase is IInsurerPoolCore, PerpetualPoolStorage, D
 
     require(params.riskWeightTarget > 0);
     require(params.riskWeightTarget < PercentageMath.ONE);
+
+    require(params.maxDrawdown == 0);
+
     _params = params;
   }
 

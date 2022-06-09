@@ -8,23 +8,40 @@ import './WeightedPoolStorage.sol';
 abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessBase, IExcessHandler {
   using WadRayMath for uint256;
 
-  uint256 internal _burntCoverage;
-  uint256 internal _claimedCoverage;
   uint256 private _totalSupply;
+
+  uint256 internal _burntPremium;
+  uint256 internal _lostCoverage;
+  uint256 internal _drawndownValue;
 
   function totalSupply() public view override returns (uint256) {
     return _totalSupply;
   }
 
-  function totalSupplyValue() public view returns (uint256 v) {
-    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-    v = (coverage.totalPremium + _excessCoverage) - _burntCoverage;
-    v += (coverage.totalCovered + coverage.pendingCovered) - _claimedCoverage;
+  function _mint(
+    address account,
+    uint256 amount,
+    uint256 value
+  ) internal {
+    emit Transfer(address(0), account, amount);
+    _totalSupply += amount;
+    value;
+
+    amount += _balances[account].balance;
+    require(amount == (_balances[account].balance = uint128(amount)));
   }
 
-  function exchangeRate() public view virtual returns (uint256 v) {
-    if ((v = _totalSupply) > 0) {
-      return totalSupplyValue() / v;
+  function _burn(
+    address account,
+    uint256 amount,
+    uint256 value
+  ) internal {
+    emit Transfer(account, address(0), amount);
+    _balances[account].balance -= uint128(amount);
+    unchecked {
+      // overflow doesnt matter much here
+      _balances[account].extra += uint128(value);
     }
+    _totalSupply -= amount;
   }
 }

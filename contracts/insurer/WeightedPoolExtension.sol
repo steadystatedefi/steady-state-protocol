@@ -85,6 +85,8 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
       insured
     );
 
+    // TODO Apply MCD
+
     // receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
     providedCoverage -= receivableCoverage;
@@ -133,6 +135,7 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     coverage = internalUpdateCoveredDemand(params);
 
     if (params.receivedCoverage > 0) {
+      // TODO apply MCD
       transferCollateral(insured, params.receivedCoverage);
     }
 

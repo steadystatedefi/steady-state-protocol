@@ -181,4 +181,5 @@ struct WeightedPoolParams {
   uint16 minUnitsPerRound;
   uint16 maxUnitsPerRound;
   uint16 overUnitsPerRound;
+  uint16 maxDrawdown;
 }

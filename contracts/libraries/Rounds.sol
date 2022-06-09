@@ -48,7 +48,6 @@ library Rounds {
     InsuredStatus status;
 
     // TODO bool fullyCovered;
-    // uint64 cancelledUnits;
   }
 
   struct Coverage {
