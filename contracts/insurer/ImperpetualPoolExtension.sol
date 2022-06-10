@@ -9,7 +9,7 @@ import '../interfaces/IJoinHandler.sol';
 import './WeightedPoolExtension.sol';
 import './PerpetualPoolBase.sol';
 
-contract PerpetualPoolExtension is WeightedPoolExtension {
+contract ImperpetualPoolExtension is WeightedPoolExtension {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -24,6 +24,15 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     uint256 receivedCoverage,
     DemandedCoverage memory
   ) internal override returns (uint256) {
+    /* payout, excess, providedCoverage, receivedCoverage
+
+    PERP: transferCollateralFrom(insured, address(this), receivedCoverage - payout);
+
+    IMPERP: transferCollateralFrom(insured, address(this), givenCoverage - payout); or
+    IMPERP: transferCollateralTo(insured, min(payout, providedCoverage*(1-CCD)) - givenCoverage); or
+
+    */
+
     if (receivedCoverage > payoutValue) {
       // take back the unused provided coverage
       transferCollateralFrom(insured, address(this), receivedCoverage - payoutValue);
@@ -39,9 +48,15 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
   function internalTransferDemandedCoverage(
     address insured,
     uint256 receivedCoverage,
-    DemandedCoverage memory
+    DemandedCoverage memory coverage
   ) internal override returns (uint256) {
+    coverage;
     if (receivedCoverage > 0) {
+      /* TODO apply MCD
+          keep track of MCD-deducted amount 
+          compare with maxDrawdown
+          withheld or give out more
+      */
       transferCollateral(insured, receivedCoverage);
     }
     return receivedCoverage;

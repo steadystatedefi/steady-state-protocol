@@ -10,7 +10,6 @@ abstract contract PerpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessB
   using Balances for Balances.RateAcc;
 
   mapping(address => uint256) internal _premiums;
-
   Balances.RateAcc private _totalRate;
 
   uint256 internal _inverseExchangeRate;

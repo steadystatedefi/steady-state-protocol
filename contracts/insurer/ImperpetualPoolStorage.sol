@@ -8,8 +8,7 @@ import './WeightedPoolStorage.sol';
 abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessBase, IExcessHandler {
   using WadRayMath for uint256;
 
-  uint256 private _totalSupply;
-
+  uint128 private _totalSupply;
   uint256 internal _burntPremium;
   uint256 internal _lostCoverage;
   uint256 internal _drawndownValue;
@@ -20,9 +19,11 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
 
   function _mint(
     address account,
-    uint256 amount,
+    uint256 amount256,
     uint256 value
   ) internal {
+    uint128 amount = uint128(amount256);
+
     emit Transfer(address(0), account, amount);
     _totalSupply += amount;
     value;
@@ -33,11 +34,12 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
 
   function _burn(
     address account,
-    uint256 amount,
+    uint256 amount256,
     uint256 value
   ) internal {
+    uint128 amount = uint128(amount256);
     emit Transfer(account, address(0), amount);
-    _balances[account].balance -= uint128(amount);
+    _balances[account].balance -= amount;
     unchecked {
       // overflow doesnt matter much here
       _balances[account].extra += uint128(value);

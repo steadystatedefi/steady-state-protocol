@@ -30,23 +30,10 @@ abstract contract PerpetualPoolBase is IInsurerPoolCore, PerpetualPoolStorage, D
     _delegate(_extension);
   }
 
-  function internalSetPoolParams(WeightedPoolParams memory params) internal {
-    require(params.minUnitsPerRound > 0);
-    require(params.maxUnitsPerRound >= params.minUnitsPerRound);
-
-    require(params.maxAdvanceUnits >= params.minAdvanceUnits);
-    require(params.minAdvanceUnits >= params.maxUnitsPerRound);
-
-    require(params.minInsuredShare > 0);
-    require(params.maxInsuredShare > params.minInsuredShare);
-    require(params.maxInsuredShare <= PercentageMath.ONE);
-
-    require(params.riskWeightTarget > 0);
-    require(params.riskWeightTarget < PercentageMath.ONE);
-
+  function internalSetPoolParams(WeightedPoolParams memory params) internal override {
     require(params.maxDrawdown == 0);
 
-    _params = params;
+    super.internalSetPoolParams(params);
   }
 
   /// @inheritdoc IInsurerPoolBase

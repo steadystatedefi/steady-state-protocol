@@ -8,7 +8,7 @@ import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import './ImperpetualPoolStorage.sol';
-import './WeightedPoolExtension.sol';
+import './ImperpetualPoolExtension.sol';
 
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
@@ -19,7 +19,7 @@ abstract contract ImperpetualPoolBase is IInsurerPoolCore, ImperpetualPoolStorag
 
   address internal immutable _extension;
 
-  constructor(uint256 unitSize, WeightedPoolExtension extension) WeightedRoundsBase(unitSize) {
+  constructor(uint256 unitSize, ImperpetualPoolExtension extension) WeightedRoundsBase(unitSize) {
     require(extension.coverageUnitSize() == unitSize);
     _extension = address(extension);
   }
@@ -28,24 +28,6 @@ abstract contract ImperpetualPoolBase is IInsurerPoolCore, ImperpetualPoolStorag
   fallback() external {
     // all IInsurerPoolDemand etc functions should be delegated to the extension
     _delegate(_extension);
-  }
-
-  function internalSetPoolParams(WeightedPoolParams memory params) internal {
-    require(params.minUnitsPerRound > 0);
-    require(params.maxUnitsPerRound >= params.minUnitsPerRound);
-
-    require(params.maxAdvanceUnits >= params.minAdvanceUnits);
-    require(params.minAdvanceUnits >= params.maxUnitsPerRound);
-
-    require(params.minInsuredShare > 0);
-    require(params.maxInsuredShare > params.minInsuredShare);
-    require(params.maxInsuredShare <= PercentageMath.ONE);
-
-    require(params.riskWeightTarget > 0);
-    require(params.riskWeightTarget < PercentageMath.ONE);
-
-    require(params.maxDrawdown < PercentageMath.HALF_ONE);
-    _params = params;
   }
 
   /// @inheritdoc IInsurerPoolBase
@@ -154,30 +136,8 @@ abstract contract ImperpetualPoolBase is IInsurerPoolCore, ImperpetualPoolStorag
     _drawndownValue += drawndownValue;
   }
 
-  /// @dev Burn a user's pool tokens and send them the underlying $CC in return
-  function internalBurn(address account, uint256 coverageAmount) internal returns (uint256) {
-    // (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
-    // {
-    //   uint256 balance = uint256(b.balance).rayMul(exchangeRate());
-    //   if (coverageAmount >= balance) {
-    //     coverageAmount = balance;
-    //     b.balance = 0;
-    //   } else {
-    //     b.balance = uint128(b.balance - coverageAmount.rayDiv(exchangeRate()));
-    //   }
-    // }
-    // if (coverageAmount > 0) {
-    //   totals = _afterBalanceUpdate(_excessCoverage -= coverageAmount, totals, super.internalGetPremiumTotals());
-    // }
-    // emit Transfer(account, address(0), coverageAmount);
-    // _balances[account] = b;
-    // transferCollateral(account, coverageAmount);
-    // return coverageAmount;
-  }
-
-  /// TODO
   function balanceOf(address account) public view override returns (uint256) {
-    return uint256(_balances[account].balance).rayMul(exchangeRate());
+    return scaledBalanceOf(account).rayMul(exchangeRate());
   }
 
   function scaledBalanceOf(address account) public view override returns (uint256) {

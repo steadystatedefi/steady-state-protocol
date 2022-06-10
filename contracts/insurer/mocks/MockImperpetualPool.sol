@@ -9,7 +9,7 @@ contract MockImperpetualPool is ImperpetualPoolBase {
     address collateral_,
     uint256 unitSize,
     uint8 decimals,
-    WeightedPoolExtension extension
+    ImperpetualPoolExtension extension
   ) ERC20DetailsBase('ImperpetualPoolToken', '$IC', decimals) ImperpetualPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
     _joinHandler = address(this);
     internalSetPoolParams(
