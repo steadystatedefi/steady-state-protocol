@@ -5,7 +5,7 @@ import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import './WeightedPoolStorage.sol';
 
-abstract contract PerpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessBase, IExcessHandler {
+abstract contract PerpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
 

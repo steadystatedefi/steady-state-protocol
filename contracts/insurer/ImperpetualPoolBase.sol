@@ -9,31 +9,16 @@ import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
 import './ImperpetualPoolStorage.sol';
 import './ImperpetualPoolExtension.sol';
+import './WeightedPoolBase.sol';
 
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
-abstract contract ImperpetualPoolBase is IInsurerPoolCore, ImperpetualPoolStorage, Delegator, ERC1363ReceiverBase {
+abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  address internal immutable _extension;
-
-  constructor(uint256 unitSize, ImperpetualPoolExtension extension) WeightedRoundsBase(unitSize) {
-    require(extension.coverageUnitSize() == unitSize);
-    _extension = address(extension);
-  }
-
-  // solhint-disable-next-line payable-fallback
-  fallback() external {
-    // all IInsurerPoolDemand etc functions should be delegated to the extension
-    _delegate(_extension);
-  }
-
-  /// @inheritdoc IInsurerPoolBase
-  function charteredDemand() external pure override returns (bool) {
-    return true;
-  }
+  constructor(uint256 unitSize, ImperpetualPoolExtension extension) WeightedRoundsBase(unitSize) WeightedPoolBase(unitSize, extension) {}
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage

@@ -26,14 +26,8 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;
 
-  event ExcessCoverageIncreased(uint256 coverageExcess);
-
   function internalIsInvestor(address account) internal view virtual returns (bool) {
     UserBalance memory b = _balances[account];
     return b.extra != 0 || b.balance != 0;
   }
-}
-
-interface IExcessHandler {
-  function pushCoverageExcess() external;
 }

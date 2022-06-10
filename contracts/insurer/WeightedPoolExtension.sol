@@ -7,6 +7,7 @@ import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinHandler.sol';
 import './WeightedPoolStorage.sol';
+import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
@@ -52,7 +53,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     //If there was excess coverage before adding this demand, immediately assign it
     if (_excessCoverage > 0 && internalCanAddCoverage()) {
       // avoid addCoverage code to be duplicated within WeightedPoolExtension to reduce contract size
-      IExcessHandler(address(this)).pushCoverageExcess();
+      WeightedPoolBase(address(this)).pushCoverageExcess();
     }
     return addedCount;
   }
