@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '../tools/tokens/ERC20BalancelessBase.sol';
+import '../tools/Errors.sol';
 import '../libraries/Balances.sol';
 import './WeightedPoolStorage.sol';
 
@@ -11,12 +12,18 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
   mapping(address => uint256) internal _insuredBalances; // [insured]
 
   uint128 private _totalSupply;
-  uint256 internal _burntPremium;
-  uint256 internal _lostCoverage;
-  uint256 internal _drawndownSupply;
+  uint128 internal _drawndownSupply;
+
+  uint128 internal _burntPremium;
+  uint128 internal _lostCoverage;
 
   function totalSupply() public view override returns (uint256) {
     return _totalSupply;
+  }
+
+  function to128(uint256 v) internal pure returns (uint128) {
+    require(v >> 128 == 0);
+    return uint128(v);
   }
 
   function _mint(
@@ -24,14 +31,12 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
     uint256 amount256,
     uint256 value
   ) internal {
-    uint128 amount = uint128(amount256);
+    value;
+    uint128 amount = to128(amount256);
 
     emit Transfer(address(0), account, amount);
     _totalSupply += amount;
-    value;
-
-    amount += _balances[account].balance;
-    require(amount == (_balances[account].balance = uint128(amount)));
+    _balances[account].balance += amount;
   }
 
   function _burn(
@@ -39,7 +44,8 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
     uint256 amount256,
     uint256 value
   ) internal {
-    uint128 amount = uint128(amount256);
+    uint128 amount = to128(amount256);
+
     emit Transfer(account, address(0), amount);
     _balances[account].balance -= amount;
     unchecked {

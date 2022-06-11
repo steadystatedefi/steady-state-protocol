@@ -56,12 +56,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
         // take back the given coverage
         transferCollateralFrom(insured, address(this), givenValue - payoutValue);
       } else {
-        uint256 drawndownSupply = _drawndownSupply;
+        uint128 drawndownSupply = _drawndownSupply;
 
         if (drawndownSupply > 0) {
           uint256 underpay = payoutValue - givenValue;
           if (drawndownSupply > underpay) {
-            drawndownSupply -= underpay;
+            drawndownSupply = uint128(drawndownSupply - underpay);
           } else {
             (underpay, drawndownSupply) = (drawndownSupply, 0);
             payoutValue = givenValue + underpay;
@@ -78,7 +78,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     }
 
     if (payoutValue > 0) {
-      _lostCoverage += payoutValue;
+      _lostCoverage += to128(payoutValue);
     }
 
     internalPostCoverageCancel();
@@ -99,7 +99,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     if (actualAmount < expectedAmount) {
       uint256 v = expectedAmount - actualAmount;
       if (v < receivedCoverage) {
-        _drawndownSupply += receivedCoverage - v;
+        _drawndownSupply += to128(receivedCoverage - v);
         receivedCoverage = v;
       }
 
@@ -159,21 +159,17 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     require(coverage.totalPremium >= burntPremium);
 
     burntAmount = _burnValue(account, value, coverage);
-    _burntPremium += burntPremium;
+    _burntPremium += to128(burntPremium);
   }
 
   function internalBurnCoverage(address account, uint256 value) internal returns (uint256 burntAmount) {
-    _drawndownSupply -= value;
+    _drawndownSupply = uint128(_drawndownSupply - value);
 
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     burntAmount = _burnValue(account, value, coverage);
   }
 
   function balanceOf(address account) public view override returns (uint256) {
-    return scaledBalanceOf(account).rayMul(exchangeRate());
-  }
-
-  function scaledBalanceOf(address account) public view override returns (uint256) {
     return _balances[account].balance;
   }
 
