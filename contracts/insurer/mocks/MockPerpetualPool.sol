@@ -43,7 +43,7 @@ contract MockPerpetualPool is PerpetualPoolBase {
     _excessCoverage = v;
   }
 
-  function internalPostCoverageCancel() internal override {}
+  function internalOnCoverageRecovered() internal override {}
 
   function receivableDemandedCoverage(address insured) external view returns (uint256 availableCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;

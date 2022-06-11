@@ -55,18 +55,14 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[account] = b;
   }
 
-  /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
-  /// @dev Call _afterBalanceUpdate to update the rate of the pool
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
-    require(msg.sender == address(this));
-
+  function internalAdjustCoverage(uint256 loss, uint256 excess) private {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
 
     uint256 excessCoverage = _excessCoverage + excess;
-    if (paidoutCoverage > 0) {
+    if (loss > 0) {
       uint256 total = coverage.totalCovered + coverage.pendingCovered + excessCoverage;
-      _inverseExchangeRate = WadRayMath.RAY - total.rayDiv(total + paidoutCoverage).rayMul(exchangeRate());
+      _inverseExchangeRate = WadRayMath.RAY - total.rayDiv(total + loss).rayMul(exchangeRate());
     }
 
     if (excess > 0) {
@@ -74,11 +70,23 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
       emit ExcessCoverageIncreased(excessCoverage);
     }
     _afterBalanceUpdate(excessCoverage, totals, coverage);
-
-    internalPostCoverageCancel();
   }
 
-  function internalPostCoverageCancel() internal virtual {
+  function internalSubrogate(uint256 value) private {
+    internalAdjustCoverage(0, value);
+    internalOnCoverageRecovered();
+  }
+
+  /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
+  /// @dev Call _afterBalanceUpdate to update the rate of the pool
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
+    require(msg.sender == address(this));
+
+    internalAdjustCoverage(paidoutCoverage, excess);
+    internalOnCoverageRecovered();
+  }
+
+  function internalOnCoverageRecovered() internal virtual {
     pushCoverageExcess();
   }
 
