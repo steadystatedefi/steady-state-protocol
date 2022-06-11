@@ -8,10 +8,12 @@ import './WeightedPoolStorage.sol';
 abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessBase {
   using WadRayMath for uint256;
 
+  mapping(address => uint256) internal _insuredBalances; // [insured]
+
   uint128 private _totalSupply;
   uint256 internal _burntPremium;
   uint256 internal _lostCoverage;
-  uint256 internal _drawndownValue;
+  uint256 internal _drawndownSupply;
 
   function totalSupply() public view override returns (uint256) {
     return _totalSupply;

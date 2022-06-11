@@ -19,7 +19,6 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
     uint128 extra; // NB! this field is used differenly for perpetual and imperpetual pools
   }
   mapping(address => UserBalance) internal _balances; // [investor]
-  mapping(address => uint256) internal _insuredBalances; // [insured] for imperpetual pool only
 
   address internal _joinHandler;
 

@@ -42,21 +42,74 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     _mint(account, amount, value);
   }
 
-  /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
+  function updateCoverageOnCancel(
+    address insured,
+    uint256 payoutValue,
+    uint256 excessCoverage
+  ) public returns (uint256) {
     require(msg.sender == address(this));
 
-    uint256 excessCoverage = _excessCoverage + excess;
-    if (paidoutCoverage > 0) {
-      _lostCoverage += paidoutCoverage;
+    uint256 givenValue = _insuredBalances[insured];
+
+    if (givenValue != payoutValue) {
+      if (givenValue > payoutValue) {
+        // take back the given coverage
+        transferCollateralFrom(insured, address(this), givenValue - payoutValue);
+      } else {
+        uint256 drawndownSupply = _drawndownSupply;
+
+        if (drawndownSupply > 0) {
+          uint256 underpay = payoutValue - givenValue;
+          if (drawndownSupply > underpay) {
+            drawndownSupply -= underpay;
+          } else {
+            (underpay, drawndownSupply) = (drawndownSupply, 0);
+            payoutValue = givenValue + underpay;
+          }
+          _drawndownSupply = drawndownSupply;
+
+          transferCollateral(insured, underpay);
+        }
+      }
     }
 
-    if (excess > 0) {
-      _excessCoverage = excessCoverage;
-      emit ExcessCoverageIncreased(excessCoverage);
+    if (excessCoverage > 0) {
+      emit ExcessCoverageIncreased(_excessCoverage += excessCoverage);
+    }
+
+    if (payoutValue > 0) {
+      _lostCoverage += payoutValue;
     }
 
     internalPostCoverageCancel();
+
+    return payoutValue;
+  }
+
+  function updateCoverageOnReconcile(
+    address insured,
+    uint256 receivedCoverage,
+    uint256 totalCovered
+  ) public returns (uint256) {
+    require(msg.sender == address(this));
+
+    uint256 expectedAmount = totalCovered.percentMul(PercentageMath.ONE - _params.maxDrawdown); // TODO use an inverse value in the config
+    uint256 actualAmount = _insuredBalances[insured];
+
+    if (actualAmount < expectedAmount) {
+      uint256 v = expectedAmount - actualAmount;
+      if (v < receivedCoverage) {
+        _drawndownSupply += receivedCoverage - v;
+        receivedCoverage = v;
+      }
+
+      _insuredBalances[insured] = actualAmount + receivedCoverage;
+      transferCollateral(insured, receivedCoverage);
+    } else {
+      receivedCoverage = 0;
+    }
+
+    return receivedCoverage;
   }
 
   function internalPostCoverageCancel() internal virtual {
@@ -110,15 +163,10 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   }
 
   function internalBurnCoverage(address account, uint256 value) internal returns (uint256 burntAmount) {
+    _drawndownSupply -= value;
+
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-    // uint256 lostCoverage = _lostCoverage + value;
-    uint256 drawndownValue = _drawndownValue + value;
-
-    uint256 limit = (coverage.totalCovered + coverage.pendingCovered - _lostCoverage).percentMul(_params.maxDrawdown);
-    require(limit >= drawndownValue);
-
     burntAmount = _burnValue(account, value, coverage);
-    _drawndownValue += drawndownValue;
   }
 
   function balanceOf(address account) public view override returns (uint256) {
