@@ -8,7 +8,7 @@ import { CollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../ty
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
-makeSharedStateSuite('Coverage cancels', (testEnv: TestEnv) => {
+makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: TestEnv) => {
   const decimals = 18;
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const premiumPerUnit = 10;

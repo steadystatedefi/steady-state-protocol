@@ -36,8 +36,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
         if (newExcess > excessCoverage) {
           emit ExcessCoverageIncreased(newExcess);
         }
-        amount = value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, p.premium)));
       }
+      amount = value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, p.premium), value));
     }
     _mint(account, amount, value);
   }
@@ -132,27 +132,29 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     uint256 value,
     DemandedCoverage memory coverage
   ) private returns (uint256 burntAmount) {
-    _burn(account, burntAmount = value.rayDiv(exchangeRate(coverage)), value);
+    _burn(account, burntAmount = value.rayDiv(exchangeRate(coverage, 0)), value);
   }
 
-  function totalSupplyValue(DemandedCoverage memory coverage) private view returns (uint256 v) {
+  function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
     v = _excessCoverage;
     v += coverage.totalPremium - _burntPremium;
-    v += (coverage.totalCovered + coverage.pendingCovered) - _lostCoverage;
+    v += (coverage.totalCovered + coverage.pendingCovered - added) - _lostCoverage;
   }
 
   function totalSupplyValue() public view returns (uint256) {
-    return totalSupplyValue(super.internalGetPremiumTotals());
+    return totalSupplyValue(super.internalGetPremiumTotals(), 0);
   }
 
-  function exchangeRate(DemandedCoverage memory coverage) private view returns (uint256 v) {
+  function exchangeRate(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
     if ((v = totalSupply()) > 0) {
-      return totalSupplyValue(coverage) / v;
+      v = totalSupplyValue(coverage, added).rayDiv(v);
+    } else {
+      v = WadRayMath.RAY;
     }
   }
 
   function exchangeRate() public view override returns (uint256 v) {
-    return exchangeRate(super.internalGetPremiumTotals());
+    return exchangeRate(super.internalGetPremiumTotals(), 0);
   }
 
   function internalBurnPremium(address account, uint256 value) internal returns (uint256 burntAmount) {
