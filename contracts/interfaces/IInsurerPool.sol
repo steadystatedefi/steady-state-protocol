@@ -40,14 +40,16 @@ interface IInsurerPoolCore is IInsurancePool, IInsurerPoolBase {
   /// @dev amount of $IC tokens of a user. $IC * exchangeRate() = $CC
   function scaledBalanceOf(address account) external view returns (uint256);
 
+  /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY) and goes down with every insurance claim
+  function exchangeRate() external view returns (uint256);
+}
+
+interface IPerpetualInsurerPool is IInsurerPoolCore {
   /// @notice The interest of the account is their earned premium amount
   /// @param account The account to query
   /// @return rate The current interest rate of the account
   /// @return accumulated The current earned premium of the account
   function interestOf(address account) external view returns (uint256 rate, uint256 accumulated);
-
-  /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY) and goes down with every insurance claim
-  function exchangeRate() external view returns (uint256);
 
   /// @notice Withdrawable amount of this account
   /// @param account The account to query

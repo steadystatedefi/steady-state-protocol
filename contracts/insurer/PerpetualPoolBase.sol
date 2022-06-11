@@ -13,7 +13,7 @@ import './WeightedPoolBase.sol';
 
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
-abstract contract PerpetualPoolBase is PerpetualPoolStorage, WeightedPoolBase {
+abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStorage, WeightedPoolBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -156,7 +156,6 @@ abstract contract PerpetualPoolBase is PerpetualPoolStorage, WeightedPoolBase {
     return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
-  /// @inheritdoc IInsurerPoolCore
   function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
     UserBalance memory b = _balances[account];
@@ -219,7 +218,6 @@ abstract contract PerpetualPoolBase is PerpetualPoolStorage, WeightedPoolBase {
     _mintForCoverage(account, amount);
   }
 
-  /// @inheritdoc IInsurerPoolCore
   /// @dev Max amount withdrawable is the amount of excess coverage
   function withdrawable(address account) public view override returns (uint256 amount) {
     amount = _excessCoverage;
@@ -231,7 +229,6 @@ abstract contract PerpetualPoolBase is PerpetualPoolStorage, WeightedPoolBase {
     }
   }
 
-  /// @inheritdoc IInsurerPoolCore
   function withdrawAll() external override returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }

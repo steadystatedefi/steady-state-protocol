@@ -210,27 +210,4 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
     _mintForCoverage(account, amount);
   }
-
-  // TODO should not be required
-  function withdrawable(address account) public view override returns (uint256 amount) {}
-
-  function withdrawAll() external override returns (uint256) {}
-
-  function interestOf(address account) external view override returns (uint256 rate, uint256 accumulated) {}
-
-  // function getUnadjusted()
-  //   external
-  //   view
-  //   returns (
-  //     uint256 total,
-  //     uint256 pendingCovered,
-  //     uint256 pendingDemand
-  //   )
-  // {
-  //   return internalGetUnadjustedUnits();
-  // }
-
-  // function applyAdjustments() external {
-  //   internalApplyAdjustmentsToTotals();
-  // }
 }

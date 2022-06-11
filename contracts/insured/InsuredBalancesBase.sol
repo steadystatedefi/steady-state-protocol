@@ -18,7 +18,7 @@ import 'hardhat/console.sol';
 /// @notice Holds balances of how much Insured owes to each Insurer in terms of rate
 /// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
 /// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
-abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase, IInsuredEvents, IPremiumCalculator {
+abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase, IPremiumCalculator {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
