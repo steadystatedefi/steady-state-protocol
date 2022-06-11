@@ -82,9 +82,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
   /// @return payoutValue The amount of coverage paid out to the insured
   function internalCancelCoverage(address insured, uint256 payoutRatio) private onlyActiveInsured returns (uint256 payoutValue) {
-    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
-      insured
-    );
+    (, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(insured);
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
 
@@ -98,7 +96,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
     internalSetStatus(insured, InsuredStatus.Declined);
 
-    return internalTransferCancelledCoverage(insured, payoutValue, excessCoverage, providedCoverage, providedCoverage - receivableCoverage, coverage);
+    return internalTransferCancelledCoverage(insured, payoutValue, excessCoverage, providedCoverage, providedCoverage - receivableCoverage);
   }
 
   function internalTransferCancelledCoverage(
@@ -106,8 +104,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     uint256 payoutValue,
     uint256 excessCoverage,
     uint256 providedCoverage,
-    uint256 receivedCoverage,
-    DemandedCoverage memory coverage
+    uint256 receivedCoverage
   ) internal virtual returns (uint256);
 
   /// @inheritdoc IInsurerPoolDemand

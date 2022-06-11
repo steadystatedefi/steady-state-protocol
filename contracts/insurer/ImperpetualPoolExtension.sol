@@ -21,8 +21,7 @@ contract ImperpetualPoolExtension is WeightedPoolExtension {
     uint256 payoutValue,
     uint256 excessCoverage,
     uint256, // providedCoverage,
-    uint256, // receivedCoverage,
-    DemandedCoverage memory
+    uint256 // receivedCoverage
   ) internal override returns (uint256) {
     return ImperpetualPoolBase(address(this)).updateCoverageOnCancel(insured, payoutValue, excessCoverage);
     // ^^ this call avoids code to be duplicated within PoolExtension to reduce contract size

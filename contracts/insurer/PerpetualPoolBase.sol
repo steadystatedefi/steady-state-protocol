@@ -73,8 +73,10 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   }
 
   function internalSubrogate(uint256 value) private {
-    internalAdjustCoverage(0, value);
-    internalOnCoverageRecovered();
+    if (value > 0) {
+      internalAdjustCoverage(0, value);
+      internalOnCoverageRecovered();
+    }
   }
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
@@ -83,7 +85,10 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     require(msg.sender == address(this));
 
     internalAdjustCoverage(paidoutCoverage, excess);
-    internalOnCoverageRecovered();
+
+    if (excess > 0) {
+      internalOnCoverageRecovered();
+    }
   }
 
   function internalOnCoverageRecovered() internal virtual {
@@ -240,20 +245,4 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   function withdrawAll() external override returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }
-
-  // function getUnadjusted()
-  //   external
-  //   view
-  //   returns (
-  //     uint256 total,
-  //     uint256 pendingCovered,
-  //     uint256 pendingDemand
-  //   )
-  // {
-  //   return internalGetUnadjustedUnits();
-  // }
-
-  // function applyAdjustments() external {
-  //   internalApplyAdjustmentsToTotals();
-  // }
 }

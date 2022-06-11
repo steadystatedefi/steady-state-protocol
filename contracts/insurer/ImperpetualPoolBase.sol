@@ -42,6 +42,13 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     _mint(account, amount, value);
   }
 
+  function internalSubrogate(uint256 value) private {
+    if (value > 0) {
+      emit ExcessCoverageIncreased(_excessCoverage += value);
+      internalOnCoverageRecovered();
+    }
+  }
+
   function updateCoverageOnCancel(
     address insured,
     uint256 payoutValue,
@@ -75,13 +82,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
     if (excessCoverage > 0) {
       emit ExcessCoverageIncreased(_excessCoverage += excessCoverage);
+      internalOnCoverageRecovered();
     }
-
-    if (payoutValue > 0) {
-      _lostCoverage += to128(payoutValue);
-    }
-
-    internalPostCoverageCancel();
 
     return payoutValue;
   }
@@ -112,7 +114,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     return receivedCoverage;
   }
 
-  function internalPostCoverageCancel() internal virtual {
+  function internalOnCoverageRecovered() internal virtual {
     pushCoverageExcess();
   }
 

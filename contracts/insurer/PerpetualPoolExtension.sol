@@ -21,8 +21,7 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     uint256 payoutValue,
     uint256 excessCoverage,
     uint256 providedCoverage,
-    uint256 receivedCoverage,
-    DemandedCoverage memory
+    uint256 receivedCoverage
   ) internal override returns (uint256) {
     if (receivedCoverage > payoutValue) {
       // take back the unused provided coverage
