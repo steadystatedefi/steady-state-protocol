@@ -63,7 +63,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
         // take back the given coverage
         transferCollateralFrom(insured, address(this), givenValue - payoutValue);
       } else {
-        uint128 drawndownSupply = _drawndownSupply;
+        uint128 drawndownSupply = _drawdownSupply;
 
         if (drawndownSupply > 0) {
           uint256 underpay = payoutValue - givenValue;
@@ -73,7 +73,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
             (underpay, drawndownSupply) = (drawndownSupply, 0);
             payoutValue = givenValue + underpay;
           }
-          _drawndownSupply = drawndownSupply;
+          _drawdownSupply = drawndownSupply;
 
           transferCollateral(insured, underpay);
         }
@@ -101,7 +101,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     if (actualAmount < expectedAmount) {
       uint256 v = expectedAmount - actualAmount;
       if (v < receivedCoverage) {
-        _drawndownSupply += to128(receivedCoverage - v);
+        _drawdownSupply += to128(receivedCoverage - v);
         receivedCoverage = v;
       }
 
@@ -136,9 +136,17 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   }
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
-    v = _excessCoverage;
+    v = (coverage.totalCovered + coverage.pendingCovered) - added;
+    {
+      int256 va = _valueAdjustment;
+      if (va >= 0) {
+        v += uint256(va);
+      } else {
+        v -= uint256(-va);
+      }
+    }
     v += coverage.totalPremium - _burntPremium;
-    v += (coverage.totalCovered + coverage.pendingCovered - added) - _lostCoverage;
+    v += _excessCoverage;
   }
 
   function totalSupplyValue() public view returns (uint256) {
@@ -172,7 +180,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   ) internal returns (uint256 burntAmount) {
     uint256 usableExcess = _excessCoverage;
     if (usableExcess < value) {
-      _drawndownSupply = uint128(_drawndownSupply + usableExcess - value);
+      _drawdownSupply = uint128(_drawdownSupply + usableExcess - value);
     } else if (usableExcess > value) {
       usableExcess = value;
     }

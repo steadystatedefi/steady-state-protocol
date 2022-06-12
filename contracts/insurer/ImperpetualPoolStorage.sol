@@ -12,10 +12,10 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
   mapping(address => uint256) internal _insuredBalances; // [insured]
 
   uint128 private _totalSupply;
-  uint128 internal _drawndownSupply;
+  uint128 internal _drawdownSupply;
 
   uint128 internal _burntPremium;
-  uint128 internal _lostCoverage;
+  int128 internal _valueAdjustment;
 
   function totalSupply() public view override returns (uint256) {
     return _totalSupply;
