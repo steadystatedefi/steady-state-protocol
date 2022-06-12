@@ -248,6 +248,8 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
       totalPremium += interest.accumulated.toNumber();
       totalPremiumRate += interest.rate.toNumber();
+
+      expect(await pool.statusOf(address)).eq(InsuredStatus.NotApplicable);
     }
 
     expect(totalPremium).gt(0);
@@ -258,7 +260,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     }
   });
 
-  it('Push excess coverage (1)', async () => {
+  it('Add excess coverage', async () => {
     let totalCoverageDemandedUnits = 0;
     for (const unit of insuredUnits) {
       totalCoverageDemandedUnits += unit;
@@ -284,6 +286,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
     expect(await pool.withdrawable(user.address)).eq(unitSize * 1000);
+    expect(await pool.withdrawable(zeroAddress())).eq(0);
   });
 
   it('Withdraw excess', async () => {
@@ -344,8 +347,12 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(totals0.total.batchCount).lt(totals1.total.batchCount);
   });
 
-  it('Push the excess coverage (2)', async () => {
+  it('Push excess coverage', async () => {
     await pool.pushCoverageExcess();
+    expect(await pool.withdrawable(user.address)).eq(0);
+    expect(await cc.balanceOf(pool.address)).eq(totalInvested);
+
+    await pool.pushCoverageExcess(); // repeated call should do nothing
     expect(await pool.withdrawable(user.address)).eq(0);
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
   });

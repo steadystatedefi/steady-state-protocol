@@ -193,10 +193,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
   /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
   function statusOf(address account) external view returns (InsuredStatus status) {
-    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
-      status = InsuredStatus.NotApplicable;
-    }
-    return status;
+    return internalStatusOf(account);
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer

@@ -256,7 +256,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     // }
   });
 
-  it('Push excess coverage (1)', async () => {
+  it('Add excess coverage', async () => {
     let totalCoverageDemandedUnits = 0;
     for (const unit of insuredUnits) {
       totalCoverageDemandedUnits += unit;
@@ -323,31 +323,41 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('must be reconciled');
   });
 
-  //  let receivedCollateral = 0;
+  let givenOutCollateral = 0;
+
+  it('Reconcile before cancellation', async () => {
+    const insured = insureds[0];
+    expect(await cc.balanceOf(insured.address)).eq(0);
+
+    const { availableCoverage: expectedCollateral } = await pool.receivableDemandedCoverage(insured.address);
+    expect(expectedCollateral).gt(0);
+
+    await insured.reconcileWithAllInsurers(); // required to cancel
+
+    const receivedCollateral = await cc.balanceOf(insured.address);
+    //      expect(receivedCollateral).eq(expectedCollateral); // TODO consider drawdown
+    expect(receivedCollateral).eq(await insured.totalCollateral());
+    expect(receivedCollateral.add(await cc.balanceOf(pool.address))).eq(totalInvested);
+
+    await insured.reconcileWithAllInsurers(); // repeated call should do nothing
+
+    expect(receivedCollateral).eq(await cc.balanceOf(insured.address));
+    expect(receivedCollateral).eq(await insured.totalCollateral());
+
+    givenOutCollateral += receivedCollateral.toNumber();
+  });
 
   it('Cancel coverage', async () => {
-    expect(await cc.balanceOf(pool.address)).eq(totalInvested);
+    expect(await cc.balanceOf(pool.address)).eq(totalInvested - givenOutCollateral);
     const totalSupply0 = await pool.totalSupply();
 
     const insured = insureds[0];
     const adj0 = await pool.getUnadjusted();
 
-    expect(await cc.balanceOf(insured.address)).eq(0);
-
-    {
-      const { availableCoverage: expectedCollateral } = await pool.receivableDemandedCoverage(insured.address);
-      expect(expectedCollateral).gt(0);
-
-      await insured.reconcileWithAllInsurers(); // required to cancel
-
-      const receivedCollateral = await cc.balanceOf(insured.address);
-      //      expect(receivedCollateral).eq(expectedCollateral); // TODO consider drawdown
-      expect(receivedCollateral).eq(await insured.totalCollateral());
-      expect(receivedCollateral.add(await cc.balanceOf(pool.address))).eq(totalInvested);
-    }
-
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(await pool.getExcessCoverage()).eq(0);
 
     expect(
       totals0.totalCovered
@@ -372,7 +382,10 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     /** **************** */
     /** **************** */
 
+    // all collateral was taken back
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
+    givenOutCollateral = 0;
+
     expect(await cc.balanceOf(insured.address)).eq(0);
 
     expect(await pool.totalSupply()).eq(totalSupply0);

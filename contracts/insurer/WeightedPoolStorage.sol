@@ -29,4 +29,12 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
     UserBalance memory b = _balances[account];
     return b.extra != 0 || b.balance != 0;
   }
+
+  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
+  function internalStatusOf(address account) internal view returns (InsuredStatus status) {
+    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
+      status = InsuredStatus.NotApplicable;
+    }
+    return status;
+  }
 }

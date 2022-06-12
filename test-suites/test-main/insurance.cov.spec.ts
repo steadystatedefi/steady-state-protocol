@@ -1,5 +1,6 @@
 import { Wallet } from '@ethersproject/wallet';
 import { expect } from 'chai';
+import { zeroAddress } from 'ethereumjs-util';
 
 import { RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
@@ -338,6 +339,26 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     n = totals.coverage.totalPremium.toNumber();
     if (!testEnv.underCoverage) {
       expect(totalInsuredPremium).within(n, n + insureds.length * ((await currentTime()) - insuredTS[0] - 1));
+    }
+  });
+
+  it('Check unknown users', async () => {
+    for (const address of [zeroAddress(), createRandomAddress()]) {
+      expect(await pool.balanceOf(address)).eq(0);
+      expect(await pool.statusOf(address)).eq(InsuredStatus.Unknown);
+
+      {
+        const interest = await pool.interestOf(address);
+        expect(interest.rate).eq(0);
+        expect(interest.accumulated).eq(0);
+      }
+
+      {
+        const balances = await pool.balancesOf(address);
+        expect(balances.coverage).eq(0);
+        expect(balances.scaled).eq(0);
+        expect(balances.premium).eq(0);
+      }
     }
   });
 });
