@@ -43,6 +43,14 @@ contract MockImperpetualPool is ImperpetualPoolBase {
     _excessCoverage = v;
   }
 
+  function burnValue(
+    address account,
+    uint256 value,
+    address drawdownRecepient
+  ) external returns (uint256 burntAmount) {
+    return drawdownRecepient != address(0) ? internalBurnCoverage(account, value, drawdownRecepient) : internalBurnPremium(account, value);
+  }
+
   function internalOnCoverageRecovered() internal override {}
 
   function receivableDemandedCoverage(address insured) external view returns (uint256 availableCoverage, DemandedCoverage memory coverage) {

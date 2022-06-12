@@ -159,18 +159,32 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
   function internalBurnPremium(address account, uint256 value) internal returns (uint256 burntAmount) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-    uint256 burntPremium = _burntPremium + value;
-    require(coverage.totalPremium >= burntPremium);
 
+    require(coverage.totalPremium >= _burntPremium + value);
     burntAmount = _burnValue(account, value, coverage);
-    _burntPremium += to128(burntPremium);
+    _burntPremium += to128(value);
   }
 
-  function internalBurnCoverage(address account, uint256 value) internal returns (uint256 burntAmount) {
-    _drawndownSupply = uint128(_drawndownSupply - value);
+  function internalBurnCoverage(
+    address account,
+    uint256 value,
+    address recepient
+  ) internal returns (uint256 burntAmount) {
+    uint256 usableExcess = _excessCoverage;
+    if (usableExcess < value) {
+      _drawndownSupply = uint128(_drawndownSupply + usableExcess - value);
+    } else if (usableExcess > value) {
+      usableExcess = value;
+    }
 
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     burntAmount = _burnValue(account, value, coverage);
+
+    if (usableExcess > 0) {
+      _excessCoverage -= usableExcess;
+    }
+
+    transferCollateral(recepient, value);
   }
 
   function balanceOf(address account) public view override returns (uint256) {
