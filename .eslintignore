@@ -9,5 +9,5 @@ abi
 package-lock.json
 package.json
 deployed-contracts.json
-.*
-soljson-*
+.*.js
+soljson-*.js

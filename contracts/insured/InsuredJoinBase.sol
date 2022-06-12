@@ -6,7 +6,8 @@ import '../tools/math/WadRayMath.sol';
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
-//InsuredJoinBase handles Insured pool requesting to join an Insurer
+/// @title Insured Join Base
+/// @notice Handles tracking and joining insurers
 abstract contract InsuredJoinBase is IInsuredPool {
   address[] private _genericInsurers; // IInsurerPool[]
   address[] private _charteredInsurers;
@@ -58,6 +59,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     }
   }
 
+  /// @inheritdoc IInsuredPool
   function pullCoverageDemand() external override returns (bool) {
     uint16 status = getAccountStatus(msg.sender);
     if (status > INDEX_MAX) {
@@ -74,7 +76,10 @@ abstract contract InsuredJoinBase is IInsuredPool {
     _addCoverageDemandTo(target, amount);
   }
 
-  ///@dev Add coverage demand to the Insurer and return if there is more demand that can be added(?)
+  /// @dev Add coverage demand to the Insurer and
+  /// @param target The insurer to add demand to
+  /// @param amount The desired amount of demand to add
+  /// @return True if there is more demand that can be added
   function _addCoverageDemandTo(IInsurerPool target, uint256 amount) private returns (bool) {
     uint256 unitSize = IInsurerPool(target).coverageUnitSize();
 

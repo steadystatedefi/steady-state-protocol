@@ -12,7 +12,8 @@ import './WeightedPoolStorage.sol';
 import './WeightedPoolExtension.sol';
 import '../insurance/InsurancePoolBase.sol';
 
-// Handles all user-facing actions. Handles adding coverage (not demand) and tracking user tokens
+/// @title Direct Pool Base
+/// @notice Handles capital providing actions involving adding coverage DIRECTLY to an insured
 abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, InsurerJoinBase, ERC20BalancelessBase, ERC1363ReceiverBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -49,6 +50,7 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     _;
   }
 
+  /// @inheritdoc IInsurerPoolBase
   function charteredDemand() external pure override returns (bool) {
     return false;
   }
@@ -61,6 +63,7 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _premiums[account].sync(at);
   }
 
+  /// @inheritdoc IInsurerPoolBase
   function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     uint256 total = _totalBalance.rayMul(exchangeRate());
 
@@ -78,6 +81,7 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
   }
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
+  /// @return excess The amount of coverage that is over the limit
   function internalMintForCoverage(address account, uint256 providedAmount) internal returns (uint256 excess) {
     require(account != address(0));
     require(_cancelledAt == 0);
@@ -98,6 +102,8 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     _totalBalance += coverageAmount;
   }
 
+  /// @dev Burn all of a user's provided coverage
+  /// TODO: transfer event emitted without transferring
   function internalBurnAll(address account) internal returns (uint256 coverageAmount) {
     uint32 cancelledAt = _cancelledAt;
     require(cancelledAt != 0);
@@ -137,16 +143,20 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _totalBalance.rayMul(exchangeRate());
   }
 
-  function interestOf(address account) public view override returns (uint256 rate, uint256 premium) {
+  /// @inheritdoc IInsurerPoolCore
+  function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory b = _premiums[account];
     uint32 at = _cancelledAt;
     if (at == 0) {
       rate = b.rate;
       at = uint32(block.timestamp);
     }
-    premium = b.sync(at).accum;
+    accumulated = b.sync(at).accum;
   }
 
+  /// @notice Get the status of the insured account
+  /// @param account The account to query
+  /// @return status The status of the insured. NotApplicable if the caller is an investor
   function statusOf(address account) external view returns (InsuredStatus status) {
     if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
       status = InsuredStatus.NotApplicable;
@@ -154,10 +164,10 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return status;
   }
 
-  ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
-  ///@param sender  The sender
-  ///@param recipient The receiver
-  ///@param amount  Amount to transfer
+  /// @notice Transfer a balance to a recipient, syncs the balances before performing the transfer
+  /// @param sender  The sender
+  /// @param recipient The receiver
+  /// @param amount  Amount to transfer
   function transferBalance(
     address sender,
     address recipient,
@@ -234,10 +244,12 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     }
   }
 
+  /// @inheritdoc IInsurerPoolCore
   function withdrawable(address account) public view override returns (uint256 amount) {
     return _cancelledAt == 0 ? 0 : balanceOf(account);
   }
 
+  /// @inheritdoc IInsurerPoolCore
   function withdrawAll() external override returns (uint256) {
     return _cancelledAt == 0 ? 0 : internalBurnAll(msg.sender);
   }
