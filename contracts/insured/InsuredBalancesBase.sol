@@ -161,7 +161,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
     Balances.RateAccWithUint16 memory b = _syncBalance(address(insurer));
     _ensureHolder(b.extra);
 
-    (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this)); // TODO pass receivedCollateral
+    (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this));
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
 
     uint256 diff;
