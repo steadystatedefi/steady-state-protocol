@@ -233,4 +233,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
     _mintForCoverage(account, amount);
   }
+
+  function burnPremium(
+    address account,
+    uint256 value,
+    address drawdownRecepient
+  ) external override {
+    drawdownRecepient != address(0) ? internalBurnCoverage(account, value, drawdownRecepient) : internalBurnPremium(account, value);
+  }
 }

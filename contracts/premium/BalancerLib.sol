@@ -4,29 +4,33 @@ pragma solidity ^0.8.4;
 import '../tools/math/Math.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IPremiumSource.sol';
+import '../interfaces/IPremiumBalanceHolder.sol';
 
 import 'hardhat/console.sol';
 
 library BalancerLib {
   struct TokenBalance {
-    uint128 availableAmount;
-    uint128 availableValue;
+    uint128 cpAmount;
+    uint128 cpValue;
     uint128 totalAmount;
     uint16 saturationPct;
     uint32 lastUpdateAt;
   }
 
-  struct PoolBalance {
+  struct PoolPremiums {
     mapping(address => TokenBalance) balances;
     mapping(address => IPremiumSource) sources;
     address insurer;
-    uint152 totalValue;
-    uint104 totalFeeValue;
-    uint256 totalBaseValue;
+    PoolTotals total;
+  }
+
+  struct PoolTotals {
+    uint128 value;
+    uint128 baseValue;
   }
 
   function addLiquidity(
-    PoolBalance storage p,
+    PoolPremiums storage p,
     address token,
     uint256 value,
     uint256 amount
@@ -35,7 +39,7 @@ library BalancerLib {
     _addLiquidity(b, value, amount);
 
     p.balances[token] = b;
-    p.totalBaseValue += value;
+    require((p.total.baseValue += uint128(value)) >= value);
   }
 
   function _addLiquidity(
@@ -44,26 +48,26 @@ library BalancerLib {
     uint256 amount
   ) private view {
     require((b.totalAmount = uint128(b.totalAmount + amount)) >= amount);
-    require((b.availableAmount = uint128(b.availableAmount + amount)) >= amount);
-    require((b.availableValue = uint128(b.availableValue + value)) >= value);
+    require((b.cpAmount = uint128(b.cpAmount + amount)) >= amount);
+    require((b.cpValue = uint128(b.cpValue + value)) >= value);
 
     if (b.lastUpdateAt > 0) {
       b.lastUpdateAt = uint32(block.timestamp);
     }
   }
 
-  function buyToken(
-    PoolBalance storage p,
+  function swapToken(
+    PoolPremiums storage p,
     address token,
-    uint256 maxValue,
+    uint256 value,
     uint256 minAmount
-  ) internal returns (uint256) {
+  ) internal returns (uint256, uint256) {
     TokenBalance memory b = p.balances[token];
 
     (uint256 amount, uint256 fee, uint256 expectedRefill) = getAmount(
-      p,
+      p.total,
       b,
-      maxValue,
+      value,
       minAmount,
       b.lastUpdateAt > 0 && b.lastUpdateAt != uint32(block.timestamp)
     );
@@ -77,12 +81,12 @@ library BalancerLib {
         (expectedRefill, amount) = s.pullPremiumSource(insurer, expectedRefill);
         if (amount > 0) {
           _addLiquidity(b, expectedRefill, amount);
-          p.totalBaseValue += expectedRefill;
+          require((p.total.baseValue += uint128(expectedRefill)) >= expectedRefill);
           expectedRefill = 1;
         }
       }
 
-      (amount, fee, ) = getAmount(p, b, maxValue, minAmount, false);
+      (amount, fee, ) = getAmount(p.total, b, value, minAmount, false);
     }
 
     if (amount > 0 || expectedRefill > 0) {
@@ -90,34 +94,30 @@ library BalancerLib {
     }
 
     if (amount > 0) {
-      require((p.totalValue += uint152(maxValue)) >= maxValue);
-
-      if (fee > 0) {
-        require((p.totalFeeValue += uint104(fee)) >= fee);
-      }
+      require((p.total.value += uint128(value)) >= value);
     }
 
-    return amount;
+    return (amount, fee);
   }
 
-  function transferPremium(
-    PoolBalance storage p,
-    address token,
-    address to,
-    uint256 amount
+  function burnPremium(
+    PoolPremiums storage p,
+    address account,
+    uint256 collateralValue,
+    address collateralRecipient
   ) internal {
-    p.sources[token].transferPremium(p.insurer, to, amount);
+    IPremiumBalanceHolder(p.insurer).burnPremium(account, collateralValue, collateralRecipient);
   }
 
   function getAmount(
-    PoolBalance storage p,
+    PoolTotals memory total,
     TokenBalance memory b,
     uint256 maxValue,
     uint256 minAmount,
     bool canRefill
   )
     internal
-    view
+    pure
     returns (
       uint256 amount,
       uint256 fee,
@@ -128,13 +128,11 @@ library BalancerLib {
     uint256 x;
 
     uint256 saturationAmount = PercentageMath.percentMul(b.totalAmount, b.saturationPct);
-    uint256 totalBaseValue = p.totalBaseValue;
-    uint256 tv0 = p.totalValue;
 
-    if (b.availableAmount > saturationAmount) {
+    if (b.cpAmount > saturationAmount) {
       // price segment starts at the flat section of the curve
 
-      (x0, x) = _calcFlat(b, totalBaseValue, tv0, maxValue);
+      (x0, x) = _calcFlat(b, total.baseValue, total.value, maxValue);
 
       if (x < saturationAmount) {
         if (canRefill) {
@@ -151,22 +149,22 @@ library BalancerLib {
         }
 
         fee = x;
-        uint128 valueFlat = _calcFlatRev(b, totalBaseValue, tv0, x0 - saturationAmount);
+        uint128 valueFlat = _calcFlatRev(b, total.baseValue, total.value, x0 - saturationAmount);
         // update state - here
-        b.availableAmount = uint128(saturationAmount);
-        b.availableValue += valueFlat;
+        b.cpAmount = uint128(saturationAmount);
+        b.cpValue += valueFlat;
 
-        (, x) = _calcSteep(b, totalBaseValue, tv0 + valueFlat, maxValue - valueFlat, saturationAmount);
+        (, x) = _calcSteep(b, total.baseValue, total.value + valueFlat, maxValue - valueFlat, saturationAmount);
         fee = x - fee;
-        b.availableValue -= valueFlat;
+        b.cpValue -= valueFlat;
       }
     } else {
-      (x0, x) = _calcSteep(b, totalBaseValue, tv0, maxValue, saturationAmount);
+      (x0, x) = _calcSteep(b, total.baseValue, total.value, maxValue, saturationAmount);
     }
 
     if ((amount = x0 - x) >= minAmount) {
-      b.availableAmount = uint128(x);
-      b.availableValue += uint128(maxValue); // TODO may be error? should be decrement
+      b.cpAmount = uint128(x);
+      b.cpValue += uint128(maxValue); // TODO may be error? should be decrement
     } else {
       amount = 0;
     }
@@ -180,7 +178,7 @@ library BalancerLib {
   ) private pure returns (uint256 x0, uint256 x) {
     x0 = b.totalAmount;
     uint256 tv = tv0 + dy;
-    uint256 y0 = (b.availableValue * totalBaseValue) / tv;
+    uint256 y0 = (b.cpValue * totalBaseValue) / tv;
     x = (x0 * y0) / (y0 + dy);
   }
 
@@ -191,9 +189,9 @@ library BalancerLib {
     uint256 dy,
     uint256 saturationAmount
   ) private pure returns (uint256 x0, uint256 x) {
-    x0 = (b.totalAmount * b.availableAmount) / saturationAmount;
+    x0 = (b.totalAmount * b.cpAmount) / saturationAmount;
     uint256 tv = tv0 + dy;
-    uint256 y0 = (b.availableValue * totalBaseValue) / tv;
+    uint256 y0 = (b.cpValue * totalBaseValue) / tv;
     x = (x0 * y0) / (y0 + dy);
   }
 
@@ -204,7 +202,7 @@ library BalancerLib {
     uint256 dx
   ) private pure returns (uint128 dy) {
     uint256 x = u.totalAmount - dx;
-    uint256 c = u.availableValue * totalBaseValue * dx;
+    uint256 c = u.cpValue * totalBaseValue * dx;
     uint256 b = tv0;
 
     dy = uint128((Math.sqrt((b * b) / x + (4 * c) / x) - b) / 2);

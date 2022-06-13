@@ -4,10 +4,11 @@ pragma solidity ^0.8.4;
 import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/IInsurerPool.sol';
+import '../interfaces/IPremiumBalanceHolder.sol';
 import './WeightedPoolExtension.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
-abstract contract WeightedPoolBase is IInsurerPoolCore, Delegator, ERC1363ReceiverBase {
+abstract contract WeightedPoolBase is IInsurerPoolCore, IPremiumBalanceHolder, Delegator, ERC1363ReceiverBase {
   address internal immutable _extension;
 
   constructor(uint256 unitSize, WeightedPoolExtension extension) {

@@ -60,15 +60,6 @@ contract BalancerBase {
     }
   }
 
-  function transferPremium(
-    address token,
-    address insurer,
-    address to,
-    uint256 amount
-  ) internal {
-    _sources[token].transferPremium(insurer, to, amount);
-  }
-
   function _calcAmount(
     TokenBalance memory b,
     uint256 tv0,
