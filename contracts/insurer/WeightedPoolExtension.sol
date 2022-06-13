@@ -146,23 +146,24 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
 
   /// @dev Prepare for an insured pool to join by setting the parameters
   function internalPrepareJoin(address insured) internal override {
-    WeightedPoolParams memory params = _params;
     InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
 
-    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(params.riskWeightTarget);
-    if (maxShare >= params.maxInsuredShare) {
-      maxShare = params.maxInsuredShare;
-    } else if (maxShare < params.minInsuredShare) {
-      maxShare = params.minInsuredShare;
+    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
+    uint256 v;
+    if (maxShare >= (v = _params.maxInsuredShare)) {
+      maxShare = v;
+    } else if (maxShare < (v = _params.minInsuredShare)) {
+      maxShare = v;
     }
 
     super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
   }
 
   function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    if (_joinHandler == address(0)) return InsuredStatus.Joining;
-    if (_joinHandler == address(this)) return InsuredStatus.Accepted;
-    return IJoinHandler(_joinHandler).handleJoinRequest(insured);
+    address jh = _joinHandler;
+    if (jh == address(0)) return InsuredStatus.Joining;
+    if (jh == address(this)) return InsuredStatus.Accepted;
+    return IJoinHandler(jh).handleJoinRequest(insured);
   }
 
   ///@dev Return if an account has a balance or premium earned
