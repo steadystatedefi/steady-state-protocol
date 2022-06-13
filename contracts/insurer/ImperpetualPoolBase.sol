@@ -20,6 +20,10 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
   constructor(uint256 unitSize, ImperpetualPoolExtension extension) WeightedRoundsBase(unitSize) WeightedPoolBase(unitSize, extension) {}
 
+  function premiumHandler() public view returns (address) {
+    return _premiumHandler;
+  }
+
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
   function _mintForCoverage(address account, uint256 value) private {

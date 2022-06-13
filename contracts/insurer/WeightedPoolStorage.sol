@@ -21,6 +21,7 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
   mapping(address => UserBalance) internal _balances; // [investor]
 
   address internal _joinHandler;
+  address internal _premiumHandler;
 
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;
