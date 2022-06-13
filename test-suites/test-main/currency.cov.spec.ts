@@ -2,14 +2,14 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 
 import { Factories } from '../../helpers/contract-types';
-import { CollateralCurrency, MockWeightedPool } from '../../types';
+import { CollateralCurrency, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   const decimals = 18;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
-  let pool: MockWeightedPool;
+  let pool: MockPerpetualPool;
   let cc: CollateralCurrency;
   let user: SignerWithAddress;
 
@@ -19,8 +19,8 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   });
 
   it('Create an insurer', async () => {
-    const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
-    pool = await Factories.MockWeightedPool.deploy(cc.address, unitSize, decimals, extension.address);
+    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
+    pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
   });
 
   it('Fails to mint/burn without a permission', async () => {

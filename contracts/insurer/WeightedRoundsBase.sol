@@ -84,16 +84,13 @@ abstract contract WeightedRoundsBase {
 
   ///@dev Sets the minimum amount of units this insured pool will assign and the max share % of the pool it can take up
   function internalSetInsuredParams(address account, Rounds.InsuredParams memory params) internal {
-    Rounds.InsuredEntry memory entry = _insureds[account];
+    Rounds.InsuredEntry storage entry = _insureds[account];
     entry.minUnits = params.minUnits;
     entry.maxShare = params.maxShare;
-
-    _insureds[account] = entry;
   }
 
   function internalGetInsuredParams(address account) internal view returns (InsuredStatus, Rounds.InsuredParams memory) {
-    Rounds.InsuredEntry memory entry = _insureds[account];
-
+    Rounds.InsuredEntry storage entry = _insureds[account];
     return (entry.status, Rounds.InsuredParams({minUnits: entry.minUnits, maxShare: entry.maxShare}));
   }
 
@@ -935,19 +932,19 @@ abstract contract WeightedRoundsBase {
     // console.log('==updateTimeMark', part.batchNo);
     require(part.batchNo != 0);
     TimeMark memory mark = _marks[part.batchNo];
+
     if (mark.timestamp <= 1) {
-      _marks[part.batchNo] = TimeMark({coverageTW: 0, timestamp: uint32(block.timestamp), duration: 0});
-      return;
+      mark.coverageTW = 0;
+      mark.duration = 0;
+    } else {
+      uint32 duration = uint32(block.timestamp - mark.timestamp);
+      if (duration == 0) return;
+
+      uint256 coverageTW = mark.coverageTW + (uint256(_unitSize) * part.roundNo * batchUnitPerRound + part.roundCoverage) * duration;
+      require(coverageTW == (mark.coverageTW = uint192(coverageTW)));
+
+      mark.duration += duration;
     }
-
-    uint32 duration = uint32(block.timestamp - mark.timestamp);
-    if (duration == 0) return;
-
-    uint256 coverageTW = mark.coverageTW + (uint256(_unitSize) * part.roundNo * batchUnitPerRound + part.roundCoverage) * duration;
-    require(coverageTW <= type(uint192).max);
-    mark.coverageTW = uint192(coverageTW);
-
-    mark.duration += duration;
     mark.timestamp = uint32(block.timestamp);
 
     _marks[part.batchNo] = mark;
@@ -997,8 +994,8 @@ abstract contract WeightedRoundsBase {
 
   /// @return If coverage can be added to the partial state
   function internalCanAddCoverage() internal view returns (bool) {
-    PartialState memory part = _partial; // TODO check if using storage is better for gas
-    return part.batchNo != 0 && (part.roundCoverage > 0 || _batches[part.batchNo].state.isReady());
+    uint64 batchNo = _partial.batchNo;
+    return batchNo != 0 && (_partial.roundCoverage > 0 || _batches[batchNo].state.isReady());
   }
 
   struct CancelCoverageDemandParams {

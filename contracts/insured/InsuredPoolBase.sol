@@ -110,7 +110,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   }
 
   ///@notice Reconcile with all chartered insurers
-  /// @return receivedCoverage Returns the amount of newly received coverage
+  /// @return receivedCoverage Returns the amount of coverage received
+  /// @return receivedCollateral Returns the amount of collateral received (<= receivedCoverage)
   /// @return demandedCoverage Total amount of coverage demanded
   /// @return providedCoverage Total coverage provided (demand satisfied)
   function reconcileWithAllInsurers()
@@ -118,6 +119,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     onlyAdmin
     returns (
       uint256 receivedCoverage,
+      uint256 receivedCollateral,
       uint256 demandedCoverage,
       uint256 providedCoverage
     )
@@ -128,7 +130,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   /// @notice Reconcile the coverage and premium with chartered insurers
   /// @param startIndex Index to start at
   /// @param count Max amount of insurers to reconcile with
-  /// @return receivedCoverage Returns the amount of newly received coverage
+  /// @return receivedCoverage Returns the amount of coverage received
+  /// @return receivedCollateral Returns the amount of collateral received (<= receivedCoverage)
   /// @return demandedCoverage Total amount of coverage demanded
   /// @return providedCoverage Total coverage provided (demand satisfied)
   function reconcileWithInsurers(uint256 startIndex, uint256 count)
@@ -136,6 +139,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     onlyAdmin
     returns (
       uint256 receivedCoverage,
+      uint256 receivedCollateral,
       uint256 demandedCoverage,
       uint256 providedCoverage
     )
@@ -149,6 +153,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     private
     returns (
       uint256 receivedCoverage,
+      uint256 receivedCollateral,
       uint256 demandedCoverage,
       uint256 providedCoverage
     )
@@ -161,10 +166,11 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
       }
     }
     for (; startIndex < max; startIndex++) {
-      (uint256 c, DemandedCoverage memory cov) = internalReconcileWithInsurer(IInsurerPoolDemand(insurers[startIndex]), false);
-      receivedCoverage += c;
-      demandedCoverage += cov.totalDemand;
-      providedCoverage += cov.totalCovered;
+      (uint256 cov, uint256 col, DemandedCoverage memory cv) = internalReconcileWithInsurer(IInsurerPoolDemand(insurers[startIndex]), false);
+      receivedCoverage += cov;
+      receivedCollateral += col;
+      demandedCoverage += cv.totalDemand;
+      providedCoverage += cv.totalCovered;
     }
   }
 
@@ -219,8 +225,10 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   function cancelCoverage(address payoutReceiver, uint256 payoutAmount) external onlyAdmin {
     internalCancelRates();
 
-    uint256 payoutRatio = totalCollateral();
-    if (payoutRatio > 0) {
+    uint256 payoutRatio = totalCollateral(); // TODO this is a potential issue when extra CC will be on the balance
+    if (payoutRatio <= payoutAmount) {
+      payoutRatio = WadRayMath.RAY;
+    } else if (payoutRatio > 0) {
       payoutRatio = payoutAmount.rayDiv(payoutRatio);
     } else {
       require(payoutAmount == 0);

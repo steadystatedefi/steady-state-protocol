@@ -4,12 +4,15 @@ pragma solidity ^0.8.4;
 import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsuredPool.sol';
+import '../interfaces/IInsurerPool.sol';
+import '../interfaces/IJoinHandler.sol';
+import '../interfaces/IPremiumHandler.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
-contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedPoolStorage {
+abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStorage, InsurerJoinBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -83,33 +86,40 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
       insured
     );
-
-    // receivableCoverage was not yet received by the insured, it was found during the cancallation
+    // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
-    providedCoverage -= receivableCoverage;
 
     // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc
     // and the actual amount of protocol tokens made available during last sync
-    coverage;
     // so this is a sanity check - insurance must be sync'ed before cancellation
     // otherwise there will be premium without actual supply of protocol tokens
-    require(receivableCoverage <= (providedCoverage >> 4), 'coverage must be received before cancellation');
-    internalSetStatus(insured, InsuredStatus.Declined);
 
     payoutValue = providedCoverage.rayMul(payoutRatio);
 
-    providedCoverage -= payoutValue;
-    if (providedCoverage > 0) {
-      // take back the unused provided coverage
-      transferCollateralFrom(insured, address(this), providedCoverage);
+    require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
+
+    if (_premiumHandler != address(0)) {
+      uint256 premiumDebt = IPremiumHandler(_premiumHandler).premiumAllocationFinished(insured, coverage.totalPremium);
+      unchecked {
+        payoutValue = payoutValue <= premiumDebt ? 0 : payoutValue - premiumDebt;
+      }
     }
-    // this call is to consider / reinvest the released funds
-    WeightedPoolBase(address(this)).updateCoverageOnCancel(payoutValue, excessCoverage + providedCoverage + receivableCoverage);
-    // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
+
+    internalSetStatus(insured, InsuredStatus.Declined);
+
+    return internalTransferCancelledCoverage(insured, payoutValue, excessCoverage, providedCoverage, providedCoverage - receivableCoverage);
   }
 
+  function internalTransferCancelledCoverage(
+    address insured,
+    uint256 payoutValue,
+    uint256 excessCoverage,
+    uint256 providedCoverage,
+    uint256 receivedCoverage
+  ) internal virtual returns (uint256);
+
   /// @inheritdoc IInsurerPoolDemand
-  function receivableDemandedCoverage(address insured) external view override returns (uint256 receivedCoverage, DemandedCoverage memory coverage) {
+  function receivableDemandedCoverage(address insured) external view override returns (uint256 receivableCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
     params.loopLimit = ~params.loopLimit;
@@ -123,40 +133,51 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     external
     override
     onlyActiveInsured
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
+    returns (
+      uint256 receivedCoverage,
+      uint256 receivedCollateral,
+      DemandedCoverage memory coverage
+    )
   {
     GetCoveredDemandParams memory params;
     params.insured = insured;
     params.loopLimit = ~params.loopLimit;
 
     coverage = internalUpdateCoveredDemand(params);
-
-    if (params.receivedCoverage > 0) {
-      transferCollateral(insured, params.receivedCoverage);
+    receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
+    if (_premiumHandler != address(0)) {
+      IPremiumHandler(_premiumHandler).premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate);
     }
 
-    return (params.receivedCoverage, coverage);
+    return (params.receivedCoverage, receivedCollateral, coverage);
   }
+
+  function internalTransferDemandedCoverage(
+    address insured,
+    uint256 receivedCoverage,
+    DemandedCoverage memory coverage
+  ) internal virtual returns (uint256);
 
   /// @dev Prepare for an insured pool to join by setting the parameters
   function internalPrepareJoin(address insured) internal override {
-    WeightedPoolParams memory params = _params;
     InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
 
-    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(params.riskWeightTarget);
-    if (maxShare >= params.maxInsuredShare) {
-      maxShare = params.maxInsuredShare;
-    } else if (maxShare < params.minInsuredShare) {
-      maxShare = params.minInsuredShare;
+    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
+    uint256 v;
+    if (maxShare >= (v = _params.maxInsuredShare)) {
+      maxShare = v;
+    } else if (maxShare < (v = _params.minInsuredShare)) {
+      maxShare = v;
     }
 
     super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
   }
 
   function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    if (_joinHandler == address(0)) return InsuredStatus.Joining;
-    if (_joinHandler == address(this)) return InsuredStatus.Accepted;
-    return IJoinHandler(_joinHandler).handleJoinRequest(insured);
+    address jh = _joinHandler;
+    if (jh == address(0)) return InsuredStatus.Joining;
+    if (jh == address(this)) return InsuredStatus.Accepted;
+    return IJoinHandler(jh).handleJoinRequest(insured);
   }
 
   ///@dev Return if an account has a balance or premium earned
@@ -164,8 +185,8 @@ contract WeightedPoolExtension is InsurerJoinBase, IInsurerPoolDemand, WeightedP
     return WeightedPoolStorage.internalIsInvestor(account);
   }
 
-  function internalGetStatus(address account) internal view override(InsurerJoinBase, WeightedPoolStorage) returns (InsuredStatus) {
-    return WeightedPoolStorage.internalGetStatus(account);
+  function internalGetStatus(address account) internal view override(InsurerJoinBase, WeightedPoolConfig) returns (InsuredStatus) {
+    return WeightedPoolConfig.internalGetStatus(account);
   }
 
   function internalSetStatus(address account, InsuredStatus status) internal override {

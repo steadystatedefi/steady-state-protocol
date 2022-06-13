@@ -14,7 +14,14 @@ import '../insurance/InsurancePoolBase.sol';
 
 /// @title Direct Pool Base
 /// @notice Handles capital providing actions involving adding coverage DIRECTLY to an insured
-abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, InsurerJoinBase, ERC20BalancelessBase, ERC1363ReceiverBase {
+abstract contract DirectPoolBase is
+  IInsurerPoolCore,
+  IPerpetualInsurerPool,
+  InsurancePoolBase,
+  InsurerJoinBase,
+  ERC20BalancelessBase,
+  ERC1363ReceiverBase
+{
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -143,7 +150,6 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     return _totalBalance.rayMul(exchangeRate());
   }
 
-  /// @inheritdoc IInsurerPoolCore
   function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory b = _premiums[account];
     uint32 at = _cancelledAt;
@@ -244,12 +250,10 @@ abstract contract DirectPoolBase is IInsurerPoolCore, InsurancePoolBase, Insurer
     }
   }
 
-  /// @inheritdoc IInsurerPoolCore
   function withdrawable(address account) public view override returns (uint256 amount) {
     return _cancelledAt == 0 ? 0 : balanceOf(account);
   }
 
-  /// @inheritdoc IInsurerPoolCore
   function withdrawAll() external override returns (uint256) {
     return _cancelledAt == 0 ? 0 : internalBurnAll(msg.sender);
   }

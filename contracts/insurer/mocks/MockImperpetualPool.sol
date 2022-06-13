@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../WeightedPoolBase.sol';
+import '../ImperpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
 
-contract MockWeightedPool is WeightedPoolBase {
+contract MockImperpetualPool is ImperpetualPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
     uint8 decimals,
-    WeightedPoolExtension extension
-  ) ERC20DetailsBase('WeightedPoolToken', '$IC', decimals) WeightedPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
+    ImperpetualPoolExtension extension
+  ) ERC20DetailsBase('ImperpetualPoolToken', '$IC', decimals) ImperpetualPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
     _joinHandler = address(this);
     internalSetPoolParams(
       WeightedPoolParams({
@@ -21,7 +21,8 @@ contract MockWeightedPool is WeightedPoolBase {
         maxInsuredShare: 4000, // 25%
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
-        overUnitsPerRound: 30
+        overUnitsPerRound: 30,
+        maxDrawdownInverse: 9000 // 90%
       })
     );
   }
@@ -42,7 +43,15 @@ contract MockWeightedPool is WeightedPoolBase {
     _excessCoverage = v;
   }
 
-  function internalPostCoverageCancel() internal override {}
+  function burnValue(
+    address account,
+    uint256 value,
+    address drawdownRecepient
+  ) external returns (uint256 burntAmount) {
+    return drawdownRecepient != address(0) ? internalBurnCoverage(account, value, drawdownRecepient) : internalBurnPremium(account, value);
+  }
+
+  function internalOnCoverageRecovered() internal override {}
 
   function receivableDemandedCoverage(address insured) external view returns (uint256 availableCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
