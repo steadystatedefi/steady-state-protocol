@@ -18,7 +18,7 @@ import 'hardhat/console.sol';
 /// @notice Holds balances of how much Insured owes to each Insurer in terms of rate
 /// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
 /// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
-abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase, IInsuredEvents, IPremiumCalculator {
+abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase, IPremiumCalculator {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
@@ -147,16 +147,21 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
   /// @dev Reconcile the amount of collected premium and current premium rate with the Insurer
   /// @param insurer The insurer to reconcile with
   /// @param updateRate Whether the total rate of this Insured pool should be updated
-  /// @return receivedCoverage Amount of new coverage received during this reconcilation
+  /// @return receivedCoverage Amount of new coverage provided since the last reconcilation
+  /// @return receivedCollateral Amount of collateral currency received during this reconcilation (<= receivedCoverage)
   /// @return coverage The new information on coverage demanded, provided and premium paid
   function internalReconcileWithInsurer(IInsurerPoolDemand insurer, bool updateRate)
     internal
-    returns (uint256 receivedCoverage, DemandedCoverage memory coverage)
+    returns (
+      uint256 receivedCoverage,
+      uint256 receivedCollateral,
+      DemandedCoverage memory coverage
+    )
   {
     Balances.RateAccWithUint16 memory b = _syncBalance(address(insurer));
     _ensureHolder(b.extra);
 
-    (receivedCoverage, coverage) = insurer.receiveDemandedCoverage(address(this));
+    (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this));
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
 
     (Balances.RateAcc memory totals, bool updated) = _syncInsurerBalance(b, coverage);

@@ -1,11 +1,12 @@
 import { Wallet } from '@ethersproject/wallet';
 import { expect } from 'chai';
+import { zeroAddress } from 'ethereumjs-util';
 
 import { RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { tEthereumAddress } from '../../helpers/types';
-import { MockCollateralCurrency, MockInsuredPool, MockWeightedPool, PremiumCollector } from '../../types';
+import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool, PremiumCollector } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -17,7 +18,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const poolDemand = 10000 * unitSize;
   let payInToken: tEthereumAddress;
   const protocol = Wallet.createRandom();
-  let pool: MockWeightedPool;
+  let pool: MockPerpetualPool;
   let fund: MockCollateralCurrency;
   let collector: PremiumCollector;
   const insureds: MockInsuredPool[] = [];
@@ -25,9 +26,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const insuredTS: number[] = [];
 
   before(async () => {
-    const extension = await Factories.WeightedPoolExtension.deploy(unitSize);
+    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
-    pool = await Factories.MockWeightedPool.deploy(fund.address, unitSize, decimals, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
     collector = await Factories.PremiumCollector.deploy();
 
     payInToken = createRandomAddress();
@@ -112,13 +113,14 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
     let perUser = 4;
     for (const user of testEnv.users) {
-      timestamps.push(await currentTime());
       perUser += 1;
       totalCoverageProvidedUnits += perUser;
       userUnits.push(perUser);
       await fund
         .connect(user)
         .invest(pool.address, unitSize * perUser, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+
+      timestamps.push(await currentTime());
       const interest = await pool.interestOf(user.address);
       expect(interest.accumulated).eq(0);
       expect(interest.rate).eq(premiumPerUnit * perUser);
@@ -139,11 +141,12 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       const user = testEnv.users[index];
       const balance = await pool.balanceOf(user.address);
       const interest = await pool.interestOf(user.address);
+      const time = await currentTime();
 
       expect(balance).eq(unitSize * userUnits[index]);
       expect(interest.rate).eq(premiumPerUnit * userUnits[index]);
       if (!testEnv.underCoverage) {
-        expect(interest.accumulated).eq(interest.rate.mul((await currentTime()) - timestamps[index] - 1));
+        expect(interest.accumulated).eq(interest.rate.mul(time - timestamps[index]));
       }
 
       totalPremium += interest.accumulated.toNumber();
@@ -336,6 +339,26 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     n = totals.coverage.totalPremium.toNumber();
     if (!testEnv.underCoverage) {
       expect(totalInsuredPremium).within(n, n + insureds.length * ((await currentTime()) - insuredTS[0] - 1));
+    }
+  });
+
+  it('Check unknown users', async () => {
+    for (const address of [zeroAddress(), createRandomAddress()]) {
+      expect(await pool.balanceOf(address)).eq(0);
+      expect(await pool.statusOf(address)).eq(InsuredStatus.Unknown);
+
+      {
+        const interest = await pool.interestOf(address);
+        expect(interest.rate).eq(0);
+        expect(interest.accumulated).eq(0);
+      }
+
+      {
+        const balances = await pool.balancesOf(address);
+        expect(balances.coverage).eq(0);
+        expect(balances.scaled).eq(0);
+        expect(balances.premium).eq(0);
+      }
     }
   });
 });

@@ -27,17 +27,3 @@ struct InsuredParams {
   uint24 minUnitsPerInsurer;
   uint16 riskWeightPct;
 }
-
-interface DInsuredPoolTransfer {
-  function addCoverageByInvestor(
-    address account,
-    uint256 minAmount,
-    uint256 minPremiumRate,
-    address insurerPool
-  ) external;
-}
-
-interface IInsuredEvents {
-  // event TransferToHold(address indexed from, address indexed to, uint256 value);
-  // event TransferFromHold(address indexed from, address indexed to, uint256 value);
-}
