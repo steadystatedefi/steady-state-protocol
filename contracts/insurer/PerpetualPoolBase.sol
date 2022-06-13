@@ -25,7 +25,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   }
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    require(params.maxDrawdown == 0);
+    require(params.maxDrawdownInverse == PercentageMath.ONE);
 
     super.internalSetPoolParams(params);
   }

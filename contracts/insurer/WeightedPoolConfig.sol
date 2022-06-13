@@ -47,7 +47,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     require(params.riskWeightTarget > 0);
     require(params.riskWeightTarget < PercentageMath.ONE);
 
-    require(params.maxDrawdown < PercentageMath.HALF_ONE);
+    require(params.maxDrawdownInverse >= PercentageMath.HALF_ONE);
     _params = params;
   }
 
@@ -171,5 +171,5 @@ struct WeightedPoolParams {
   uint16 minUnitsPerRound;
   uint16 maxUnitsPerRound;
   uint16 overUnitsPerRound;
-  uint16 maxDrawdown;
+  uint16 maxDrawdownInverse; // 100% = no drawdown
 }

@@ -99,7 +99,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   ) public returns (uint256) {
     require(msg.sender == address(this));
 
-    uint256 expectedAmount = totalCovered.percentMul(PercentageMath.ONE - _params.maxDrawdown); // TODO use an inverse value in the config
+    uint256 expectedAmount = totalCovered.percentMul(_params.maxDrawdownInverse);
     uint256 actualAmount = _insuredBalances[insured];
 
     if (actualAmount < expectedAmount) {

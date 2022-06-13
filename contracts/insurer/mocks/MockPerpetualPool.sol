@@ -22,7 +22,7 @@ contract MockPerpetualPool is PerpetualPoolBase {
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
         overUnitsPerRound: 30,
-        maxDrawdown: 0
+        maxDrawdownInverse: 10000 // 100%
       })
     );
   }

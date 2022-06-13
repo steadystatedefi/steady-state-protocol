@@ -15,6 +15,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 100000 * unitSize;
+  const drawdownPct = 10; // 10% constant inside MockImperpetualPool
   let pool: MockImperpetualPool;
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
@@ -335,7 +336,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     await insured.reconcileWithAllInsurers(); // required to cancel
 
     const receivedCollateral = await cc.balanceOf(insured.address);
-    //      expect(receivedCollateral).eq(expectedCollateral); // TODO consider drawdown
+    expect(receivedCollateral).eq(expectedCollateral.mul(100 - drawdownPct).div(100)); // drawdown withholded
     expect(receivedCollateral).eq(await insured.totalCollateral());
     expect(receivedCollateral.add(await cc.balanceOf(pool.address))).eq(totalInvested);
 
@@ -347,7 +348,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     givenOutCollateral += receivedCollateral.toNumber();
   });
 
-  it('Cancel coverage', async () => {
+  it('Cancel coverage of insured[0] (no payout)', async () => {
     expect(await cc.balanceOf(pool.address)).eq(totalInvested - givenOutCollateral);
     const totalSupply0 = await pool.totalSupply();
 
@@ -356,8 +357,9 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const totalValue0 = await pool.totalSupplyValue();
 
-    expect(await pool.getExcessCoverage()).eq(0);
+    const excessCoverage0 = await pool.getExcessCoverage();
 
     expect(
       totals0.totalCovered
@@ -374,8 +376,6 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
         .div(unitSize)
     ).eq(stats0.premiumRate);
 
-    expect(await pool.getExcessCoverage()).eq(0);
-
     /** **************** */
     /* Cancel coverage */
     await insured.cancelCoverage(zeroAddress(), 0);
@@ -383,20 +383,20 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     /** **************** */
 
     // all collateral was taken back
-    expect(await cc.balanceOf(pool.address)).eq(totalInvested);
     givenOutCollateral = 0;
+    expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
     expect(await cc.balanceOf(insured.address)).eq(0);
 
-    expect(await pool.totalSupply()).eq(totalSupply0);
-    // TODO reduced value
-
-    const excessCoverage = await pool.getExcessCoverage();
+    const excessCoverage = (await pool.getExcessCoverage()).sub(excessCoverage0);
     expect(excessCoverage).gte(stats0.totalCovered);
     expect(excessCoverage).lte(stats0.totalCovered.add(stats0.pendingCovered));
 
     const { coverage: totals1 } = await pool.getTotals();
     const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(await pool.totalSupply()).eq(totalSupply0);
+    expect(await pool.totalSupplyValue()).eq(totalValue0.add(totals1.totalPremium).sub(totals0.totalPremium));
 
     expect(
       totals1.totalCovered
@@ -417,6 +417,78 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     expect(totals0.premiumRate.sub(totals1.premiumRate)).lte(stats0.premiumRate);
     expect(totals0.premiumRate.sub(totals1.premiumRate)).eq(
       excessCoverage
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    );
+    expect(totals0.totalPremium).lt(totals1.totalPremium);
+
+    const adj1 = await pool.getUnadjusted();
+    expect(adj0.pendingDemand).eq(adj1.pendingDemand);
+  });
+
+  it('Cancel coverage of insured[1] (full payout)', async () => {
+    expect(await cc.balanceOf(pool.address)).eq(totalInvested - givenOutCollateral);
+    const totalSupply0 = await pool.totalSupply();
+
+    const insured = insureds[1];
+
+    await insured.reconcileWithAllInsurers(); // required to cancel
+
+    const adj0 = await pool.getUnadjusted();
+
+    const { coverage: totals0 } = await pool.getTotals();
+    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const totalValue0 = await pool.totalSupplyValue();
+
+    const excessCoverage0 = await pool.getExcessCoverage();
+    const receiver = createRandomAddress();
+    const payoutAmount = stats0.totalCovered.toNumber();
+
+    /** **************** */
+    /* Cancel coverage */
+    await insured.cancelCoverage(receiver, payoutAmount);
+    /** **************** */
+    /** **************** */
+
+    expect(await cc.balanceOf(insured.address)).eq(0);
+    expect(await cc.balanceOf(receiver)).eq(payoutAmount);
+
+    givenOutCollateral += payoutAmount;
+    expect(await cc.balanceOf(pool.address)).eq(totalInvested - givenOutCollateral);
+
+    const excessCoverage = (await pool.getExcessCoverage()).sub(excessCoverage0);
+    expect(excessCoverage).gte(stats0.totalCovered.sub(payoutAmount));
+    expect(excessCoverage).lte(stats0.totalCovered.sub(payoutAmount).add(stats0.pendingCovered));
+
+    const { coverage: totals1 } = await pool.getTotals();
+    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+
+    expect(await pool.totalSupply()).eq(totalSupply0);
+    expect(await pool.totalSupplyValue()).eq(
+      totalValue0.add(totals1.totalPremium).sub(totals0.totalPremium).sub(payoutAmount)
+    );
+
+    expect(
+      totals1.totalCovered
+        .add(totals1.pendingCovered)
+        .mul(premiumPerUnit)
+        .add(unitSize / 2)
+        .div(unitSize)
+    ).eq(totals1.premiumRate);
+
+    expect(stats1.totalDemand).eq(0);
+    expect(stats1.totalCovered).eq(0);
+    expect(stats1.totalPremium).gte(stats0.totalPremium);
+    expect(stats1.premiumRate).eq(0);
+    expect(stats1.pendingCovered).eq(0);
+
+    expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand);
+    expect(totals0.totalCovered.sub(totals1.totalCovered)).eq(stats0.totalCovered);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).lte(stats0.premiumRate);
+    expect(totals0.premiumRate.sub(totals1.premiumRate)).eq(
+      excessCoverage
+        .add(payoutAmount)
         .mul(premiumPerUnit)
         .add(unitSize / 2)
         .div(unitSize)

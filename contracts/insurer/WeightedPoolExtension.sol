@@ -83,7 +83,6 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
   /// @return payoutValue The amount of coverage paid out to the insured
   function internalCancelCoverage(address insured, uint256 payoutRatio) private onlyActiveInsured returns (uint256 payoutValue) {
-    //payoutValue
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
       insured
     );
@@ -120,7 +119,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
   ) internal virtual returns (uint256);
 
   /// @inheritdoc IInsurerPoolDemand
-  function receivableDemandedCoverage(address insured) external view override returns (uint256 receivedCoverage, DemandedCoverage memory coverage) {
+  function receivableDemandedCoverage(address insured) external view override returns (uint256 receivableCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
     params.loopLimit = ~params.loopLimit;
