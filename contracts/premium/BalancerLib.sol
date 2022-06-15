@@ -20,7 +20,6 @@ library BalancerLib {
   struct PoolPremiums {
     mapping(address => TokenBalance) balances;
     mapping(address => IPremiumSource) sources;
-    address insurer;
     PoolTotals total;
   }
 
@@ -58,66 +57,88 @@ library BalancerLib {
 
   function swapToken(
     PoolPremiums storage p,
+    address insurer,
     address token,
     uint256 value,
     uint256 minAmount
   ) internal returns (uint256, uint256) {
     TokenBalance memory b = p.balances[token];
+    PoolTotals memory t = p.total;
 
-    (uint256 amount, uint256 fee, uint256 expectedRefill) = getAmount(
-      p.total,
-      b,
-      value,
-      minAmount,
-      b.lastUpdateAt > 0 && b.lastUpdateAt != uint32(block.timestamp)
-    );
+    (uint256 amount, uint256 fee, uint256 refill) = getAmount(t, b, value, minAmount);
 
-    if (expectedRefill > 0) {
-      address insurer = p.insurer;
-      IPremiumSource s = p.sources[insurer];
+    if (refill > 0) {
+      b.lastUpdateAt = uint32(block.timestamp);
+
+      IPremiumSource s = p.sources[token];
       if (address(s) != address(0)) {
-        b.lastUpdateAt = uint32(block.timestamp);
-
-        (expectedRefill, amount) = s.pullPremiumSource(insurer, expectedRefill);
+        (refill, amount) = s.pullPremiumSource(insurer, refill);
         if (amount > 0) {
-          _addLiquidity(b, expectedRefill, amount);
-          require((p.total.baseValue += uint128(expectedRefill)) >= expectedRefill);
-          expectedRefill = 1;
+          _addLiquidity(b, refill, amount);
+          require((t.baseValue += uint128(refill)) >= refill);
+          refill = 1;
         }
       }
-
-      (amount, fee, ) = getAmount(p.total, b, value, minAmount, false);
+      (amount, fee, ) = getAmount(t, b, value, minAmount);
     }
 
-    if (amount > 0 || expectedRefill > 0) {
+    if (amount > 0 || refill > 0) {
       p.balances[token] = b;
     }
 
     if (amount > 0) {
-      require((p.total.value += uint128(value)) >= value);
+      require((t.value += uint128(value)) >= value);
+    }
+
+    return (amount, fee);
+  }
+
+  function _swapToken(
+    address insurer,
+    TokenBalance memory b,
+    PoolTotals memory t,
+    mapping(address => IPremiumSource) storage sources,
+    address token,
+    uint256 value,
+    uint256 minAmount
+  ) internal returns (uint256, uint256) {
+    (uint256 amount, uint256 fee, uint256 refill) = getAmount(t, b, value, minAmount);
+
+    if (refill > 0) {
+      b.lastUpdateAt = uint32(block.timestamp);
+
+      IPremiumSource s = sources[token];
+      if (address(s) != address(0)) {
+        (refill, amount) = s.pullPremiumSource(insurer, refill);
+        if (amount > 0) {
+          // transfer from or check balance ...
+          _addLiquidity(b, refill, amount);
+          require((t.baseValue += uint128(refill)) >= refill);
+        }
+      }
+      (amount, fee, ) = getAmount(t, b, value, minAmount);
     }
 
     return (amount, fee);
   }
 
   function burnPremium(
-    PoolPremiums storage p,
+    address insurer,
     address account,
     uint256 collateralValue,
     address collateralRecipient
   ) internal {
-    IPremiumBalanceHolder(p.insurer).burnPremium(account, collateralValue, collateralRecipient);
+    IPremiumBalanceHolder(insurer).burnPremium(account, collateralValue, collateralRecipient);
   }
 
   function getAmount(
     PoolTotals memory total,
     TokenBalance memory b,
     uint256 maxValue,
-    uint256 minAmount,
-    bool canRefill
+    uint256 minAmount
   )
     internal
-    pure
+    view
     returns (
       uint256 amount,
       uint256 fee,
@@ -135,8 +156,10 @@ library BalancerLib {
       (x0, x) = _calcFlat(b, total.baseValue, total.value, maxValue);
 
       if (x < saturationAmount) {
-        if (canRefill) {
-          return (0, 0, type(uint256).max);
+        if (b.lastUpdateAt > 0 && b.lastUpdateAt < uint32(block.timestamp)) {
+          // can be refilled
+          x0 -= x;
+          return (0, 0, ((saturationAmount - x) * maxValue + (x0 >> 1)) / x0);
         }
 
         // TODO x == 0 ?

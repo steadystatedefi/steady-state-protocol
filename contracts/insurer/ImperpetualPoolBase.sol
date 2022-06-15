@@ -24,26 +24,35 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     return _premiumHandler;
   }
 
+  function _addCoverage(uint256 value)
+    private
+    returns (
+      bool done,
+      AddCoverageParams memory params,
+      PartialState memory part
+    )
+  {
+    uint256 excessCoverage = _excessCoverage;
+    if (excessCoverage > 0 || value > 0) {
+      uint256 newExcess;
+      (newExcess, , params, part) = super.internalAddCoverage(value + excessCoverage, type(uint256).max);
+      if (newExcess != excessCoverage) {
+        _excessCoverage = newExcess;
+        emit ExcessCoverageIncreased(newExcess);
+      }
+      if (params.unitsCovered > 0) {
+        // increase MCD in the premium pool
+      }
+      done = true;
+    }
+  }
+
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
   function _mintForCoverage(address account, uint256 value) private {
-    uint256 excessCoverage = _excessCoverage;
-    uint256 amount;
-
-    if (value > 0 || excessCoverage > 0) {
-      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
-        value + excessCoverage,
-        type(uint256).max
-      );
-      if (newExcess != excessCoverage) {
-        _excessCoverage = newExcess;
-        if (newExcess > excessCoverage) {
-          emit ExcessCoverageIncreased(newExcess);
-        }
-      }
-      amount = value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, p.premium), value));
-    }
-    _mint(account, amount, value);
+    (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
+    // TODO test adding coverage to an empty pool
+    _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : value, value);
   }
 
   function internalSubrogate(uint256 value) private {
@@ -74,6 +83,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
           if (drawndownSupply > underpay) {
             drawndownSupply = uint128(drawndownSupply - underpay);
           } else {
+            // TODO use excess
             (underpay, drawndownSupply) = (drawndownSupply, 0);
             payoutValue = givenValue + underpay;
           }
@@ -105,6 +115,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     if (actualAmount < expectedAmount) {
       uint256 v = expectedAmount - actualAmount;
       if (v < receivedCoverage) {
+        // TODO update the premium fund
         _drawdownSupply += to128(receivedCoverage - v);
         receivedCoverage = v;
       }
@@ -125,18 +136,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   /// @dev Attempt to take the excess coverage and fill batches
   /// @dev Occurs when there is excess and a new batch is ready (more demand added)
   function pushCoverageExcess() public override {
-    uint256 excessCoverage = _excessCoverage;
-    if (excessCoverage > 0) {
-      (_excessCoverage, , , ) = super.internalAddCoverage(excessCoverage, type(uint256).max);
-    }
-  }
-
-  function _burnValue(
-    address account,
-    uint256 value,
-    DemandedCoverage memory coverage
-  ) private returns (uint256 burntAmount) {
-    _burn(account, burntAmount = value.rayDiv(exchangeRate(coverage, 0)), value);
+    _addCoverage(0);
   }
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
@@ -167,36 +167,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
   function exchangeRate() public view override returns (uint256 v) {
     return exchangeRate(super.internalGetPremiumTotals(), 0);
-  }
-
-  function internalBurnPremium(address account, uint256 value) internal returns (uint256 burntAmount) {
-    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-
-    require(coverage.totalPremium >= _burntPremium + value);
-    burntAmount = _burnValue(account, value, coverage);
-    _burntPremium += to128(value);
-  }
-
-  function internalBurnCoverage(
-    address account,
-    uint256 value,
-    address recepient
-  ) internal returns (uint256 burntAmount) {
-    uint256 usableExcess = _excessCoverage;
-    if (usableExcess < value) {
-      _drawdownSupply = uint128(_drawdownSupply + usableExcess - value);
-    } else if (usableExcess > value) {
-      usableExcess = value;
-    }
-
-    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
-    burntAmount = _burnValue(account, value, coverage);
-
-    if (usableExcess > 0) {
-      _excessCoverage -= usableExcess;
-    }
-
-    transferCollateral(recepient, value);
   }
 
   function balanceOf(address account) public view override returns (uint256) {
@@ -234,11 +204,53 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     _mintForCoverage(account, amount);
   }
 
+  function _burnValue(
+    address account,
+    uint256 value,
+    DemandedCoverage memory coverage
+  ) private returns (uint256 burntAmount) {
+    _burn(account, burntAmount = value.rayDiv(exchangeRate(coverage, 0)), value);
+  }
+
+  function _burnPremium(
+    address account,
+    uint256 value,
+    DemandedCoverage memory coverage
+  ) internal returns (uint256 burntAmount) {
+    require(coverage.totalPremium >= _burntPremium + value);
+    burntAmount = _burnValue(account, value, coverage);
+    _burntPremium += to128(value);
+  }
+
+  function _burnCoverage(
+    address account,
+    uint256 value,
+    address recepient,
+    DemandedCoverage memory coverage
+  ) internal returns (uint256 burntAmount) {
+    uint256 usableExcess = _excessCoverage;
+    if (usableExcess < value) {
+      // TODO fix oveflow
+      _drawdownSupply = uint128(_drawdownSupply + usableExcess - value);
+    } else if (usableExcess > value) {
+      usableExcess = value;
+    }
+
+    burntAmount = _burnValue(account, value, coverage);
+
+    if (usableExcess > 0) {
+      _excessCoverage -= usableExcess;
+    }
+
+    transferCollateral(recepient, value);
+  }
+
   function burnPremium(
     address account,
     uint256 value,
     address drawdownRecepient
   ) external override {
-    drawdownRecepient != address(0) ? internalBurnCoverage(account, value, drawdownRecepient) : internalBurnPremium(account, value);
+    DemandedCoverage memory coverage = super.internalGetPremiumTotals();
+    drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
 }

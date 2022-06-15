@@ -27,18 +27,18 @@ contract PremiumFund {
   address private _collateral;
 
   function swapToken(
-    address poolToken,
+    address poolToken, // aka insurer
     address account,
+    address recipient,
     uint256 valueToSwap,
     address targetToken,
-    uint256 minAmount,
-    address recipient
+    uint256 minAmount
   ) external returns (uint256 tokenAmount) {
     require(recipient != address(0));
     BalancerLib.PoolPremiums storage pool = _premiums[poolToken];
 
     uint256 fee;
-    (tokenAmount, fee) = pool.swapToken(targetToken, valueToSwap, minAmount);
+    (tokenAmount, fee) = pool.swapToken(poolToken, targetToken, valueToSwap, minAmount);
 
     if (tokenAmount > 0) {
       address r;
@@ -51,7 +51,7 @@ contract PremiumFund {
           r = address(this);
         }
       }
-      pool.burnPremium(account, valueToSwap, r);
+      BalancerLib.burnPremium(poolToken, account, valueToSwap, r);
       if (r != recipient) {
         SafeERC20.safeTransfer(IERC20(targetToken), recipient, tokenAmount);
       }
