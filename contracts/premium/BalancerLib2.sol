@@ -71,9 +71,9 @@ library BalancerLib2 {
   }
 
   struct AssetConfig {
-    uint32 n; // n mint-seconds for the saturation point
     uint160 price; // target price, wad-multiplier, uint192
     uint64 w; // [0..1] controls fees, uint64
+    uint32 n; // n mint-seconds for the saturation point
   }
 
   struct CPConfig {
