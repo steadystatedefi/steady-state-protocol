@@ -42,13 +42,22 @@ library BalancerLib2 {
       require((balance.accum = uint128(balance.accum - amount)) > 0);
       total.accum = uint128(total.accum - amount);
 
-      // TODO this is a rough supremum of value's part that should be reserved for discounting of less popular assets
-      // an exact formula requires log()
-      k = value - value.rayMul((k + _calcScale(balance, total)) >> 1);
+      fee = amount.wadMul(c.vA);
+      if (fee < value) {
+        fee = value - fee;
 
-      // TODO When the constant-product formula (1/x) will produce less fees than required by scaling (integral(1/x))?
-      fee = value - amount.wadMul(c.vA);
-      fee = fee > k ? fee - k : 0;
+        // TODO this is a rough supremum of value's part that should be reserved for discounting of less popular assets
+        // an exact formula requires log()
+        k = (k + _calcScale(balance, total)) >> 1;
+        // swap with bonus relies on the assets with liquidity penalty
+        k = k < WadRayMath.RAY ? value - value.rayMul(k) : 0;
+
+        // TODO When the constant-product formula (1/x) will produce less fees than required by scaling (integral(1/x))?
+        fee = fee > k ? fee - k : 0;
+      } else {
+        // got more with the bonus
+        fee = 0;
+      }
 
       p.balances[token] = balance;
       p.totalBalance = total;
