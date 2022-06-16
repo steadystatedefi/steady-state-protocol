@@ -47,7 +47,7 @@ library BalancerLib2 {
     }
 
     uint256 k = _calcScale(balance, total);
-    if ((amount = _calcA(c, balance.accum, value.rayMul(k))) == 0 && c.w != 0 && balance.accum > 0) {
+    if ((amount = _calcA(c, balance.accum, value.rayMul(k))) == 0 && c.sA != 0 && balance.accum > 0) {
       amount = 1;
     }
     amount = balance.accum - amount;
@@ -117,8 +117,10 @@ library BalancerLib2 {
       if (c.w == 0) {
         // no fee based on amount
         a1 = _calcFlat(c, a, dV);
-      } else {
+      } else if (c.w == WadRayMath.WAD) {
         a1 = _calcCurve(c, a, dV);
+      } else {
+        a1 = _calcCurveW(c, a, dV);
       }
     } else {
       a1 = _calcSat(c, a, dV);
@@ -129,20 +131,30 @@ library BalancerLib2 {
     CPConfig memory c,
     uint256 a,
     uint256 dV
+  ) private pure returns (uint256) {
+    return _calc(a, dV, a, a.wadMul(c.vA));
+  }
+
+  function _calcCurveW(
+    CPConfig memory c,
+    uint256 a,
+    uint256 dV
   ) private pure returns (uint256 a1) {
-    uint256 cA = a.wadDiv(c.w);
-    uint256 cV = cA.wadMul(c.vA);
+    uint256 wA = a.wadDiv(c.w);
+    uint256 wV = wA.wadMul(c.vA);
 
-    a1 = _calc(cA, dV, cA, cV);
-    if (a1 < c.sA) {
-      uint256 v1 = (cA * cV) / (cA - (a - c.sA));
-      uint256 sdV = v1 - cV;
+    a1 = _calc(wA, dV, wA, wV);
 
-      if (a != cA) {
-        cA = _calc(cA, sdV, cA, cV); // requied when weight is applied to A
-      }
-      a1 = _calc(c.sA, dV - sdV, cA, v1);
+    uint256 wsA = wA - (a - c.sA);
+    if (a1 < wsA) {
+      uint256 wsV = (wA * wV) / wsA;
+      uint256 sdV = wsV - wV;
+
+      // a1 = _calc(cA, sdV, cA, cV); // requied when weight is applied to A
+      return _calc(c.sA, dV - sdV, c.sA, wsV);
     }
+
+    return a - (wA - a1);
   }
 
   function _calcFlat(
@@ -176,7 +188,11 @@ library BalancerLib2 {
     uint256 cA,
     uint256 cV
   ) private pure returns (uint256) {
-    cV = cV * cA * WadRayMath.RAY;
-    return cV.divUp(dV * WadRayMath.RAY + cV.divUp(a));
+    if (cV <= cA) {
+      cV = cV * WadRayMath.RAY;
+    } else {
+      cA = cA * WadRayMath.RAY;
+    }
+    return Math.mulDiv(cV, cA, dV * WadRayMath.RAY + Math.mulDiv(cV, cA, a));
   }
 }
