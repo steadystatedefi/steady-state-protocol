@@ -56,6 +56,11 @@ library WadRayMath {
     return (a * WAD + b / 2) / b;
   }
 
+  function divUp(uint256 a, uint256 b) internal pure returns (uint256) {
+    require(b != 0, Errors.MATH_DIVISION_BY_ZERO);
+    return (a + b / 2) / b;
+  }
+
   /// @dev Multiplies two ray, rounding half up to the nearest ray
   function rayMul(uint256 a, uint256 b) internal pure returns (uint256) {
     if (a == 0 || b == 0) {

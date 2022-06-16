@@ -18,6 +18,8 @@ library BalancerLib2 {
     mapping(address => Balances.RateAcc) balances;
     Balances.RateAcc totalBalance;
     mapping(address => AssetConfig) configs;
+    uint160 spConst;
+    uint32 spFactor;
   }
 
   function swapToken(
@@ -32,14 +34,26 @@ library BalancerLib2 {
     AssetConfig storage config = p.configs[token];
 
     CPConfig memory c;
-    c.sA = (uint256(balance.rate) * config.n).wadDiv(c.vA = config.price);
     c.w = config.w;
+    c.vA = config.price;
+
+    {
+      StarvationPointMode spMode = config.spMode;
+      if (spMode <= StarvationPointMode.GlobalRateFactor) {
+        c.sA = (uint256(balance.rate) * (spMode == StarvationPointMode.RateFactor ? config.n : p.spFactor)).wadDiv(c.vA);
+      } else {
+        c.sA = spMode == StarvationPointMode.Constant ? config.spConst : p.spConst;
+      }
+    }
 
     uint256 k = _calcScale(balance, total);
-    amount = balance.accum - _calcA(c, balance.accum, value.rayMul(k));
+    if ((amount = _calcA(c, balance.accum, value.rayMul(k))) == 0 && c.w != 0 && balance.accum > 0) {
+      amount = 1;
+    }
+    amount = balance.accum - amount;
 
     if (amount >= minAmount && amount > 0) {
-      require((balance.accum = uint128(balance.accum - amount)) > 0);
+      balance.accum = uint128(balance.accum - amount);
       total.accum = uint128(total.accum - amount);
 
       fee = amount.wadMul(c.vA);
@@ -67,17 +81,29 @@ library BalancerLib2 {
   }
 
   function _calcScale(Balances.RateAcc memory balance, Balances.RateAcc memory total) private pure returns (uint256) {
-    return uint256(balance.accum).rayDiv(total.accum).rayDiv(uint256(balance.rate).rayDiv(total.rate));
+    return
+      total.accum == 0 || balance.rate == 0
+        ? WadRayMath.RAY
+        : (uint256(balance.accum).rayDiv(total.accum) * total.rate + (balance.rate >> 1)) / uint256(balance.rate);
+  }
+
+  enum StarvationPointMode {
+    RateFactor,
+    GlobalRateFactor,
+    Constant,
+    GlobalConstant
   }
 
   struct AssetConfig {
-    uint160 price; // target price, wad-multiplier, uint192
-    uint64 w; // [0..1] controls fees, uint64
-    uint32 n; // n mint-seconds for the saturation point
+    uint152 price; // target price, wad-multiplier, uint192
+    uint64 w; // [0..1] fee control, uint64
+    uint32 n; // n mint-seconds for the starvation point
+    StarvationPointMode spMode;
+    uint256 spConst;
   }
 
   struct CPConfig {
-    uint256 sA; // amount of an asset at saturation
+    uint256 sA; // amount of an asset at starvation
     uint256 vA; // target price, wad-multiplier, uint192
     uint256 w; // [0..1] controls fees, uint64
   }
@@ -128,7 +154,8 @@ library BalancerLib2 {
     if (c.sA + dA <= a) {
       a1 = a - dA;
     } else {
-      a1 = _calcSat(c, c.sA, dV - (a - c.sA).wadMul(c.vA));
+      dV -= (a - c.sA).wadMul(c.vA);
+      a1 = _calcSat(c, c.sA, dV);
     }
   }
 
@@ -149,7 +176,7 @@ library BalancerLib2 {
     uint256 cA,
     uint256 cV
   ) private pure returns (uint256) {
-    // NB! RAY*RAY base applied here to increase precision for the inversed math
-    return WadRayMath.RAY.rayDiv(WadRayMath.RAY.rayDiv(a) + dV.rayDiv(cV).rayDiv(cA));
+    cV = cV * cA * WadRayMath.RAY;
+    return cV.divUp(dV * WadRayMath.RAY + cV.divUp(a));
   }
 }

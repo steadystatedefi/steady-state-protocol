@@ -18,11 +18,13 @@ contract MockBalancerLib2 {
 
   function setConfig(
     address asset,
-    uint160 price,
+    uint152 price,
     uint64 w,
-    uint32 n
+    uint32 n,
+    BalancerLib2.StarvationPointMode sp,
+    uint160 spConst
   ) external {
-    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(price, w, n);
+    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(price, w, n, sp, spConst);
   }
 
   function setBalance(
