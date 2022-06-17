@@ -418,4 +418,32 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
 
     await testMinimal(MAX_UINT128);
   });
+
+  it('Smooth curve transition at the starvation point', async () => {
+    if (testEnv.underCoverage) {
+      return;
+    }
+
+    /*
+    NB! This test only applies to the flattened curve mode (0 < w < 1) and checks that 
+    the switch between function at the starvation point is smooth and creates no dent / step.
+    */
+
+    const t3 = createRandomAddress();
+
+    // A large enough value for proper precision
+    const sPoint = WAD;
+
+    await lib.setConfig(t3, WAD, WAD.div(1000), 0, StarvationPointMode.Constant, sPoint);
+
+    await lib.setBalance(t3, sPoint.mul(2), 0);
+    await lib.setTotalBalance(sPoint.mul(2), 0);
+
+    // 1000500250125062531 => 1000000000000000000
+    const v = BigNumber.from('1000500250125062530');
+    for (let i = 0; i <= 2; i++) {
+      const ev = await lib.callStatic.swapToken(t3, v.add(i), 0);
+      expect(ev.amount).eq(sPoint.sub(1).add(i));
+    }
+  });
 });
