@@ -164,8 +164,34 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
     (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this));
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
 
+    (Balances.RateAcc memory totals, bool updated) = _syncInsurerBalance(b, coverage);
+
+    if (coverage.premiumRate != b.rate && (coverage.premiumRate > b.rate || updateRate)) {
+      if (!updated) {
+        totals = internalSyncTotals();
+        updated = true;
+      }
+      uint88 prevRate = b.rate;
+      require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
+      if (prevRate > b.rate) {
+        totals.rate -= prevRate - b.rate;
+      } else {
+        totals.rate += b.rate - prevRate;
+      }
+    }
+
+    if (updated) {
+      _totals = totals;
+      _balances[address(insurer)] = b;
+    }
+  }
+
+  function _syncInsurerBalance(Balances.RateAccWithUint16 memory b, DemandedCoverage memory coverage)
+    private
+    view
+    returns (Balances.RateAcc memory totals, bool)
+  {
     uint256 diff;
-    Balances.RateAcc memory totals;
     if (b.accum != coverage.totalPremium) {
       totals = internalSyncTotals();
       if (b.accum < coverage.totalPremium) {
@@ -181,24 +207,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
       b.accum = uint120(coverage.totalPremium);
     }
 
-    if (coverage.premiumRate != b.rate && (coverage.premiumRate > b.rate || updateRate)) {
-      if (diff == 0) {
-        totals = internalSyncTotals();
-        diff = 1;
-      }
-      uint88 prevRate = b.rate;
-      require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
-      if (prevRate > b.rate) {
-        totals.rate -= prevRate - b.rate;
-      } else {
-        totals.rate += b.rate - prevRate;
-      }
-    }
-
-    if (diff > 0) {
-      _totals = totals;
-      _balances[address(insurer)] = b;
-    }
+    return (totals, diff != 0);
   }
 
   /// @dev Do the same as `internalReconcileWithInsurer` but only as a view, don't make changes
@@ -217,21 +226,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
     (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this));
     require(b.updatedAt >= coverage.premiumUpdatedAt);
 
-    uint256 diff;
-    if (b.accum != coverage.totalPremium) {
-      if (b.accum < coverage.totalPremium) {
-        // technical underpayment
-        diff = coverage.totalPremium - b.accum;
-        diff += totals.accum;
-        require((totals.accum = uint128(diff)) == diff);
-        revert('technical underpayment'); // TODO this should not happen now, but remove it later
-      } else {
-        diff = b.accum - coverage.totalPremium;
-        totals.accum -= uint128(diff);
-      }
-
-      b.accum = uint120(coverage.totalPremium);
-    }
+    (totals, ) = _syncInsurerBalance(b, coverage);
 
     if (coverage.premiumRate != b.rate && (coverage.premiumRate > b.rate)) {
       require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);

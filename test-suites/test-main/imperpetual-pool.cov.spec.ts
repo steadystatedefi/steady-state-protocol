@@ -298,12 +298,12 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const exchangeRate0 = await pool.exchangeRate();
     expect(totalValue0.mul(RAY).add(totalSupply0.div(2)).div(totalSupply0)).eq(exchangeRate0);
 
-    await pool.connect(user).burnValue(user.address, withdrawable, user.address, { gasLimit: 2000000 });
+    await pool.connect(user).burnPremium(user.address, withdrawable, user.address, { gasLimit: 2000000 });
 
     const premiumDelta = (await pool.getTotals()).coverage.totalPremium.sub(premium0);
     expect(await pool.totalSupplyValue()).eq(totalValue0.add(premiumDelta).sub(withdrawable));
 
-    // NB! the exchange rate applied inside burnValue gets more premium due to block advancement on a mutable call
+    // NB! the exchange rate applied inside burnPremium gets more premium due to block advancement on a mutable call
     const exchangeRateX = totalValue0.add(premiumDelta).mul(RAY).add(totalSupply0.div(2)).div(totalSupply0);
 
     totalInvested -= withdrawable.toNumber();

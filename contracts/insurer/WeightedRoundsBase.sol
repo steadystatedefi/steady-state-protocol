@@ -744,11 +744,12 @@ abstract contract WeightedRoundsBase {
   }
 
   struct AddCoverageParams {
+    Rounds.CoveragePremium premium;
     uint64 openBatchNo;
     bool openBatchUpdated;
     bool batchUpdated;
     bool premiumUpdated;
-    Rounds.CoveragePremium premium;
+    uint256 unitsCovered;
   }
 
   /// @dev Satisfy coverage demand by adding coverage
@@ -770,7 +771,7 @@ abstract contract WeightedRoundsBase {
     Rounds.Batch memory b;
     params.premium = _poolPremium;
 
-    (amount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
+    (remainingAmount, loopLimit, b) = _addCoverage(amount, loopLimit, part, params);
     if (params.batchUpdated) {
       _batches[part.batchNo] = b;
     }
@@ -783,7 +784,8 @@ abstract contract WeightedRoundsBase {
     }
     _partial = part;
     // console.log('partial3', part.batchNo, part.roundNo, part.roundCoverage);
-    return (amount, loopLimit, params, part);
+
+    return (remainingAmount, loopLimit, params, part);
   }
 
   /// @dev Adds coverage to the pool and stops if there are no batches left to add coverage to or
@@ -814,6 +816,7 @@ abstract contract WeightedRoundsBase {
         part.roundCoverage += uint128(amount);
         return (0, loopLimit - 1, b);
       }
+      params.unitsCovered = b.unitPerRound;
       part.roundCoverage = 0;
       part.roundNo++;
       amount -= vacant;
@@ -888,11 +891,14 @@ abstract contract WeightedRoundsBase {
         require(vacantRounds > 0);
 
         if (n < vacantRounds) {
+          params.unitsCovered += n * b.unitPerRound;
           part.roundNo += uint24(n);
           part.roundCoverage = uint128(amount - maxRoundCoverage * n);
           amount = 0;
           break;
         }
+
+        params.unitsCovered += vacantRounds * b.unitPerRound;
         part.roundNo = b.rounds;
         amount -= maxRoundCoverage * vacantRounds;
         if (loopLimit > 0) continue; // make sure to move to the next batch

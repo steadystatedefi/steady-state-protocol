@@ -119,5 +119,6 @@ export const mock = <TArgs extends unknown[], TResult extends Contract>(
   f: FactoryConstructor<TArgs, TResult>
 ): NamedDeployable<TArgs, TResult> => wrapFactory(f, true);
 
-export const addNamedDeployable = (f: NamedDeployable, name: string): typeof nameByFactory =>
+export const addNamedDeployable = (f: NamedDeployable, name: string): void => {
   nameByFactory.set(f, name);
+};

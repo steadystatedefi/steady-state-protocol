@@ -14,6 +14,7 @@ export const Factories = {
   MockPerpetualPool: mock(types.MockPerpetualPool__factory),
   MockImperpetualPool: mock(types.MockImperpetualPool__factory),
   MockInsuredPool: mock(types.MockInsuredPool__factory),
+  MockBalancerLib2: mock(types.MockBalancerLib2__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));

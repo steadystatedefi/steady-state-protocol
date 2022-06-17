@@ -122,7 +122,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
       timestamps.push(await currentTime());
       const interest = await pool.interestOf(user.address);
-      expect(interest.accumulated).eq(0);
+      if (!testEnv.underCoverage) {
+        expect(interest.accumulated).eq(0);
+      }
       expect(interest.rate).eq(premiumPerUnit * perUser);
 
       const balance = await pool.balanceOf(user.address);

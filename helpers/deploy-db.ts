@@ -103,6 +103,7 @@ export const addProxyToJsonDb = (
   };
 
   if (verifyArgs !== undefined) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     logEntry.verify!.args = stringifyArgs(verifyArgs);
   }
 
@@ -119,6 +120,7 @@ export const addExternalToJsonDb = (id: string, address: tEthereumAddress, verif
   };
 
   if (verifyArgs !== undefined) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     logEntry.verify!.args = stringifyArgs(verifyArgs);
   }
 

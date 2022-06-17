@@ -215,8 +215,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[sender] = b;
 
     b = _syncBalance(recipient, totals);
-    amount += b.balance;
-    require((b.balance = uint128(amount)) == amount);
+    require((b.balance += uint128(amount)) >= amount);
     _balances[recipient] = b;
   }
 
@@ -246,5 +245,17 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   function withdrawAll() external override returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
+  }
+
+  function burnPremium(
+    address account,
+    uint256 value,
+    address drawdownRecepient
+  ) external override {
+    require(drawdownRecepient == address(0));
+
+    (UserBalance memory b, ) = _beforeBalanceUpdate(account);
+    b.extra = uint128(b.extra - value);
+    _balances[account] = b;
   }
 }
