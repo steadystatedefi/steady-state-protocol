@@ -14,16 +14,16 @@ import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IProtocol.sol';
 import '../tools/math/WadRayMath.sol';
 import '../insurance/InsurancePoolBase.sol';
-import './BalancerLib.sol';
+import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
 contract PremiumFund {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
-  using BalancerLib for BalancerLib.PoolPremiums;
+  using BalancerLib2 for BalancerLib2.PoolBalances;
 
-  mapping(address => BalancerLib.PoolPremiums) private _premiums;
+  mapping(address => BalancerLib2.PoolBalances) private _premiums;
   address private _collateral;
 
   function swapToken(
@@ -35,10 +35,10 @@ contract PremiumFund {
     uint256 minAmount
   ) external returns (uint256 tokenAmount) {
     require(recipient != address(0));
-    BalancerLib.PoolPremiums storage pool = _premiums[poolToken];
+    BalancerLib2.PoolBalances storage pool = _premiums[poolToken];
 
     uint256 fee;
-    (tokenAmount, fee) = pool.swapToken(poolToken, targetToken, valueToSwap, minAmount);
+    (tokenAmount, fee) = pool.swapToken(targetToken, valueToSwap, minAmount);
 
     if (tokenAmount > 0) {
       address r;
@@ -51,7 +51,7 @@ contract PremiumFund {
           r = address(this);
         }
       }
-      BalancerLib.burnPremium(poolToken, account, valueToSwap, r);
+      //      BalancerLib.burnPremium(poolToken, account, valueToSwap, r);
       if (r != recipient) {
         SafeERC20.safeTransfer(IERC20(targetToken), recipient, tokenAmount);
       }
