@@ -47,7 +47,9 @@ library BalancerLib2 {
     }
 
     uint256 k = _calcScale(balance, total);
-    if ((amount = _calcA(c, balance.accum, value.rayMul(k))) == 0 && c.sA != 0 && balance.accum > 0) {
+    amount = _calcA(c, balance.accum, value.rayMul(k));
+
+    if (amount == 0 && c.sA != 0 && balance.accum > 0) {
       amount = 1;
     }
     amount = balance.accum - amount;
@@ -56,17 +58,19 @@ library BalancerLib2 {
       balance.accum = uint128(balance.accum - amount);
       total.accum = uint128(total.accum - amount);
 
-      fee = amount.wadMul(c.vA);
-      if (fee < value) {
+      if ((fee = amount.wadMul(c.vA)) < value) {
+        // This is a total amount of fees - it has 2 parts: balancing levy and volume penalty.
         fee = value - fee;
+        // The balancing levy can be positive (for popular assets) or negative (for non-popular assets) and is distributed within the balancer.
+        // The volume penalty is charged on large transactions and can be taken out.
 
-        // TODO this is a rough supremum of value's part that should be reserved for discounting of less popular assets
-        // an exact formula requires log()
+        // This formula is an aproximation that overestimates the levy and underpays the penalty. It is an acceptable behavior.
+        // More accurate formula needs log() which may be an overkill for this case.
         k = (k + _calcScale(balance, total)) >> 1;
-        // swap with bonus relies on the assets with liquidity penalty
-        k = k < WadRayMath.RAY ? value - value.rayMul(k) : 0;
+        // The negative levy is ignored here as it was applied with rayMul(k) above.
+        k = k < WadRayMath.RAY ? value - value.rayMul(WadRayMath.RAY - k) : 0;
 
-        // TODO When the constant-product formula (1/x) will produce less fees than required by scaling (integral(1/x))?
+        // The constant-product formula (1/x) should produce enough fees than required by balancing levy ... but there can be gaps.
         fee = fee > k ? fee - k : 0;
       } else {
         // got more with the bonus
@@ -148,10 +152,7 @@ library BalancerLib2 {
     uint256 wsA = wA - (a - c.sA);
     if (a1 < wsA) {
       uint256 wsV = (wA * wV) / wsA;
-      uint256 sdV = wsV - wV;
-
-      // a1 = _calc(cA, sdV, cA, cV); // requied when weight is applied to A
-      return _calc(c.sA, dV - sdV, c.sA, wsV);
+      return _calc(c.sA, dV - (wsV - wV), c.sA, wsV);
     }
 
     return a - (wA - a1);
@@ -176,10 +177,7 @@ library BalancerLib2 {
     uint256 a,
     uint256 dV
   ) private pure returns (uint256 a1) {
-    uint256 cA = c.sA;
-    uint256 cV = cA.wadMul(c.vA);
-
-    a1 = _calc(a, dV, cA, cV);
+    a1 = _calc(a, dV, c.sA, c.sA.wadMul(c.vA));
   }
 
   function _calc(
@@ -188,11 +186,11 @@ library BalancerLib2 {
     uint256 cA,
     uint256 cV
   ) private pure returns (uint256) {
-    if (cV <= cA) {
-      cV = cV * WadRayMath.RAY;
-    } else {
-      cA = cA * WadRayMath.RAY;
+    if (cV > cA) {
+      (cA, cV) = (cV, cA);
     }
+    cV = cV * WadRayMath.RAY;
+
     return Math.mulDiv(cV, cA, dV * WadRayMath.RAY + Math.mulDiv(cV, cA, a));
   }
 }

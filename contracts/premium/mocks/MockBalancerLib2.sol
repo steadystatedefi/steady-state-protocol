@@ -12,6 +12,11 @@ contract MockBalancerLib2 {
     return _poolBalance.totalBalance;
   }
 
+  function setGlobals(uint32 spFactor, uint160 spConst) external {
+    _poolBalance.spFactor = spFactor;
+    _poolBalance.spConst = spConst;
+  }
+
   function setTotalBalance(uint128 accum, uint96 rate) external {
     _poolBalance.totalBalance = Balances.RateAcc(accum, rate, uint32(block.timestamp));
   }

@@ -4,7 +4,7 @@ import { BigNumber, BigNumberish } from 'ethers';
 import { MAX_UINT128, RAY, WAD } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
-import { createRandomAddress } from '../../helpers/runtime-utils';
+import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { MockBalancerLib2 } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
@@ -28,21 +28,19 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
 
   const starvationPoint = 20;
 
-  it('Setup assets with different pricing modes', async () => {
-    // NB! different tokens are used to test different calculation modes
-    // But total will be sync with each token to make it looks like a single asset case
+  const swapTokenStatic = async (
+    token: string,
+    value: BigNumberish,
+    expectedAmount: BigNumberish,
+    expectedFee?: BigNumberish,
+    minAmount?: number
+  ) => {
+    const ev = await lib.callStatic.swapToken(token, value, minAmount ?? 0);
+    expect(ev.amount).eq(expectedAmount);
+    expect(ev.fee).eq(expectedFee ?? BigNumber.from(value).sub(expectedAmount));
+  };
 
-    // price = 1, w = 0 (no fees before starvation)
-    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.Constant, starvationPoint);
-
-    // price = 1, w = 1 (full fees before starvation)
-    await lib.setConfig(t1, WAD, WAD, 0, StarvationPointMode.Constant, starvationPoint);
-
-    // price = 1, w = 1/1000
-    await lib.setConfig(t2, WAD, WAD.div(1000), 0, StarvationPointMode.Constant, starvationPoint);
-  });
-
-  const swapToken = async (
+  const swapTokenAt = async (
     token: string,
     balance: BigNumberish,
     value: BigNumberish,
@@ -62,8 +60,73 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     );
   };
 
+  it('Starvation point with constant modes', async () => {
+    const v = 100;
+
+    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.Constant, starvationPoint);
+    await swapTokenAt(t0, 100, v, v - starvationPoint / 2);
+
+    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.GlobalConstant, 0);
+    await swapTokenAt(t0, 100, v, v);
+    await lib.setGlobals(0, starvationPoint);
+    await swapTokenAt(t0, 100, v, v - starvationPoint / 2);
+  });
+
+  it('Starvation point with rate factor mode', async () => {
+    const v = 100;
+    const rate = 1;
+
+    await lib.setConfig(t0, WAD, 0, starvationPoint, StarvationPointMode.RateFactor, 0);
+
+    const startedAt = await currentTime();
+    await lib.setBalance(t0, v, rate);
+    await lib.setTotalBalance(v + rate * ((await currentTime()) - startedAt), rate);
+
+    {
+      const dV = rate * ((await currentTime()) - startedAt);
+      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
+      if (!testEnv.underCoverage) {
+        expect(ev.amount).eq(v + dV - starvationPoint / 2);
+      }
+    }
+  });
+
+  it('Starvation point with global rate factor mode', async () => {
+    const v = 100;
+    const rate = 1;
+
+    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.GlobalRateFactor, 0);
+    await lib.setGlobals(starvationPoint, 0);
+
+    const startedAt = await currentTime();
+    await lib.setBalance(t0, v, rate);
+    await lib.setTotalBalance(v + rate * ((await currentTime()) - startedAt), rate);
+
+    {
+      const dV = rate * ((await currentTime()) - startedAt);
+      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
+      if (!testEnv.underCoverage) {
+        expect(ev.amount).eq(v + dV - starvationPoint / 2);
+      }
+    }
+  });
+
+  it('Setup assets with different pricing modes', async () => {
+    // NB! different tokens are used to test different calculation modes
+    // But total will be sync with each token to make it looks like a single asset case
+
+    // price = 1, w = 0 (no fees before starvation)
+    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.Constant, starvationPoint);
+
+    // price = 1, w = 1 (full fees before starvation)
+    await lib.setConfig(t1, WAD, WAD, 0, StarvationPointMode.Constant, starvationPoint);
+
+    // price = 1, w = 1/1000
+    await lib.setConfig(t2, WAD, WAD.div(1000), 0, StarvationPointMode.Constant, starvationPoint);
+  });
+
   it('Min limit applied', async () => {
-    await swapToken(t0, 100, 10, 0, 0, 20);
+    await swapTokenAt(t0, 100, 10, 0, 0, 20);
 
     {
       const balance = await lib.getBalance(t0);
@@ -78,21 +141,21 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
   const testMinimal = async (v: BigNumberish, r5?: BigNumberish) => {
     if (r5 !== undefined) {
       const at = 5;
-      await swapToken(t0, at, v, r5);
-      await swapToken(t1, at, v, r5);
-      await swapToken(t2, at, v, r5);
+      await swapTokenAt(t0, at, v, r5);
+      await swapTokenAt(t1, at, v, r5);
+      await swapTokenAt(t2, at, v, r5);
     }
     {
       const at = 2;
-      await swapToken(t0, at, v, 1);
-      await swapToken(t1, at, v, 1);
-      await swapToken(t2, at, v, 1);
+      await swapTokenAt(t0, at, v, 1);
+      await swapTokenAt(t1, at, v, 1);
+      await swapTokenAt(t2, at, v, 1);
     }
     {
       const at = 1;
-      await swapToken(t0, at, v, 0, 0);
-      await swapToken(t1, at, v, 0, 0);
-      await swapToken(t2, at, v, 0, 0);
+      await swapTokenAt(t0, at, v, 0, 0);
+      await swapTokenAt(t1, at, v, 0, 0);
+      await swapTokenAt(t2, at, v, 0, 0);
     }
   };
 
@@ -104,39 +167,39 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     const v = 1;
     {
       const at = 100;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 50;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 30;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 20;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 10;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 5;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
   });
 
@@ -152,33 +215,33 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     const v = 5;
     {
       const at = 100;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 50;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 30;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 20;
-      await swapToken(t0, at, v, 4);
-      await swapToken(t1, at, v, 4);
-      await swapToken(t2, at, v, 4);
+      await swapTokenAt(t0, at, v, 4);
+      await swapTokenAt(t1, at, v, 4);
+      await swapTokenAt(t2, at, v, 4);
     }
     {
       const at = 10;
-      await swapToken(t0, at, v, 2);
-      await swapToken(t1, at, v, 2);
-      await swapToken(t2, at, v, 2);
+      await swapTokenAt(t0, at, v, 2);
+      await swapTokenAt(t1, at, v, 2);
+      await swapTokenAt(t2, at, v, 2);
     }
 
     await testMinimal(v, 1);
@@ -192,33 +255,33 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     const v = 10;
     {
       const at = 100;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, v);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, v);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 50;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, 9);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, 9);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 30;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, 8);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, 8);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 20;
-      await swapToken(t0, at, v, 7);
-      await swapToken(t1, at, v, 7);
-      await swapToken(t2, at, v, 7);
+      await swapTokenAt(t0, at, v, 7);
+      await swapTokenAt(t1, at, v, 7);
+      await swapTokenAt(t2, at, v, 7);
     }
     {
       const at = 10;
-      await swapToken(t0, at, v, 2);
-      await swapToken(t1, at, v, 2);
-      await swapToken(t2, at, v, 2);
+      await swapTokenAt(t0, at, v, 2);
+      await swapTokenAt(t1, at, v, 2);
+      await swapTokenAt(t2, at, v, 2);
     }
 
     await testMinimal(v, 1);
@@ -232,39 +295,39 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     const v = 50;
     {
       const at = 1000;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, 48);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, 48);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 100;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, 34);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, 34);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 50;
-      await swapToken(t0, at, v, at - starvationPoint / 2);
-      await swapToken(t1, at, v, at / 2);
-      await swapToken(t2, at, v, 31);
+      await swapTokenAt(t0, at, v, at - starvationPoint / 2);
+      await swapTokenAt(t1, at, v, at / 2);
+      await swapTokenAt(t2, at, v, 31);
     }
     {
       const at = 30;
-      await swapToken(t0, at, v, 24);
-      await swapToken(t1, at, v, 19);
-      await swapToken(t2, at, v, 11);
+      await swapTokenAt(t0, at, v, 24);
+      await swapTokenAt(t1, at, v, 19);
+      await swapTokenAt(t2, at, v, 11);
     }
     {
       const at = 20;
-      await swapToken(t0, at, v, 15);
-      await swapToken(t1, at, v, 15);
-      await swapToken(t2, at, v, 15);
+      await swapTokenAt(t0, at, v, 15);
+      await swapTokenAt(t1, at, v, 15);
+      await swapTokenAt(t2, at, v, 15);
     }
     {
       const at = 10;
-      await swapToken(t0, at, v, 6);
-      await swapToken(t1, at, v, 6);
-      await swapToken(t2, at, v, 6);
+      await swapTokenAt(t0, at, v, 6);
+      await swapTokenAt(t1, at, v, 6);
+      await swapTokenAt(t2, at, v, 6);
     }
 
     await testMinimal(v, 2);
@@ -278,39 +341,39 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     const v = 100;
     {
       const at = 1000;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, 91);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, 91);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 100;
-      await swapToken(t0, at, v, at - starvationPoint / 2);
-      await swapToken(t1, at, v, at / 2);
-      await swapToken(t2, at, v, 81);
+      await swapTokenAt(t0, at, v, at - starvationPoint / 2);
+      await swapTokenAt(t1, at, v, at / 2);
+      await swapTokenAt(t2, at, v, 81);
     }
     {
       const at = 50;
-      await swapToken(t0, at, v, 46);
-      await swapToken(t1, at, v, 34);
-      await swapToken(t2, at, v, 31);
+      await swapTokenAt(t0, at, v, 46);
+      await swapTokenAt(t1, at, v, 34);
+      await swapTokenAt(t2, at, v, 31);
     }
     {
       const at = 30;
-      await swapToken(t0, at, v, 27);
-      await swapToken(t1, at, v, 24);
-      await swapToken(t2, at, v, 11);
+      await swapTokenAt(t0, at, v, 27);
+      await swapTokenAt(t1, at, v, 24);
+      await swapTokenAt(t2, at, v, 11);
     }
     {
       const at = 20;
-      await swapToken(t0, at, v, 17);
-      await swapToken(t1, at, v, 17);
-      await swapToken(t2, at, v, 17);
+      await swapTokenAt(t0, at, v, 17);
+      await swapTokenAt(t1, at, v, 17);
+      await swapTokenAt(t2, at, v, 17);
     }
     {
       const at = 10;
-      await swapToken(t0, at, v, 8);
-      await swapToken(t1, at, v, 8);
-      await swapToken(t2, at, v, 8);
+      await swapTokenAt(t0, at, v, 8);
+      await swapTokenAt(t1, at, v, 8);
+      await swapTokenAt(t2, at, v, 8);
     }
 
     await testMinimal(v, 3);
@@ -320,21 +383,21 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     const v = 1000;
     {
       const at = 10000;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, 910);
-      await swapToken(t2, at, v, v);
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, 910);
+      await swapTokenAt(t2, at, v, v);
     }
     {
       const at = 1000;
-      await swapToken(t0, at, v, at - starvationPoint / 2);
-      await swapToken(t1, at, v, at / 2);
-      await swapToken(t2, at, v, 981);
+      await swapTokenAt(t0, at, v, at - starvationPoint / 2);
+      await swapTokenAt(t1, at, v, at / 2);
+      await swapTokenAt(t2, at, v, 981);
     }
     {
       const at = 100;
-      await swapToken(t0, at, v, 99);
-      await swapToken(t1, at, v, 91);
-      await swapToken(t2, at, v, 81);
+      await swapTokenAt(t0, at, v, 99);
+      await swapTokenAt(t1, at, v, 91);
+      await swapTokenAt(t2, at, v, 81);
     }
 
     if (testEnv.underCoverage) {
@@ -343,27 +406,27 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
 
     {
       const at = 50;
-      await swapToken(t0, at, v, 49);
-      await swapToken(t1, at, v, 48);
-      await swapToken(t2, at, v, 31);
+      await swapTokenAt(t0, at, v, 49);
+      await swapTokenAt(t1, at, v, 48);
+      await swapTokenAt(t2, at, v, 31);
     }
     {
       const at = 30;
-      await swapToken(t0, at, v, 29);
-      await swapToken(t1, at, v, 29);
-      await swapToken(t2, at, v, 11);
+      await swapTokenAt(t0, at, v, 29);
+      await swapTokenAt(t1, at, v, 29);
+      await swapTokenAt(t2, at, v, 11);
     }
     {
       const at = 20;
-      await swapToken(t0, at, v, 19);
-      await swapToken(t1, at, v, 19);
-      await swapToken(t2, at, v, 19);
+      await swapTokenAt(t0, at, v, 19);
+      await swapTokenAt(t1, at, v, 19);
+      await swapTokenAt(t2, at, v, 19);
     }
     {
       const at = 10;
-      await swapToken(t0, at, v, 9);
-      await swapToken(t1, at, v, 9);
-      await swapToken(t2, at, v, 9);
+      await swapTokenAt(t0, at, v, 9);
+      await swapTokenAt(t1, at, v, 9);
+      await swapTokenAt(t2, at, v, 9);
     }
 
     await testMinimal(v, 4);
@@ -380,10 +443,10 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
       // This value allows to use the smallest possible w (fee control) when swapping 1e9 wads.
       const at = BigNumber.from(2).pow(106);
 
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, '999987674200283132975237507');
-      await swapToken(t2, at, v, '999999987674048507850772600');
-      await swapToken(t3, at, v, '999999999999999999999987675');
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, '999987674200283132975237507');
+      await swapTokenAt(t2, at, v, '999999987674048507850772600');
+      await swapTokenAt(t3, at, v, '999999999999999999999987675');
     }
 
     if (testEnv.underCoverage) {
@@ -392,26 +455,26 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
 
     {
       const at = MAX_UINT128;
-      await swapToken(t0, at, v, v);
-      await swapToken(t1, at, v, '999999999997061264122952918');
-      await swapToken(t2, at, v, '999999999999997061264122945');
+      await swapTokenAt(t0, at, v, v);
+      await swapTokenAt(t1, at, v, '999999999997061264122952918');
+      await swapTokenAt(t2, at, v, '999999999999997061264122945');
 
       // NB! It is possible to reduce precision and allow this corner-case to be supported, but this combination of params is mythical
-      await expect(swapToken(t3, at, v, v)).revertedWith('Arithmetic operation underflowed or overflowed');
+      await expect(swapTokenAt(t3, at, v, v)).revertedWith('Arithmetic operation underflowed or overflowed');
     }
     {
       const at = RAY;
-      await swapToken(t0, at, v, at.sub(starvationPoint / 2));
-      await swapToken(t1, at, v, at.div(2));
-      await swapToken(t2, at, v, '999000999000999000999001000');
-      await swapToken(t3, at, v, '999999999999999999000000001');
+      await swapTokenAt(t0, at, v, at.sub(starvationPoint / 2));
+      await swapTokenAt(t1, at, v, at.div(2));
+      await swapTokenAt(t2, at, v, '999000999000999000999001000');
+      await swapTokenAt(t3, at, v, '999999999999999999000000001');
     }
     {
       const at = WAD;
-      await swapToken(t0, at, v, at.sub(1));
-      await swapToken(t1, at, v, '999999999000000001');
-      await swapToken(t2, at, v, at.sub(1));
-      await swapToken(t3, at, v, '999999999999999981');
+      await swapTokenAt(t0, at, v, at.sub(1));
+      await swapTokenAt(t1, at, v, '999999999000000001');
+      await swapTokenAt(t2, at, v, at.sub(1));
+      await swapTokenAt(t3, at, v, '999999999999999981');
     }
 
     await testMinimal(v);
@@ -445,5 +508,30 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
       const ev = await lib.callStatic.swapToken(t3, v.add(i), 0);
       expect(ev.amount).eq(sPoint.sub(1).add(i));
     }
+  });
+
+  it('Fees and cross-weighted swaps', async () => {
+    if (testEnv.underCoverage) {
+      return;
+    }
+
+    // use large base to simplify the test - it will diminish the impact of (rate*time)
+    const base = WAD;
+    await lib.setTotalBalance(base.mul(4), 4);
+
+    // the relative balance == to the relative rate
+    await lib.setBalance(t0, base.mul(1), 1);
+    await swapTokenStatic(t0, 10, 10, 0);
+
+    // the relative balance > the relative rate => this asset is in excess, give more of the asset for the same value
+    await lib.setBalance(t0, base.mul(2), 1);
+    await swapTokenStatic(t0, 10, 20, 0);
+
+    // the relative balance < the relative rate => this asset is in demand, give less of the asset for the same value
+    await lib.setBalance(t0, base.mul(1), 2);
+    await swapTokenStatic(t0, 10, 5, 0); // all fees are retained for balancing
+
+    await swapTokenStatic(t0, WAD.mul(2), WAD.sub(starvationPoint / 2), WAD.add(starvationPoint / 2).div(2));
+    await swapTokenStatic(t0, WAD, WAD.div(2).sub(1), '107142857142857145');
   });
 });
