@@ -18,10 +18,16 @@ import 'hardhat/console.sol';
 contract PremiumFund is IPremiumSink {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
-  using BalancerLib2 for BalancerLib2.PoolBalances;
+  using BalancerLib2 for BalancerLib2.AssetBalancer;
   using Balances for Balances.RateAcc;
 
-  mapping(address => BalancerLib2.PoolBalances) private _balances;
+  mapping(address => BalancerLib2.AssetBalancer) private _balancers; // [insurer]
+
+  struct PoolConfig {
+    mapping(address => address) insureds; // [token]
+    mapping(address => int256) debts; // [token]
+  }
+  mapping(address => PoolConfig) private _configs; // [insurer]
   mapping(address => uint256) private _collectedFees; // [token]
   address private _collateral;
 
@@ -35,23 +41,46 @@ contract PremiumFund is IPremiumSink {
     uint256 increment,
     uint256 rate
   ) external override {
+    _premiumAllocationUpdated(insured, accumulated, increment, rate);
+  }
+
+  function _premiumAllocationUpdated(
+    address insured,
+    uint256 accumulated,
+    uint256 increment,
+    uint256 rate
+  ) private {
+    PoolConfig storage config = _configs[msg.sender];
     address targetToken = IInsuredPool(insured).premiumToken();
-    // receive the premium token from insured
-    // ?? or get a payment in CC
+    require(config.insureds[insured] == targetToken);
+
+    BalancerLib2.AssetBalancer storage balancer = _balancers[msg.sender];
+    require(balancer.replenishAsset(targetToken, increment, rate, _replenishFn) <= accumulated);
   }
 
   function premiumAllocationFinished(
     address insured,
     uint256 accumulated,
     uint256 increment
-  ) external override returns (uint256 premiumDebt) {}
+  ) external override returns (uint256 premiumDebt) {
+    _premiumAllocationUpdated(insured, accumulated, increment, 0);
+    // TODO change config
+    // TODO return debt
+  }
 
   function _replenishFn(
-    BalancerLib2.PoolBalances storage,
+    BalancerLib2.AssetBalancer storage,
     address,
     uint256 v
   ) private pure returns (uint256, uint256) {
     return (v, v);
+  }
+
+  function syncAsset(address poolToken, address targetToken) external {
+    // if (_collateral == targetToken) {
+    //   return;
+    // }
+    // BalancerLib2.AssetBalancer storage balancer = _balancers[poolToken];
   }
 
   function swapAsset(
@@ -67,10 +96,10 @@ contract PremiumFund is IPremiumSink {
     uint256 fee;
     address burnReceiver;
     uint256 drawdownValue = IDynamicPremiumSource(poolToken).collectPremiumValue();
-    BalancerLib2.PoolBalances storage pool = _balances[poolToken];
+    BalancerLib2.AssetBalancer storage balancer = _balancers[poolToken];
 
     if (_collateral == targetToken) {
-      (tokenAmount, fee) = pool.swapExternalAsset(targetToken, valueToSwap, minAmount, drawdownValue);
+      (tokenAmount, fee) = balancer.swapExternalAsset(targetToken, valueToSwap, minAmount, drawdownValue);
       if (tokenAmount > 0) {
         if (fee == 0) {
           // use a direct transfer when no fees
@@ -81,7 +110,7 @@ contract PremiumFund is IPremiumSink {
         }
       }
     } else {
-      (tokenAmount, fee) = pool.swapAsset(targetToken, valueToSwap, minAmount, drawdownValue, _replenishFn);
+      (tokenAmount, fee) = balancer.swapAsset(targetToken, valueToSwap, minAmount, drawdownValue, _replenishFn);
     }
 
     if (tokenAmount > 0) {
@@ -134,14 +163,14 @@ contract PremiumFund is IPremiumSink {
     SwapInstruction[] calldata instructions,
     uint256 drawdownValue
   ) private returns (uint256[] memory tokenAmounts, uint256[] memory fees) {
-    BalancerLib2.PoolBalances storage pool = _balances[poolToken];
+    BalancerLib2.AssetBalancer storage balancer = _balancers[poolToken];
 
     uint256 drawdownBalance = drawdownValue;
 
     tokenAmounts = new uint256[](instructions.length);
     fees = new uint256[](instructions.length);
 
-    Balances.RateAcc memory totalOrig = pool.totalBalance;
+    Balances.RateAcc memory totalOrig = balancer.totalBalance;
     Balances.RateAcc memory totalSum;
     (totalSum.accum, totalSum.rate, totalSum.updatedAt) = (totalOrig.accum, totalOrig.rate, totalOrig.updatedAt);
     Balances.RateAcc memory total;
@@ -150,7 +179,7 @@ contract PremiumFund is IPremiumSink {
     uint256 totalExtValue;
     for (uint256 i = 0; i < instructions.length; i++) {
       if (_collateral == instructions[i].targetToken) {
-        (tokenAmounts[i], fees[i]) = pool.swapExternalAssetInBatch(
+        (tokenAmounts[i], fees[i]) = balancer.swapExternalAssetInBatch(
           instructions[i].targetToken,
           instructions[i].valueToSwap,
           instructions[i].minAmount,
@@ -165,7 +194,7 @@ contract PremiumFund is IPremiumSink {
       } else {
         (total.accum, total.rate, total.updatedAt) = (totalOrig.accum, totalOrig.rate, totalOrig.updatedAt);
 
-        (tokenAmounts[i], fees[i]) = pool.swapAssetInBatch(
+        (tokenAmounts[i], fees[i]) = balancer.swapAssetInBatch(
           instructions[i].targetToken,
           instructions[i].valueToSwap,
           instructions[i].minAmount,
@@ -189,7 +218,7 @@ contract PremiumFund is IPremiumSink {
       IPremiumSource(poolToken).burnPremium(account, totalValue, address(0));
     }
 
-    pool.totalBalance = totalSum;
+    balancer.totalBalance = totalSum;
   }
 
   function _mergeValue(

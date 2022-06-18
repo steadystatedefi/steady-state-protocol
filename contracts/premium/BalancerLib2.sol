@@ -14,7 +14,7 @@ library BalancerLib2 {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
 
-  struct PoolBalances {
+  struct AssetBalancer {
     mapping(address => Balances.RateAcc) balances;
     Balances.RateAcc totalBalance;
     mapping(address => AssetConfig) configs;
@@ -42,7 +42,7 @@ library BalancerLib2 {
   }
 
   function swapExternalAsset(
-    PoolBalances storage p,
+    AssetBalancer storage p,
     address token,
     uint256 value,
     uint256 minAmount,
@@ -52,7 +52,7 @@ library BalancerLib2 {
   }
 
   function swapExternalAssetInBatch(
-    PoolBalances storage p,
+    AssetBalancer storage p,
     address token,
     uint256 value,
     uint256 minAmount,
@@ -70,40 +70,40 @@ library BalancerLib2 {
   }
 
   function swapAsset(
-    PoolBalances storage p,
+    AssetBalancer storage p,
     address token,
     uint256 value,
     uint256 minAmount,
     uint256 extraTotal,
-    function(PoolBalances storage, address, uint256) returns (uint256, uint256) replenishFn
+    function(AssetBalancer storage, address, uint256) returns (uint256, uint256) replenishFn
   ) internal returns (uint256 amount, uint256 fee) {
     Balances.RateAcc memory total = p.totalBalance;
     (amount, fee) = swapAssetInBatch(p, token, value, minAmount, extraTotal, replenishFn, total);
 
     if (amount > 0) {
+      // wrong update criteria on replenishment
       p.totalBalance = total;
     }
   }
 
   function swapAssetInBatch(
-    PoolBalances storage p,
+    AssetBalancer storage p,
     address token,
     uint256 value,
     uint256 minAmount,
     uint256 extraTotal,
-    function(PoolBalances storage, address, uint256) returns (uint256, uint256) replenishFn,
+    function(AssetBalancer storage, address, uint256) returns (uint256, uint256) replenishFn,
     Balances.RateAcc memory total
   ) internal returns (uint256 amount, uint256 fee) {
     Balances.RateAcc memory balance = p.balances[token];
+    total.sync(uint32(block.timestamp));
 
     (CalcParams memory c, uint256 flags) = _calcParams(p, token, balance.rate);
     c.extraTotal = extraTotal;
 
     if (flags & SPM_FLOW_BALANCE != 0 || (balance.rate > 0 && balance.accum <= c.sA)) {
-      _replenishAsset(p, token, replenishFn, c, balance, total);
+      _replenishAsset(p, token, 0, replenishFn, c, balance, total);
     }
-
-    total.sync(uint32(block.timestamp));
 
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
     if (amount > 0) {
@@ -112,7 +112,7 @@ library BalancerLib2 {
   }
 
   function _calcParams(
-    PoolBalances storage p,
+    AssetBalancer storage p,
     address token,
     uint256 rate
   ) private view returns (CalcParams memory c, uint256 flags) {
@@ -266,21 +266,72 @@ library BalancerLib2 {
     return Math.mulDiv(cV, cA, dV * WadRayMath.RAY + Math.mulDiv(cV, cA, a));
   }
 
-  function _replenishAsset(
-    PoolBalances storage p,
+  function replenishAsset(
+    AssetBalancer storage p,
     address token,
-    function(PoolBalances storage, address, uint256) returns (uint256, uint256) replenishFn,
+    uint256 extraAmount,
+    function(AssetBalancer storage, address, uint256) returns (uint256, uint256) replenishFn
+  ) internal {
+    (Balances.RateAcc memory balance, Balances.RateAcc memory total) = _replenishAssetForUpdate(p, token, extraAmount, replenishFn);
+    p.balances[token] = balance;
+    p.totalBalance = total;
+  }
+
+  function replenishAsset(
+    AssetBalancer storage p,
+    address token,
+    uint256 extraAmount,
+    uint256 newRate,
+    function(AssetBalancer storage, address, uint256) returns (uint256, uint256) replenishFn
+  ) internal returns (uint256) {
+    (Balances.RateAcc memory balance, Balances.RateAcc memory total) = _replenishAssetForUpdate(p, token, extraAmount, replenishFn);
+    if (newRate != balance.rate) {
+      if (newRate > balance.rate) {
+        unchecked {
+          newRate -= balance.rate;
+        }
+        require((total.rate += uint96(newRate)) >= newRate);
+      } else {
+        unchecked {
+          newRate = balance.rate - newRate;
+        }
+        total.rate -= uint96(newRate);
+      }
+    }
+    p.balances[token] = balance;
+    p.totalBalance = total;
+    return balance.accum;
+  }
+
+  function _replenishAssetForUpdate(
+    AssetBalancer storage p,
+    address token,
+    uint256 extraAmount,
+    function(AssetBalancer storage, address, uint256) returns (uint256, uint256) replenishFn
+  ) internal returns (Balances.RateAcc memory balance, Balances.RateAcc memory total) {
+    total = p.totalBalance.sync(uint32(block.timestamp));
+    balance = p.balances[token];
+    (CalcParams memory c, ) = _calcParams(p, token, balance.rate);
+
+    _replenishAsset(p, token, extraAmount, replenishFn, c, balance, total);
+  }
+
+  function _replenishAsset(
+    AssetBalancer storage p,
+    address token,
+    uint256 extraAmount,
+    function(AssetBalancer storage, address, uint256) returns (uint256, uint256) replenishFn,
     CalcParams memory c,
     Balances.RateAcc memory balance,
     Balances.RateAcc memory total
   ) private {
-    uint256 delta = uint32(block.timestamp) - balance.updatedAt;
-    if (delta > 0) {
-      delta *= balance.rate; // delta is uint32 * uint96
-      (uint256 receivedAmount, uint256 v) = replenishFn(p, token, delta);
+    uint256 delta = block.timestamp - balance.updatedAt;
+    if (delta > 0 || extraAmount > 0) {
+      delta *= balance.rate;
+      (uint256 receivedAmount, uint256 v) = replenishFn(p, token, delta + extraAmount);
 
       v = v * WadRayMath.WAD + uint256(balance.accum) * c.vA;
-      _replenishAsset(uint128(delta), receivedAmount, balance, total);
+      _replenishAsset(delta, receivedAmount, balance, total);
 
       if ((v = v.divUp(balance.accum)) != c.vA) {
         require((c.vA = p.configs[token].price = uint152(v)) == v);
@@ -290,21 +341,19 @@ library BalancerLib2 {
   }
 
   function _replenishAsset(
-    uint128 expectedAmount,
+    uint256 streamAmount,
     uint256 receivedAmount,
     Balances.RateAcc memory balance,
     Balances.RateAcc memory total
-  ) private pure {
-    if (receivedAmount > 0) {
-      balance.accum += uint128(receivedAmount);
-      if (receivedAmount < expectedAmount) {
-        total.accum += uint128(receivedAmount);
-      } else {
-        require(expectedAmount == receivedAmount || (expectedAmount == 0 && receivedAmount <= type(uint128).max));
-        return;
-      }
+  ) private view {
+    require(receivedAmount <= type(uint128).max);
+    require(total.updatedAt == block.timestamp);
+
+    total.accum = uint128((total.accum - streamAmount) + receivedAmount);
+    balance.accum += uint128(receivedAmount);
+    if (streamAmount > receivedAmount) {
+      total.rate -= balance.rate;
+      balance.rate = 0;
     }
-    total.rate -= balance.rate;
-    balance.rate = 0;
   }
 }

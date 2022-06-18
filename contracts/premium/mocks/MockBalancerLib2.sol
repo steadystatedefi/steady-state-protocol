@@ -4,9 +4,9 @@ pragma solidity ^0.8.4;
 import '../BalancerLib2.sol';
 
 contract MockBalancerLib2 {
-  using BalancerLib2 for BalancerLib2.PoolBalances;
+  using BalancerLib2 for BalancerLib2.AssetBalancer;
 
-  BalancerLib2.PoolBalances private _poolBalance;
+  BalancerLib2.AssetBalancer private _poolBalance;
 
   function getTotalBalance() external view returns (Balances.RateAcc memory) {
     return _poolBalance.totalBalance;
@@ -47,7 +47,7 @@ contract MockBalancerLib2 {
   event TokenSwapped(uint256 amount, uint256 fee);
 
   function _replenishFn(
-    BalancerLib2.PoolBalances storage,
+    BalancerLib2.AssetBalancer storage,
     address,
     uint256 v
   ) private pure returns (uint256 amount, uint256 value) {
