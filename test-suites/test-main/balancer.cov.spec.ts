@@ -525,7 +525,7 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
 
     // the relative balance > the relative rate => this asset is in excess, give more of the asset for the same value
     await lib.setBalance(t0, base.mul(2), 1);
-    // await swapTokenStatic(t0, 10, 20, 0);
+    await swapTokenStatic(t0, 10, 20, 0);
 
     // the relative balance < the relative rate => this asset is in demand, give less of the asset for the same value
     await lib.setBalance(t0, base.mul(1), 2);
