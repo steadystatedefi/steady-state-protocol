@@ -2,5 +2,13 @@
 pragma solidity ^0.8.4;
 
 interface IPremiumSource {
-  function pullPremiumSource(address insurer, uint256 expectedRefillAmount) external returns (uint256 value, uint256 amount);
+  function burnPremium(
+    address account,
+    uint256 value,
+    address drawdownRecepient
+  ) external;
+}
+
+interface IDynamicPremiumSource is IPremiumSource {
+  function collectPremiumValue() external returns (uint256 availablePremiumValue);
 }

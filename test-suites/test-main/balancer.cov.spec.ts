@@ -20,10 +20,10 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
   });
 
   enum StarvationPointMode {
-    RateFactor,
-    GlobalRateFactor,
-    Constant,
-    GlobalConstant,
+    RateFactor = 0 + 4, // flow mode
+    GlobalRateFactor = 1 + 4, // flow mode
+    Constant = 2,
+    GlobalConstant = 3,
   }
 
   const starvationPoint = 20;
@@ -525,7 +525,7 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
 
     // the relative balance > the relative rate => this asset is in excess, give more of the asset for the same value
     await lib.setBalance(t0, base.mul(2), 1);
-    await swapTokenStatic(t0, 10, 20, 0);
+    // await swapTokenStatic(t0, 10, 20, 0);
 
     // the relative balance < the relative rate => this asset is in demand, give less of the asset for the same value
     await lib.setBalance(t0, base.mul(1), 2);

@@ -6,7 +6,7 @@ import '../libraries/Balances.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinHandler.sol';
-import '../interfaces/IPremiumHandler.sol';
+import '../interfaces/IPremiumSink.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
@@ -83,9 +83,8 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
   /// @return payoutValue The amount of coverage paid out to the insured
   function internalCancelCoverage(address insured, uint256 payoutRatio) private onlyActiveInsured returns (uint256 payoutValue) {
-    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
-      insured
-    );
+    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage, uint256 receivedPremium) = super
+      .internalCancelCoverage(insured);
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
 
@@ -99,7 +98,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
 
     if (_premiumHandler != address(0)) {
-      uint256 premiumDebt = IPremiumHandler(_premiumHandler).premiumAllocationFinished(insured, coverage.totalPremium);
+      uint256 premiumDebt = IPremiumSink(_premiumHandler).premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
       unchecked {
         payoutValue = payoutValue <= premiumDebt ? 0 : payoutValue - premiumDebt;
       }
@@ -146,7 +145,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
     if (_premiumHandler != address(0)) {
-      IPremiumHandler(_premiumHandler).premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate);
+      IPremiumSink(_premiumHandler).premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate, params.receivedPremium);
     }
 
     return (params.receivedCoverage, receivedCollateral, coverage);

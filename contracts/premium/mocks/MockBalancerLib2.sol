@@ -26,10 +26,10 @@ contract MockBalancerLib2 {
     uint152 price,
     uint64 w,
     uint32 n,
-    BalancerLib2.StarvationPointMode sp,
+    uint16 flags,
     uint160 spConst
   ) external {
-    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(price, w, n, sp, spConst);
+    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(price, w, n, flags, spConst);
   }
 
   function setBalance(
@@ -46,12 +46,20 @@ contract MockBalancerLib2 {
 
   event TokenSwapped(uint256 amount, uint256 fee);
 
+  function _replenishFn(
+    BalancerLib2.PoolBalances storage,
+    address,
+    uint256 v
+  ) private pure returns (uint256 amount, uint256 value) {
+    return (v, v);
+  }
+
   function swapToken(
     address token,
     uint256 value,
     uint256 minAmount
   ) external returns (uint256 amount, uint256 fee) {
-    (amount, fee) = _poolBalance.swapToken(token, value, minAmount);
+    (amount, fee) = _poolBalance.swapAsset(token, value, minAmount, 0, _replenishFn);
     emit TokenSwapped(amount, fee);
   }
 }
