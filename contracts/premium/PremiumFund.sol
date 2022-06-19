@@ -422,7 +422,7 @@ contract PremiumFund is IPremiumDistributor {
     Balances.RateAcc memory total
   ) private returns (uint256 tokenAmount, uint256 fee) {
     params.token = instruction.targetToken;
-    return balancer.swapAssetInBatch(params, instruction.valueToSwap, instruction.minAmount, drawdownValue, total);
+    (tokenAmount, fee, ) = balancer.swapAssetInBatch(params, instruction.valueToSwap, instruction.minAmount, drawdownValue, total);
   }
 
   function _swapExtTokenInBatch(

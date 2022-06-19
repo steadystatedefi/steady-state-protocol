@@ -84,10 +84,10 @@ library BalancerLib2 {
     uint256 extraTotal
   ) internal returns (uint256 amount, uint256 fee) {
     Balances.RateAcc memory total = p.totalBalance;
-    (amount, fee) = swapAssetInBatch(p, params, value, minAmount, extraTotal, total);
+    bool updateTotal;
+    (amount, fee, updateTotal) = swapAssetInBatch(p, params, value, minAmount, extraTotal, total);
 
-    if (amount > 0) {
-      // wrong update criteria on replenishment
+    if (updateTotal) {
       p.totalBalance = total;
     }
   }
@@ -99,7 +99,14 @@ library BalancerLib2 {
     uint256 minAmount,
     uint256 extraTotal,
     Balances.RateAcc memory total
-  ) internal returns (uint256 amount, uint256 fee) {
+  )
+    internal
+    returns (
+      uint256 amount,
+      uint256 fee,
+      bool updateTotal
+    )
+  {
     Balances.RateAcc memory balance = p.balances[params.token];
     total.sync(uint32(block.timestamp));
 
@@ -108,11 +115,13 @@ library BalancerLib2 {
 
     if (flags & SPM_FLOW_BALANCE != 0 || (balance.rate > 0 && balance.accum <= c.sA)) {
       _replenishAsset(p, params, 0, c, balance, total);
+      updateTotal = true;
     }
 
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
     if (amount > 0) {
       p.balances[params.token] = balance;
+      updateTotal = true;
     }
   }
 
