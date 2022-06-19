@@ -3,7 +3,7 @@ pragma solidity ^0.8.4;
 
 import './ICollateralized.sol';
 
-interface IPremiumSink is ICollateralized {
+interface IPremiumDistributor is ICollateralized {
   function premiumAllocationUpdated(
     address insured,
     uint256 accumulated,

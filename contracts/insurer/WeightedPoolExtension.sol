@@ -6,7 +6,7 @@ import '../libraries/Balances.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinHandler.sol';
-import '../interfaces/IPremiumSink.sol';
+import '../interfaces/IPremiumDistributor.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
@@ -98,7 +98,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
 
     if (_premiumHandler != address(0)) {
-      uint256 premiumDebt = IPremiumSink(_premiumHandler).premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
+      uint256 premiumDebt = IPremiumDistributor(_premiumHandler).premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
       unchecked {
         payoutValue = payoutValue <= premiumDebt ? 0 : payoutValue - premiumDebt;
       }
@@ -145,7 +145,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
     if (_premiumHandler != address(0)) {
-      IPremiumSink(_premiumHandler).premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate, params.receivedPremium);
+      IPremiumDistributor(_premiumHandler).premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate, params.receivedPremium);
     }
 
     return (params.receivedCoverage, receivedCollateral, coverage);

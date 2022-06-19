@@ -258,4 +258,6 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     b.extra = uint128(b.extra - value);
     _balances[account] = b;
   }
+
+  function collectDrawdownPremium() external override returns (uint256) {}
 }

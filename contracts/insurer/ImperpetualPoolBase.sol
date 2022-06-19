@@ -253,4 +253,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
+
+  function collectDrawdownPremium() external override returns (uint256) {
+    // TODO
+  }
 }
