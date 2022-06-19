@@ -42,11 +42,15 @@ contract PremiumFund is IPremiumDistributor {
   mapping(address => uint256) private _collectedFees; // [token]
   address private _collateral;
 
+  constructor(address collateral_) {
+    _collateral = collateral_;
+  }
+
   function collateral() public view override returns (address) {
     return _collateral;
   }
 
-  modifier onlyAdmin() {
+  modifier onlyAdmin() virtual {
     // TODO
     _;
   }
