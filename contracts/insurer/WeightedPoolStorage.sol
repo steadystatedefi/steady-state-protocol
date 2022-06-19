@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/math/PercentageMath.sol';
 import '../insurance/InsurancePoolBase.sol';
+import '../interfaces/IPremiumDistributor.sol';
 import './WeightedPoolConfig.sol';
 
 // Contains all variables for both base and extension contract. Allows for upgrades without corruption
@@ -21,7 +22,7 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
   mapping(address => UserBalance) internal _balances; // [investor]
 
   address internal _joinHandler;
-  address internal _premiumHandler;
+  IPremiumDistributor internal _premiumHandler;
 
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;

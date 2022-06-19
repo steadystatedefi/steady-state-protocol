@@ -20,8 +20,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
   constructor(uint256 unitSize, ImperpetualPoolExtension extension) WeightedRoundsBase(unitSize) WeightedPoolBase(unitSize, extension) {}
 
-  function premiumHandler() public view returns (address) {
-    return _premiumHandler;
+  function premiumDistributor() public view returns (address) {
+    return address(_premiumHandler);
   }
 
   function _addCoverage(uint256 value)
@@ -252,5 +252,9 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   ) external override {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
+  }
+
+  function collectDrawdownPremium() external override returns (uint256) {
+    // TODO
   }
 }

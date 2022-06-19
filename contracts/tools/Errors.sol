@@ -2,8 +2,6 @@
 pragma solidity ^0.8.4;
 
 library Errors {
-  string public constant MATH_DIVISION_BY_ZERO = '0000';
-
   string public constant MARKET_PROVIDER_NOT_REGISTERED = '0101'; // Amount must be greater than 0
   string public constant INVALID_MARKET_PROVIDER_ID = '0102';
 
@@ -15,14 +13,46 @@ library Errors {
   string public constant TXT_OWNABLE_CALLER_NOT_OWNER = 'Ownable: caller is not the owner';
   string public constant TXT_CALLER_NOT_PROXY_OWNER = 'ProxyOwner: caller is not the owner';
   string public constant TXT_ACCESS_RESTRICTED = 'RESTRICTED';
-  string public constant TXT_NOT_IMPLEMENTED = 'NOT_IMPLEMENTED';
+
+  function illegalState(bool ok) internal pure {
+    if (!ok) {
+      revert IllegalState();
+    }
+  }
+
+  function illegalValue(bool ok) internal pure {
+    if (!ok) {
+      revert IllegalValue();
+    }
+  }
 
   function _mutable() private returns (bool) {}
 
   function notImplemented() internal {
-    require(_mutable(), TXT_NOT_IMPLEMENTED);
+    if (!_mutable()) {
+      revert NotImplemented();
+    }
   }
 
+  error OperationPaused();
+  error IllegalState();
+  error IllegalValue();
   error NotSupported();
   error NotImplemented();
+}
+
+library State {
+  function require(bool ok) internal pure {
+    if (!ok) {
+      revert Errors.IllegalState();
+    }
+  }
+}
+
+library Value {
+  function require(bool ok) internal pure {
+    if (!ok) {
+      revert Errors.IllegalValue();
+    }
+  }
 }
