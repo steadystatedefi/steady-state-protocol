@@ -30,12 +30,10 @@ library PercentageMath {
    * @return The value divided the percentage
    **/
   function percentDiv(uint256 value, uint256 factor) internal pure returns (uint256) {
-    require(factor != 0, Errors.MATH_DIVISION_BY_ZERO);
     return (value * ONE + factor / 2) / factor;
   }
 
   function percentOf(uint256 value, uint256 base) internal pure returns (uint256) {
-    require(base != 0, Errors.MATH_DIVISION_BY_ZERO);
     if (value == 0) {
       return 0;
     }

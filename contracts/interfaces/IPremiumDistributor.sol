@@ -16,4 +16,6 @@ interface IPremiumDistributor is ICollateralized {
     uint256 accumulated,
     uint256 increment
   ) external returns (uint256 premiumDebt);
+
+  function registerPremiumSource(address insured, bool register) external;
 }

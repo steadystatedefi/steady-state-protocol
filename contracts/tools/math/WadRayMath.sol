@@ -52,12 +52,10 @@ library WadRayMath {
 
   /// @dev Divides two wad, rounding half up to the nearest wad
   function wadDiv(uint256 a, uint256 b) internal pure returns (uint256) {
-    require(b != 0, Errors.MATH_DIVISION_BY_ZERO);
     return (a * WAD + b / 2) / b;
   }
 
   function divUp(uint256 a, uint256 b) internal pure returns (uint256) {
-    require(b != 0, Errors.MATH_DIVISION_BY_ZERO);
     return (a + b / 2) / b;
   }
 
@@ -71,7 +69,6 @@ library WadRayMath {
 
   /// @dev Divides two ray, rounding half up to the nearest ray
   function rayDiv(uint256 a, uint256 b) internal pure returns (uint256) {
-    require(b != 0, Errors.MATH_DIVISION_BY_ZERO);
     return (a * RAY + b / 2) / b;
   }
 

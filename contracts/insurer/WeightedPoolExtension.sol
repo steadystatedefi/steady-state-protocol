@@ -6,7 +6,6 @@ import '../libraries/Balances.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinHandler.sol';
-import '../interfaces/IPremiumDistributor.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
@@ -97,8 +96,8 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
 
     require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
 
-    if (_premiumHandler != address(0)) {
-      uint256 premiumDebt = IPremiumDistributor(_premiumHandler).premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
+    if (address(_premiumHandler) != address(0)) {
+      uint256 premiumDebt = _premiumHandler.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
       unchecked {
         payoutValue = payoutValue <= premiumDebt ? 0 : payoutValue - premiumDebt;
       }
@@ -144,8 +143,8 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
 
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
-    if (_premiumHandler != address(0)) {
-      IPremiumDistributor(_premiumHandler).premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate, params.receivedPremium);
+    if (address(_premiumHandler) != address(0)) {
+      _premiumHandler.premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate, params.receivedPremium);
     }
 
     return (params.receivedCoverage, receivedCollateral, coverage);
@@ -190,5 +189,11 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
 
   function internalSetStatus(address account, InsuredStatus status) internal override {
     return super.internalSetInsuredStatus(account, status);
+  }
+
+  function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal override {
+    if (address(_premiumHandler) != address(0)) {
+      _premiumHandler.registerPremiumSource(insured, status == InsuredStatus.Accepted);
+    }
   }
 }

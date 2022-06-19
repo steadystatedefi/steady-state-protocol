@@ -56,7 +56,7 @@ contract MockBalancerLib2 {
     uint256 minAmount
   ) external returns (uint256 amount, uint256 fee) {
     (amount, fee) = _poolBalance.swapAsset(
-      BalancerLib2.ReplenishParams({pool: address(0), source: address(0), token: token, replenishFn: _replenishFn}),
+      BalancerLib2.ReplenishParams({actuary: address(0), source: address(0), token: token, replenishFn: _replenishFn}),
       value,
       minAmount,
       0

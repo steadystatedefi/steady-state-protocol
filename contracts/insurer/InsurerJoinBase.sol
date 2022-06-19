@@ -64,7 +64,12 @@ abstract contract InsurerJoinBase is IJoinEvents {
 
       try IInsuredPool(insured).joinProcessed(accepted) {
         emit JoinProcessed(insured, accepted);
-        return internalGetStatus(insured);
+
+        status = internalGetStatus(insured);
+        if (accepted) {
+          internalAfterJoinOrLeave(insured, status);
+        }
+        return status;
       } catch Error(string memory reason) {
         // console.log('JoinFailed', reason);
         emit JoinFailed(insured, reason);
@@ -73,13 +78,20 @@ abstract contract InsurerJoinBase is IJoinEvents {
         emit JoinFailed(insured, '<unknown>');
       }
       status = InsuredStatus.JoinFailed;
-    } else if (status == InsuredStatus.Declined) {
-      require(currentStatus != InsuredStatus.Banned);
+    } else {
+      if (status == InsuredStatus.Declined) {
+        require(currentStatus != InsuredStatus.Banned);
+      }
+      if (currentStatus == InsuredStatus.Accepted && status != InsuredStatus.Accepted) {
+        internalAfterJoinOrLeave(insured, status);
+      }
     }
 
     internalSetStatus(insured, status);
     return status;
   }
+
+  function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal virtual {}
 
   function internalProcessJoin(address insured, bool accepted) internal virtual {
     _updateInsuredStatus(insured, accepted ? InsuredStatus.Accepted : InsuredStatus.JoinRejected);

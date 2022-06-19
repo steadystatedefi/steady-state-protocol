@@ -21,13 +21,24 @@ contract PremiumFund is IPremiumDistributor {
   using BalancerLib2 for BalancerLib2.AssetBalancer;
   using Balances for Balances.RateAcc;
 
-  mapping(address => BalancerLib2.AssetBalancer) private _balancers; // [insurer]
+  mapping(address => BalancerLib2.AssetBalancer) private _balancers; // [actuary]
 
-  struct PoolConfig {
-    mapping(address => address) sources; // [token]
-    mapping(address => int256) debts; // [token]
+  enum ActuaryState {
+    Unknown,
+    Inactive,
+    Active,
+    Paused
   }
-  mapping(address => PoolConfig) private _configs; // [insurer]
+
+  struct ActuaryConfig {
+    mapping(address => address) defaultSourceByToken; // [token]
+    mapping(address => address) tokenBySource; // [token]
+    mapping(address => int256) debts; // [token]
+    ActuaryState state;
+    BalancerLib2.AssetConfig defaultConfig;
+  }
+
+  mapping(address => ActuaryConfig) private _configs; // [actuary]
   mapping(address => uint256) private _collectedFees; // [token]
   address private _collateral;
 
@@ -35,36 +46,126 @@ contract PremiumFund is IPremiumDistributor {
     return _collateral;
   }
 
-  // registerPremiumActuary
-  // registerPremiumSource
-  // pause PremiumActuary / PremiumSource
-  // collectedFee / withdrawFee
-  // balanceOf
-  // balanceOfSource/Prepay, prepay/withdraw
+  modifier onlyAdmin() {
+    // TODO
+    _;
+  }
+
+  // TODO collectedFee / withdrawFee
+  // TODO balanceOf
+  // TODO balanceOfSource/Prepay, prepay/withdraw
+
+  function registerPremiumActuary(address actuary, bool register) external onlyAdmin {
+    ActuaryConfig storage config = _configs[actuary];
+    if (register) {
+      State.require(config.state < ActuaryState.Active);
+      config.state = ActuaryState.Active;
+    } else if (config.state >= ActuaryState.Active) {
+      config.state = ActuaryState.Inactive;
+    }
+  }
+
+  function setPaused(address actuary, bool paused) external onlyAdmin {
+    ActuaryConfig storage config = _configs[actuary];
+    State.require(config.state >= ActuaryState.Active);
+
+    config.state = paused ? ActuaryState.Paused : ActuaryState.Active;
+  }
+
+  function setPaused(
+    address actuary,
+    address token,
+    bool paused
+  ) external onlyAdmin {
+    ActuaryConfig storage config = _configs[actuary];
+    State.require(config.state > ActuaryState.Unknown);
+
+    BalancerLib2.AssetConfig storage assetConfig = _balancers[actuary].configs[token];
+    uint16 flags = assetConfig.flags;
+    assetConfig.flags = paused ? flags | BalancerLib2.SPM_SUSPENDED : flags & ~BalancerLib2.SPM_SUSPENDED;
+  }
+
+  function registerPremiumSource(address source, bool register) external override {
+    address actuary = msg.sender;
+
+    ActuaryConfig storage config = _configs[actuary];
+    require(config.state >= ActuaryState.Active);
+    Value.require(source != address(0) && source != address(this));
+
+    BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
+
+    if (register) {
+      require(config.tokenBySource[source] == address(0));
+      address targetToken = IInsuredPool(source).premiumToken();
+      require(targetToken != address(0));
+      config.tokenBySource[source] = targetToken;
+
+      if (config.defaultSourceByToken[targetToken] == address(0)) {
+        config.defaultSourceByToken[targetToken] = source;
+
+        BalancerLib2.AssetConfig storage balancerConfig = balancer.configs[targetToken];
+
+        Balances.RateAcc storage balance = balancer.balances[source];
+
+        // re-registration should keep price of accumulated assets
+        require(balance.rate == 0);
+        uint152 price = balance.accum != 0 ? balancerConfig.price : 0;
+
+        balancer.configs[targetToken] = config.defaultConfig;
+        if (price != 0) {
+          balancerConfig.price = price;
+        }
+      }
+    } else {
+      address targetToken = config.tokenBySource[source];
+      delete config.tokenBySource[source];
+
+      if (targetToken != address(0) && config.defaultSourceByToken[targetToken] == targetToken) {
+        delete config.defaultSourceByToken[targetToken];
+
+        BalancerLib2.AssetConfig storage balancerConfig = balancer.configs[targetToken];
+        uint16 flags = balancerConfig.flags;
+
+        if (flags & BalancerLib2.SPM_FINISHED == 0) {
+          balancer.changeRate(targetToken, 0);
+          balancerConfig.flags = flags | BalancerLib2.SPM_FINISHED | BalancerLib2.SPM_SUSPENDED;
+        }
+      }
+    }
+  }
 
   function premiumAllocationUpdated(
-    address insured,
+    address source,
     uint256 accumulated,
     uint256 increment,
     uint256 rate
   ) external override {
-    _premiumAllocationUpdated(insured, accumulated, increment, rate);
+    _premiumAllocationUpdated(source, accumulated, increment, rate);
   }
 
   function _premiumAllocationUpdated(
-    address insured,
+    address source,
     uint256 accumulated,
     uint256 increment,
     uint256 rate
-  ) private returns (address targetToken, BalancerLib2.AssetBalancer storage balancer) {
-    PoolConfig storage config = _configs[msg.sender];
-    targetToken = IInsuredPool(insured).premiumToken();
-    require(config.sources[targetToken] == insured); // TODO ?
+  )
+    private
+    returns (
+      address targetToken,
+      ActuaryConfig storage config,
+      BalancerLib2.AssetBalancer storage balancer
+    )
+  {
+    config = _configs[msg.sender];
+    State.require(config.state >= ActuaryState.Active);
+
+    targetToken = config.tokenBySource[source];
+    Value.require(targetToken != address(0));
 
     balancer = _balancers[msg.sender];
     require(
       balancer.replenishAsset(
-        BalancerLib2.ReplenishParams({pool: msg.sender, source: insured, token: targetToken, replenishFn: _replenishFn}),
+        BalancerLib2.ReplenishParams({actuary: msg.sender, source: source, token: targetToken, replenishFn: _replenishFn}),
         increment,
         rate
       ) <= accumulated
@@ -72,19 +173,26 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function premiumAllocationFinished(
-    address insured,
+    address source,
     uint256 accumulated,
     uint256 increment
   ) external override returns (uint256 premiumDebt) {
-    (address targetToken, BalancerLib2.AssetBalancer storage balancer) = _premiumAllocationUpdated(insured, accumulated, increment, 0);
-    BalancerLib2.AssetConfig storage balancerConfig = balancer.configs[targetToken];
-    balancerConfig.spConst = 0;
-    balancerConfig.flags = BalancerLib2.SPM_CONSTANT;
+    (address targetToken, ActuaryConfig storage config, BalancerLib2.AssetBalancer storage balancer) = _premiumAllocationUpdated(
+      source,
+      accumulated,
+      increment,
+      0
+    );
 
-    PoolConfig storage config = _configs[msg.sender];
-    int256 debt = config.debts[insured];
+    if (config.defaultSourceByToken[targetToken] == source) {
+      BalancerLib2.AssetConfig storage balancerConfig = balancer.configs[targetToken];
+      balancerConfig.spConst = 0;
+      balancerConfig.flags = BalancerLib2.SPM_CONSTANT | BalancerLib2.SPM_FINISHED;
+    }
+
+    int256 debt = config.debts[source];
     if (debt > 0) {
-      delete config.debts[insured];
+      delete config.debts[source];
     } else {
       debt = 0;
     }
@@ -95,11 +203,11 @@ contract PremiumFund is IPremiumDistributor {
     private
     returns (uint256 replenishedAmont, uint256 replenishedValue)
   {
-    PoolConfig storage config = _configs[params.pool];
+    ActuaryConfig storage config = _configs[params.actuary];
     uint256 price = priceOf(params.token);
 
     if (params.source == address(0)) {
-      params.source = config.sources[params.token];
+      params.source = config.defaultSourceByToken[params.token];
     }
 
     int256 debt = config.debts[params.source];
@@ -154,35 +262,38 @@ contract PremiumFund is IPremiumDistributor {
     }
   }
 
-  function syncAsset(address poolToken, address targetToken) public {
+  function syncAsset(address actuaryToken, address targetToken) public {
     if (_collateral == targetToken) {
-      IPremiumActuary(poolToken).collectDrawdownPremium();
+      IPremiumActuary(actuaryToken).collectDrawdownPremium();
     } else {
-      BalancerLib2.AssetBalancer storage balancer = _balancers[poolToken];
-      balancer.replenishAsset(BalancerLib2.ReplenishParams({pool: poolToken, source: address(0), token: targetToken, replenishFn: _replenishFn}), 0);
+      BalancerLib2.AssetBalancer storage balancer = _balancers[actuaryToken];
+      balancer.replenishAsset(
+        BalancerLib2.ReplenishParams({actuary: actuaryToken, source: address(0), token: targetToken, replenishFn: _replenishFn}),
+        0
+      );
     }
   }
 
-  function syncAssets(address poolToken, address[] calldata targetTokens) external {
+  function syncAssets(address actuaryToken, address[] calldata targetTokens) external {
     for (uint256 i = 0; i < targetTokens.length; i++) {
-      syncAsset(poolToken, targetTokens[i]);
+      syncAsset(actuaryToken, targetTokens[i]);
     }
   }
 
   function swapAsset(
-    address poolToken, // aka insurer
+    address actuaryToken, // aka actuary
     address account,
     address recipient,
     uint256 valueToSwap,
     address targetToken,
     uint256 minAmount
   ) public returns (uint256 tokenAmount) {
-    require(recipient != address(0));
+    Value.require(recipient != address(0));
 
     uint256 fee;
     address burnReceiver;
-    uint256 drawdownValue = IPremiumActuary(poolToken).collectDrawdownPremium();
-    BalancerLib2.AssetBalancer storage balancer = _balancers[poolToken];
+    uint256 drawdownValue = IPremiumActuary(actuaryToken).collectDrawdownPremium();
+    BalancerLib2.AssetBalancer storage balancer = _balancers[actuaryToken];
 
     if (_collateral == targetToken) {
       (tokenAmount, fee) = balancer.swapExternalAsset(targetToken, valueToSwap, minAmount, drawdownValue);
@@ -196,11 +307,11 @@ contract PremiumFund is IPremiumDistributor {
         }
       }
     } else {
-      (tokenAmount, fee) = balancer.swapAsset(_replenishParams(poolToken, targetToken), valueToSwap, minAmount, drawdownValue);
+      (tokenAmount, fee) = balancer.swapAsset(_replenishParams(actuaryToken, targetToken), valueToSwap, minAmount, drawdownValue);
     }
 
     if (tokenAmount > 0) {
-      IPremiumActuary(poolToken).burnPremium(account, valueToSwap, burnReceiver);
+      IPremiumActuary(actuaryToken).burnPremium(account, valueToSwap, burnReceiver);
       if (burnReceiver != recipient) {
         SafeERC20.safeTransfer(IERC20(targetToken), recipient, tokenAmount);
       }
@@ -219,17 +330,17 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function swapTokens(
-    address poolToken,
+    address actuaryToken,
     address account,
     address defaultRecepient,
     SwapInstruction[] calldata instructions
   ) external returns (uint256[] memory tokenAmounts) {
     if (instructions.length <= 1) {
-      return instructions.length == 0 ? tokenAmounts : _swapTokensOne(poolToken, account, defaultRecepient, instructions[0]);
+      return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuaryToken, account, defaultRecepient, instructions[0]);
     }
 
     uint256[] memory fees;
-    (tokenAmounts, fees) = _swapTokens(poolToken, account, instructions, IPremiumActuary(poolToken).collectDrawdownPremium());
+    (tokenAmounts, fees) = _swapTokens(actuaryToken, account, instructions, IPremiumActuary(actuaryToken).collectDrawdownPremium());
 
     for (uint256 i = 0; i < instructions.length; i++) {
       address recipient = instructions[i].recipient;
@@ -244,12 +355,12 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function _swapTokens(
-    address poolToken,
+    address actuaryToken,
     address account,
     SwapInstruction[] calldata instructions,
     uint256 drawdownValue
   ) private returns (uint256[] memory tokenAmounts, uint256[] memory fees) {
-    BalancerLib2.AssetBalancer storage balancer = _balancers[poolToken];
+    BalancerLib2.AssetBalancer storage balancer = _balancers[actuaryToken];
 
     uint256 drawdownBalance = drawdownValue;
 
@@ -259,7 +370,7 @@ contract PremiumFund is IPremiumDistributor {
     Balances.RateAcc memory totalOrig = balancer.totalBalance;
     Balances.RateAcc memory totalSum;
     (totalSum.accum, totalSum.rate, totalSum.updatedAt) = (totalOrig.accum, totalOrig.rate, totalOrig.updatedAt);
-    BalancerLib2.ReplenishParams memory params = _replenishParams(poolToken, address(0));
+    BalancerLib2.ReplenishParams memory params = _replenishParams(actuaryToken, address(0));
 
     uint256 totalValue;
     uint256 totalExtValue;
@@ -285,18 +396,18 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (totalValue > 0) {
-      IPremiumActuary(poolToken).burnPremium(account, totalValue, address(this));
+      IPremiumActuary(actuaryToken).burnPremium(account, totalValue, address(this));
     }
 
     if (totalExtValue > 0) {
-      IPremiumActuary(poolToken).burnPremium(account, totalValue, address(0));
+      IPremiumActuary(actuaryToken).burnPremium(account, totalValue, address(0));
     }
 
     balancer.totalBalance = totalSum;
   }
 
-  function _replenishParams(address poolToken, address targetToken) private pure returns (BalancerLib2.ReplenishParams memory) {
-    return BalancerLib2.ReplenishParams({pool: poolToken, source: address(0), token: targetToken, replenishFn: _replenishFn});
+  function _replenishParams(address actuaryToken, address targetToken) private pure returns (BalancerLib2.ReplenishParams memory) {
+    return BalancerLib2.ReplenishParams({actuary: actuaryToken, source: address(0), token: targetToken, replenishFn: _replenishFn});
   }
 
   function _swapTokenInBatch(
@@ -352,7 +463,7 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function _swapTokensOne(
-    address poolToken,
+    address actuaryToken,
     address account,
     address defaultRecepient,
     SwapInstruction calldata instruction
@@ -360,7 +471,7 @@ contract PremiumFund is IPremiumDistributor {
     tokenAmounts = new uint256[](1);
 
     tokenAmounts[0] = swapAsset(
-      poolToken,
+      actuaryToken,
       account,
       instruction.recipient != address(0) ? instruction.recipient : defaultRecepient,
       instruction.valueToSwap,
