@@ -62,6 +62,9 @@ abstract contract InsurerJoinBase is IJoinEvents {
       }
       internalSetStatus(insured, status);
 
+      string memory errType;
+      bytes memory errReason;
+
       try IInsuredPool(insured).joinProcessed(accepted) {
         emit JoinProcessed(insured, accepted);
 
@@ -71,12 +74,13 @@ abstract contract InsurerJoinBase is IJoinEvents {
         }
         return status;
       } catch Error(string memory reason) {
-        // console.log('JoinFailed', reason);
-        emit JoinFailed(insured, reason);
-      } catch {
-        // console.log('JoinFailedUnknown');
-        emit JoinFailed(insured, '<unknown>');
+        errType = 'error';
+        errReason = bytes(reason);
+      } catch (bytes memory reason) {
+        errType = 'panic';
+        errReason = reason;
       }
+      emit JoinFailed(insured, errType, errReason);
       status = InsuredStatus.JoinFailed;
     } else {
       if (status == InsuredStatus.Declined) {
