@@ -208,7 +208,7 @@ contract PremiumFund is IPremiumDistributor {
 
   function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredAmount)
     private
-    returns (uint256 replenishedAmont, uint256 replenishedValue)
+    returns (uint256 replenishedAmount, uint256 replenishedValue)
   {
     ActuaryConfig storage config = _configs[params.actuary];
     uint256 price = priceOf(params.token);
@@ -236,15 +236,36 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (requiredAmount > 0) {
-      replenishedAmont = internalCollectPremium(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredAmount.wadMul(price));
-      if (replenishedAmont < requiredAmount) {
-        requiredAmount = (requiredAmount - replenishedAmont).wadMul(price);
-        require(requiredAmount <= uint256(type(int256).max));
-        debt += int256(requiredAmount);
-      }
-      replenishedValue = replenishedAmont.wadMul(price);
+      uint256 missingValue;
+      (replenishedAmount, missingValue) = _collectPremium(params, requiredAmount, price);
+
+      require(missingValue <= uint256(type(int256).max));
+      debt += int256(missingValue);
+
+      replenishedValue = replenishedAmount.wadMul(price);
     }
     config.debts[params.source] = debt;
+  }
+
+  function _collectPremium(
+    BalancerLib2.ReplenishParams memory params,
+    uint256 requiredAmount,
+    uint256 price
+  ) private returns (uint256 collectedAmount, uint256 missingValue) {
+    collectedAmount = internalCollectPremium(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredAmount.wadMul(price));
+    if (collectedAmount < requiredAmount) {
+      missingValue = (requiredAmount - collectedAmount).wadMul(price);
+
+      if (missingValue > 0) {
+        // assert(params.token != collateral());
+        uint256 collectedValue = internalCollectPremium(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
+
+        if (collectedValue > 0) {
+          missingValue -= collectedValue;
+          collectedAmount += collectedValue.wadDiv(price);
+        }
+      }
+    }
   }
 
   function priceOf(address token) public pure returns (uint256) {

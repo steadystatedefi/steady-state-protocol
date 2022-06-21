@@ -337,13 +337,13 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     const receivedCollateral = await cc.balanceOf(insured.address);
     expect(receivedCollateral).eq(expectedCollateral.mul(100 - drawdownPct).div(100)); // drawdown withholded
-    expect(receivedCollateral).eq(await insured.totalCollateral());
+    expect(receivedCollateral).eq(await insured.totalReceivedCollateral());
     expect(receivedCollateral.add(await cc.balanceOf(pool.address))).eq(totalInvested);
 
     await insured.reconcileWithAllInsurers(); // repeated call should do nothing
 
     expect(receivedCollateral).eq(await cc.balanceOf(insured.address));
-    expect(receivedCollateral).eq(await insured.totalCollateral());
+    expect(receivedCollateral).eq(await insured.totalReceivedCollateral());
 
     givenOutCollateral += receivedCollateral.toNumber();
   });

@@ -80,25 +80,37 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     }
   }
 
+  function collateral() public view virtual returns (address);
+
+  function internalReservedCollateral() internal view virtual returns (uint256);
+
   function collectPremium(
     address actuary,
     address token,
     uint256 amount,
     uint256 value
   ) external override onlyPremiumDistributorOf(actuary) {
-    Value.require(token == address(_premiumToken));
-
     uint256 balance = IERC20(token).balanceOf(address(this));
+
     if (balance > 0) {
-      if (amount > balance) {
-        value = (value * balance) / amount;
-        if (value == 0) {
-          return;
+      if (token == collateral()) {
+        balance -= internalReservedCollateral();
+        if (amount > balance) {
+          amount = balance;
         }
-        amount = balance;
+        value = amount;
+      } else {
+        Value.require(token == address(_premiumToken));
+        if (amount > balance) {
+          value = (value * balance) / amount;
+          amount = balance;
+        }
       }
-      IERC20(token).safeTransfer(msg.sender, amount);
-      _collectedValue += value;
+
+      if (value > 0) {
+        IERC20(token).safeTransfer(msg.sender, amount);
+        _collectedValue += value;
+      }
     }
   }
 }

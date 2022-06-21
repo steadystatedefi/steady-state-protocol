@@ -9,7 +9,13 @@ contract MockCollateralCurrency {
     _transferAndCall(insurer, amount, '');
   }
 
-  function balanceOf(address account) external view returns (uint256) {}
+  function approve(address, uint256) external pure returns (bool) {
+    return true;
+  }
+
+  function allowance(address, address) external view returns (uint256) {}
+
+  function balanceOf(address) external view returns (uint256) {}
 
   function totalSupply() external view returns (uint256) {}
 

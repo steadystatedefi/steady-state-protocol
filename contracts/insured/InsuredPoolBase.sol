@@ -27,6 +27,10 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     _premiumRate = premiumRate;
   }
 
+  function collateral() public view override(ICollateralized, InsurancePoolBase, PremiumCollectorBase) returns (address) {
+    return InsurancePoolBase.collateral();
+  }
+
   function _increaseRequiredCoverage(uint256 amount) internal {
     _requiredCoverage += uint128(amount);
   }
@@ -226,7 +230,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   function cancelCoverage(address payoutReceiver, uint256 payoutAmount) external onlyAdmin {
     internalCancelRates();
 
-    uint256 payoutRatio = totalCollateral(); // TODO this is a potential issue when extra CC will be on the balance
+    uint256 payoutRatio = super.totalReceivedCollateral();
     if (payoutRatio <= payoutAmount) {
       payoutRatio = WadRayMath.RAY;
     } else if (payoutRatio > 0) {
@@ -241,7 +245,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     require(totalPayout >= payoutAmount);
     if (payoutAmount > 0) {
       require(payoutReceiver != address(0));
-      IERC20(collateral()).transfer(payoutReceiver, payoutAmount);
+      transferCollateral(payoutReceiver, payoutAmount);
     }
   }
 
@@ -255,20 +259,19 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
     for (uint256 i = insurers.length; i > 0; ) {
       address insurer = insurers[--i];
-      t.approve(insurer, type(uint256).max);
+      uint256 allowance = t.allowance(address(this), insurer);
       totalPayout += IInsurerPoolCore(insurer).cancelCoverage(payoutRatio);
-      t.approve(insurer, 0);
+      internalDecReceivedCollateral(allowance - t.allowance(address(this), insurer));
+      require(t.approve(insurer, 0));
     }
   }
 
-  /// @return The current amount of collateral currency held by this insured
-  function totalCollateral() public view returns (uint256) {
-    return IERC20(collateral()).balanceOf(address(this));
-  }
+  function internalCollateralReceived(address insurer, uint256 amount) internal override {
+    super.internalCollateralReceived(insurer, amount);
 
-  // function totalCoverage() public view returns(uint256 required, uint256 demanded, uint256 received) {
-  //   return (_requiredCoverage, _demandedCoverage, IERC20(collateral()).balanceOf(address(this)));
-  // }
+    IERC20 t = IERC20(collateral());
+    require(t.approve(insurer, t.allowance(address(this), insurer) + amount));
+  }
 
   /// @inheritdoc IInsuredPool
   function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
@@ -297,12 +300,16 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
-    return internalExpectedTotals(uint32(atTimestamp)).accum; // TODO prepays etc
+    return internalExpectedTotals(uint32(atTimestamp)).accum;
   }
 
   modifier onlyPremiumDistributorOf(address actuary) override {
     _ensureHolder(actuary);
     require(IPremiumActuary(actuary).premiumDistributor() == msg.sender);
     _;
+  }
+
+  function internalReservedCollateral() internal view override returns (uint256) {
+    return super.totalReceivedCollateral();
   }
 }
