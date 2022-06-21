@@ -40,10 +40,6 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _params;
   }
 
-  function premiumToken() external view override returns (address) {
-    // TODO
-  }
-
   function internalSetServiceAccountStatus(address account, uint16 status) internal override(InsuredBalancesBase, InsuredJoinBase) {
     return InsuredBalancesBase.internalSetServiceAccountStatus(account, status);
   }

@@ -97,13 +97,13 @@ contract PremiumFund is IPremiumDistributor {
 
     ActuaryConfig storage config = _configs[actuary];
     State.require(config.state >= ActuaryState.Active);
-    Value.require(source != address(this) && IPremiumSource(actuary).collateral() == collateral());
+    Value.require(source != address(this));
 
     BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
 
     if (register) {
       require(config.tokenBySource[source] == address(0));
-      address targetToken = IInsuredPool(source).premiumToken();
+      address targetToken = IPremiumSource(source).premiumToken();
       require(targetToken != address(0));
       config.tokenBySource[source] = targetToken;
 
@@ -236,7 +236,7 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (requiredAmount > 0) {
-      replenishedAmont = internalCollectPremium(params.source, IERC20(params.token), requiredAmount);
+      replenishedAmont = internalCollectPremium(params.source, IERC20(params.token), requiredAmount, requiredAmount.wadMul(price));
       if (replenishedAmont < requiredAmount) {
         requiredAmount = (requiredAmount - replenishedAmont).wadMul(price);
         require(requiredAmount <= uint256(type(int256).max));
@@ -258,14 +258,15 @@ contract PremiumFund is IPremiumDistributor {
   function internalCollectPremium(
     address source,
     IERC20 token,
-    uint256 amount
+    uint256 amount,
+    uint256 value
   ) internal virtual returns (uint256) {
     uint256 balance = token.balanceOf(address(this));
 
     string memory errType;
     bytes memory errReason;
 
-    try IPremiumSource(source).collectPremium(address(token), amount) {
+    try IPremiumSource(source).collectPremium(address(token), amount, value) {
       return token.balanceOf(address(this)) - balance;
     } catch Error(string memory reason) {
       errType = 'error';
