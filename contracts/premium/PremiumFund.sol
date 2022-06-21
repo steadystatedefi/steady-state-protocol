@@ -9,6 +9,7 @@ import '../libraries/Balances.sol';
 import '../tools/tokens/IERC20.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import '../interfaces/IPremiumActuary.sol';
+import '../interfaces/IPremiumSource.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
 import './BalancerLib2.sol';
@@ -63,6 +64,8 @@ contract PremiumFund is IPremiumDistributor {
     ActuaryConfig storage config = _configs[actuary];
     if (register) {
       State.require(config.state < ActuaryState.Active);
+      Value.require(IPremiumActuary(actuary).collateral() == collateral());
+
       config.state = ActuaryState.Active;
     } else if (config.state >= ActuaryState.Active) {
       config.state = ActuaryState.Inactive;
@@ -93,8 +96,8 @@ contract PremiumFund is IPremiumDistributor {
     address actuary = msg.sender;
 
     ActuaryConfig storage config = _configs[actuary];
-    require(config.state >= ActuaryState.Active);
-    Value.require(source != address(0) && source != address(this));
+    State.require(config.state >= ActuaryState.Active);
+    Value.require(source != address(this) && IPremiumSource(actuary).collateral() == collateral());
 
     BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
 
@@ -233,7 +236,7 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (requiredAmount > 0) {
-      replenishedAmont = _softTransferFrom(params.source, IERC20(params.token), requiredAmount);
+      replenishedAmont = internalCollectPremium(params.source, IERC20(params.token), requiredAmount);
       if (replenishedAmont < requiredAmount) {
         requiredAmount = (requiredAmount - replenishedAmont).wadMul(price);
         require(requiredAmount <= uint256(type(int256).max));
@@ -250,20 +253,30 @@ contract PremiumFund is IPremiumDistributor {
     // TODO price oracle
   }
 
-  function _softTransferFrom(
+  event PremiumCollectionFailed(address indexed source, address indexed token, uint256 amount, string failureType, bytes reason);
+
+  function internalCollectPremium(
     address source,
     IERC20 token,
-    uint256 v
-  ) private returns (uint256 amount) {
-    if ((amount = token.balanceOf(source)) > v) {
-      amount = v;
+    uint256 amount
+  ) internal virtual returns (uint256) {
+    uint256 balance = token.balanceOf(address(this));
+
+    string memory errType;
+    bytes memory errReason;
+
+    try IPremiumSource(source).collectPremium(address(token), amount) {
+      return token.balanceOf(address(this)) - balance;
+    } catch Error(string memory reason) {
+      errType = 'error';
+      errReason = bytes(reason);
+    } catch (bytes memory reason) {
+      errType = 'panic';
+      errReason = reason;
     }
-    if ((v = token.allowance(source, address(this))) < amount) {
-      amount = v;
-    }
-    if (amount > 0) {
-      SafeERC20.safeTransferFrom(token, source, address(this), amount);
-    }
+    emit PremiumCollectionFailed(source, address(token), amount, errType, errReason);
+
+    return 0;
   }
 
   function syncAsset(address actuaryToken, address targetToken) public {
