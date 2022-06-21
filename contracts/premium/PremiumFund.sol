@@ -236,7 +236,7 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (requiredAmount > 0) {
-      replenishedAmont = internalCollectPremium(params.source, IERC20(params.token), requiredAmount, requiredAmount.wadMul(price));
+      replenishedAmont = internalCollectPremium(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredAmount.wadMul(price));
       if (replenishedAmont < requiredAmount) {
         requiredAmount = (requiredAmount - replenishedAmont).wadMul(price);
         require(requiredAmount <= uint256(type(int256).max));
@@ -256,6 +256,7 @@ contract PremiumFund is IPremiumDistributor {
   event PremiumCollectionFailed(address indexed source, address indexed token, uint256 amount, string failureType, bytes reason);
 
   function internalCollectPremium(
+    address actuary,
     address source,
     IERC20 token,
     uint256 amount,
@@ -266,7 +267,7 @@ contract PremiumFund is IPremiumDistributor {
     string memory errType;
     bytes memory errReason;
 
-    try IPremiumSource(source).collectPremium(address(token), amount, value) {
+    try IPremiumSource(source).collectPremium(actuary, address(token), amount, value) {
       return token.balanceOf(address(this)) - balance;
     } catch Error(string memory reason) {
       errType = 'error';

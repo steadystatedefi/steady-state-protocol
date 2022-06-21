@@ -20,7 +20,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   constructor(uint256 unitSize, PerpetualPoolExtension extension) WeightedRoundsBase(unitSize) WeightedPoolBase(unitSize, extension) {}
 
-  function premiumDistributor() public view returns (address) {
+  function premiumDistributor() public view override returns (address) {
     return address(_premiumHandler);
   }
 

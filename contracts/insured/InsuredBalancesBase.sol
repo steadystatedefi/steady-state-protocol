@@ -93,6 +93,13 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
   }
 
   /// @dev Update premium paid of entire pool
+  function internalExpectedTotals(uint32 at) internal view returns (Balances.RateAcc memory) {
+    require(at >= block.timestamp);
+    uint32 ts = _cancelledAt;
+    return _totals.sync(ts > 0 && ts <= at ? ts : at);
+  }
+
+  /// @dev Update premium paid of entire pool
   function internalSyncTotals() internal view returns (Balances.RateAcc memory) {
     return _totals.sync(_syncTimestamp());
   }

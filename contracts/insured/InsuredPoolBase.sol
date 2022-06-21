@@ -5,13 +5,14 @@ import '../tools/tokens/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
+import './PremiumCollectorBase.sol';
 
 import 'hardhat/console.sol';
 
 /// @title Insured Pool Base
 /// @notice The base pool that tracks how much coverage is requested, provided and paid
 /// @dev Reconcilation must be called for the most accurate information
-abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase {
+abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase, PremiumCollectorBase {
   using WadRayMath for uint256;
 
   uint128 private _requiredCoverage;
@@ -287,5 +288,21 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
     rate = _premiumRate;
     InsuredBalancesBase.internalMintForCoverage(account, acceptedAmount, rate);
+  }
+
+  function priceOf(address) internal view override returns (uint256) {
+    this;
+    // TODO price oracle
+    return WadRayMath.WAD;
+  }
+
+  function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
+    return internalExpectedTotals(uint32(atTimestamp)).accum; // TODO prepays etc
+  }
+
+  modifier onlyPremiumDistributorOf(address actuary) override {
+    _ensureHolder(actuary);
+    require(IPremiumActuary(actuary).premiumDistributor() == msg.sender);
+    _;
   }
 }

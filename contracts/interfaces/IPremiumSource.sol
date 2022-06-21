@@ -7,6 +7,7 @@ interface IPremiumSource {
   function premiumToken() external view returns (address);
 
   function collectPremium(
+    address actuary,
     address token,
     uint256 amount,
     uint256 value

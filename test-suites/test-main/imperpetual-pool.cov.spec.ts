@@ -156,9 +156,9 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
   const checkUserTotals = async () => {
     let total = await pool.totalSupply();
-    const {
-      coverage: { premiumRate: totalRate, totalPremium: totalInterest },
-    } = await pool.getTotals();
+    // const {
+    //   coverage: { premiumRate: totalRate, totalPremium: totalInterest },
+    // } = await pool.getTotals();
 
     // console.log('\n>>>>', totalRatetOfUsers.toString(), totalInterestOfUsers.toString());
     for (const testUser of testEnv.users) {
