@@ -34,7 +34,7 @@ contract PremiumFund is IPremiumDistributor {
   struct ActuaryConfig {
     mapping(address => address) defaultSourceByToken; // [token]
     mapping(address => address) tokenBySource; // [token]
-    mapping(address => int256) debts; // [token]
+    mapping(address => uint256) debts; // [token]
     ActuaryState state;
     BalancerLib2.AssetConfig defaultConfig;
   }
@@ -197,13 +197,10 @@ contract PremiumFund is IPremiumDistributor {
       balancerConfig.flags = BalancerLib2.SPM_CONSTANT | BalancerLib2.SPM_FINISHED;
     }
 
-    int256 debt = config.debts[source];
-    if (debt > 0) {
+    premiumDebt = config.debts[source];
+    if (premiumDebt > 0) {
       delete config.debts[source];
-    } else {
-      debt = 0;
     }
-    return uint256(debt);
   }
 
   function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredAmount)
@@ -217,34 +214,20 @@ contract PremiumFund is IPremiumDistributor {
       params.source = config.defaultSourceByToken[params.token];
     }
 
-    int256 debt = config.debts[params.source];
-    if (debt != 0) {
-      if (debt > 0) {
-        requiredAmount += uint256(debt).wadDiv(price);
-        debt = 0;
-      } else {
-        uint256 prepayAmount = uint256(-debt).wadDiv(price);
-
-        if (requiredAmount >= prepayAmount) {
-          debt = 0;
-          requiredAmount -= prepayAmount;
-        } else {
-          requiredAmount = 0;
-          debt += int256((prepayAmount - requiredAmount).wadMul(price));
-        }
-      }
+    uint256 debtValue = config.debts[params.source];
+    if (debtValue > 0) {
+      requiredAmount += uint256(debtValue).wadDiv(price);
+      debtValue = 0;
     }
 
     if (requiredAmount > 0) {
       uint256 missingValue;
       (replenishedAmount, missingValue) = _collectPremium(params, requiredAmount, price);
-
-      require(missingValue <= uint256(type(int256).max));
-      debt += int256(missingValue);
+      debtValue += missingValue;
 
       replenishedValue = replenishedAmount.wadMul(price);
     }
-    config.debts[params.source] = debt;
+    config.debts[params.source] = debtValue;
   }
 
   function _collectPremium(
