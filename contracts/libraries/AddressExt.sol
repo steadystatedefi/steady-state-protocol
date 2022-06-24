@@ -21,4 +21,12 @@ library AddressExt {
   function newAddressExt(address a, uint96 e) internal pure returns (uint256) {
     return (uint256(e) << 160) | uint160(a);
   }
+
+  function newAddressExt(address a) internal pure returns (uint256) {
+    return uint160(a);
+  }
+
+  function unwrap(uint256 v) internal pure returns (address, uint96) {
+    return (addr(v), ext(v));
+  }
 }

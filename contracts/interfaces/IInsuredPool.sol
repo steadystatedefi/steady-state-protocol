@@ -16,9 +16,6 @@ interface IInsuredPool is IInsurancePool {
   /// @return The insured params
   function insuredParams() external view returns (InsuredParams memory);
 
-  /// @return The token paid by this insured as premium
-  function premiumToken() external view returns (address);
-
   /// @notice Directly offer coverage to the insured
   /// @param offeredAmount The amount of coverage being offered
   /// @return acceptedAmount The amount of coverage accepted by the insured

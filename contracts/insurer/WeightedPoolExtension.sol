@@ -144,7 +144,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
     if (address(_premiumHandler) != address(0)) {
-      _premiumHandler.premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate, params.receivedPremium);
+      _premiumHandler.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
     }
 
     return (params.receivedCoverage, receivedCollateral, coverage);

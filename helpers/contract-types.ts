@@ -6,7 +6,6 @@ export const Factories = {
   PriceOracle: wrap(types.PriceOracle__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
-  PremiumCollector: wrap(types.PremiumCollector__factory),
   CollateralCurrency: wrap(types.CollateralCurrency__factory),
 
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),

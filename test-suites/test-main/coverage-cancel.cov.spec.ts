@@ -443,7 +443,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
       const receivedCollateral = await cc.balanceOf(insured.address);
       expect(receivedCollateral).eq(expectedCollateral);
-      expect(receivedCollateral).eq(await insured.totalCollateral());
+      expect(receivedCollateral).eq(await insured.totalReceivedCollateral());
       expect(receivedCollateral.add(await cc.balanceOf(pool.address))).eq(totalInvested);
     }
 

@@ -20,8 +20,8 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
   });
 
   enum StarvationPointMode {
-    RateFactor = 0 + 4, // flow mode
-    GlobalRateFactor = 1 + 4, // flow mode
+    RateFactor = 0 + 64, // + BF_AUTO_REPLENISH
+    GlobalRateFactor = 1 + 64, // + BF_AUTO_REPLENISH
     Constant = 2,
     GlobalConstant = 3,
   }
@@ -78,12 +78,14 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
 
     await lib.setConfig(t0, WAD, 0, starvationPoint, StarvationPointMode.RateFactor, 0);
 
-    const startedAt = await currentTime();
+    const timeDelta = 50;
+    const dV = rate * timeDelta;
+
     await lib.setBalance(t0, v, rate);
-    await lib.setTotalBalance(v + rate * ((await currentTime()) - startedAt), rate);
+    await lib.setReplenishDelta(dV);
+    await lib.setTotalBalance(v + dV, rate);
 
     {
-      const dV = rate * ((await currentTime()) - startedAt);
       const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
       if (!testEnv.underCoverage) {
         expect(ev.amount).eq(v + dV - starvationPoint / 2);
@@ -98,12 +100,14 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.GlobalRateFactor, 0);
     await lib.setGlobals(starvationPoint, 0);
 
-    const startedAt = await currentTime();
+    const timeDelta = 50;
+    const dV = rate * timeDelta;
+
     await lib.setBalance(t0, v, rate);
-    await lib.setTotalBalance(v + rate * ((await currentTime()) - startedAt), rate);
+    await lib.setReplenishDelta(dV);
+    await lib.setTotalBalance(v + dV, rate);
 
     {
-      const dV = rate * ((await currentTime()) - startedAt);
       const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
       if (!testEnv.underCoverage) {
         expect(ev.amount).eq(v + dV - starvationPoint / 2);

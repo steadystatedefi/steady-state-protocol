@@ -1,12 +1,9 @@
-import { Wallet } from '@ethersproject/wallet';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
-import { RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { tEthereumAddress } from '../../helpers/types';
-import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool, PremiumCollector } from '../../types';
+import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -16,11 +13,11 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 10000 * unitSize;
-  let payInToken: tEthereumAddress;
-  const protocol = Wallet.createRandom();
+  // let payInToken: tEthereumAddress;
+  // const protocol = Wallet.createRandom();
   let pool: MockPerpetualPool;
   let fund: MockCollateralCurrency;
-  let collector: PremiumCollector;
+  // let collector: PremiumCollector;
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
@@ -29,10 +26,10 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
-    collector = await Factories.PremiumCollector.deploy();
+    // collector = await Factories.PremiumCollector.deploy();
 
-    payInToken = createRandomAddress();
-    await collector.setPremiumScale(payInToken, [fund.address], [RAY]);
+    // payInToken = createRandomAddress();
+    // await collector.setPremiumScale(payInToken, [fund.address], [RAY]);
   });
 
   enum InsuredStatus {
@@ -69,7 +66,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
       const stats = await pool.receivableDemandedCoverage(insured.address);
       insureds.push(insured);
-      collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
+      // collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       return stats.coverage;
     };
 
@@ -225,10 +222,10 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       expect(totalInsuredPremium).gt(totals.coverage.totalPremium);
     }
 
-    const payList = await collector.expectedPayAfter(protocol.address, 1);
-    expect(payList.length).eq(1);
-    expect(payList[0].token).eq(payInToken);
-    expect(totalInsuredPremiumRate).eq(payList[0].amount);
+    // const payList = await collector.expectedPayAfter(protocol.address, 1);
+    // expect(payList.length).eq(1);
+    // expect(payList[0].token).eq(payInToken);
+    // expect(totalInsuredPremiumRate).eq(payList[0].amount);
   });
 
   const checkTotals = async () => {
