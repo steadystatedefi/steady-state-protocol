@@ -18,6 +18,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   uint128 private _requiredCoverage;
   uint128 private _demandedCoverage;
 
+  // TODO support for rate bands
   uint64 private _premiumRate;
 
   InsuredParams private _params;
@@ -299,7 +300,12 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return WadRayMath.WAD;
   }
 
+  function updatePrepayBalances() external {
+    // TODO
+  }
+
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
+    // TODO use maxRate (demanded coverage)
     return internalExpectedTotals(uint32(atTimestamp)).accum;
   }
 

@@ -37,17 +37,32 @@ contract MockBalancerLib2 {
     uint128 accum,
     uint96 rate
   ) external {
-    _poolBalance.balances[asset] = Balances.RateAcc(accum, rate, uint32(block.timestamp));
+    _poolBalance.balances[asset] = BalancerLib2.AssetBalance(accum, rate);
   }
 
-  function getBalance(address asset) external view returns (Balances.RateAcc memory) {
+  function getBalance(address asset) external view returns (BalancerLib2.AssetBalance memory) {
     return _poolBalance.balances[asset];
   }
 
   event TokenSwapped(uint256 amount, uint256 fee);
 
-  function _replenishFn(BalancerLib2.ReplenishParams memory, uint256 v) private pure returns (uint256 amount, uint256 value) {
-    return (v, v);
+  uint256 private _replenishDelta;
+
+  function setReplenishDelta(uint256 delta) external {
+    _replenishDelta = delta;
+  }
+
+  function _replenishFn(BalancerLib2.ReplenishParams memory, uint256 v)
+    private
+    view
+    returns (
+      uint256,
+      uint256,
+      uint256
+    )
+  {
+    v += _replenishDelta;
+    return (v, v, v);
   }
 
   function swapToken(
