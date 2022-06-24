@@ -91,8 +91,6 @@ library BalancerLib2 {
     Balances.RateAcc memory total
   ) internal view returns (uint256 amount, uint256 fee) {
     AssetBalance memory balance;
-    // balance.updatedAt = uint32(block.timestamp);
-    // TODO swapExternalAssetInBatch
     total.sync(uint32(block.timestamp));
     (CalcParams memory c, ) = _calcParams(p, token, balance.rate, true);
 

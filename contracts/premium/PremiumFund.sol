@@ -135,9 +135,9 @@ contract PremiumFund is IPremiumDistributor {
 
     ActuaryConfig storage config = _configs[actuary];
     State.require(config.state >= ActuaryState.Active);
-    Value.require(source != address(this));
 
     if (register) {
+      Value.require(source != address(0) && source != collateral());
       // NB! a source will actually be added on non-zero rate only
       require(config.sourceToken[source] == address(0));
 
@@ -502,7 +502,7 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function swapAsset(
-    address actuaryToken, // aka actuary
+    address actuary, // aka actuary
     address account,
     address recipient,
     uint256 valueToSwap,
@@ -514,8 +514,8 @@ contract PremiumFund is IPremiumDistributor {
 
     uint256 fee;
     address burnReceiver;
-    uint256 drawdownValue = IPremiumActuary(actuaryToken).collectDrawdownPremium();
-    BalancerLib2.AssetBalancer storage balancer = _balancers[actuaryToken];
+    uint256 drawdownValue = IPremiumActuary(actuary).collectDrawdownPremium();
+    BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
 
     if (_collateral == targetToken) {
       (tokenAmount, fee) = balancer.swapExternalAsset(targetToken, valueToSwap, minAmount, drawdownValue);
@@ -529,18 +529,18 @@ contract PremiumFund is IPremiumDistributor {
         }
       }
     } else {
-      (tokenAmount, fee) = balancer.swapAsset(_replenishParams(actuaryToken, targetToken), valueToSwap, minAmount, drawdownValue);
+      (tokenAmount, fee) = balancer.swapAsset(_replenishParams(actuary, targetToken), valueToSwap, minAmount, drawdownValue);
     }
 
     if (tokenAmount > 0) {
-      IPremiumActuary(actuaryToken).burnPremium(account, valueToSwap, burnReceiver);
+      IPremiumActuary(actuary).burnPremium(account, valueToSwap, burnReceiver);
       if (burnReceiver != recipient) {
         SafeERC20.safeTransfer(IERC20(targetToken), recipient, tokenAmount);
       }
     }
 
     if (fee > 0) {
-      _addFee(_configs[actuaryToken], targetToken, fee);
+      _addFee(_configs[actuary], targetToken, fee);
     }
   }
 
@@ -560,18 +560,18 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function swapAssets(
-    address actuaryToken,
+    address actuary,
     address account,
     address defaultRecepient,
     SwapInstruction[] calldata instructions
   ) external returns (uint256[] memory tokenAmounts) {
     if (instructions.length <= 1) {
-      return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuaryToken, account, defaultRecepient, instructions[0]);
+      return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuary, account, defaultRecepient, instructions[0]);
     }
 
     uint256[] memory fees;
-    (tokenAmounts, fees) = _swapTokens(actuaryToken, account, instructions, IPremiumActuary(actuaryToken).collectDrawdownPremium());
-    ActuaryConfig storage config = _configs[actuaryToken];
+    (tokenAmounts, fees) = _swapTokens(actuary, account, instructions, IPremiumActuary(actuary).collectDrawdownPremium());
+    ActuaryConfig storage config = _configs[actuary];
 
     for (uint256 i = 0; i < instructions.length; i++) {
       address recipient = instructions[i].recipient;
@@ -586,12 +586,12 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function _swapTokens(
-    address actuaryToken,
+    address actuary,
     address account,
     SwapInstruction[] calldata instructions,
     uint256 drawdownValue
   ) private returns (uint256[] memory tokenAmounts, uint256[] memory fees) {
-    BalancerLib2.AssetBalancer storage balancer = _balancers[actuaryToken];
+    BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
 
     uint256 drawdownBalance = drawdownValue;
 
@@ -601,7 +601,7 @@ contract PremiumFund is IPremiumDistributor {
     Balances.RateAcc memory totalOrig = balancer.totalBalance;
     Balances.RateAcc memory totalSum;
     (totalSum.accum, totalSum.rate, totalSum.updatedAt) = (totalOrig.accum, totalOrig.rate, totalOrig.updatedAt);
-    BalancerLib2.ReplenishParams memory params = _replenishParams(actuaryToken, address(0));
+    BalancerLib2.ReplenishParams memory params = _replenishParams(actuary, address(0));
 
     uint256 totalValue;
     uint256 totalExtValue;
@@ -629,18 +629,18 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (totalValue > 0) {
-      IPremiumActuary(actuaryToken).burnPremium(account, totalValue, address(this));
+      IPremiumActuary(actuary).burnPremium(account, totalValue, address(this));
     }
 
     if (totalExtValue > 0) {
-      IPremiumActuary(actuaryToken).burnPremium(account, totalValue, address(0));
+      IPremiumActuary(actuary).burnPremium(account, totalValue, address(0));
     }
 
     balancer.totalBalance = totalSum;
   }
 
-  function _replenishParams(address actuaryToken, address targetToken) private pure returns (BalancerLib2.ReplenishParams memory) {
-    return BalancerLib2.ReplenishParams({actuary: actuaryToken, source: address(0), token: targetToken, replenishFn: _replenishFn});
+  function _replenishParams(address actuary, address targetToken) private pure returns (BalancerLib2.ReplenishParams memory) {
+    return BalancerLib2.ReplenishParams({actuary: actuary, source: address(0), token: targetToken, replenishFn: _replenishFn});
   }
 
   function _swapTokenInBatch(
@@ -696,7 +696,7 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function _swapTokensOne(
-    address actuaryToken,
+    address actuary,
     address account,
     address defaultRecepient,
     SwapInstruction calldata instruction
@@ -704,7 +704,7 @@ contract PremiumFund is IPremiumDistributor {
     tokenAmounts = new uint256[](1);
 
     tokenAmounts[0] = swapAsset(
-      actuaryToken,
+      actuary,
       account,
       instruction.recipient != address(0) ? instruction.recipient : defaultRecepient,
       instruction.valueToSwap,
