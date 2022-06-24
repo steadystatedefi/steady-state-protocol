@@ -11,7 +11,7 @@ abstract contract InsurancePoolBase is IInsurancePool {
     _collateral = collateral_;
   }
 
-  function collateral() public view override returns (address) {
+  function collateral() public view virtual override returns (address) {
     return _collateral;
   }
 

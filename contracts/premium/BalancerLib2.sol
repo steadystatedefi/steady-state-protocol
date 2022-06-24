@@ -12,27 +12,43 @@ library BalancerLib2 {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
 
+  struct AssetBalance {
+    uint128 accum;
+    uint96 rate;
+    // uint32
+  }
+
   struct AssetBalancer {
-    mapping(address => Balances.RateAcc) balances;
-    Balances.RateAcc totalBalance;
-    mapping(address => AssetConfig) configs; // [token]
-    uint160 spConst;
-    uint32 spFactor;
+    mapping(address => AssetBalance) balances; // [token] total balance and rate of all sources using this token
+    Balances.RateAcc totalBalance; // total balance and rate of all sources
+    mapping(address => AssetConfig) configs; // [token] token balancing configuration
+    uint160 spConst; // value for (BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
+    uint32 spFactor; // value for (BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
   }
 
   struct AssetConfig {
     uint152 price; // target price, wad-multiplier, uint192
     uint64 w; // [0..1] fee control, uint64
-    uint32 n; // n mint-seconds for the starvation point
-    uint16 flags;
-    uint160 spConst;
+    uint32 n; // n mint-seconds for the starvation point, // value for (!BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
+    uint16 flags; // starvation point modes and asset states
+    uint160 spConst; // value for (!BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
   }
 
-  uint16 internal constant SPM_GLOBAL = 1 << 0;
-  uint16 internal constant SPM_CONSTANT = 1 << 1;
-  uint16 internal constant SPM_FLOW_BALANCE = 1 << 2;
-  uint16 internal constant SPM_FINISHED = 1 << 3;
-  uint16 internal constant SPM_SUSPENDED = 1 << 4;
+  uint8 private constant FINISHED_OFFSET = 8;
+
+  uint16 internal constant BF_SPM_MASK = 3;
+  uint16 internal constant BF_SPM_F_MASK = BF_SPM_MASK << FINISHED_OFFSET;
+
+  uint16 internal constant BF_SPM_GLOBAL = 1 << 0;
+  uint16 internal constant BF_SPM_CONSTANT = 1 << 1;
+
+  uint16 internal constant BF_AUTO_REPLENISH = 1 << 6; // pull a source at every swap
+  uint16 internal constant BF_FINISHED = 1 << 7; // no more sources for this token
+
+  uint16 internal constant BF_SPM_F_GLOBAL = BF_SPM_GLOBAL << FINISHED_OFFSET;
+  uint16 internal constant BF_SPM_F_CONSTANT = BF_SPM_CONSTANT << FINISHED_OFFSET;
+
+  uint16 internal constant BF_SUSPENDED = 1 << 15; // token is suspended
 
   struct CalcParams {
     uint256 sA; // amount of an asset at starvation
@@ -45,7 +61,15 @@ library BalancerLib2 {
     address actuary;
     address source;
     address token;
-    function(ReplenishParams memory, uint256) returns (uint256, uint256) replenishFn;
+    function(
+      ReplenishParams memory,
+      uint256 /* requestedAmount */
+    )
+      returns (
+        uint256, /* replenishedAmount */
+        uint256, /* replenishedValue */
+        uint256 /* expectedAmount */
+      ) replenishFn;
   }
 
   function swapExternalAsset(
@@ -66,12 +90,12 @@ library BalancerLib2 {
     uint256 assetBalance,
     Balances.RateAcc memory total
   ) internal view returns (uint256 amount, uint256 fee) {
-    Balances.RateAcc memory balance;
-    total.sync(balance.updatedAt = uint32(block.timestamp));
-    (CalcParams memory c, ) = _calcParams(p, token, balance.rate);
+    AssetBalance memory balance;
+    total.sync(uint32(block.timestamp));
+    (CalcParams memory c, ) = _calcParams(p, token, balance.rate, true);
 
     require((total.accum += uint128(assetBalance)) >= assetBalance);
-    require((balance.accum = uint128(assetBalance)) == assetBalance);
+    balance.accum = uint128(assetBalance);
 
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
   }
@@ -84,10 +108,10 @@ library BalancerLib2 {
     uint256 extraTotal
   ) internal returns (uint256 amount, uint256 fee) {
     Balances.RateAcc memory total = p.totalBalance;
-    (amount, fee) = swapAssetInBatch(p, params, value, minAmount, extraTotal, total);
+    bool updated;
+    (amount, fee, updated) = swapAssetInBatch(p, params, value, minAmount, extraTotal, total);
 
-    if (amount > 0) {
-      // wrong update criteria on replenishment
+    if (updated) {
       p.totalBalance = total;
     }
   }
@@ -99,27 +123,38 @@ library BalancerLib2 {
     uint256 minAmount,
     uint256 extraTotal,
     Balances.RateAcc memory total
-  ) internal returns (uint256 amount, uint256 fee) {
-    Balances.RateAcc memory balance = p.balances[params.token];
+  )
+    internal
+    returns (
+      uint256 amount,
+      uint256 fee,
+      bool updated
+    )
+  {
+    AssetBalance memory balance = p.balances[params.token];
     total.sync(uint32(block.timestamp));
 
-    (CalcParams memory c, uint256 flags) = _calcParams(p, params.token, balance.rate);
-    c.extraTotal = extraTotal;
+    (CalcParams memory c, uint256 flags) = _calcParams(p, params.token, balance.rate, true);
 
-    if (flags & SPM_FLOW_BALANCE != 0 || (balance.rate > 0 && balance.accum <= c.sA)) {
-      _replenishAsset(p, params, 0, c, balance, total);
+    if (flags & BF_AUTO_REPLENISH != 0 || (balance.rate > 0 && balance.accum <= c.sA)) {
+      // c.extraTotal = 0; - it is and it should be zero here
+      _replenishAsset(p, params, c, balance, total);
+      updated = true;
     }
 
+    c.extraTotal = extraTotal;
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
     if (amount > 0) {
       p.balances[params.token] = balance;
+      updated = true;
     }
   }
 
   function _calcParams(
     AssetBalancer storage p,
     address token,
-    uint256 rate
+    uint256 rate,
+    bool checkSuspended
   ) private view returns (CalcParams memory c, uint256 flags) {
     AssetConfig storage config = p.configs[token];
 
@@ -128,14 +163,17 @@ library BalancerLib2 {
 
     {
       flags = config.flags;
-      if (flags & SPM_SUSPENDED != 0) {
+      if (flags & BF_SUSPENDED != 0 && checkSuspended) {
         revert Errors.OperationPaused();
       }
+      if (flags & BF_FINISHED != 0) {
+        flags <<= FINISHED_OFFSET;
+      }
 
-      if (flags & SPM_CONSTANT == 0) {
-        c.sA = (rate * (flags & SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
+      if (flags & BF_SPM_CONSTANT == 0) {
+        c.sA = (rate * (flags & BF_SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
       } else {
-        c.sA = flags & SPM_GLOBAL == 0 ? config.spConst : p.spConst;
+        c.sA = flags & BF_SPM_GLOBAL == 0 ? config.spConst : p.spConst;
       }
     }
   }
@@ -144,11 +182,11 @@ library BalancerLib2 {
     uint256 value,
     uint256 minAmount,
     CalcParams memory c,
-    Balances.RateAcc memory balance,
+    AssetBalance memory balance,
     Balances.RateAcc memory total
   ) private pure returns (uint256 amount, uint256 fee) {
     uint256 k = _calcScale(balance, total, c.extraTotal);
-    amount = _calcA(c, balance.accum, value.rayMul(k));
+    amount = _calcAmount(c, balance.accum, value.rayMul(k));
 
     if (amount == 0 && c.sA != 0 && balance.accum > 0) {
       amount = 1;
@@ -183,7 +221,7 @@ library BalancerLib2 {
   }
 
   function _calcScale(
-    Balances.RateAcc memory balance,
+    AssetBalance memory balance,
     Balances.RateAcc memory total,
     uint256 extraTotal
   ) private pure returns (uint256) {
@@ -193,7 +231,7 @@ library BalancerLib2 {
         : (uint256(balance.accum).rayDiv(total.accum + extraTotal) * total.rate + (balance.rate >> 1)) / uint256(balance.rate);
   }
 
-  function _calcA(
+  function _calcAmount(
     CalcParams memory c,
     uint256 a,
     uint256 dV
@@ -208,7 +246,7 @@ library BalancerLib2 {
         a1 = _calcCurveW(c, a, dV);
       }
     } else {
-      a1 = _calcSat(c, a, dV);
+      a1 = _calcStarvation(c, a, dV);
     }
   }
 
@@ -249,11 +287,11 @@ library BalancerLib2 {
       a1 = a - dA;
     } else {
       dV -= (a - c.sA).wadMul(c.vA);
-      a1 = _calcSat(c, c.sA, dV);
+      a1 = _calcStarvation(c, c.sA, dV);
     }
   }
 
-  function _calcSat(
+  function _calcStarvation(
     CalcParams memory c,
     uint256 a,
     uint256 dV
@@ -278,35 +316,27 @@ library BalancerLib2 {
   function replenishAsset(
     AssetBalancer storage p,
     ReplenishParams memory params,
-    uint256 extraAmount
-  ) internal {
-    (Balances.RateAcc memory balance, Balances.RateAcc memory total) = _replenishAssetForUpdate(p, params, extraAmount);
-    _save(p, params, balance, total);
-  }
-
-  function replenishAsset(
-    AssetBalancer storage p,
-    ReplenishParams memory params,
-    uint256 extraAmount,
-    uint256 newRate
-  ) internal returns (uint256) {
-    (Balances.RateAcc memory balance, Balances.RateAcc memory total) = _replenishAssetForUpdate(p, params, extraAmount);
-    _changeRate(newRate, balance, total);
-
-    _save(p, params, balance, total);
-    return balance.accum;
-  }
-
-  function changeRate(
-    AssetBalancer storage p,
-    address token,
-    uint256 newRate
-  ) internal returns (uint256) {
-    Balances.RateAcc memory balance = p.balances[token].sync(uint32(block.timestamp));
+    uint256 incrementAmount,
+    uint96 newRate,
+    uint96 lastRate,
+    bool checkSuspended
+  ) internal returns (bool fully) {
     Balances.RateAcc memory total = _syncTotalBalance(p);
-    _changeRate(newRate, balance, total);
-    _save(p, token, balance, total);
-    return balance.accum;
+    AssetBalance memory balance = p.balances[params.token];
+    (CalcParams memory c, ) = _calcParams(p, params.token, balance.rate, checkSuspended);
+    c.extraTotal = incrementAmount;
+
+    if (_replenishAsset(p, params, c, balance, total) < incrementAmount) {
+      newRate = 0;
+    } else {
+      fully = true;
+    }
+
+    if (lastRate != newRate) {
+      _changeRate(lastRate, newRate, balance, total);
+    }
+
+    _save(p, params, balance, total);
   }
 
   function _syncTotalBalance(AssetBalancer storage p) private view returns (Balances.RateAcc memory) {
@@ -316,7 +346,7 @@ library BalancerLib2 {
   function _save(
     AssetBalancer storage p,
     address token,
-    Balances.RateAcc memory balance,
+    AssetBalance memory balance,
     Balances.RateAcc memory total
   ) private {
     p.balances[token] = balance;
@@ -326,81 +356,73 @@ library BalancerLib2 {
   function _save(
     AssetBalancer storage p,
     ReplenishParams memory params,
-    Balances.RateAcc memory balance,
+    AssetBalance memory balance,
     Balances.RateAcc memory total
   ) private {
     _save(p, params.token, balance, total);
   }
 
   function _changeRate(
-    uint256 newRate,
-    Balances.RateAcc memory balance,
+    uint96 lastRate,
+    uint96 newRate,
+    AssetBalance memory balance,
     Balances.RateAcc memory total
   ) private pure {
-    if (newRate != balance.rate) {
-      if (newRate > balance.rate) {
-        unchecked {
-          newRate -= balance.rate;
-        }
-        require((total.rate += uint96(newRate)) >= newRate);
-      } else {
-        unchecked {
-          newRate = balance.rate - newRate;
-        }
-        total.rate -= uint96(newRate);
+    if (newRate > lastRate) {
+      unchecked {
+        newRate = newRate - lastRate;
       }
+      require((balance.rate += newRate) >= newRate);
+      total.rate += newRate;
+    } else {
+      unchecked {
+        newRate = lastRate - newRate;
+      }
+      balance.rate -= newRate;
+      total.rate -= newRate;
     }
-  }
-
-  function _replenishAssetForUpdate(
-    AssetBalancer storage p,
-    ReplenishParams memory params,
-    uint256 extraAmount
-  ) internal returns (Balances.RateAcc memory balance, Balances.RateAcc memory total) {
-    total = _syncTotalBalance(p);
-    balance = p.balances[params.token];
-    (CalcParams memory c, ) = _calcParams(p, params.token, balance.rate);
-
-    _replenishAsset(p, params, extraAmount, c, balance, total);
   }
 
   function _replenishAsset(
     AssetBalancer storage p,
     ReplenishParams memory params,
-    uint256 extraAmount,
     CalcParams memory c,
-    Balances.RateAcc memory balance,
+    AssetBalance memory assetBalance,
     Balances.RateAcc memory total
-  ) private {
-    uint256 delta = block.timestamp - balance.updatedAt;
-    if (delta > 0 || extraAmount > 0) {
-      delta *= balance.rate;
-      (uint256 receivedAmount, uint256 v) = params.replenishFn(params, delta + extraAmount);
-
-      v = v * WadRayMath.WAD + uint256(balance.accum) * c.vA;
-      _afterReplenishment(delta, receivedAmount, balance, total);
-
-      if ((v = v.divUp(balance.accum)) != c.vA) {
-        require((c.vA = p.configs[params.token].price = uint152(v)) == v);
-      }
-    }
-    balance.updatedAt = uint32(block.timestamp);
-  }
-
-  function _afterReplenishment(
-    uint256 streamAmount,
-    uint256 receivedAmount,
-    Balances.RateAcc memory balance,
-    Balances.RateAcc memory total
-  ) private view {
-    require(receivedAmount <= type(uint128).max);
+  ) private returns (uint128) {
     require(total.updatedAt == block.timestamp);
 
-    total.accum = uint128((total.accum - streamAmount) + receivedAmount);
-    balance.accum += uint128(receivedAmount);
-    if (streamAmount > receivedAmount) {
-      total.rate -= balance.rate;
-      balance.rate = 0;
+    (uint256 receivedAmount, uint256 v, uint256 expectedAmount) = params.replenishFn(params, c.extraTotal);
+    if (receivedAmount == 0 && expectedAmount == 0) {
+      return 0;
     }
+    require(receivedAmount <= type(uint128).max);
+
+    v = v * WadRayMath.WAD + uint256(assetBalance.accum) * c.vA;
+    {
+      total.accum = uint128((total.accum - expectedAmount) + receivedAmount);
+      assetBalance.accum += uint128(receivedAmount);
+    }
+    v = v.divUp(assetBalance.accum);
+
+    if (v != c.vA) {
+      require((c.vA = p.configs[params.token].price = uint152(v)) == v);
+    }
+
+    return uint128(receivedAmount);
+  }
+
+  function decRate(
+    AssetBalancer storage p,
+    address targetToken,
+    uint96 lastRate
+  ) internal returns (uint96 rate) {
+    Balances.RateAcc memory total = _syncTotalBalance(p);
+    AssetBalance storage balance = p.balances[targetToken];
+
+    total.rate -= lastRate;
+    p.totalBalance = total;
+
+    return (balance.rate -= lastRate);
   }
 }

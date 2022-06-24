@@ -4,6 +4,8 @@ pragma solidity ^0.8.4;
 import './ICollateralized.sol';
 
 interface IPremiumActuary is ICollateralized {
+  function premiumDistributor() external view returns (address);
+
   function collectDrawdownPremium() external returns (uint256 availablePremiumValue);
 
   function burnPremium(

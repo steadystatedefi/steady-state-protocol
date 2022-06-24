@@ -26,6 +26,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
   mapping(address => Balances.RateAccWithUint16) private _balances;
   Balances.RateAcc private _totals;
 
+  uint224 private _receivedCollateral;
   uint32 private _cancelledAt; // TODO
 
   function _ensureHolder(uint16 flags) private view {
@@ -93,6 +94,13 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
   }
 
   /// @dev Update premium paid of entire pool
+  function internalExpectedTotals(uint32 at) internal view returns (Balances.RateAcc memory) {
+    require(at >= block.timestamp);
+    uint32 ts = _cancelledAt;
+    return _totals.sync(ts > 0 && ts <= at ? ts : at);
+  }
+
+  /// @dev Update premium paid of entire pool
   function internalSyncTotals() internal view returns (Balances.RateAcc memory) {
     return _totals.sync(_syncTimestamp());
   }
@@ -126,7 +134,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
 
   /// @notice Total Premium rate and accumulated
   /// @return rate The current rate paid by the insured
-  /// @return accumulated The total amount of premium paid
+  /// @return accumulated The total amount of premium to be paid for the policy
   function totalPremium() public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = internalSyncTotals();
     return (totals.rate, totals.accum);
@@ -163,6 +171,9 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
 
     (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this));
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
+    if (receivedCollateral > 0) {
+      internalCollateralReceived(address(insurer), receivedCollateral);
+    }
 
     (Balances.RateAcc memory totals, bool updated) = _syncInsurerBalance(b, coverage);
 
@@ -184,6 +195,19 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
       _totals = totals;
       _balances[address(insurer)] = b;
     }
+  }
+
+  function internalCollateralReceived(address insurer, uint256 amount) internal virtual {
+    insurer;
+    _receivedCollateral += uint224(amount); // TODO check?
+  }
+
+  function internalDecReceivedCollateral(uint256 amount) internal virtual {
+    _receivedCollateral -= uint224(amount); // TODO check?
+  }
+
+  function totalReceivedCollateral() public view returns (uint256) {
+    return _receivedCollateral;
   }
 
   function _syncInsurerBalance(Balances.RateAccWithUint16 memory b, DemandedCoverage memory coverage)
