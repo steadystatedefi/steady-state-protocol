@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import './TokenDelegateBase.sol';
 import '../tools/SafeOwnable.sol';
+import '../interfaces/IManagedCollateralCurrency.sol';
+import './TokenDelegateBase.sol';
 
-contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
+contract CollateralCurrency is IManagedCollateralCurrency, SafeOwnable, TokenDelegateBase {
   constructor(
     string memory name_,
     string memory symbol_,
@@ -24,7 +25,7 @@ contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
     internalUnsetFlags(account);
   }
 
-  function mint(address account, uint256 amount) external onlyWithFlags(FLAG_MINT) {
+  function mint(address account, uint256 amount) external override onlyWithFlags(FLAG_MINT) {
     _mint(account, amount);
   }
 
@@ -32,11 +33,11 @@ contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
     address onBehalf,
     address recepient,
     uint256 amount
-  ) external onlyWithFlags(FLAG_MINT) {
+  ) external override onlyWithFlags(FLAG_MINT) {
     _mintAndTransfer(onBehalf, recepient, amount);
   }
 
-  function burn(address account, uint256 amount) external onlyWithFlags(FLAG_BURN) {
+  function burn(address account, uint256 amount) external override onlyWithFlags(FLAG_BURN) {
     _burn(account, amount);
   }
 }
