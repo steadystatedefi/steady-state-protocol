@@ -100,6 +100,7 @@
     "test-imperpetual": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/imperpetual-pool.cov.spec.ts",
     "test-currency": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/currency.cov.spec.ts",
     "test-balancer": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/balancer.cov.spec.ts",
+    "test-premium": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/premium-fund.cov.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/weighted-pool.bench.ts",
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 SKIP_LOAD=true hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 SKIP_LOAD=true hardhat coverage --network coverage --testfiles \"test-suites/test-main/*.cov.spec.ts\"",
     "prettier:check": "npm prettier -c 'helpers/**/*.ts' 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'",
