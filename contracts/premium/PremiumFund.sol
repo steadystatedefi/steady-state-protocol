@@ -25,7 +25,7 @@ contract PremiumFund is IPremiumDistributor {
   using Balances for Balances.RateAcc;
   using EnumerableSet for EnumerableSet.AddressSet;
 
-  mapping(address => BalancerLib2.AssetBalancer) private _balancers; // [actuary]
+  mapping(address => BalancerLib2.AssetBalancer) internal _balancers; // [actuary]
 
   enum ActuaryState {
     Unknown,
@@ -61,7 +61,7 @@ contract PremiumFund is IPremiumDistributor {
     ActuaryState state;
   }
 
-  mapping(address => ActuaryConfig) private _configs; // [actuary]
+  mapping(address => ActuaryConfig) internal _configs; // [actuary]
   mapping(address => TokenState) private _tokens; // [token]
 
   address private _collateral;
@@ -83,7 +83,7 @@ contract PremiumFund is IPremiumDistributor {
   // TODO balanceOf
   // TODO balanceOfSource/Prepay, prepay/withdraw
 
-  function registerPremiumActuary(address actuary, bool register) external onlyAdmin {
+  function registerPremiumActuary(address actuary, bool register) external virtual onlyAdmin {
     ActuaryConfig storage config = _configs[actuary];
     if (register) {
       State.require(config.state < ActuaryState.Active);
@@ -177,6 +177,7 @@ contract PremiumFund is IPremiumDistributor {
       require(balance.rate == 0);
       // re-activation should keep price
       uint152 price = balance.accum == 0 ? 0 : balancer.configs[targetToken].price;
+      console.log(balancer.configs[targetToken].price);
       balancer.configs[targetToken] = config.defaultConfig;
       balancer.configs[targetToken].price = price;
     }
@@ -417,7 +418,7 @@ contract PremiumFund is IPremiumDistributor {
     return 0;
   }
 
-  function priceOf(address token) public pure returns (uint256) {
+  function priceOf(address token) public view virtual returns (uint256) {
     token;
     return WadRayMath.WAD;
     // TODO price oracle
