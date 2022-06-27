@@ -63,7 +63,7 @@ library BalancerLib2 {
     address token;
     function(
       ReplenishParams memory,
-      uint256 /* requestedAmount */
+      uint256 /* requestedValue */
     )
       returns (
         uint256, /* replenishedAmount */
@@ -316,7 +316,7 @@ library BalancerLib2 {
   function replenishAsset(
     AssetBalancer storage p,
     ReplenishParams memory params,
-    uint256 incrementAmount,
+    uint256 incrementValue,
     uint96 newRate,
     uint96 lastRate,
     bool checkSuspended
@@ -324,9 +324,9 @@ library BalancerLib2 {
     Balances.RateAcc memory total = _syncTotalBalance(p);
     AssetBalance memory balance = p.balances[params.token];
     (CalcParams memory c, ) = _calcParams(p, params.token, balance.rate, checkSuspended);
-    c.extraTotal = incrementAmount;
+    c.extraTotal = incrementValue;
 
-    if (_replenishAsset(p, params, c, balance, total) < incrementAmount) {
+    if (_replenishAsset(p, params, c, balance, total) < incrementValue) {
       newRate = 0;
     } else {
       fully = true;
@@ -389,16 +389,16 @@ library BalancerLib2 {
     CalcParams memory c,
     AssetBalance memory assetBalance,
     Balances.RateAcc memory total
-  ) private returns (uint128) {
+  ) private returns (uint256) {
     require(total.updatedAt == block.timestamp);
 
-    (uint256 receivedAmount, uint256 v, uint256 expectedAmount) = params.replenishFn(params, c.extraTotal);
+    (uint256 receivedAmount, uint256 receivedValue, uint256 expectedAmount) = params.replenishFn(params, c.extraTotal);
     if (receivedAmount == 0 && expectedAmount == 0) {
       return 0;
     }
     require(receivedAmount <= type(uint128).max);
 
-    v = v * WadRayMath.WAD + uint256(assetBalance.accum) * c.vA;
+    uint256 v = receivedValue * WadRayMath.WAD + uint256(assetBalance.accum) * c.vA;
     {
       total.accum = uint128((total.accum - expectedAmount) + receivedAmount);
       assetBalance.accum += uint128(receivedAmount);
@@ -409,7 +409,7 @@ library BalancerLib2 {
       require((c.vA = p.configs[params.token].price = uint152(v)) == v);
     }
 
-    return uint128(receivedAmount);
+    return receivedValue;
   }
 
   function decRate(

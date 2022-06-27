@@ -306,7 +306,7 @@ contract PremiumFund is IPremiumDistributor {
     _removePremiumSource(config, balancer, source, targetToken);
   }
 
-  function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredAmount)
+  function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredValue)
     private
     returns (
       uint256 replenishedAmount,
@@ -323,7 +323,6 @@ contract PremiumFund is IPremiumDistributor {
     /* ============================================================ */
 
     ActuaryConfig storage config = _configs[params.actuary];
-    uint256 price = priceOf(params.token);
 
     if (params.source == address(0)) {
       params.source = _sourceForReplenish(config, params.token);
@@ -342,13 +341,15 @@ contract PremiumFund is IPremiumDistributor {
     }
     uint256 debtValue = balance.debt;
     if (debtValue > 0) {
-      requiredAmount += uint256(debtValue).wadDiv(price);
+      requiredValue += debtValue;
       debtValue = 0;
     }
 
-    if (requiredAmount > 0) {
+    if (requiredValue > 0) {
       uint256 missingValue;
-      (replenishedAmount, missingValue) = _collectPremium(params, requiredAmount, price);
+      uint256 price = priceOf(params.token);
+
+      (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
       debtValue += missingValue;
 
       replenishedValue = replenishedAmount.wadMul(price);
@@ -371,22 +372,28 @@ contract PremiumFund is IPremiumDistributor {
 
   function _collectPremium(
     BalancerLib2.ReplenishParams memory params,
-    uint256 requiredAmount,
+    uint256 requiredValue,
     uint256 price
   ) private returns (uint256 collectedAmount, uint256 missingValue) {
-    collectedAmount = _collectPremiumCall(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredAmount.wadMul(price));
+    uint256 requiredAmount = requiredValue.wadDiv(price);
+    collectedAmount = _collectPremiumCall(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredValue);
     if (collectedAmount < requiredAmount) {
       missingValue = (requiredAmount - collectedAmount).wadMul(price);
 
-      if (missingValue > 0) {
-        // assert(params.token != collateral());
-        uint256 collectedValue = _collectPremiumCall(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
+      /* 
+      // This section of code enables use of CC as an additional way of premium payment
 
-        if (collectedValue > 0) {
-          missingValue -= collectedValue;
-          collectedAmount += collectedValue.wadDiv(price);
-        }
-      }
+      // if (missingValue > 0) {
+      //   // assert(params.token != collateral());
+      //   uint256 collectedValue = _collectPremiumCall(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
+
+      //   if (collectedValue > 0) {
+      //     missingValue -= collectedValue;
+      //     collectedAmount += collectedValue.wadDiv(price);
+      //   }
+      // }
+
+      */
     }
   }
 
