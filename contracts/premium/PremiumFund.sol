@@ -212,6 +212,11 @@ contract PremiumFund is IPremiumDistributor {
     State.require(config.state >= ActuaryState.Active);
   }
 
+  function _ensureActiveActuary(address actuary) private view returns (ActuaryConfig storage config) {
+    config = _configs[actuary];
+    State.require(config.state == ActuaryState.Active);
+  }
+
   function _premiumAllocationUpdated(
     ActuaryConfig storage config,
     address actuary,
@@ -486,7 +491,7 @@ contract PremiumFund is IPremiumDistributor {
       sourceLimit = ~sourceLimit;
     }
 
-    ActuaryConfig storage config = _ensureActuary(actuary);
+    ActuaryConfig storage config = _ensureActiveActuary(actuary);
     _syncAsset(config, actuary, targetToken, sourceLimit);
   }
 
@@ -499,7 +504,7 @@ contract PremiumFund is IPremiumDistributor {
       sourceLimit = ~sourceLimit;
     }
 
-    ActuaryConfig storage config = _ensureActuary(actuary);
+    ActuaryConfig storage config = _ensureActiveActuary(actuary);
 
     for (; i < targetTokens.length; i++) {
       sourceLimit = _syncAsset(config, actuary, targetTokens[i], sourceLimit);
@@ -517,6 +522,7 @@ contract PremiumFund is IPremiumDistributor {
     address targetToken,
     uint256 minAmount
   ) public returns (uint256 tokenAmount) {
+    _ensureActiveActuary(actuary);
     _ensureToken(targetToken);
     Value.require(recipient != address(0));
 
@@ -574,8 +580,11 @@ contract PremiumFund is IPremiumDistributor {
     SwapInstruction[] calldata instructions
   ) external returns (uint256[] memory tokenAmounts) {
     if (instructions.length <= 1) {
+      // _ensureActiveActuary is applied inside swapToken invoked via _swapTokensOne
       return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuary, account, defaultRecepient, instructions[0]);
     }
+
+    _ensureActiveActuary(actuary);
 
     uint256[] memory fees;
     (tokenAmounts, fees) = _swapTokens(actuary, account, instructions, IPremiumActuary(actuary).collectDrawdownPremium());
