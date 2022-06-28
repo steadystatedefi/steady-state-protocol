@@ -5,21 +5,19 @@ import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/SafeOwnable.sol';
 import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
-import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 
-contract CollateralFundBase {
+contract CollateralFundStableBalanceBase {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
-  using PercentageMath for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 
   IManagedCollateralCurrency private _collateral;
 
   struct CollateralAsset {
+    uint128 totalAmount; // this is tracked separatly, as ERC20.balanceOf can be affected by transfers
+    uint128 totalValue;
     uint8 flags; // TODO flags
-    uint16 priceTolerance;
-    uint64 priceTarget;
     address trusted;
   }
 
@@ -101,23 +99,23 @@ contract CollateralFundBase {
 
   function deposit(
     address from,
-    address account,
+    address to,
     address token,
     uint256 amount
-  ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT) onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
+  ) external onlyApproved(to, CollateralFundLib.APPROVED_DEPOSIT) onlySpecial(to, CollateralFundLib.APPROVED_DEPOSIT) {
     uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, amount);
-    _collateral.mint(account, value);
+    _collateral.mint(to, value);
   }
 
   function invest(
     address from,
-    address account,
+    address to,
     address token,
     uint256 amount,
     address investTo
-  ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST) {
+  ) external onlyApproved(to, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST) {
     uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, amount);
-    _collateral.mintAndTransfer(account, investTo, value);
+    _collateral.mintAndTransfer(to, investTo, value);
   }
 
   // function invest(
@@ -135,17 +133,12 @@ contract CollateralFundBase {
     uint256 amount
   ) private returns (uint256 value) {
     IERC20(token).safeTransferFrom(from, address(this), amount);
-    value = amount.wadMul(_safePriceOf(asset, token));
+    value = amount.wadMul(priceOf(asset, token));
+    require((asset.totalAmount += uint128(amount)) >= amount);
+    require((asset.totalValue += uint128(value)) >= value);
   }
 
-  function _safePriceOf(CollateralAsset storage asset, address token) private view returns (uint256 price) {
-    price = internalPriceOf(token);
-
-    uint256 target = asset.priceTarget;
-    require((target > price ? target - price : price - target) >= target.percentMul(PercentageMath.ONE - asset.priceTolerance));
-  }
-
-  function internalPriceOf(address token) internal view virtual returns (uint256) {
+  function priceOf(CollateralAsset storage asset, address token) internal view returns (uint256) {
     // TODO
   }
 
@@ -171,12 +164,12 @@ contract CollateralFundBase {
       if (amount == type(uint256).max) {
         (amount, x) = _withdrawValue(asset, value = _collateral.balanceOf(from));
         if (x > 0) {
-          amount += x.wadDiv(_safePriceOf(asset, token));
+          amount += x.wadDiv(priceOf(asset, token));
         }
       } else {
         (x, value) = _withdrawAmount(asset, amount);
         if (x > 0) {
-          value += x.wadMul(_safePriceOf(asset, token));
+          value += x.wadMul(priceOf(asset, token));
         }
       }
 
@@ -188,12 +181,14 @@ contract CollateralFundBase {
   }
 
   function _withdrawAmount(CollateralAsset storage asset, uint256 amount) internal virtual returns (uint256, uint256 value) {
-    asset;
+    uint128 x = asset.totalAmount;
+    (asset.totalAmount, asset.totalValue, amount, value) = _withdrawCalc(x, asset.totalValue, amount);
     return (amount, value);
   }
 
   function _withdrawValue(CollateralAsset storage asset, uint256 value) internal virtual returns (uint256 amount, uint256) {
-    asset;
+    uint128 x = asset.totalValue;
+    (asset.totalValue, asset.totalAmount, value, amount) = _withdrawCalc(x, asset.totalAmount, value);
     return (amount, value);
   }
 
