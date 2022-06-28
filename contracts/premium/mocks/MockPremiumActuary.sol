@@ -19,6 +19,10 @@ contract MockPremiumActuary is IPremiumActuary {
     IPremiumDistributor(premiumDistributor).registerPremiumSource(source, true);
   }
 
+  function removeSource(address source) external {
+    IPremiumDistributor(premiumDistributor).registerPremiumSource(source, false);
+  }
+
   function collectDrawdownPremium() external returns (uint256 availablePremiumValue) {
     availablePremiumValue = 0;
   }

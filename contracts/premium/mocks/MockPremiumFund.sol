@@ -35,12 +35,24 @@ contract MockPremiumFund is PremiumFund {
     _configs[actuary].defaultConfig = BalancerLib2.AssetConfig(price, w, n, flags, spConst);
   }
 
-  function balancesOf(address actuary, address source) external view returns (SourceBalance memory) {
-    return _configs[actuary].sourceBalances[source];
+  function getDefaultConfig(address actuary) external view returns (BalancerLib2.AssetConfig memory) {
+    return _configs[actuary].defaultConfig;
   }
 
   function getConifg(address actuary, address asset) external view returns (BalancerLib2.AssetConfig memory) {
     return _balancers[actuary].configs[asset];
+  }
+
+  function balancesOf(address actuary, address source) external view returns (SourceBalance memory) {
+    return _configs[actuary].sourceBalances[source];
+  }
+
+  function balancerBalanceOf(address actuary, address token) external view returns (BalancerLib2.AssetBalance memory) {
+    return _balancers[actuary].balances[token];
+  }
+
+  function balancerTotals(address actuary) external view returns (Balances.RateAcc memory) {
+    return _balancers[actuary].totalBalance;
   }
 
   function setPrice(address token, uint256 price) external {

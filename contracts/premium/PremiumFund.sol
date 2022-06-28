@@ -177,7 +177,6 @@ contract PremiumFund is IPremiumDistributor {
       require(balance.rate == 0);
       // re-activation should keep price
       uint152 price = balance.accum == 0 ? 0 : balancer.configs[targetToken].price;
-      console.log(balancer.configs[targetToken].price);
       balancer.configs[targetToken] = config.defaultConfig;
       balancer.configs[targetToken].price = price;
     }
@@ -385,7 +384,7 @@ contract PremiumFund is IPremiumDistributor {
     if (collectedAmount < requiredAmount) {
       missingValue = (requiredAmount - collectedAmount).wadMul(price);
 
-      /* 
+      /*
       // This section of code enables use of CC as an additional way of premium payment
 
       // if (missingValue > 0) {
