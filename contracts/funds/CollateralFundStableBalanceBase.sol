@@ -115,7 +115,7 @@ contract CollateralFundStableBalanceBase {
     address investTo
   ) external onlyApproved(to, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST) {
     uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, amount);
-    _collateral.mintAndTransfer(to, investTo, value);
+    _collateral.mintAndTransfer(to, investTo, value, 0);
   }
 
   // function invest(
@@ -260,7 +260,7 @@ contract CollateralFundStableBalanceBase {
     address investTo
   ) external {
     uint256 value = _deposit(_ensureTrusted(token, AF_ALLOW_DEPOSIT), from, token, amount);
-    _collateral.mintAndTransfer(to, investTo, value);
+    _collateral.mintAndTransfer(to, investTo, value, 0);
   }
 
   function trustedWithdraw(

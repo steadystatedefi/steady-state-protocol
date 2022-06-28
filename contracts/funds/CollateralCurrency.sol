@@ -31,10 +31,21 @@ contract CollateralCurrency is IManagedCollateralCurrency, SafeOwnable, TokenDel
 
   function mintAndTransfer(
     address onBehalf,
-    address recepient,
-    uint256 amount
+    address recipient,
+    uint256 mintAmount,
+    uint256 balanceAmount
   ) external override onlyWithFlags(FLAG_MINT) {
-    _mintAndTransfer(onBehalf, recepient, amount);
+    if (balanceAmount == 0) {
+      _mintAndTransfer(onBehalf, recipient, mintAmount);
+    } else {
+      _mint(onBehalf, mintAmount);
+      if (balanceAmount == type(uint256).max) {
+        balanceAmount = balanceOf(onBehalf);
+      } else {
+        balanceAmount += mintAmount;
+      }
+      _transfer(onBehalf, recipient, balanceAmount);
+    }
   }
 
   function burn(address account, uint256 amount) external override onlyWithFlags(FLAG_BURN) {

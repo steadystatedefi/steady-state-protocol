@@ -103,9 +103,9 @@ contract CollateralFundBase {
     address from,
     address account,
     address token,
-    uint256 amount
+    uint256 tokenAmount
   ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT) onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
-    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, amount);
+    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, tokenAmount);
     _collateral.mint(account, value);
   }
 
@@ -113,11 +113,23 @@ contract CollateralFundBase {
     address from,
     address account,
     address token,
-    uint256 amount,
+    uint256 tokenAmount,
     address investTo
   ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST) {
-    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, amount);
-    _collateral.mintAndTransfer(account, investTo, value);
+    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, tokenAmount);
+    _collateral.mintAndTransfer(account, investTo, value, 0);
+  }
+
+  function investIncludingDeposit(
+    address from,
+    address account,
+    uint256 depositValue,
+    address token,
+    uint256 tokenAmount,
+    address investTo
+  ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST) {
+    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, tokenAmount);
+    _collateral.mintAndTransfer(account, investTo, value, depositValue);
   }
 
   // function invest(
@@ -259,13 +271,14 @@ contract CollateralFundBase {
 
   function trustedInvest(
     address from,
-    address to,
+    address account,
+    uint256 depositValue,
     address token,
     uint256 amount,
     address investTo
   ) external {
     uint256 value = _deposit(_ensureTrusted(token, AF_ALLOW_DEPOSIT), from, token, amount);
-    _collateral.mintAndTransfer(to, investTo, value);
+    _collateral.mintAndTransfer(account, investTo, value, depositValue);
   }
 
   function trustedWithdraw(
