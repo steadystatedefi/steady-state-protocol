@@ -143,7 +143,7 @@ makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
       const r = (await fund.balancesOf(actuary.address, sources[i].address)).rate;
       expect(r).eq(rates[i]);
     }
-    expect((await fund.balancerBalanceOf(actuary.address, token1.address)).rate).eq(token1Rate);
+    expect((await fund.balancerBalanceOf(actuary.address, token1.address)).rateValue).eq(token1Rate);
     expect((await fund.balancesOf(actuary.address, token2Source.address)).rate).eq(token2Rate);
 
     // Because some time passed differently while adding sources, we must get to a "zero" state

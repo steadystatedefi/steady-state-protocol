@@ -4,7 +4,7 @@ import { BigNumber, BigNumberish } from 'ethers';
 import { MAX_UINT128, RAY, WAD } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
-import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
+import { createRandomAddress } from '../../helpers/runtime-utils';
 import { MockBalancerLib2 } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
@@ -27,6 +27,10 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
   }
 
   const starvationPoint = 20;
+  let priceFactor = 10000; // 50%
+  const scaleValue = (v: BigNumberish) =>
+    priceFactor === 10000 ? BigNumber.from(v) : BigNumber.from(v).mul(priceFactor).div(10000);
+  const priceWAD = () => scaleValue(WAD);
 
   const swapTokenStatic = async (
     token: string,
@@ -35,9 +39,10 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     expectedFee?: BigNumberish,
     minAmount?: number
   ) => {
-    const ev = await lib.callStatic.swapToken(token, value, minAmount ?? 0);
+    const ev = await lib.callStatic.swapToken(token, scaleValue(value), minAmount ?? 0);
+
     expect(ev.amount).eq(expectedAmount);
-    expect(ev.fee).eq(expectedFee ?? BigNumber.from(value).sub(expectedAmount));
+    expect(ev.fee).eq(scaleValue(expectedFee ?? BigNumber.from(value).sub(expectedAmount)));
   };
 
   const swapTokenAt = async (
@@ -48,99 +53,17 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     expectedFee?: BigNumberish,
     minAmount?: number
   ) => {
-    await lib.setBalance(token, balance, 0);
-    await lib.setTotalBalance(balance, 0);
+    await lib.setBalance(token, balance, 0, { gasLimit: 2000000 });
+    await lib.setTotalBalance(scaleValue(balance), 0, { gasLimit: 2000000 });
 
     await Events.TokenSwapped.waitOneAndUnwrap(
-      lib.swapToken(token, value, minAmount ?? 0, { gasLimit: 2000000 }),
+      lib.swapToken(token, scaleValue(value), minAmount ?? 0, { gasLimit: 3000000 }),
       (ev) => {
         expect(ev.amount).eq(expectedAmount);
-        expect(ev.fee).eq(expectedFee ?? BigNumber.from(value).sub(expectedAmount));
+        expect(ev.fee).eq(scaleValue(expectedFee ?? BigNumber.from(value).sub(expectedAmount)));
       }
     );
   };
-
-  it('Starvation point with constant modes', async () => {
-    const v = 100;
-
-    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.Constant, starvationPoint);
-    await swapTokenAt(t0, 100, v, v - starvationPoint / 2);
-
-    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.GlobalConstant, 0);
-    await swapTokenAt(t0, 100, v, v);
-    await lib.setGlobals(0, starvationPoint);
-    await swapTokenAt(t0, 100, v, v - starvationPoint / 2);
-  });
-
-  it('Starvation point with rate factor mode', async () => {
-    const v = 100;
-    const rate = 1;
-
-    await lib.setConfig(t0, WAD, 0, starvationPoint, StarvationPointMode.RateFactor, 0);
-
-    const timeDelta = 50;
-    const dV = rate * timeDelta;
-
-    await lib.setBalance(t0, v, rate);
-    await lib.setReplenishDelta(dV);
-    await lib.setTotalBalance(v + dV, rate);
-
-    {
-      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
-      if (!testEnv.underCoverage) {
-        expect(ev.amount).eq(v + dV - starvationPoint / 2);
-      }
-    }
-  });
-
-  it('Starvation point with global rate factor mode', async () => {
-    const v = 100;
-    const rate = 1;
-
-    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.GlobalRateFactor, 0);
-    await lib.setGlobals(starvationPoint, 0);
-
-    const timeDelta = 50;
-    const dV = rate * timeDelta;
-
-    await lib.setBalance(t0, v, rate);
-    await lib.setReplenishDelta(dV);
-    await lib.setTotalBalance(v + dV, rate);
-
-    {
-      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
-      if (!testEnv.underCoverage) {
-        expect(ev.amount).eq(v + dV - starvationPoint / 2);
-      }
-    }
-  });
-
-  it('Setup assets with different pricing modes', async () => {
-    // NB! different tokens are used to test different calculation modes
-    // But total will be sync with each token to make it looks like a single asset case
-
-    // price = 1, w = 0 (no fees before starvation)
-    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.Constant, starvationPoint);
-
-    // price = 1, w = 1 (full fees before starvation)
-    await lib.setConfig(t1, WAD, WAD, 0, StarvationPointMode.Constant, starvationPoint);
-
-    // price = 1, w = 1/1000
-    await lib.setConfig(t2, WAD, WAD.div(1000), 0, StarvationPointMode.Constant, starvationPoint);
-  });
-
-  it('Min limit applied', async () => {
-    await swapTokenAt(t0, 100, 10, 0, 0, 20);
-
-    {
-      const balance = await lib.getBalance(t0);
-      expect(balance.accum).eq(100);
-    }
-    {
-      const balance = await lib.getTotalBalance();
-      expect(balance.accum).eq(100);
-    }
-  });
 
   const testMinimal = async (v: BigNumberish, r5?: BigNumberish) => {
     if (r5 !== undefined) {
@@ -162,6 +85,102 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
       await swapTokenAt(t2, at, v, 0, 0);
     }
   };
+
+  const setExchangeRate = async (exchangeRate: number) => {
+    priceFactor = exchangeRate;
+    await lib.setExchangeRate(priceFactor);
+  };
+
+  it('Set exchange rate to 2x', async () => {
+    await setExchangeRate(20000); // 200%
+  });
+
+  it('Starvation point with constant modes', async () => {
+    const v = 100;
+
+    await lib.setConfig(t0, priceWAD(), 0, 0, StarvationPointMode.Constant, starvationPoint);
+    await swapTokenAt(t0, 100, v, v - starvationPoint / 2);
+
+    await lib.setConfig(t0, priceWAD(), 0, 0, StarvationPointMode.GlobalConstant, 0);
+
+    await lib.setGlobals(0, 0);
+    await swapTokenAt(t0, 100, v, v);
+
+    await lib.setGlobals(0, starvationPoint);
+    await swapTokenAt(t0, 100, v, v - starvationPoint / 2);
+  });
+
+  it('Starvation point with rate factor mode', async () => {
+    const v = 100;
+    const rate = 1;
+
+    await lib.setConfig(t0, priceWAD(), 0, starvationPoint, StarvationPointMode.RateFactor, 0);
+
+    const timeDelta = 50;
+    const dV = rate * timeDelta;
+
+    const pf = 10000 / priceFactor;
+    await lib.setBalance(t0, v * pf, rate);
+    await lib.setReplenishDelta(dV);
+    await lib.setTotalBalance(v + dV, rate);
+
+    {
+      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
+      if (!testEnv.underCoverage) {
+        expect(ev.amount).eq((v + dV - starvationPoint / 2) * pf);
+      }
+    }
+  });
+
+  it('Starvation point with global rate factor mode', async () => {
+    const v = 100;
+    const rate = 1;
+
+    await lib.setConfig(t0, priceWAD(), 0, 0, StarvationPointMode.GlobalRateFactor, 0);
+    await lib.setGlobals(starvationPoint, 0);
+
+    const timeDelta = 50;
+    const dV = rate * timeDelta;
+    const pf = 10000 / priceFactor;
+
+    await lib.setBalance(t0, v * pf, rate);
+    await lib.setReplenishDelta(dV);
+    await lib.setTotalBalance(v + dV, rate);
+
+    {
+      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
+      if (!testEnv.underCoverage) {
+        expect(ev.amount).eq((v + dV - starvationPoint / 2) * pf);
+      }
+    }
+  });
+
+  it('Setup assets with different pricing modes', async () => {
+    // NB! different tokens are used to test different calculation modes
+    // But total will be sync with each token to make it looks like a single asset case
+
+    // price = 1, w = 0 (no fees before starvation)
+    await lib.setConfig(t0, priceWAD(), 0, 0, StarvationPointMode.Constant, starvationPoint);
+
+    // price = 1, w = 1 (full fees before starvation)
+    await lib.setConfig(t1, priceWAD(), WAD, 0, StarvationPointMode.Constant, starvationPoint);
+
+    // price = 1, w = 1/1000
+    await lib.setConfig(t2, priceWAD(), WAD.div(1000), 0, StarvationPointMode.Constant, starvationPoint);
+  });
+
+  it('Min limit applied', async () => {
+    await swapTokenAt(t0, 100, 10, 0, 0, 20);
+
+    {
+      const balance = await lib.getBalance(t0);
+      expect(balance.accumAmount).eq(100);
+    }
+    {
+      const balance = await lib.getTotalBalance();
+      expect(balance.accum).eq((100 * priceFactor) / 10000);
+    }
+  });
 
   it('Swap 1', async () => {
     if (testEnv.underCoverage) {
@@ -436,6 +455,72 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     await testMinimal(v, 4);
   });
 
+  it('Set exchange rate to 1x', async () => {
+    await setExchangeRate(10000); // 100%
+
+    // price = 1, w = 0 (no fees before starvation)
+    await lib.setConfig(t0, WAD, 0, 0, StarvationPointMode.Constant, starvationPoint);
+
+    // price = 1, w = 1 (full fees before starvation)
+    await lib.setConfig(t1, WAD, WAD, 0, StarvationPointMode.Constant, starvationPoint);
+
+    // price = 1, w = 1/1000
+    await lib.setConfig(t2, WAD, WAD.div(1000), 0, StarvationPointMode.Constant, starvationPoint);
+  });
+
+  it('Fees and cross-weighted swaps', async () => {
+    if (testEnv.underCoverage) {
+      return;
+    }
+
+    // use large base to simplify the test - it will diminish the impact of (rate*time)
+    const base = WAD;
+    await lib.setTotalBalance(base.mul(4), 4);
+
+    // the relative balance == to the relative rate
+    await lib.setBalance(t0, base.mul(1), 1);
+    await swapTokenStatic(t0, 10, 10, 0);
+
+    // the relative balance > the relative rate => this asset is in excess, give more of the asset for the same value
+    await lib.setBalance(t0, base.mul(2), 1);
+    await swapTokenStatic(t0, 10, 20, 0);
+
+    // the relative balance < the relative rate => this asset is in demand, give less of the asset for the same value
+    await lib.setBalance(t0, base.mul(1), 2);
+    await swapTokenStatic(t0, 10, 5, 0); // all fees are retained for balancing
+
+    await swapTokenStatic(t0, WAD.mul(2), WAD.sub(starvationPoint / 2), WAD.add(starvationPoint / 2).div(2));
+    await swapTokenStatic(t0, WAD, WAD.div(2).sub(1), '107142857142857145');
+  });
+
+  it('Smooth curve transition at the starvation point', async () => {
+    if (testEnv.underCoverage) {
+      return;
+    }
+
+    /*
+    NB! This test only applies to the flattened curve mode (0 < w < 1) and checks that 
+    the switch between function at the starvation point is smooth and creates no dent / step.
+    */
+
+    const t3 = createRandomAddress();
+
+    // A large enough value for proper precision
+    const sPoint = WAD;
+
+    await lib.setConfig(t3, priceWAD(), WAD.div(1000), 0, StarvationPointMode.Constant, sPoint);
+
+    await lib.setBalance(t3, sPoint.mul(2), 0);
+    await lib.setTotalBalance(sPoint.mul(2), 0);
+
+    // 1000500250125062531 => 1000000000000000000
+    const v = BigNumber.from('1000500250125062530');
+    for (let i = 0; i <= 2; i++) {
+      const ev = await lib.callStatic.swapToken(t3, v.add(i), 0);
+      expect(ev.amount).eq(sPoint.sub(1).add(i));
+    }
+  });
+
   it('Swap extremes', async () => {
     const t3 = createRandomAddress();
 
@@ -484,58 +569,5 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     await testMinimal(v);
 
     await testMinimal(MAX_UINT128);
-  });
-
-  it('Smooth curve transition at the starvation point', async () => {
-    if (testEnv.underCoverage) {
-      return;
-    }
-
-    /*
-    NB! This test only applies to the flattened curve mode (0 < w < 1) and checks that 
-    the switch between function at the starvation point is smooth and creates no dent / step.
-    */
-
-    const t3 = createRandomAddress();
-
-    // A large enough value for proper precision
-    const sPoint = WAD;
-
-    await lib.setConfig(t3, WAD, WAD.div(1000), 0, StarvationPointMode.Constant, sPoint);
-
-    await lib.setBalance(t3, sPoint.mul(2), 0);
-    await lib.setTotalBalance(sPoint.mul(2), 0);
-
-    // 1000500250125062531 => 1000000000000000000
-    const v = BigNumber.from('1000500250125062530');
-    for (let i = 0; i <= 2; i++) {
-      const ev = await lib.callStatic.swapToken(t3, v.add(i), 0);
-      expect(ev.amount).eq(sPoint.sub(1).add(i));
-    }
-  });
-
-  it('Fees and cross-weighted swaps', async () => {
-    if (testEnv.underCoverage) {
-      return;
-    }
-
-    // use large base to simplify the test - it will diminish the impact of (rate*time)
-    const base = WAD;
-    await lib.setTotalBalance(base.mul(4), 4);
-
-    // the relative balance == to the relative rate
-    await lib.setBalance(t0, base.mul(1), 1);
-    await swapTokenStatic(t0, 10, 10, 0);
-
-    // the relative balance > the relative rate => this asset is in excess, give more of the asset for the same value
-    await lib.setBalance(t0, base.mul(2), 1);
-    await swapTokenStatic(t0, 10, 20, 0);
-
-    // the relative balance < the relative rate => this asset is in demand, give less of the asset for the same value
-    await lib.setBalance(t0, base.mul(1), 2);
-    await swapTokenStatic(t0, 10, 5, 0); // all fees are retained for balancing
-
-    await swapTokenStatic(t0, WAD.mul(2), WAD.sub(starvationPoint / 2), WAD.add(starvationPoint / 2).div(2));
-    await swapTokenStatic(t0, WAD, WAD.div(2).sub(1), '107142857142857145');
   });
 });

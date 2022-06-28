@@ -13,25 +13,25 @@ library BalancerLib2 {
   using Balances for Balances.RateAcc;
 
   struct AssetBalance {
-    uint128 accum;
-    uint96 rate;
+    uint128 accumAmount; // amount of asset
+    uint96 rateValue; // value per second
     // uint32
   }
 
   struct AssetBalancer {
     mapping(address => AssetBalance) balances; // [token] total balance and rate of all sources using this token
-    Balances.RateAcc totalBalance; // total balance and rate of all sources
+    Balances.RateAcc totalBalance; // total VALUE balance and VALUE rate of all sources
     mapping(address => AssetConfig) configs; // [token] token balancing configuration
-    uint160 spConst; // value for (BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
-    uint32 spFactor; // value for (BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
+    uint160 spConst; // value, for (BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
+    uint32 spFactor; // rate multiplier, for (BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
   }
 
   struct AssetConfig {
     uint152 price; // target price, wad-multiplier, uint192
     uint64 w; // [0..1] fee control, uint64
-    uint32 n; // n mint-seconds for the starvation point, // value for (!BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
+    uint32 n; // rate multiplier, for (!BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
     uint16 flags; // starvation point modes and asset states
-    uint160 spConst; // value for (!BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
+    uint160 spConst; // value, for (!BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
   }
 
   uint8 private constant FINISHED_OFFSET = 8;
@@ -68,7 +68,7 @@ library BalancerLib2 {
       returns (
         uint256, /* replenishedAmount */
         uint256, /* replenishedValue */
-        uint256 /* expectedAmount */
+        uint256 /*  expectedValue */
       ) replenishFn;
   }
 
@@ -77,9 +77,9 @@ library BalancerLib2 {
     address token,
     uint256 value,
     uint256 minAmount,
-    uint256 assetBalance
+    uint256 assetAmount
   ) internal view returns (uint256 amount, uint256 fee) {
-    return swapExternalAssetInBatch(p, token, value, minAmount, assetBalance, p.totalBalance);
+    return swapExternalAssetInBatch(p, token, value, minAmount, assetAmount, p.totalBalance);
   }
 
   function swapExternalAssetInBatch(
@@ -87,15 +87,17 @@ library BalancerLib2 {
     address token,
     uint256 value,
     uint256 minAmount,
-    uint256 assetBalance,
+    uint256 assetAmount,
     Balances.RateAcc memory total
   ) internal view returns (uint256 amount, uint256 fee) {
     AssetBalance memory balance;
     total.sync(uint32(block.timestamp));
-    (CalcParams memory c, ) = _calcParams(p, token, balance.rate, true);
+    (CalcParams memory c, ) = _calcParams(p, token, balance.rateValue, true);
 
-    require((total.accum += uint128(assetBalance)) >= assetBalance);
-    balance.accum = uint128(assetBalance);
+    // NB!!!!! value and amount are the same for this case
+    c.vA = WadRayMath.WAD;
+    balance.accumAmount = uint128(assetAmount);
+    require((total.accum += uint128(assetAmount)) >= assetAmount);
 
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
   }
@@ -105,11 +107,11 @@ library BalancerLib2 {
     ReplenishParams memory params,
     uint256 value,
     uint256 minAmount,
-    uint256 extraTotal
+    uint256 extraTotalValue
   ) internal returns (uint256 amount, uint256 fee) {
     Balances.RateAcc memory total = p.totalBalance;
     bool updateTotal;
-    (amount, fee, updateTotal) = swapAssetInBatch(p, params, value, minAmount, extraTotal, total);
+    (amount, fee, updateTotal) = swapAssetInBatch(p, params, value, minAmount, extraTotalValue, total);
 
     if (updateTotal) {
       p.totalBalance = total;
@@ -134,9 +136,9 @@ library BalancerLib2 {
     AssetBalance memory balance = p.balances[params.token];
     total.sync(uint32(block.timestamp));
 
-    (CalcParams memory c, uint256 flags) = _calcParams(p, params.token, balance.rate, true);
+    (CalcParams memory c, uint256 flags) = _calcParams(p, params.token, balance.rateValue, true);
 
-    if (flags & BF_AUTO_REPLENISH != 0 || (balance.rate > 0 && balance.accum <= c.sA)) {
+    if (flags & BF_AUTO_REPLENISH != 0 || (balance.rateValue > 0 && balance.accumAmount <= c.sA)) {
       // c.extraTotal = 0; - it is and it should be zero here
       _replenishAsset(p, params, c, balance, total);
       updateTotal = true;
@@ -153,7 +155,7 @@ library BalancerLib2 {
   function _calcParams(
     AssetBalancer storage p,
     address token,
-    uint256 rate,
+    uint256 rateValue,
     bool checkSuspended
   ) private view returns (CalcParams memory c, uint256 flags) {
     AssetConfig storage config = p.configs[token];
@@ -171,7 +173,7 @@ library BalancerLib2 {
       }
 
       if (flags & BF_SPM_CONSTANT == 0) {
-        c.sA = (rate * (flags & BF_SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
+        c.sA = (rateValue * (flags & BF_SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
       } else {
         c.sA = flags & BF_SPM_GLOBAL == 0 ? config.spConst : p.spConst;
       }
@@ -185,35 +187,33 @@ library BalancerLib2 {
     AssetBalance memory balance,
     Balances.RateAcc memory total
   ) private pure returns (uint256 amount, uint256 fee) {
-    uint256 k = _calcScale(balance, total, c.extraTotal);
-    amount = _calcAmount(c, balance.accum, value.rayMul(k));
+    uint256 k = _calcScale(c, balance, total);
+    amount = _calcAmount(c, balance.accumAmount, value.rayMul(k));
 
-    if (amount == 0 && c.sA != 0 && balance.accum > 0) {
+    if (amount == 0 && c.sA != 0 && balance.accumAmount > 0) {
       amount = 1;
     }
-    amount = balance.accum - amount;
+    amount = balance.accumAmount - amount;
 
     if (amount >= minAmount && amount > 0) {
-      balance.accum = uint128(balance.accum - amount);
-      total.accum = uint128(total.accum - amount);
+      balance.accumAmount = uint128(balance.accumAmount - amount);
+      uint256 v = amount.wadMul(c.vA);
+      total.accum = uint128(total.accum - v);
 
-      if ((fee = amount.wadMul(c.vA)) < value) {
+      if (v < value) {
         // This is a total amount of fees - it has 2 parts: balancing levy and volume penalty.
-        fee = value - fee;
+        fee = value - v;
         // The balancing levy can be positive (for popular assets) or negative (for non-popular assets) and is distributed within the balancer.
         // The volume penalty is charged on large transactions and can be taken out.
 
         // This formula is an aproximation that overestimates the levy and underpays the penalty. It is an acceptable behavior.
         // More accurate formula needs log() which may be an overkill for this case.
-        k = (k + _calcScale(balance, total, c.extraTotal)) >> 1;
+        k = (k + _calcScale(c, balance, total)) >> 1;
         // The negative levy is ignored here as it was applied with rayMul(k) above.
         k = k < WadRayMath.RAY ? value - value.rayMul(WadRayMath.RAY - k) : 0;
 
         // The constant-product formula (1/x) should produce enough fees than required by balancing levy ... but there can be gaps.
         fee = fee > k ? fee - k : 0;
-      } else {
-        // got more with the bonus
-        fee = 0;
       }
     } else {
       amount = 0;
@@ -221,14 +221,14 @@ library BalancerLib2 {
   }
 
   function _calcScale(
+    CalcParams memory c,
     AssetBalance memory balance,
-    Balances.RateAcc memory total,
-    uint256 extraTotal
+    Balances.RateAcc memory total
   ) private pure returns (uint256) {
     return
-      total.accum == 0 || balance.rate == 0
+      balance.rateValue == 0 || (total.accum == 0 && c.extraTotal == 0)
         ? WadRayMath.RAY
-        : (uint256(balance.accum).rayDiv(total.accum + extraTotal) * total.rate + (balance.rate >> 1)) / uint256(balance.rate);
+        : ((uint256(balance.accumAmount) * c.vA).wadToRay().divUp(total.accum + c.extraTotal) * total.rate).divUp(balance.rateValue);
   }
 
   function _calcAmount(
@@ -323,7 +323,7 @@ library BalancerLib2 {
   ) internal returns (bool fully) {
     Balances.RateAcc memory total = _syncTotalBalance(p);
     AssetBalance memory balance = p.balances[params.token];
-    (CalcParams memory c, ) = _calcParams(p, params.token, balance.rate, checkSuspended);
+    (CalcParams memory c, ) = _calcParams(p, params.token, balance.rateValue, checkSuspended);
     c.extraTotal = incrementValue;
 
     if (_replenishAsset(p, params, c, balance, total) < incrementValue) {
@@ -372,13 +372,13 @@ library BalancerLib2 {
       unchecked {
         newRate = newRate - lastRate;
       }
-      require((balance.rate += newRate) >= newRate);
+      require((balance.rateValue += newRate) >= newRate);
       total.rate += newRate;
     } else {
       unchecked {
         newRate = lastRate - newRate;
       }
-      balance.rate -= newRate;
+      balance.rateValue -= newRate;
       total.rate -= newRate;
     }
   }
@@ -392,18 +392,18 @@ library BalancerLib2 {
   ) private returns (uint256) {
     require(total.updatedAt == block.timestamp);
 
-    (uint256 receivedAmount, uint256 receivedValue, uint256 expectedAmount) = params.replenishFn(params, c.extraTotal);
-    if (receivedAmount == 0 && expectedAmount == 0) {
+    (uint256 receivedAmount, uint256 receivedValue, uint256 expectedValue) = params.replenishFn(params, c.extraTotal);
+    if (receivedAmount == 0 && expectedValue == 0) {
       return 0;
     }
-    require(receivedAmount <= type(uint128).max);
 
-    uint256 v = receivedValue * WadRayMath.WAD + uint256(assetBalance.accum) * c.vA;
+    uint256 v = receivedValue * WadRayMath.WAD + uint256(assetBalance.accumAmount) * c.vA;
     {
-      total.accum = uint128((total.accum - expectedAmount) + receivedAmount);
-      assetBalance.accum += uint128(receivedAmount);
+      total.accum = uint128(total.accum - expectedValue);
+      require((total.accum += uint128(receivedValue)) >= receivedValue);
+      require((assetBalance.accumAmount += uint128(receivedAmount)) >= receivedAmount);
     }
-    v = v.divUp(assetBalance.accum);
+    v = v.divUp(assetBalance.accumAmount);
 
     if (v != c.vA) {
       require((c.vA = p.configs[params.token].price = uint152(v)) == v);
@@ -423,6 +423,6 @@ library BalancerLib2 {
     total.rate -= lastRate;
     p.totalBalance = total;
 
-    return (balance.rate -= lastRate);
+    return (balance.rateValue -= lastRate);
   }
 }

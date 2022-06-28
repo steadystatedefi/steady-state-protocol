@@ -174,9 +174,9 @@ contract PremiumFund is IPremiumDistributor {
     if (tokenSources.length() == 1) {
       BalancerLib2.AssetBalance storage balance = balancer.balances[source];
 
-      require(balance.rate == 0);
+      require(balance.rateValue == 0);
       // re-activation should keep price
-      uint152 price = balance.accum == 0 ? 0 : balancer.configs[targetToken].price;
+      uint152 price = balance.accumAmount == 0 ? 0 : balancer.configs[targetToken].price;
       balancer.configs[targetToken] = config.defaultConfig;
       balancer.configs[targetToken].price = price;
     }
@@ -315,7 +315,7 @@ contract PremiumFund is IPremiumDistributor {
     returns (
       uint256 replenishedAmount,
       uint256 replenishedValue,
-      uint256 expectedAmount
+      uint256 expectedValue
     )
   {
     /* ============================================================ */
@@ -336,7 +336,7 @@ contract PremiumFund is IPremiumDistributor {
     {
       uint32 cur = uint32(block.timestamp);
       if (cur > balance.updatedAt) {
-        expectedAmount = uint256(cur - balance.updatedAt) * balance.rate;
+        expectedValue = uint256(cur - balance.updatedAt) * balance.rate;
         balance.updatedAt = cur;
       } else {
         require(cur == balance.updatedAt);
