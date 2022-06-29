@@ -2,13 +2,12 @@
 pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
-import '../tools/SafeOwnable.sol';
 import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 
-contract CollateralFundBase {
+abstract contract CollateralFundBase {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -23,27 +22,27 @@ contract CollateralFundBase {
     address trusted;
   }
 
-  uint8 private constant AF_ADDED = 1 << 0;
-  uint8 private constant AF_SUSPENDED = 1 << 1;
-  uint8 private constant AF_ALLOW_DEPOSIT = 1 << 2;
-  uint8 private constant AF_ALLOW_WITHDRAW = 1 << 3;
-  uint8 private constant AF_ALLOW_ALL = AF_ALLOW_DEPOSIT | AF_ALLOW_WITHDRAW;
+  uint8 private constant AF_ADDED = 1 << 7;
 
   EnumerableSet.AddressSet private _tokens;
   mapping(address => CollateralAsset) private _assets; // [token]
   mapping(address => mapping(address => uint256)) private _approvals; // [owner][delegate]
 
-  function _onlyApproved(address account, uint256 access) private view {
-    require(msg.sender == account || isApprovedFor(account, msg.sender, access));
+  function _initialize(address collateral_) internal {
+    State.require(address(_collateral) == address(0));
+    _collateral = IManagedCollateralCurrency(collateral_);
   }
 
-  modifier onlyApproved(address account, uint256 access) {
-    _onlyApproved(account, access);
-    _;
+  function _onlyApproved(
+    address operator,
+    address account,
+    uint256 access
+  ) private view {
+    Access.require(operator == account || isApprovedFor(account, operator, access));
   }
 
   function _onlySpecial(address account, uint256 access) private view {
-    require(isApprovedFor(address(0), account, access));
+    Access.require(isApprovedFor(address(0), account, access));
   }
 
   modifier onlySpecial(address account, uint256 access) {
@@ -63,11 +62,11 @@ contract CollateralFundBase {
     }
   }
 
-  function setApprovalsFor(address operator, uint256 access) external {
+  function setAllApprovalsFor(address operator, uint256 access) external {
     _approvals[msg.sender][operator] = access;
   }
 
-  function getApprovalsFor(address account, address operator) public view returns (uint256) {
+  function getAllApprovalsFor(address account, address operator) public view returns (uint256) {
     return _approvals[account][operator];
   }
 
@@ -83,62 +82,80 @@ contract CollateralFundBase {
     _approvals[address(0)][operator] = access;
   }
 
-  function internalAddAsset(address token) internal {
-    require(token != address(0));
-    require(_tokens.add(token));
-
+  function internalSetTrusted(address token, address trusted) internal {
     CollateralAsset storage asset = _assets[token];
-    asset.flags = AF_ADDED | AF_ALLOW_ALL;
+    State.require(asset.flags & AF_ADDED != 0);
+    asset.trusted = trusted;
+  }
+
+  function internalSetFlags(address token, uint8 flags) internal {
+    CollateralAsset storage asset = _assets[token];
+    State.require(asset.flags & AF_ADDED != 0 && _tokens.contains(token));
+    asset.flags = AF_ADDED | flags;
+  }
+
+  function internalAddAsset(
+    address token,
+    uint64 priceTarget,
+    uint16 priceTolerance,
+    address trusted
+  ) internal {
+    Value.require(token != address(0));
+    State.require(_tokens.add(token));
+
+    _assets[token] = CollateralAsset({flags: type(uint8).max, priceTarget: priceTarget, priceTolerance: priceTolerance, trusted: trusted});
   }
 
   function internalRemoveAsset(address token) internal {
-    require(token != address(0));
-    if (_tokens.remove(token)) {
+    if (token != address(0) && _tokens.remove(token)) {
       CollateralAsset storage asset = _assets[token];
       asset.flags = AF_ADDED;
     }
   }
 
   function deposit(
-    address from,
     address account,
     address token,
     uint256 tokenAmount
-  ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT) onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
-    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, tokenAmount);
+  ) external onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
+    uint256 value = _deposit(_ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT), msg.sender, token, tokenAmount);
     _collateral.mint(account, value);
   }
 
   function invest(
-    address from,
     address account,
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST) {
-    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, tokenAmount);
+  ) external {
+    uint256 value = _deposit(
+      _ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST),
+      msg.sender,
+      token,
+      tokenAmount
+    );
     _collateral.mintAndTransfer(account, investTo, value, 0);
   }
 
   function investIncludingDeposit(
-    address from,
     address account,
     uint256 depositValue,
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external onlyApproved(account, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST) {
-    uint256 value = _deposit(_ensureActive(token, AF_ALLOW_DEPOSIT), from, token, tokenAmount);
+  ) external {
+    uint256 value = _deposit(
+      _ensureApproved(
+        account,
+        token,
+        tokenAmount > 0 ? CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST : CollateralFundLib.APPROVED_INVEST
+      ),
+      msg.sender,
+      token,
+      tokenAmount
+    );
     _collateral.mintAndTransfer(account, investTo, value, depositValue);
   }
-
-  // function invest(
-  //   address from,
-  //   uint256 value,
-  //   address investTo
-  // ) external onlyApproved(from, CollateralFundLib.APPROVED_INVEST) {
-  //   _collateral.transferTo(from, investTo, value);
-  // }
 
   function _deposit(
     CollateralAsset storage asset,
@@ -154,20 +171,20 @@ contract CollateralFundBase {
     price = internalPriceOf(token);
 
     uint256 target = asset.priceTarget;
-    require((target > price ? target - price : price - target) >= target.percentMul(PercentageMath.ONE - asset.priceTolerance));
+    if ((target > price ? target - price : price - target) > target.percentMul(asset.priceTolerance)) {
+      revert Errors.ExcessiveVolatility();
+    }
   }
 
-  function internalPriceOf(address token) internal view virtual returns (uint256) {
-    // TODO
-  }
+  function internalPriceOf(address token) internal view virtual returns (uint256);
 
   function withdraw(
-    address from,
+    address account,
     address to,
     address token,
     uint256 amount
-  ) external onlyApproved(from, CollateralFundLib.APPROVED_WITHDRAW) {
-    _withdraw(_ensureActive(token, AF_ALLOW_WITHDRAW), from, to, token, amount);
+  ) external {
+    _withdraw(_ensureApproved(account, token, CollateralFundLib.APPROVED_WITHDRAW), account, to, token, amount);
   }
 
   function _withdraw(
@@ -179,17 +196,13 @@ contract CollateralFundBase {
   ) private {
     if (amount > 0) {
       uint256 value;
-      uint256 x;
       if (amount == type(uint256).max) {
-        (amount, x) = _withdrawValue(asset, value = _collateral.balanceOf(from));
-        if (x > 0) {
-          amount += x.wadDiv(_safePriceOf(asset, token));
+        value = _collateral.balanceOf(from);
+        if (value > 0) {
+          amount = value.wadDiv(_safePriceOf(asset, token));
         }
       } else {
-        (x, value) = _withdrawAmount(asset, amount);
-        if (x > 0) {
-          value += x.wadMul(_safePriceOf(asset, token));
-        }
+        value = amount.wadMul(_safePriceOf(asset, token));
       }
 
       if (value > 0) {
@@ -199,50 +212,32 @@ contract CollateralFundBase {
     }
   }
 
-  function _withdrawAmount(CollateralAsset storage asset, uint256 amount) internal virtual returns (uint256, uint256 value) {
-    asset;
-    return (amount, value);
+  function _ensureApproved(
+    address account,
+    address token,
+    uint8 accessFlags
+  ) private view returns (CollateralAsset storage asset) {
+    return __ensureApproved(msg.sender, account, token, accessFlags);
   }
 
-  function _withdrawValue(CollateralAsset storage asset, uint256 value) internal virtual returns (uint256 amount, uint256) {
-    asset;
-    return (amount, value);
-  }
+  function __ensureApproved(
+    address operator,
+    address account,
+    address token,
+    uint8 accessFlags
+  ) private view returns (CollateralAsset storage asset) {
+    _onlyApproved(operator, account, accessFlags);
 
-  function _withdrawCalc(
-    uint128 x0,
-    uint128 y0,
-    uint256 x
-  )
-    private
-    pure
-    returns (
-      uint128,
-      uint128,
-      uint256,
-      uint256 y
-    )
-  {
-    if (x0 > x) {
-      y = (uint256(y0) * x).divUp(x0);
-      unchecked {
-        x0 -= uint128(x);
-        y0 -= uint128(y);
-      }
-    } else {
-      unchecked {
-        x -= x0;
-      }
-      y = y0;
-      (x0, y0) = (0, 0);
-    }
-    return (x0, y0, x, y);
-  }
-
-  function _ensureActive(address token, uint8 moreFlags) private view returns (CollateralAsset storage asset) {
     asset = _assets[token];
-    moreFlags |= AF_ADDED;
-    require(asset.flags & (AF_SUSPENDED | moreFlags) == moreFlags);
+    uint8 flags = asset.flags;
+    State.require(flags & AF_ADDED != 0);
+    if (flags & accessFlags != accessFlags) {
+      if (_tokens.contains(token)) {
+        revert Errors.OperationPaused();
+      } else {
+        revert Errors.IllegalState();
+      }
+    }
   }
 
   function internalIsTrusted(
@@ -250,23 +245,28 @@ contract CollateralFundBase {
     address operator,
     address token
   ) internal view virtual returns (bool) {
-    operator;
-    return token == asset.trusted;
+    token;
+    return operator == asset.trusted;
   }
 
-  function _ensureTrusted(address token, uint8 moreFlags) private view returns (CollateralAsset storage asset) {
-    asset = _ensureActive(token, moreFlags);
-    require(token != address(0) && internalIsTrusted(asset, msg.sender, token));
+  function _ensureTrusted(
+    address operator,
+    address account,
+    address token,
+    uint8 accessFlags
+  ) private view returns (CollateralAsset storage asset) {
+    asset = __ensureApproved(operator, account, token, accessFlags);
+    Access.require(internalIsTrusted(asset, msg.sender, token));
   }
 
   function trustedDeposit(
     address from,
-    address to,
+    address account,
     address token,
     uint256 amount
-  ) external onlySpecial(to, CollateralFundLib.APPROVED_DEPOSIT) {
-    uint256 value = _deposit(_ensureTrusted(token, AF_ALLOW_DEPOSIT), from, token, amount);
-    _collateral.mint(to, value);
+  ) external onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
+    uint256 value = _deposit(_ensureTrusted(from, account, token, CollateralFundLib.APPROVED_DEPOSIT), from, token, amount);
+    _collateral.mint(account, value);
   }
 
   function trustedInvest(
@@ -274,20 +274,31 @@ contract CollateralFundBase {
     address account,
     uint256 depositValue,
     address token,
-    uint256 amount,
+    uint256 tokenAmount,
     address investTo
   ) external {
-    uint256 value = _deposit(_ensureTrusted(token, AF_ALLOW_DEPOSIT), from, token, amount);
+    uint256 value = _deposit(
+      _ensureTrusted(
+        from,
+        account,
+        token,
+        tokenAmount > 0 ? CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST : CollateralFundLib.APPROVED_INVEST
+      ),
+      from,
+      token,
+      tokenAmount
+    );
     _collateral.mintAndTransfer(account, investTo, value, depositValue);
   }
 
   function trustedWithdraw(
-    address from,
+    address operator,
+    address account,
     address to,
     address token,
     uint256 amount
   ) external {
-    _withdraw(_ensureTrusted(token, AF_ALLOW_WITHDRAW), from, to, token, amount);
+    _withdraw(_ensureTrusted(operator, account, token, CollateralFundLib.APPROVED_WITHDRAW), account, to, token, amount);
   }
 }
 

@@ -17,6 +17,7 @@ contract CollateralCurrency is IManagedCollateralCurrency, SafeOwnable, TokenDel
   }
 
   function registerInsurer(address account) external onlyOwner {
+    // TODO protect insurer from withdraw
     internalSetFlags(account, FLAG_TRANSFER_CALLBACK);
   }
 
