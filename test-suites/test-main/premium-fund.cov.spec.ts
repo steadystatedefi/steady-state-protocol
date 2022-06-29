@@ -5,7 +5,14 @@ import { BigNumber } from 'ethers';
 // import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, currentTime } from '../../helpers/runtime-utils';
-import { CollateralCurrency, MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20 } from '../../types';
+import {
+  CollateralCurrency,
+  MockPremiumActuary,
+  MockPremiumSource,
+  MockPremiumFund,
+  MockERC20,
+  PremiumFund,
+} from '../../types';
 
 import { makeSharedStateSuite, makeSuite, TestEnv } from './setup/make-suite';
 
@@ -209,7 +216,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     let token1Rate = BigNumber.from(0);
     const rates: BigNumber[] = [];
     for (let i = 0; i < numSources; i++) {
-      const x = BigNumber.from(10).pow(2);
+      const x = BigNumber.from(100);
       token1Rate = token1Rate.add(x);
       rates.push(x);
     }
@@ -219,20 +226,51 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await fund.syncAsset(actuary.address, 0, token1.address);
     await fund.syncAsset(actuary.address, 0, token2.address);
 
-    // Test token1 swap
-    let amt = BigNumber.from(1000);
-    let minAmt = amt.mul(95).div(100);
-    await fund.swapAsset(actuary.address, user.address, user.address, amt, token1.address, minAmt);
+    // token1 swap
+    let amt1 = BigNumber.from(1000);
+    let minAmt1 = amt1.mul(95).div(100);
+    await fund.swapAsset(actuary.address, user.address, user.address, amt1, token1.address, minAmt1);
     let burnt = await actuary.premiumBurnt(user.address);
-    expect(await token1.balanceOf(user.address)).gte(minAmt);
-    expect(burnt).eq(amt);
+    const token1bal = await token1.balanceOf(user.address);
+    expect(token1bal).gte(minAmt1);
+    expect(burnt).eq(amt1);
 
-    // Test token2 swap
-    amt = BigNumber.from(100);
-    minAmt = amt.mul(2).mul(95).div(100);
-    await fund.swapAsset(actuary.address, user.address, user.address, amt, token2.address, minAmt);
-    expect(await token2.balanceOf(user.address)).gte(minAmt);
-    expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt);
+    // token2 swap
+    let amt2 = BigNumber.from(100);
+    let minAmt2 = amt2.mul(2).mul(95).div(100);
+    await fund.swapAsset(actuary.address, user.address, user.address, amt2, token2.address, minAmt2);
+    const token2bal = await token2.balanceOf(user.address);
+    expect(token2bal).gte(minAmt2);
+    expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt2);
     burnt = await actuary.premiumBurnt(user.address);
+
+    // Multiple token swap
+    await advanceTimeAndBlock(20);
+    await fund.syncAsset(actuary.address, 0, token1.address);
+    await fund.syncAsset(actuary.address, 0, token2.address);
+    amt1 = BigNumber.from(1500);
+    amt2 = BigNumber.from(200);
+    minAmt1 = amt1.mul(95).div(100);
+    minAmt2 = amt2.mul(2).mul(95).div(100);
+    const swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
+    swapInstructions.push({
+      valueToSwap: amt1,
+      targetToken: token1.address,
+      minAmount: minAmt1,
+      recipient: user.address,
+    });
+    swapInstructions.push({
+      valueToSwap: amt2,
+      targetToken: token2.address,
+      minAmount: minAmt2,
+      recipient: user.address,
+    });
+    // TODO: Test return values
+    // let res = await fund.callStatic.swapAssets(actuary.address, user.address, user.address, swapInstructions);
+    // console.log(res);
+    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions);
+    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
+    expect(await token2.balanceOf(user.address)).gte(token2bal.add(minAmt2));
+    expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt1.add(amt2));
   });
 });
