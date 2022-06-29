@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import chai from 'chai';
 import bignumberChai from 'chai-bignumber';
 import { solidity } from 'ethereum-waffle';
+import { BigNumberish, CallOverrides } from 'ethers';
 
 import { evmRevert, evmSnapshot, getSigners } from '../../../helpers/runtime-utils';
 
@@ -17,6 +18,9 @@ export interface TestEnv {
   users: SignerWithAddress[];
   underCoverage: boolean;
   // Declare TestEnv variables
+
+  covGas(gasLimit?: BigNumberish | Promise<BigNumberish>, overrides?: CallOverrides): CallOverrides;
+  covReason(reason: string): string;
 }
 
 let snapshotId = '0x1';
@@ -27,6 +31,23 @@ const setSnapshotId = (id: string) => {
 const testEnv: TestEnv = {
   deployer: {} as SignerWithAddress,
   users: [] as SignerWithAddress[],
+  covGas(gasLimit?: BigNumberish | Promise<BigNumberish>, overrides?: CallOverrides): CallOverrides {
+    if (!this.underCoverage) {
+      return overrides ?? {};
+    }
+    if ((gasLimit ?? 0) === 0) {
+      gasLimit = 2000000; // eslint-disable-line no-param-reassign
+    }
+    if (overrides === undefined) {
+      return { gasLimit };
+    }
+    overrides.gasLimit = gasLimit; // eslint-disable-line no-param-reassign
+    return overrides;
+  },
+  covReason(reason: string): string {
+    // NB! Ganache doesnt support custom errors
+    return this.underCoverage ? 'revert' : reason;
+  },
 } as TestEnv;
 
 export async function initializeMakeSuite(underCoverage: boolean): Promise<void> {

@@ -26,6 +26,12 @@ library Errors {
     }
   }
 
+  function accessDenied(bool ok) internal pure {
+    if (!ok) {
+      revert AccessDenied();
+    }
+  }
+
   function _mutable() private returns (bool) {}
 
   function notImplemented() internal {
@@ -39,20 +45,25 @@ library Errors {
   error IllegalValue();
   error NotSupported();
   error NotImplemented();
+  error AccessDenied();
+
+  error ExcessiveVolatility();
 }
 
 library State {
   function require(bool ok) internal pure {
-    if (!ok) {
-      revert Errors.IllegalState();
-    }
+    Errors.illegalState(ok);
   }
 }
 
 library Value {
   function require(bool ok) internal pure {
-    if (!ok) {
-      revert Errors.IllegalValue();
-    }
+    Errors.illegalValue(ok);
+  }
+}
+
+library Access {
+  function require(bool ok) internal pure {
+    Errors.accessDenied(ok);
   }
 }

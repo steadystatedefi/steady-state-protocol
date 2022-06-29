@@ -211,7 +211,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
       const investment = unitSize * perUser;
       totalInvested += investment;
-      await cc.mintAndTransfer(testUser.address, pool.address, investment, {
+      await cc.mintAndTransfer(testUser.address, pool.address, investment, 0, {
         gasLimit: testEnv.underCoverage ? 2000000 : undefined,
       });
       timestamps.push(await currentTime());
@@ -272,7 +272,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     const missingCoverage = totalCoverageDemandedUnits - totalCoverageProvidedUnits;
     expect(await pool.withdrawable(user.address)).eq(0);
-    await cc.mintAndTransfer(user.address, pool.address, unitSize * missingCoverage, {
+    await cc.mintAndTransfer(user.address, pool.address, unitSize * missingCoverage, 0, {
       gasLimit: testEnv.underCoverage ? 2000000 : undefined,
     });
 
@@ -282,7 +282,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await pool.withdrawable(user.address)).eq(0);
 
     const investment = unitSize * 1000;
-    await cc.mintAndTransfer(user.address, pool.address, investment, {
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
       gasLimit: testEnv.underCoverage ? 2000000 : undefined,
     });
 
@@ -326,7 +326,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await pool.withdrawable(user.address)).eq(0);
 
     const investment = unitSize * 1000;
-    await cc.mintAndTransfer(user.address, pool.address, investment, {
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
       gasLimit: testEnv.underCoverage ? 2000000 : undefined,
     });
 

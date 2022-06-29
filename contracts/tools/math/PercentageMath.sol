@@ -32,11 +32,4 @@ library PercentageMath {
   function percentDiv(uint256 value, uint256 factor) internal pure returns (uint256) {
     return (value * ONE + factor / 2) / factor;
   }
-
-  function percentOf(uint256 value, uint256 base) internal pure returns (uint256) {
-    if (value == 0) {
-      return 0;
-    }
-    return (value * ONE + base / 2) / base;
-  }
 }

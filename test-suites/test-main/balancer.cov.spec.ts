@@ -4,7 +4,7 @@ import { BigNumber, BigNumberish } from 'ethers';
 import { MAX_UINT128, RAY, WAD } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
-import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
+import { createRandomAddress } from '../../helpers/runtime-utils';
 import { MockBalancerLib2 } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
