@@ -10,6 +10,8 @@ contract MockPremiumActuary is IPremiumActuary {
   address public premiumDistributor;
   address public collateral;
 
+  mapping(address => uint256) public premiumBurnt;
+
   constructor(address _distributor, address _collateral) {
     premiumDistributor = _distributor;
     collateral = _collateral;
@@ -31,7 +33,9 @@ contract MockPremiumActuary is IPremiumActuary {
     address account,
     uint256 value,
     address drawdownRecepient
-  ) external {}
+  ) external {
+    premiumBurnt[account] += value;
+  }
 
   function callPremiumAllocationUpdated(
     address insured,
@@ -40,6 +44,10 @@ contract MockPremiumActuary is IPremiumActuary {
     uint256 rate
   ) external {
     IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, accumulated, increment, rate);
+  }
+
+  function callPremiumAllocationFinished(address source, uint256 increment) external {
+    IPremiumDistributor(premiumDistributor).premiumAllocationFinished(source, 0, increment);
   }
 
   function setRate(address insured, uint256 rate) external {

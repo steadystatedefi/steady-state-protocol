@@ -7,9 +7,9 @@ import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, currentTime } from '../../helpers/runtime-utils';
 import { CollateralCurrency, MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20 } from '../../types';
 
-import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
+import { makeSharedStateSuite, makeSuite, TestEnv } from './setup/make-suite';
 
-makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
+makeSuite('Premium Fund', (testEnv: TestEnv) => {
   let fund: MockPremiumFund;
   let actuary: MockPremiumActuary;
   const sources: MockPremiumSource[] = []; // todo: mapping of tokens => sources
@@ -17,6 +17,7 @@ makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
   let cc: CollateralCurrency;
   let token1: MockERC20;
   let token2: MockERC20;
+  let user: SignerWithAddress;
 
   let numSources;
 
@@ -33,6 +34,7 @@ makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
   }
 
   before(async () => {
+    user = testEnv.users[0];
     cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
     fund = await Factories.MockPremiumFund.deploy(cc.address);
     actuary = await Factories.MockPremiumActuary.deploy(fund.address, cc.address);
@@ -100,7 +102,6 @@ makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
     await actuary.callPremiumAllocationUpdated(sources[index].address, 0, increment, 0);
   };
 
-  /*
   it('Register actuary and premium sources', async () => {
     // Must add actuary before adding source
     await expect(actuary.addSource(sources[0].address)).to.be.reverted;
@@ -116,16 +117,21 @@ makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
     await fund.syncAsset(actuary.address, 0, token1.address);
 
     // Can't sync while token1 is paused
-    // Cannot find code that check for actuary paused
     await fund.setPausedToken(token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await fund.setPausedToken(token1.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address);
 
+    // Can't sync or swap while actuary is paused
+    await fund['setPaused(address,bool)'](actuary.address, true);
+    await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
+    await expect(fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9)).to.be.reverted;
+    await fund['setPaused(address,bool)'](actuary.address, false);
+    await fund.syncAsset(actuary.address, 0, token1.address);
+
     await actuary.removeSource(sources[0].address);
     await fund.registerPremiumActuary(actuary.address, false);
   });
-  */
 
   it('Test rates', async () => {
     let token1Rate = BigNumber.from(0);
@@ -180,9 +186,13 @@ makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
     expect(await token1.balanceOf(fund.address)).eq(fundToken1Balance);
     expect(await token2.balanceOf(fund.address)).eq(fundToken2Balance);
 
-    // TODO: Must fix total accum first
-    // expect((await fund.balancerTotals(actuary.address)).accum).eq(fundToken1Balance.add(fundToken2Balance.div(2)));
+    // Must add 1 for the token rate because 1 second of token1 rate occurs from
+    // syncing token2
+    expect((await fund.balancerTotals(actuary.address)).accum).eq(
+      fundToken1Balance.add(fundToken2Balance.div(2)).add(token1Rate)
+    );
 
+    /*
     console.log(timed1);
     console.log(timed2);
     console.log('token1', await fund.balancerBalanceOf(actuary.address, token1.address));
@@ -190,12 +200,39 @@ makeSharedStateSuite('Premium Fund', (testEnv: TestEnv) => {
     console.log('balances token2', await fund.balancesOf(actuary.address, token2Source.address));
     console.log(await token2.balanceOf(fund.address));
     console.log('Total ', await fund.balancerTotals(actuary.address));
-
-    /*
-    await advanceTimeAndBlock(10);
-    await fund.syncAsset(actuary.address, 0, token1.address);
-    console.log(await token1.balanceOf(sources[0].address));
-    console.log(await token1.balanceOf(fund.address));
     */
+  });
+
+  // This test does NOT test the correct balancing logic
+  // It ensures the correct amount of tokens are received and premium burnt
+  it('Test swap', async () => {
+    let token1Rate = BigNumber.from(0);
+    const rates: BigNumber[] = [];
+    for (let i = 0; i < numSources; i++) {
+      const x = BigNumber.from(10).pow(2);
+      token1Rate = token1Rate.add(x);
+      rates.push(x);
+    }
+    await setupTestEnv(rates, BigNumber.from(100));
+
+    await advanceTimeAndBlock(100);
+    await fund.syncAsset(actuary.address, 0, token1.address);
+    await fund.syncAsset(actuary.address, 0, token2.address);
+
+    // Test token1 swap
+    let amt = BigNumber.from(1000);
+    let minAmt = amt.mul(95).div(100);
+    await fund.swapAsset(actuary.address, user.address, user.address, amt, token1.address, minAmt);
+    let burnt = await actuary.premiumBurnt(user.address);
+    expect(await token1.balanceOf(user.address)).gte(minAmt);
+    expect(burnt).eq(amt);
+
+    // Test token2 swap
+    amt = BigNumber.from(100);
+    minAmt = amt.mul(2).mul(95).div(100);
+    await fund.swapAsset(actuary.address, user.address, user.address, amt, token2.address, minAmt);
+    expect(await token2.balanceOf(user.address)).gte(minAmt);
+    expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt);
+    burnt = await actuary.premiumBurnt(user.address);
   });
 });
