@@ -5,7 +5,7 @@ import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/Errors.sol';
 
 contract AccessCallHelper {
-  address private _owner;
+  address private immutable _owner;
 
   constructor(address owner) {
     require(owner != address(0));

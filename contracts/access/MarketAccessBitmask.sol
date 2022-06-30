@@ -2,16 +2,16 @@
 pragma solidity ^0.8.4;
 
 import '../tools/Errors.sol';
-import './interfaces/IMarketAccessController.sol';
+import './interfaces/IAccessController.sol';
 import './AccessHelper.sol';
 import './AccessFlags.sol';
 
 // solhint-disable func-name-mixedcase
 abstract contract MarketAccessBitmaskMin {
-  using AccessHelper for IMarketAccessController;
-  IMarketAccessController internal _remoteAcl;
+  using AccessHelper for IAccessController;
+  IAccessController internal _remoteAcl;
 
-  constructor(IMarketAccessController remoteAcl) {
+  constructor(IAccessController remoteAcl) {
     _remoteAcl = remoteAcl;
   }
 
@@ -20,7 +20,7 @@ abstract contract MarketAccessBitmaskMin {
   }
 
   function hasRemoteAcl() internal view returns (bool) {
-    return _remoteAcl != IMarketAccessController(address(0));
+    return address(_remoteAcl) != address(0);
   }
 
   function acl_hasAnyOf(address subject, uint256 flags) internal view returns (bool) {
@@ -54,9 +54,9 @@ abstract contract MarketAccessBitmaskMin {
 }
 
 abstract contract MarketAccessBitmask is MarketAccessBitmaskMin {
-  using AccessHelper for IMarketAccessController;
+  using AccessHelper for IAccessController;
 
-  constructor(IMarketAccessController remoteAcl) MarketAccessBitmaskMin(remoteAcl) {}
+  constructor(IAccessController remoteAcl) MarketAccessBitmaskMin(remoteAcl) {}
 
   modifier onlyEmergencyAdmin() {
     _remoteAcl.requireAnyOf(msg.sender, AccessFlags.EMERGENCY_ADMIN, Errors.CALLER_NOT_EMERGENCY_ADMIN);

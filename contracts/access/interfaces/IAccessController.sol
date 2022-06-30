@@ -8,9 +8,11 @@ import '../../tools/upgradeability/IProxy.sol';
 interface IAccessController is IRemoteAccessBitmask {
   function getAddress(uint256 id) external view returns (address);
 
-  function createProxy(
-    address admin,
-    address impl,
-    bytes calldata params
-  ) external returns (IProxy);
+  function isAdmin(address) external view returns (bool);
+
+  // function createProxy(
+  //   address admin,
+  //   address impl,
+  //   bytes calldata params
+  // ) external returns (IProxy);
 }

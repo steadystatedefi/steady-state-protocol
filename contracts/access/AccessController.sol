@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/Address.sol';
+import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/SafeOwnable.sol';
 import '../tools/Errors.sol';
 import '../tools/math/BitUtils.sol';
@@ -9,22 +10,31 @@ import '../tools/upgradeability/TransparentProxy.sol';
 import '../tools/upgradeability/IProxy.sol';
 import './interfaces/IAccessController.sol';
 import './interfaces/IManagedAccessController.sol';
-import './AccessCallHelper.sol';
 
 contract AccessController is SafeOwnable, IManagedAccessController {
   using BitUtils for uint256;
+  using EnumerableSet for EnumerableSet.AddressSet;
 
-  AccessCallHelper private _callHelper;
+  enum AddrMode {
+    None,
+    Singlet,
+    ProtectedSinglet,
+    Multilet
+  }
 
-  mapping(uint256 => address) private _addresses;
+  struct AddrInfo {
+    address addr;
+    AddrMode mode;
+  }
+
   mapping(address => uint256) private _masks;
-  mapping(uint256 => address[]) private _grantees;
-  uint256 private _nonSingletons;
+  mapping(uint256 => AddrInfo) private _singlets;
+  mapping(uint256 => EnumerableSet.AddressSet) private _multilets;
+
   uint256 private _singletons;
-  uint256 private _proxies;
 
   address private _tempAdmin;
-  uint256 private _expiresAt;
+  uint32 private _expiresAt;
 
   uint8 private constant anyRoleBlocked = 1;
   uint8 private constant anyRoleEnabled = 2;
@@ -33,23 +43,32 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   constructor(
     uint256 singletons,
     uint256 nonSingletons,
-    uint256 proxies
+    uint256 protecteds
   ) {
     require(singletons & nonSingletons == 0, 'mixed types');
-    require(singletons & proxies == proxies, 'all proxies must be singletons');
+    require(singletons & protecteds == protecteds, 'all protected must be singletons');
+
+    for ((uint256 flags, uint256 mask) = (singletons | nonSingletons, 1); flags > 0; (flags, mask) = (flags >> 1, mask << 1)) {
+      if (flags & 1 != 0) {
+        AddrInfo storage info = _singlets[mask];
+        info.mode = nonSingletons & mask != 0 ? AddrMode.Multilet : (protecteds & mask != 0 ? AddrMode.ProtectedSinglet : AddrMode.Singlet);
+      }
+    }
+
     _singletons = singletons;
-    _nonSingletons = nonSingletons;
-    _proxies = proxies;
-    _callHelper = new AccessCallHelper(address(this));
   }
 
   function _onlyAdmin() private view {
-    require(msg.sender == owner() || (msg.sender == _tempAdmin && _expiresAt > block.number), Errors.TXT_OWNABLE_CALLER_NOT_OWNER);
+    Access.require(isAdmin(msg.sender));
   }
 
   modifier onlyAdmin() {
     _onlyAdmin();
     _;
+  }
+
+  function isAdmin(address addr) public view returns (bool) {
+    return addr == owner() || (addr == _tempAdmin && _expiresAt > block.timestamp);
   }
 
   function queryAccessControlMask(address addr, uint256 filter) external view override returns (uint256 flags) {
@@ -60,33 +79,37 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     return flags & filter;
   }
 
-  function setTemporaryAdmin(address admin, uint32 expiryBlocks) external override onlyOwner {
+  function setTemporaryAdmin(address admin, uint256 expiryTime) external override onlyOwner {
     if (_tempAdmin != address(0)) {
       _revokeAllRoles(_tempAdmin);
     }
-    if (admin != address(0)) {
-      _expiresAt = block.number + expiryBlocks;
+    if ((_tempAdmin = admin) != address(0)) {
+      require((_expiresAt = uint32(expiryTime += block.timestamp)) >= block.timestamp);
+    } else {
+      _expiresAt = 0;
+      expiryTime = 0;
     }
-    _tempAdmin = admin;
-    emit TemporaryAdminAssigned(_tempAdmin, _expiresAt);
+    emit TemporaryAdminAssigned(admin, expiryTime);
   }
 
-  function getTemporaryAdmin() external view override returns (address admin, uint256 expiresAtBlock) {
+  function getTemporaryAdmin() external view override returns (address admin, uint256 expiresAt) {
+    admin = _tempAdmin;
     if (admin != address(0)) {
-      return (_tempAdmin, _expiresAt);
+      return (admin, _expiresAt);
     }
     return (address(0), 0);
   }
 
   /// @dev Renouncement has no time limit and can be done either by the temporary admin at any time, or by anyone after the expiry.
   function renounceTemporaryAdmin() external override {
-    if (_tempAdmin == address(0)) {
+    address tempAdmin = _tempAdmin;
+    if (tempAdmin == address(0)) {
       return;
     }
-    if (msg.sender != _tempAdmin && _expiresAt > block.number) {
+    if (msg.sender != tempAdmin && _expiresAt > block.timestamp) {
       return;
     }
-    _revokeAllRoles(_tempAdmin);
+    _revokeAllRoles(tempAdmin);
     _tempAdmin = address(0);
     emit TemporaryAdminAssigned(address(0), 0);
   }
@@ -103,38 +126,40 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   }
 
   function grantRoles(address addr, uint256 flags) external onlyAdmin returns (uint256) {
-    require(_singletons & flags == 0, 'singleton should use setAddress');
-    return _grantRoles(addr, flags);
+    return _grantMultiRoles(addr, flags, true);
   }
 
   function grantAnyRoles(address addr, uint256 flags) external onlyAdmin returns (uint256) {
-    require(_anyRoleMode == anyRoleEnabled);
-    return _grantRoles(addr, flags);
+    State.require(_anyRoleMode == anyRoleEnabled);
+    return _grantMultiRoles(addr, flags, false);
   }
 
-  function _grantRoles(address addr, uint256 flags) private returns (uint256) {
+  function _grantMultiRoles(
+    address addr,
+    uint256 flags,
+    bool strict
+  ) private returns (uint256) {
     uint256 m = _masks[addr];
     flags &= ~m;
     if (flags == 0) {
       return m;
     }
-
-    _nonSingletons |= flags & ~_singletons;
-
     m |= flags;
     _masks[addr] = m;
 
-    for (uint8 i = 0; i <= 255; i++) {
-      uint256 mask = uint256(1) << i;
-      if (mask & flags == 0) {
-        if (mask > flags) {
-          break;
+    for (uint256 mask = 1; flags > 0; (flags, mask) = (flags >> 1, mask << 1)) {
+      if (flags & 1 != 0) {
+        AddrInfo storage info = _singlets[mask];
+        if (info.addr != addr) {
+          AddrMode mode = info.mode;
+          if (mode == AddrMode.None) {
+            info.mode = AddrMode.Multilet;
+          } else {
+            require(mode == AddrMode.Multilet || !strict, 'singleton should use setAddress');
+          }
+
+          _multilets[mask].add(addr);
         }
-        continue;
-      }
-      address[] storage grantees = _grantees[mask];
-      if (grantees.length == 0 || grantees[grantees.length - 1] != addr) {
-        grantees.push(addr);
       }
     }
 
@@ -143,8 +168,6 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   }
 
   function revokeRoles(address addr, uint256 flags) external onlyAdmin returns (uint256) {
-    require(_singletons & flags == 0, 'singleton should use setAddress');
-
     return _revokeRoles(addr, flags);
   }
 
@@ -157,152 +180,126 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     if (m == 0) {
       return 0;
     }
-    delete (_masks[addr]);
+    delete _masks[addr];
+    _revokeRolesByMask(addr, m);
     emit RolesUpdated(addr, 0);
-
-    uint256 flags = m & _singletons;
-    if (flags == 0) {
-      return m;
-    }
-
-    for (uint8 i = 0; i <= 255; i++) {
-      uint256 mask = uint256(1) << i;
-      if (mask & flags == 0) {
-        if (mask > flags) {
-          break;
-        }
-        continue;
-      }
-      if (_addresses[mask] == addr) {
-        delete (_addresses[mask]);
-      }
-    }
     return m;
+  }
+
+  function _revokeRolesByMask(address addr, uint256 flags) private {
+    for (uint256 mask = 1; flags > 0; (flags, mask) = (flags >> 1, mask << 1)) {
+      if (flags & 1 != 0) {
+        AddrInfo storage info = _singlets[mask];
+        if (info.addr == addr) {
+          _ensureNotProtected(info.mode);
+          info.addr = address(0);
+          emit AddressSet(mask, address(0));
+        } else {
+          _multilets[mask].remove(addr);
+        }
+      }
+    }
+  }
+
+  function _ensureNotProtected(AddrMode mode) private pure {
+    require(mode == AddrMode.ProtectedSinglet, 'protected singleton can not be revoked');
   }
 
   function _revokeRoles(address addr, uint256 flags) private returns (uint256) {
     uint256 m = _masks[addr];
-    if (m & flags != 0) {
-      m &= ~flags;
-      _masks[addr] = m;
+    if ((flags &= m) != 0) {
+      _masks[addr] = (m &= ~flags);
+      _revokeRolesByMask(addr, flags);
       emit RolesUpdated(addr, m);
     }
     return m;
   }
 
-  function revokeRolesFromAll(uint256 flags, uint256 limit) external onlyAdmin returns (bool all) {
+  function revokeRolesFromAll(uint256 flags, uint256 limitMultitons) external onlyAdmin returns (bool all) {
     all = true;
+    uint256 fullMask = flags;
 
-    for (uint8 i = 0; i <= 255; i++) {
-      uint256 mask = uint256(1) << i;
-      if (mask & flags == 0) {
-        if (mask > flags) {
-          break;
+    for (uint256 mask = 1; flags > 0; (flags, mask) = (flags >> 1, mask << 1)) {
+      if (flags & 1 != 0) {
+        AddrInfo storage info = _singlets[mask];
+        if (info.addr != address(0)) {
+          _ensureNotProtected(info.mode);
+          info.addr = address(0);
+          emit AddressSet(mask, address(0));
         }
-        continue;
-      }
-      if (mask & _singletons != 0 && _addresses[mask] != address(0)) {
-        delete (_addresses[mask]);
-        emit AddressSet(mask, address(0), _proxies & mask != 0);
-      }
 
-      if (!all) {
-        continue;
-      }
-
-      address[] storage grantees = _grantees[mask];
-      for (uint256 j = grantees.length; j > 0; ) {
-        j--;
-        if (limit == 0) {
-          all = false;
-          break;
+        if (all) {
+          EnumerableSet.AddressSet storage multilets = _multilets[mask];
+          for (uint256 j = multilets.length(); j > 0; ) {
+            j--;
+            if (limitMultitons == 0) {
+              all = false;
+              break;
+            }
+            limitMultitons--;
+            _revokeRoles(multilets.at(j), fullMask);
+          }
         }
-        limit--;
-        _revokeRoles(grantees[j], mask);
-        grantees.pop();
       }
     }
-    return all;
   }
 
-  function roleGrantees(uint256 id) external view returns (address[] memory addrList) {
+  function _onlyOneRole(uint256 id) private pure {
     require(id.isPowerOf2nz(), 'only one role is allowed');
+  }
 
-    if (_singletons & id == 0) {
-      return _grantees[id];
+  function roleHolders(uint256 id) external view returns (address[] memory addrList) {
+    _onlyOneRole(id);
+
+    address singleton = _singlets[id].addr;
+    EnumerableSet.AddressSet storage multilets = _multilets[id];
+
+    if (singleton == address(0) || multilets.contains(singleton)) {
+      return multilets.values();
     }
 
-    address singleton = _addresses[id];
-    if (singleton == address(0)) {
-      return _grantees[id];
-    }
-
-    address[] storage grantees = _grantees[id];
-
-    addrList = new address[](1 + grantees.length);
+    addrList = new address[](1 + multilets.length());
     addrList[0] = singleton;
-    for (uint256 i = 1; i < addrList.length; i++) {
-      addrList[i] = grantees[i - 1];
+
+    for (uint256 i = addrList.length; i > 0; ) {
+      i--;
+      addrList[i] = multilets.at(i - 1);
     }
-    return addrList;
-  }
-
-  function roleActiveGrantees(uint256 id) external view returns (address[] memory addrList, uint256 count) {
-    require(id.isPowerOf2nz(), 'only one role is allowed');
-
-    address addr;
-    if (_singletons & id != 0) {
-      addr = _addresses[id];
-    }
-
-    address[] storage grantees = _grantees[id];
-
-    if (addr == address(0)) {
-      addrList = new address[](grantees.length);
-    } else {
-      addrList = new address[](1 + grantees.length);
-      addrList[0] = addr;
-      count++;
-    }
-
-    for (uint256 i = 0; i < grantees.length; i++) {
-      addr = grantees[i];
-      if (_masks[addr] & id != 0) {
-        addrList[count] = addr;
-        count++;
-      }
-    }
-    return (addrList, count);
   }
 
   /**
    * @dev Sets a sigleton address, replaces previous value
-   * IMPORTANT Use this function carefully, as it does a hard replacement
    * @param id The id
    * @param newAddress The address to set
    */
   function setAddress(uint256 id, address newAddress) public override onlyAdmin {
-    require(_proxies & id == 0, 'setAddressAsProxy is required');
     _internalSetAddress(id, newAddress);
-    emit AddressSet(id, newAddress, false);
+    emit AddressSet(id, newAddress);
   }
 
   function _internalSetAddress(uint256 id, address newAddress) private {
-    require(id.isPowerOf2nz(), 'invalid singleton id');
-    if (_singletons & id == 0) {
-      require(_nonSingletons & id == 0, 'id is not a singleton');
-      _singletons |= id;
-    }
+    _onlyOneRole(id);
 
-    address prev = _addresses[id];
-    if (prev != address(0)) {
-      _masks[prev] = _masks[prev] & ~id;
+    AddrInfo storage info = _singlets[id];
+    AddrMode mode = info.mode;
+
+    if (mode == AddrMode.None) {
+      _singletons |= id;
+      info.mode = AddrMode.Singlet;
+    } else {
+      require(mode < AddrMode.Multilet, 'id is not a singleton');
+      require(mode == AddrMode.Singlet, 'id is protected');
+
+      address prev = info.addr;
+      if (prev != address(0)) {
+        _masks[prev] = _masks[prev] & ~id;
+      }
     }
     if (newAddress != address(0)) {
       require(Address.isContract(newAddress), 'must be contract');
       _masks[newAddress] = _masks[newAddress] | id;
     }
-    _addresses[id] = newAddress;
+    info.addr = newAddress;
   }
 
   /**
@@ -310,101 +307,39 @@ contract AccessController is SafeOwnable, IManagedAccessController {
    * @return addr The address
    */
   function getAddress(uint256 id) public view override returns (address addr) {
-    addr = _addresses[id];
+    AddrInfo storage info = _singlets[id];
 
-    if (addr == address(0)) {
-      require(id.isPowerOf2nz(), 'invalid singleton id');
-      require((_singletons & id != 0) || (_nonSingletons & id == 0), 'id is not a singleton');
+    if ((addr = info.addr) == address(0)) {
+      _onlyOneRole(id);
+      require(info.mode < AddrMode.Multilet, 'id is not a singleton');
     }
     return addr;
   }
 
   function isAddress(uint256 id, address addr) public view returns (bool) {
-    // require(id.isPowerOf2nz(), 'only singleton id is accepted');
     return _masks[addr] & id != 0;
   }
 
-  function markProxies(uint256 id) external onlyAdmin {
-    _proxies |= id;
+  function setProtection(uint256 id, bool protection) external onlyAdmin {
+    _onlyOneRole(id);
+    AddrInfo storage info = _singlets[id];
+    require(info.mode < AddrMode.Multilet, 'id is not a singleton');
+    info.mode = protection ? AddrMode.ProtectedSinglet : AddrMode.Singlet;
   }
 
-  function unmarkProxies(uint256 id) external onlyAdmin {
-    _proxies &= ~id;
-  }
-
-  /**
-   * @dev General function to update the implementation of a proxy registered with
-   * certain `id`. If there is no proxy registered, it will instantiate one and
-   * set as implementation the `implAddress`
-   * @param id The id
-   * @param implAddress The address of the new implementation
-   */
-  function setAddressAsProxy(uint256 id, address implAddress) public override onlyAdmin {
-    _updateImpl(id, implAddress, abi.encodeWithSignature('initialize(address)', address(this)));
-    emit AddressSet(id, implAddress, true);
-  }
-
-  function setAddressAsProxyWithInit(
-    uint256 id,
-    address implAddress,
-    bytes calldata params
-  ) public override onlyAdmin {
-    _updateImpl(id, implAddress, params);
-    emit AddressSet(id, implAddress, true);
-  }
-
-  /**
-   * @dev Internal function to update the implementation of a specific proxied component of the protocol
-   * - If there is no proxy registered in the given `id`, it creates the proxy setting `newAdress`
-   *   as implementation and calls a function on the proxy.
-   * - If there is already a proxy registered, it updates the implementation to `newAddress` by
-   *   the upgradeToAndCall() of the proxy.
-   * @param id The id of the proxy to be updated
-   * @param newAddress The address of the new implementation
-   * @param params The address of the new implementation
-   **/
-  function _updateImpl(
-    uint256 id,
-    address newAddress,
-    bytes memory params
-  ) private {
-    require(id.isPowerOf2nz(), 'invalid singleton id');
-    address payable proxyAddress = payable(getAddress(id));
-
-    if (proxyAddress != address(0)) {
-      require(_proxies & id != 0, 'use of setAddress is required');
-      TransparentProxy(proxyAddress).upgradeToAndCall(newAddress, params);
-      return;
-    }
-
-    proxyAddress = payable(address(_createProxy(address(this), newAddress, params)));
-    _internalSetAddress(id, proxyAddress);
-    _proxies |= id;
-    emit ProxyCreated(id, proxyAddress);
-  }
-
-  function _createProxy(
-    address adminAddress,
-    address implAddress,
-    bytes memory params
-  ) private returns (TransparentProxy) {
-    TransparentProxy proxy = new TransparentProxy(adminAddress, implAddress, params);
-    return proxy;
-  }
-
-  function createProxy(
-    address adminAddress,
-    address implAddress,
-    bytes calldata params
-  ) public override returns (IProxy) {
-    return _createProxy(adminAddress, implAddress, params);
-  }
-
-  function directCallWithRoles(
+  function callWithRoles(
     uint256 flags,
     address addr,
     bytes calldata data
-  ) external override onlyAdmin returns (bytes memory result) {
+  ) external override onlyAdmin returns (bytes memory) {
+    return _callWithRoles(flags, addr, data);
+  }
+
+  function _callWithRoles(
+    uint256 flags,
+    address addr,
+    bytes calldata data
+  ) private returns (bytes memory result) {
     require(addr != address(this) && Address.isContract(addr), 'must be another contract');
 
     (bool restoreMask, uint256 oldMask) = _beforeDirectCallWithRoles(flags, addr);
@@ -412,7 +347,8 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     result = Address.functionCall(addr, data);
 
     if (restoreMask) {
-      _afterDirectCallWithRoles(addr, oldMask);
+      _masks[addr] = oldMask;
+      emit RolesUpdated(addr, oldMask);
     }
     return result;
   }
@@ -420,9 +356,6 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   function _beforeDirectCallWithRoles(uint256 flags, address addr) private returns (bool restoreMask, uint256 oldMask) {
     if (_singletons & flags != 0) {
       require(_anyRoleMode == anyRoleEnabled, 'singleton should use setAddress');
-      _nonSingletons |= flags & ~_singletons;
-    } else {
-      _nonSingletons |= flags;
     }
 
     oldMask = _masks[addr];
@@ -434,25 +367,12 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     return (false, oldMask);
   }
 
-  function _afterDirectCallWithRoles(address addr, uint256 oldMask) private {
-    _masks[addr] = oldMask;
-    emit RolesUpdated(addr, oldMask);
-  }
-
-  function callWithRoles(CallParams[] calldata params) external override onlyAdmin returns (bytes[] memory results) {
-    address callHelper = address(_callHelper);
-
+  function callWithRolesBatch(CallParams[] calldata params) external override onlyAdmin returns (bytes[] memory results) {
     results = new bytes[](params.length);
 
     for (uint256 i = 0; i < params.length; i++) {
-      (bool restoreMask, ) = _beforeDirectCallWithRoles(params[i].accessFlags, callHelper);
-
       address callAddr = params[i].callAddr == address(0) ? getAddress(params[i].callFlag) : params[i].callAddr;
-      results[i] = AccessCallHelper(callHelper).doCall(callAddr, params[i].callData);
-
-      if (restoreMask) {
-        _afterDirectCallWithRoles(callHelper, 0); // call helper can't have any default roles
-      }
+      results[i] = _callWithRoles(params[i].accessFlags, callAddr, params[i].callData);
     }
     return results;
   }
