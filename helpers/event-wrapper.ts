@@ -65,7 +65,10 @@ async function receiptOf(av: ContractReceiptSource): Promise<ContractReceipt> {
 
 const nameByFactory = new Map<EventFactory, string>();
 
-export const wrap = <TArgObj>(template: TypedEvent<unknown[], TArgObj>, customName?: string): EventFactory<TArgObj> =>
+export const wrap = <TArgList extends unknown[], TArgObj>(
+  template: TypedEvent<TArgList, TArgObj>,
+  customName?: string
+): EventFactory<TArgObj> =>
   new (class implements EventFactory<TArgObj> {
     one(receipt: ContractReceipt): TArgObj {
       return eventArg(this.toString(), receipt) as TArgObj;

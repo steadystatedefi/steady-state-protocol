@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/ERC20Base.sol';
 import '../tools/tokens/IERC1363.sol';
+import '../tools/Errors.sol';
 
 abstract contract TokenDelegateBase is ERC20Base {
   uint256 internal constant FLAG_MINT = 1 << 1;
@@ -12,7 +13,7 @@ abstract contract TokenDelegateBase is ERC20Base {
   mapping(address => uint256) private _flags;
 
   function _onlyWithAnyFlags(uint256 flags) private view {
-    require(_flags[msg.sender] & flags == flags && flags != 0);
+    Access.require(_flags[msg.sender] & flags == flags && flags != 0);
   }
 
   modifier onlyWithFlags(uint256 flags) {

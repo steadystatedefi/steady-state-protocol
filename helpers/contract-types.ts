@@ -18,6 +18,7 @@ export const Factories = {
   MockPremiumActuary: mock(types.MockPremiumActuary__factory),
   MockPremiumSource: mock(types.MockPremiumSource__factory),
   MockERC20: mock(types.MockERC20__factory),
+  MockCollateralFund: mock(types.MockCollateralFund__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));

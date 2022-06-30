@@ -26,7 +26,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   it('Fails to mint/burn without a permission', async () => {
     await expect(cc.mint(user.address, unitSize * 400)).revertedWith(''); // TODO access denied error
     await expect(cc.burn(user.address, unitSize * 400)).revertedWith(''); // TODO access denied error
-    await expect(cc.mintAndTransfer(user.address, pool.address, unitSize * 400)).revertedWith(''); // TODO access denied error
+    await expect(cc.mintAndTransfer(user.address, pool.address, unitSize * 400, 0)).revertedWith(''); // TODO access denied error
   });
 
   it('Register a liquidity provider', async () => {
@@ -44,7 +44,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   it('Mint and transfer to an unregistered insusrer', async () => {
     const investment = unitSize * 400;
     // totalInvested += investment;
-    await cc.mintAndTransfer(user.address, pool.address, investment, {
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
       gasLimit: testEnv.underCoverage ? 2000000 : undefined,
     });
 
@@ -60,7 +60,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
     const before = await cc.balanceOf(pool.address);
     const investment = unitSize * 400;
     // totalInvested += investment;
-    await cc.mintAndTransfer(user.address, pool.address, investment, {
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
       gasLimit: testEnv.underCoverage ? 2000000 : undefined,
     });
 

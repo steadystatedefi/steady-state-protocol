@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import './TokenDelegateBase.sol';
 import '../tools/SafeOwnable.sol';
+import '../interfaces/IManagedCollateralCurrency.sol';
+import './TokenDelegateBase.sol';
 
-contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
+contract CollateralCurrency is IManagedCollateralCurrency, SafeOwnable, TokenDelegateBase {
   constructor(
     string memory name_,
     string memory symbol_,
@@ -16,6 +17,7 @@ contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
   }
 
   function registerInsurer(address account) external onlyOwner {
+    // TODO protect insurer from withdraw
     internalSetFlags(account, FLAG_TRANSFER_CALLBACK);
   }
 
@@ -24,19 +26,30 @@ contract CollateralCurrency is SafeOwnable, TokenDelegateBase {
     internalUnsetFlags(account);
   }
 
-  function mint(address account, uint256 amount) external onlyWithFlags(FLAG_MINT) {
+  function mint(address account, uint256 amount) external override onlyWithFlags(FLAG_MINT) {
     _mint(account, amount);
   }
 
   function mintAndTransfer(
     address onBehalf,
-    address recepient,
-    uint256 amount
-  ) external onlyWithFlags(FLAG_MINT) {
-    _mintAndTransfer(onBehalf, recepient, amount);
+    address recipient,
+    uint256 mintAmount,
+    uint256 balanceAmount
+  ) external override onlyWithFlags(FLAG_MINT) {
+    if (balanceAmount == 0) {
+      _mintAndTransfer(onBehalf, recipient, mintAmount);
+    } else {
+      _mint(onBehalf, mintAmount);
+      if (balanceAmount == type(uint256).max) {
+        balanceAmount = balanceOf(onBehalf);
+      } else {
+        balanceAmount += mintAmount;
+      }
+      _transfer(onBehalf, recipient, balanceAmount);
+    }
   }
 
-  function burn(address account, uint256 amount) external onlyWithFlags(FLAG_BURN) {
+  function burn(address account, uint256 amount) external override onlyWithFlags(FLAG_BURN) {
     _burn(account, amount);
   }
 }
