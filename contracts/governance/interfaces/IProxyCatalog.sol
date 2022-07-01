@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import './IProxyFactory.sol';
+import '../../interfaces/IProxyFactory.sol';
 
 interface IProxyCatalog is IProxyFactory {
   function getImplementationType(address impl) external view returns (bytes32);

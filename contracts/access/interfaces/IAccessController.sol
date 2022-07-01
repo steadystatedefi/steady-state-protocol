@@ -8,7 +8,7 @@ import '../../tools/upgradeability/IProxy.sol';
 interface IAccessController is IRemoteAccessBitmask {
   function getAddress(uint256 id) external view returns (address);
 
-  function isOwner(address) external view returns (bool);
+  function isAdmin(address) external view returns (bool);
 
   function owner() external view returns (address);
 }

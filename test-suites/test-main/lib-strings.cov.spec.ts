@@ -5,7 +5,7 @@ import { MockLibs } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-makeSuite('Test libraries', (testEnv: TestEnv) => {
+makeSuite('Strings library', (testEnv: TestEnv) => {
   let libs: MockLibs;
 
   before(async () => {

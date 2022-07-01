@@ -19,9 +19,9 @@ abstract contract AccessHelperBase {
     return address(remoteAcl()) != address(0);
   }
 
-  function isOwner(address addr) internal view returns (bool) {
+  function isAdmin(address addr) internal view returns (bool) {
     IAccessController acl = remoteAcl();
-    return (address(acl) != address(0)) && acl.isOwner(addr);
+    return (address(acl) != address(0)) && acl.isAdmin(addr);
   }
 
   function owner() public view returns (address) {
@@ -30,7 +30,7 @@ abstract contract AccessHelperBase {
   }
 
   function _onlyOwner() private view {
-    Access.require(isOwner(msg.sender));
+    Access.require(isAdmin(msg.sender));
   }
 
   modifier onlyOwner() {

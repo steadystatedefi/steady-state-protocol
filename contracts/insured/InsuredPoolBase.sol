@@ -6,6 +6,7 @@ import '../tools/math/WadRayMath.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 import './PremiumCollectorBase.sol';
+import '../interfaces/IPremiumActuary.sol';
 
 import 'hardhat/console.sol';
 

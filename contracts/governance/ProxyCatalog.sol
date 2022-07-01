@@ -169,16 +169,16 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     return address(_createProxy(adminAddress, impl, params, name));
   }
 
-  function _onlyOwnerOrProxyAdmin(address proxyAddress) private view {
-    Access.require(getProxyOwner(proxyAddress) == msg.sender || isOwner(msg.sender));
+  function _onlyAdminOrProxyOwner(address proxyAddress) private view {
+    Access.require(getProxyOwner(proxyAddress) == msg.sender || isAdmin(msg.sender));
   }
 
-  modifier onlyOwnerOrProxyAdmin(address proxyAddress) {
-    _onlyOwnerOrProxyAdmin(proxyAddress);
+  modifier onlyAdminOrProxyOwner(address proxyAddress) {
+    _onlyAdminOrProxyOwner(proxyAddress);
     _;
   }
 
-  function upgradeProxy(address proxyAddress, bytes calldata params) external onlyOwnerOrProxyAdmin(proxyAddress) returns (bool) {
+  function upgradeProxy(address proxyAddress, bytes calldata params) external onlyAdminOrProxyOwner(proxyAddress) returns (bool) {
     address prevImpl = getProxyImplementation(proxyAddress);
     bytes32 name = getImplementationType(prevImpl);
     address newImpl = getDefaultImplementation(name);

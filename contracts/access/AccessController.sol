@@ -58,13 +58,17 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     _singletons = singletons;
   }
 
-  function _onlyAdmin() private view {
+  function _onlyOwnerOrAdmin() private view {
     Access.require(isAdmin(msg.sender));
   }
 
-  modifier onlyAdmin() {
-    _onlyAdmin();
+  modifier onlyOwnerOrAdmin() {
+    _onlyOwnerOrAdmin();
     _;
+  }
+
+  function owner() public view override(IAccessController, SafeOwnable) returns (address) {
+    return super.owner();
   }
 
   function isAdmin(address addr) public view returns (bool) {
@@ -114,7 +118,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     emit TemporaryAdminAssigned(address(0), 0);
   }
 
-  function setAnyRoleMode(bool blockOrEnable) external onlyAdmin {
+  function setAnyRoleMode(bool blockOrEnable) external onlyOwnerOrAdmin {
     require(_anyRoleMode != anyRoleBlocked);
     if (blockOrEnable) {
       _anyRoleMode = anyRoleEnabled;
@@ -125,11 +129,11 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     }
   }
 
-  function grantRoles(address addr, uint256 flags) external onlyAdmin returns (uint256) {
+  function grantRoles(address addr, uint256 flags) external onlyOwnerOrAdmin returns (uint256) {
     return _grantMultiRoles(addr, flags, true);
   }
 
-  function grantAnyRoles(address addr, uint256 flags) external onlyAdmin returns (uint256) {
+  function grantAnyRoles(address addr, uint256 flags) external onlyOwnerOrAdmin returns (uint256) {
     State.require(_anyRoleMode == anyRoleEnabled);
     return _grantMultiRoles(addr, flags, false);
   }
@@ -167,11 +171,11 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     return m;
   }
 
-  function revokeRoles(address addr, uint256 flags) external onlyAdmin returns (uint256) {
+  function revokeRoles(address addr, uint256 flags) external onlyOwnerOrAdmin returns (uint256) {
     return _revokeRoles(addr, flags);
   }
 
-  function revokeAllRoles(address addr) external onlyAdmin returns (uint256) {
+  function revokeAllRoles(address addr) external onlyOwnerOrAdmin returns (uint256) {
     return _revokeAllRoles(addr);
   }
 
@@ -215,7 +219,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     return m;
   }
 
-  function revokeRolesFromAll(uint256 flags, uint256 limitMultitons) external onlyAdmin returns (bool all) {
+  function revokeRolesFromAll(uint256 flags, uint256 limitMultitons) external onlyOwnerOrAdmin returns (bool all) {
     all = true;
     uint256 fullMask = flags;
 
@@ -272,7 +276,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
    * @param id The id
    * @param newAddress The address to set
    */
-  function setAddress(uint256 id, address newAddress) public override onlyAdmin {
+  function setAddress(uint256 id, address newAddress) public override onlyOwnerOrAdmin {
     _internalSetAddress(id, newAddress);
     emit AddressSet(id, newAddress);
   }
@@ -320,7 +324,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     return _masks[addr] & id != 0;
   }
 
-  function setProtection(uint256 id, bool protection) external onlyAdmin {
+  function setProtection(uint256 id, bool protection) external onlyOwnerOrAdmin {
     _onlyOneRole(id);
     AddrInfo storage info = _singlets[id];
     require(info.mode < AddrMode.Multilet, 'id is not a singleton');
@@ -331,7 +335,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     uint256 flags,
     address addr,
     bytes calldata data
-  ) external override onlyAdmin returns (bytes memory) {
+  ) external override onlyOwnerOrAdmin returns (bytes memory) {
     return _callWithRoles(flags, addr, data);
   }
 
@@ -367,7 +371,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     return (false, oldMask);
   }
 
-  function callWithRolesBatch(CallParams[] calldata params) external override onlyAdmin returns (bytes[] memory results) {
+  function callWithRolesBatch(CallParams[] calldata params) external override onlyOwnerOrAdmin returns (bytes[] memory results) {
     results = new bytes[](params.length);
 
     for (uint256 i = 0; i < params.length; i++) {
