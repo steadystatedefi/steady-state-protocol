@@ -36,6 +36,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
   function internalSetPoolParams(WeightedPoolParams memory params) internal virtual {
     require(params.minUnitsPerRound > 0);
     require(params.maxUnitsPerRound >= params.minUnitsPerRound);
+    require(params.overUnitsPerRound >= params.maxUnitsPerRound);
 
     require(params.maxAdvanceUnits >= params.minAdvanceUnits);
     require(params.minAdvanceUnits >= params.maxUnitsPerRound);
