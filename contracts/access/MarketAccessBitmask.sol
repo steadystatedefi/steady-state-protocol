@@ -7,7 +7,7 @@ import './AccessHelper.sol';
 import './AccessFlags.sol';
 
 // solhint-disable func-name-mixedcase
-abstract contract MarketAccessBitmaskMin {
+abstract contract MarketAccessBitmask {
   using AccessHelper for IAccessController;
   IAccessController internal _remoteAcl;
 
@@ -27,48 +27,27 @@ abstract contract MarketAccessBitmaskMin {
     return _remoteAcl.hasAnyOf(subject, flags);
   }
 
-  modifier aclHas(uint256 flags) virtual {
-    _remoteAcl.requireAnyOf(msg.sender, flags, Errors.TXT_ACCESS_RESTRICTED);
-    _;
-  }
+  // modifier aclHas(uint256 flags) virtual {
+  //   _remoteAcl.requireAnyOf(msg.sender, flags, Errors.TXT_ACCESS_RESTRICTED);
+  //   _;
+  // }
 
-  modifier aclAnyOf(uint256 flags) {
-    _remoteAcl.requireAnyOf(msg.sender, flags, Errors.TXT_ACCESS_RESTRICTED);
-    _;
-  }
+  // modifier aclAnyOf(uint256 flags) {
+  //   _remoteAcl.requireAnyOf(msg.sender, flags, Errors.TXT_ACCESS_RESTRICTED);
+  //   _;
+  // }
 
-  modifier onlyFundAdmin() {
-    _remoteAcl.requireAnyOf(msg.sender, AccessFlags.FUND_ADMIN, Errors.CALLER_NOT_FUND_ADMIN);
-    _;
-  }
+  // modifier onlyEmergencyAdmin() {
+  //   _remoteAcl.requireAnyOf(msg.sender, AccessFlags.EMERGENCY_ADMIN, Errors.CALLER_NOT_EMERGENCY_ADMIN);
+  //   _;
+  // }
 
-  modifier onlyRewardAdmin() {
-    _remoteAcl.requireAnyOf(msg.sender, AccessFlags.REWARD_CONFIG_ADMIN, Errors.CALLER_NOT_REWARD_CONFIG_ADMIN);
-    _;
-  }
+  // function _onlySweepAdmin() internal view virtual {
+  //   _remoteAcl.requireAnyOf(msg.sender, AccessFlags.SWEEP_ADMIN, Errors.CALLER_NOT_SWEEP_ADMIN);
+  // }
 
-  modifier onlyRewardConfiguratorOrAdmin() {
-    _remoteAcl.requireAnyOf(msg.sender, AccessFlags.REWARD_CONFIG_ADMIN | AccessFlags.REWARD_CONFIGURATOR, Errors.CALLER_NOT_REWARD_CONFIG_ADMIN);
-    _;
-  }
-}
-
-abstract contract MarketAccessBitmask is MarketAccessBitmaskMin {
-  using AccessHelper for IAccessController;
-
-  constructor(IAccessController remoteAcl) MarketAccessBitmaskMin(remoteAcl) {}
-
-  modifier onlyEmergencyAdmin() {
-    _remoteAcl.requireAnyOf(msg.sender, AccessFlags.EMERGENCY_ADMIN, Errors.CALLER_NOT_EMERGENCY_ADMIN);
-    _;
-  }
-
-  function _onlySweepAdmin() internal view virtual {
-    _remoteAcl.requireAnyOf(msg.sender, AccessFlags.SWEEP_ADMIN, Errors.CALLER_NOT_SWEEP_ADMIN);
-  }
-
-  modifier onlySweepAdmin() {
-    _onlySweepAdmin();
-    _;
-  }
+  // modifier onlySweepAdmin() {
+  //   _onlySweepAdmin();
+  //   _;
+  // }
 }

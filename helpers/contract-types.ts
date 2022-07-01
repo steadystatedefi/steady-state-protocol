@@ -16,6 +16,7 @@ export const Factories = {
   MockBalancerLib2: mock(types.MockBalancerLib2__factory),
   MockPremiumFund: mock(types.MockPremiumFund__factory),
   MockCollateralFund: mock(types.MockCollateralFund__factory),
+  MockLibs: mock(types.MockLibs__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));

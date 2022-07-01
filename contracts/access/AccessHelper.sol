@@ -6,7 +6,7 @@ import './interfaces/IRemoteAccessBitmask.sol';
 /// @dev Helper/wrapper around IRemoteAccessBitmask
 library AccessHelper {
   function getAcl(IRemoteAccessBitmask remote, address subject) internal view returns (uint256) {
-    return remote.queryAccessControlMask(subject, ~uint256(0));
+    return remote.queryAccessControlMask(subject, type(uint256).max);
   }
 
   function queryAcl(
@@ -32,14 +32,5 @@ library AccessHelper {
 
   function hasNone(IRemoteAccessBitmask remote, address subject) internal view returns (bool) {
     return remote.queryAccessControlMask(subject, 0) == 0;
-  }
-
-  function requireAnyOf(
-    IRemoteAccessBitmask remote,
-    address subject,
-    uint256 flags,
-    string memory text
-  ) internal view {
-    require(hasAnyOf(remote, subject, flags), text);
   }
 }

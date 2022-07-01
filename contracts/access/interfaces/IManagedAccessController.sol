@@ -36,7 +36,6 @@ interface IManagedAccessController is IAccessController {
 
   function callWithRolesBatch(CallParams[] calldata params) external returns (bytes[] memory result);
 
-  // event ProxyCreated(uint256 indexed id, address indexed newAddress);
   event AddressSet(uint256 indexed id, address indexed newAddress);
   event RolesUpdated(address indexed addr, uint256 flags);
   event TemporaryAdminAssigned(address indexed admin, uint256 expiresAt);
