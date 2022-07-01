@@ -4,7 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { CollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
+import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -18,13 +18,13 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
-  let cc: CollateralCurrency;
+  let cc: MockCollateralCurrency;
   let user: SignerWithAddress;
 
   before(async () => {
     user = testEnv.users[0];
     const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
-    cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
     pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
     await cc.registerInsurer(pool.address);

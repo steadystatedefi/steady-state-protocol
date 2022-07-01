@@ -76,9 +76,9 @@ abstract contract InsurerJoinBase is IJoinEvents {
       } catch Error(string memory reason) {
         errType = 'error';
         errReason = bytes(reason);
-      } catch (bytes memory reason) {
+      } catch Panic(uint256 reason) {
         errType = 'panic';
-        errReason = reason;
+        errReason = abi.encodePacked(reason);
       }
       emit JoinFailed(insured, errType, errReason);
       status = InsuredStatus.JoinFailed;

@@ -2,7 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 
 import { Factories } from '../../helpers/contract-types';
-import { CollateralCurrency, MockPerpetualPool } from '../../types';
+import { MockCollateralCurrency, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -10,12 +10,12 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   const decimals = 18;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let pool: MockPerpetualPool;
-  let cc: CollateralCurrency;
+  let cc: MockCollateralCurrency;
   let user: SignerWithAddress;
 
   before(async () => {
     user = testEnv.users[0];
-    cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
   });
 
   it('Create an insurer', async () => {

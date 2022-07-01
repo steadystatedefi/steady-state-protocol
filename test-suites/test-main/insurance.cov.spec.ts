@@ -3,7 +3,7 @@ import { zeroAddress } from 'ethereumjs-util';
 
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
+import { MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -16,7 +16,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   // let payInToken: tEthereumAddress;
   // const protocol = Wallet.createRandom();
   let pool: MockPerpetualPool;
-  let fund: MockCollateralCurrency;
+  let fund: MockCollateralCurrencyStub;
   // let collector: PremiumCollector;
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
@@ -24,7 +24,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
   before(async () => {
     const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
-    fund = await Factories.MockCollateralCurrency.deploy();
+    fund = await Factories.MockCollateralCurrencyStub.deploy();
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
     // collector = await Factories.PremiumCollector.deploy();
 

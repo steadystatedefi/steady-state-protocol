@@ -3,7 +3,7 @@ import { expect } from 'chai';
 
 import { Factories } from '../../helpers/contract-types';
 import { createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
-import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
+import { MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -13,7 +13,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   //  let payInToken: tEthereumAddress;
   let pool: MockPerpetualPool;
-  let fund: MockCollateralCurrency;
+  let fund: MockCollateralCurrencyStub;
   //  let collector: PremiumCollector;
   let iteration = 0;
   const weights: number[] = [];
@@ -21,7 +21,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   before(async () => {
     const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
-    fund = await Factories.MockCollateralCurrency.deploy();
+    fund = await Factories.MockCollateralCurrencyStub.deploy();
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
     //    collector = await Factories.PremiumCollector.deploy();
 
@@ -118,103 +118,103 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     await invest('next', smallInvestment);
   };
 
-  it('Invest by 5 users', async () => {
-    for (let i = 5; i > 0; i--) {
-      await investByUser();
-    }
-  });
+  // it('Invest by 5 users', async () => {
+  //   for (let i = 5; i > 0; i--) {
+  //     await investByUser();
+  //   }
+  // });
 
-  const reconcilePools = async () => {
-    for (const insured of insureds) {
-      const tx = await mustWaitTx(insured.reconcileWithAllInsurers());
-      const coverage = await insured.receivableByReconcileWithAllInsurers();
-      console.log(
-        `${iteration}\tReconcile\t${insured.address}\t${coverage.providedCoverage.toString()}\t${tx.gasUsed.toString()}`
-      );
-    }
-  };
+  // const reconcilePools = async () => {
+  //   for (const insured of insureds) {
+  //     const tx = await mustWaitTx(insured.reconcileWithAllInsurers());
+  //     const coverage = await insured.receivableByReconcileWithAllInsurers();
+  //     console.log(
+  //       `${iteration}\tReconcile\t${insured.address}\t${coverage.providedCoverage.toString()}\t${tx.gasUsed.toString()}`
+  //     );
+  //   }
+  // };
 
-  it('Reconcile pools', reconcilePools);
+  // it('Reconcile pools', reconcilePools);
 
-  it('Create 10 insured pools (20 total)', async () => {
-    iteration += 1;
-    await deployProtocolPools();
-  });
+  // it('Create 10 insured pools (20 total)', async () => {
+  //   iteration += 1;
+  //   await deployProtocolPools();
+  // });
 
-  it('Invest by 5 users', async () => {
-    for (let i = 5; i > 0; i--) {
-      await investByUser();
-    }
-  });
+  // it('Invest by 5 users', async () => {
+  //   for (let i = 5; i > 0; i--) {
+  //     await investByUser();
+  //   }
+  // });
 
-  it('Reconcile pools', reconcilePools);
+  // it('Reconcile pools', reconcilePools);
 
-  it('Create 30 insured pools (50 total)', async () => {
-    iteration += 1;
-    for (let i = 3; i > 0; i--) {
-      await deployProtocolPools();
-    }
-  });
+  // it('Create 30 insured pools (50 total)', async () => {
+  //   iteration += 1;
+  //   for (let i = 3; i > 0; i--) {
+  //     await deployProtocolPools();
+  //   }
+  // });
 
-  it('Invest by 5 users', async () => {
-    for (let i = 5; i > 0; i--) {
-      await investByUser();
-    }
-  });
+  // it('Invest by 5 users', async () => {
+  //   for (let i = 5; i > 0; i--) {
+  //     await investByUser();
+  //   }
+  // });
 
-  it('Reconcile pools', reconcilePools);
+  // it('Reconcile pools', reconcilePools);
 
-  it('Invest by 35 users', async () => {
-    iteration += 1;
-    for (let i = 35; i > 0; i--) {
-      await investByUser();
-    }
-  });
+  // it('Invest by 35 users', async () => {
+  //   iteration += 1;
+  //   for (let i = 35; i > 0; i--) {
+  //     await investByUser();
+  //   }
+  // });
 
-  it('Reconcile pools', reconcilePools);
+  // it('Reconcile pools', reconcilePools);
 
-  it('Create 50 insured pools (100 total)', async () => {
-    iteration += 1;
-    for (let i = 5; i > 0; i--) {
-      await deployProtocolPools();
-    }
-  });
+  // it('Create 50 insured pools (100 total)', async () => {
+  //   iteration += 1;
+  //   for (let i = 5; i > 0; i--) {
+  //     await deployProtocolPools();
+  //   }
+  // });
 
-  it('Invest by 50 users', async () => {
-    for (let i = 50; i > 0; i--) {
-      await investByUser();
-    }
-  });
+  // it('Invest by 50 users', async () => {
+  //   for (let i = 50; i > 0; i--) {
+  //     await investByUser();
+  //   }
+  // });
 
-  it('Reconcile pools', reconcilePools);
+  // it('Reconcile pools', reconcilePools);
 
-  it('Create 100 insured pools (200 total)', async () => {
-    iteration += 1;
-    for (let i = 10; i > 0; i--) {
-      await deployProtocolPools();
-    }
-  });
+  // it('Create 100 insured pools (200 total)', async () => {
+  //   iteration += 1;
+  //   for (let i = 10; i > 0; i--) {
+  //     await deployProtocolPools();
+  //   }
+  // });
 
-  it('Invest by 100 users', async () => {
-    for (let i = 100; i > 0; i--) {
-      await investByUser();
-    }
-  });
+  // it('Invest by 100 users', async () => {
+  //   for (let i = 100; i > 0; i--) {
+  //     await investByUser();
+  //   }
+  // });
 
-  it('Reconcile pools', reconcilePools);
+  // it('Reconcile pools', reconcilePools);
 
-  it('Create 300 insured pools (500 total)', async () => {
-    iteration += 1;
-    for (let i = 30; i > 0; i--) {
-      await deployProtocolPools();
-    }
-  });
+  // it('Create 300 insured pools (500 total)', async () => {
+  //   iteration += 1;
+  //   for (let i = 30; i > 0; i--) {
+  //     await deployProtocolPools();
+  //   }
+  // });
 
-  it('Invest by 300 users', async () => {
-    for (let i = 300; i > 0; i--) {
-      await investByUser();
-    }
-  });
+  // it('Invest by 300 users', async () => {
+  //   for (let i = 300; i > 0; i--) {
+  //     await investByUser();
+  //   }
+  // });
 
-  it('Reconcile pools', reconcilePools);
+  // it('Reconcile pools', reconcilePools);
 });

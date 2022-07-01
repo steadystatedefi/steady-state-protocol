@@ -19,7 +19,7 @@ abstract contract AccessHelperBase {
     return address(remoteAcl()) != address(0);
   }
 
-  function isAdmin(address addr) internal view returns (bool) {
+  function isAdmin(address addr) internal view virtual returns (bool) {
     IAccessController acl = remoteAcl();
     return (address(acl) != address(0)) && acl.isAdmin(addr);
   }

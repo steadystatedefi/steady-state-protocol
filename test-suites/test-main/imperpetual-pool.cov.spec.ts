@@ -5,7 +5,7 @@ import { zeroAddress } from 'ethereumjs-util';
 import { HALF_RAY, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { CollateralCurrency, MockInsuredPool, MockImperpetualPool } from '../../types';
+import { MockCollateralCurrency, MockInsuredPool, MockImperpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -20,13 +20,13 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
-  let cc: CollateralCurrency;
+  let cc: MockCollateralCurrency;
   let user: SignerWithAddress;
 
   before(async () => {
     user = testEnv.users[0];
     const extension = await Factories.ImperpetualPoolExtension.deploy(unitSize);
-    cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
     pool = await Factories.MockImperpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
     await cc.registerInsurer(pool.address);
