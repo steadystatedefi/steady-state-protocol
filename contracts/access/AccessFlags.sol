@@ -11,20 +11,23 @@ library AccessFlags {
   uint256 public constant SWEEP_ADMIN = 1 << 6;
   uint256 public constant ORACLE_ADMIN = 1 << 7;
 
+  uint256 public constant UNDERWRITER_POLICY = 1 << 8;
+  uint256 public constant UNDERWRITER_CLAIM = 1 << 9;
+
   uint256 public constant ROLES = (uint256(1) << 16) - 1;
 
   // singletons - use range [16..64] - can ONLY be assigned to a single address
   uint256 public constant SINGLETS = ((uint256(1) << 64) - 1) & ~ROLES;
 
-  // protected singletons
+  // protected singletons - use for proxies
   uint256 public constant APPROVAL_CATALOG = 1 << 16;
-
-  uint256 public constant TREASURY = 1 << 19;
+  uint256 public constant TREASURY = 1 << 17;
 
   uint256 public constant PROTECTED_SINGLETS = ((uint256(1) << 26) - 1) & ~ROLES;
 
   // non-proxied singletons, numbered down from 31 (as JS has problems with bitmasks over 31 bits)
-  uint256 public constant PROXY_FACTORY = 1 << 27;
+  uint256 public constant PROXY_FACTORY = 1 << 26;
+
   uint256 public constant DATA_HELPER = 1 << 28;
   uint256 public constant PRICE_ORACLE = 1 << 29;
 

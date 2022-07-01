@@ -8,41 +8,17 @@ import '../tools/upgradeability/ProxyAdminBase.sol';
 import '../tools/upgradeability/IProxy.sol';
 import '../tools/upgradeability/IVersioned.sol';
 import '../access/interfaces/IAccessController.sol';
+import '../access/AccessHelper.sol';
 import '../access/AccessFlags.sol';
 import './interfaces/IApprovalCatalog.sol';
-import './interfaces/IProxyFactory.sol';
 import './interfaces/IClaimAccessValidator.sol';
 import './ProxyTypes.sol';
 
-contract ApprovalCatalog is IApprovalCatalog {
-  IAccessController private immutable _remoteAcl;
+contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   bytes32 private immutable _insuredProxyType;
 
-  constructor(IAccessController remoteAcl, bytes32 insuredProxyType) {
-    _remoteAcl = remoteAcl;
+  constructor(IAccessController remoteAcl, bytes32 insuredProxyType) AccessHelper(remoteAcl) {
     _insuredProxyType = insuredProxyType;
-  }
-
-  function isOwner(address addr) private view returns (bool) {
-    IAccessController acl = _remoteAcl;
-    return (address(acl) != address(0)) && acl.isAdmin(addr);
-  }
-
-  function _onlyOwner() private view {
-    Access.require(isOwner(msg.sender));
-  }
-
-  modifier onlyOwner() {
-    _onlyOwner();
-    _;
-  }
-
-  modifier onlyApplicationUnderwriter() {
-    _;
-  }
-
-  modifier onlyClaimUnderwriter() {
-    _;
   }
 
   struct RequestedPolicy {
@@ -69,8 +45,7 @@ contract ApprovalCatalog is IApprovalCatalog {
   }
 
   function _createInsured(address requestedBy) private returns (address) {
-    IProxyFactory pf = IProxyFactory(_remoteAcl.getAddress(AccessFlags.PROXY_FACTORY));
-    return pf.createProxy(requestedBy, _insuredProxyType, ProxyTypes.insuredInit(_remoteAcl, requestedBy));
+    return getProxyFactory().createProxy(requestedBy, _insuredProxyType, ProxyTypes.insuredInit(remoteAcl(), requestedBy));
   }
 
   function resubmitApplication(address insured, bytes32 cid) external {
@@ -101,7 +76,7 @@ contract ApprovalCatalog is IApprovalCatalog {
 
   event ApplicationApproved(address indexed insured, bytes32 indexed requestCid, ApprovedPolicy data);
 
-  function approveApplication(ApprovedPolicy calldata data) external onlyApplicationUnderwriter {
+  function approveApplication(ApprovedPolicy calldata data) external aclHas(AccessFlags.UNDERWRITER_POLICY) {
     Value.require(data.insured != address(0));
     Value.require(data.requestCid != 0);
     Value.require(!data.applied);
@@ -116,7 +91,7 @@ contract ApprovalCatalog is IApprovalCatalog {
     address insured,
     bytes32 cid,
     string calldata reason
-  ) external onlyApplicationUnderwriter {
+  ) external aclHas(AccessFlags.UNDERWRITER_POLICY) {
     Value.require(insured != address(0));
     ApprovedPolicy storage data = _approvedPolicies[insured];
     if (data.insured != address(0)) {
@@ -196,7 +171,7 @@ contract ApprovalCatalog is IApprovalCatalog {
 
   event ClaimApproved(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
-  function approveClaim(address insured, ApprovedClaim calldata data) external onlyClaimUnderwriter {
+  function approveClaim(address insured, ApprovedClaim calldata data) external aclHas(AccessFlags.UNDERWRITER_CLAIM) {
     Value.require(insured != address(0));
     Value.require(data.requestCid != 0);
     State.require(!hasApprovedClaim(insured));

@@ -1,36 +1,123 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import './interfaces/IRemoteAccessBitmask.sol';
+import '../tools/Errors.sol';
+import '../interfaces/IProxyFactory.sol';
+import './interfaces/IAccessController.sol';
+import './AccessLib.sol';
+import './AccessFlags.sol';
 
-/// @dev Helper/wrapper around IRemoteAccessBitmask
-library AccessHelper {
-  function getAcl(IRemoteAccessBitmask remote, address subject) internal view returns (uint256) {
-    return remote.queryAccessControlMask(subject, type(uint256).max);
+// solhint-disable func-name-mixedcase
+abstract contract AccessHelperBase {
+  using AccessLib for IAccessController;
+
+  function remoteAcl() internal view virtual returns (IAccessController);
+
+  function setRemoteAcl(IAccessController) internal virtual;
+
+  function hasRemoteAcl() internal view returns (bool) {
+    return address(remoteAcl()) != address(0);
   }
 
-  function queryAcl(
-    IRemoteAccessBitmask remote,
-    address subject,
-    uint256 filterMask
-  ) internal view returns (uint256) {
-    return remote.queryAccessControlMask(subject, filterMask);
+  function isOwner(address addr) internal view returns (bool) {
+    IAccessController acl = remoteAcl();
+    return (address(acl) != address(0)) && acl.isOwner(addr);
   }
 
-  function hasAnyOf(
-    IRemoteAccessBitmask remote,
-    address subject,
-    uint256 flags
-  ) internal view returns (bool) {
-    uint256 found = queryAcl(remote, subject, flags);
-    return found & flags != 0;
+  function owner() public view returns (address) {
+    IAccessController acl = remoteAcl();
+    return address(acl) != address(0) ? acl.owner() : address(0);
   }
 
-  function hasAny(IRemoteAccessBitmask remote, address subject) internal view returns (bool) {
-    return remote.queryAccessControlMask(subject, 0) != 0;
+  function _onlyOwner() private view {
+    Access.require(isOwner(msg.sender));
   }
 
-  function hasNone(IRemoteAccessBitmask remote, address subject) internal view returns (bool) {
-    return remote.queryAccessControlMask(subject, 0) == 0;
+  modifier onlyOwner() {
+    _onlyOwner();
+    _;
+  }
+
+  function hasAnyAcl(address subject, uint256 flags) internal view virtual returns (bool) {
+    return remoteAcl().hasAnyOf(subject, flags);
+  }
+
+  function hasAllAcl(address subject, uint256 flags) internal view virtual returns (bool) {
+    return remoteAcl().hasAllOf(subject, flags);
+  }
+
+  function _requireAnyFor(address subject, uint256 flags) private view {
+    Access.require(hasAnyAcl(subject, flags));
+  }
+
+  function _requireAllFor(address subject, uint256 flags) private view {
+    Access.require(hasAllAcl(subject, flags));
+  }
+
+  modifier aclHas(uint256 flags) {
+    _requireAnyFor(msg.sender, flags);
+    _;
+  }
+
+  modifier aclHasAny(uint256 flags) {
+    _requireAnyFor(msg.sender, flags);
+    _;
+  }
+
+  modifier aclHasAll(uint256 flags) {
+    _requireAllFor(msg.sender, flags);
+    _;
+  }
+
+  modifier aclHasAnyFor(address subject, uint256 flags) {
+    _requireAnyFor(subject, flags);
+    _;
+  }
+
+  modifier aclHasAllFor(address subject, uint256 flags) {
+    _requireAllFor(subject, flags);
+    _;
+  }
+
+  function _onlyEmergencyAdmin() private view {
+    if (!hasAnyAcl(msg.sender, AccessFlags.EMERGENCY_ADMIN)) {
+      revert Errors.CalllerNotEmergencyAdmin();
+    }
+  }
+
+  modifier onlyEmergencyAdmin() {
+    _onlyEmergencyAdmin();
+    _;
+  }
+
+  function _onlySweepAdmin() private view {
+    if (!hasAnyAcl(msg.sender, AccessFlags.SWEEP_ADMIN)) {
+      revert Errors.CalllerNotSweepAdmin();
+    }
+  }
+
+  modifier onlySweepAdmin() {
+    _onlySweepAdmin();
+    _;
+  }
+
+  function getProxyFactory() internal view returns (IProxyFactory) {
+    return IProxyFactory(remoteAcl().getAddress(AccessFlags.PROXY_FACTORY));
+  }
+}
+
+abstract contract AccessHelper is AccessHelperBase {
+  IAccessController private immutable _acl;
+
+  constructor(IAccessController acl) {
+    _acl = acl;
+  }
+
+  function remoteAcl() internal view override returns (IAccessController) {
+    return _acl;
+  }
+
+  function setRemoteAcl(IAccessController acl) internal view override {
+    State.require(acl == _acl);
   }
 }

@@ -8,35 +8,18 @@ import '../tools/upgradeability/ProxyAdminBase.sol';
 import '../tools/upgradeability/IProxy.sol';
 import '../tools/upgradeability/IVersioned.sol';
 import '../access/interfaces/IAccessController.sol';
+import '../access/AccessHelper.sol';
 import '../libraries/Strings.sol';
 import './interfaces/IProxyCatalog.sol';
 
-contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase {
-  IAccessController private immutable _remoteAcl;
-
+contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   mapping(address => address) private _proxies;
 
   mapping(bytes32 => address) private _defaultImpls;
   mapping(address => bytes32) private _authImpls;
   mapping(address => bytes32) private _revokedImpls;
 
-  constructor(IAccessController remoteAcl) {
-    _remoteAcl = remoteAcl;
-  }
-
-  function isOwner(address addr) private view returns (bool) {
-    IAccessController acl = _remoteAcl;
-    return (address(acl) != address(0)) && acl.isAdmin(addr);
-  }
-
-  function _onlyOwner() private view {
-    Access.require(isOwner(msg.sender));
-  }
-
-  modifier onlyOwner() {
-    _onlyOwner();
-    _;
-  }
+  constructor(IAccessController remoteAcl) AccessHelper(remoteAcl) {}
 
   function getImplementationType(address impl) public view returns (bytes32 n) {
     n = _authImpls[impl];
