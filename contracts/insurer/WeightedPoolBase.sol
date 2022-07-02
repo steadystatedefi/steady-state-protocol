@@ -29,4 +29,46 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, Delegat
   function pushCoverageExcess() public virtual;
 
   event ExcessCoverageIncreased(uint256 coverageExcess); // TODO => ExcessCoverageUpdated
+
+  function premiumDistributor() public view virtual returns (address);
+
+  function _onlyPremiumDistributor() private view {
+    require(msg.sender == premiumDistributor());
+  }
+
+  modifier onlyPremiumDistributor() {
+    _onlyPremiumDistributor();
+    _;
+  }
+
+  function burnPremium(
+    address account,
+    uint256 value,
+    address drawdownRecepient
+  ) external override onlyPremiumDistributor {
+    internalBurnPremium(account, value, drawdownRecepient);
+  }
+
+  function internalBurnPremium(
+    address account,
+    uint256 value,
+    address drawdownRecepient
+  ) internal virtual;
+
+  function collectDrawdownPremium() external override onlyPremiumDistributor returns (uint256) {
+    return internalCollectDrawdownPremium();
+  }
+
+  function internalCollectDrawdownPremium() internal virtual returns (uint256);
+
+  function addSubrogation(
+    address donor,
+    uint256 value /* TODO permissions? */
+  ) external {
+    if (value > 0) {
+      internalSubrogate(donor, value);
+    }
+  }
+
+  function internalSubrogate(address donor, uint256 value) internal virtual;
 }

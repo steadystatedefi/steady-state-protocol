@@ -30,7 +30,7 @@ abstract contract Collateralized is ICollateralized {
 
   function transferCollateral(address recipient, uint256 amount) internal {
     // collateral is a trusted token, hence we do not use safeTransfer here
-    require(IERC20(_collateral).transfer(recipient, amount));
+    require(IERC20(collateral()).transfer(recipient, amount));
   }
 
   function transferCollateralFrom(
@@ -39,6 +39,6 @@ abstract contract Collateralized is ICollateralized {
     uint256 amount
   ) internal {
     // collateral is a trusted token, hence we do not use safeTransfer here
-    require(IERC20(_collateral).transferFrom(from, recipient, amount));
+    require(IERC20(collateral()).transferFrom(from, recipient, amount));
   }
 }

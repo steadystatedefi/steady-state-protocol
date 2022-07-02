@@ -49,11 +49,11 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : value, value);
   }
 
-  function internalSubrogate(uint256 value) private {
-    if (value > 0) {
-      emit ExcessCoverageIncreased(_excessCoverage += value);
-      internalOnCoverageRecovered();
-    }
+  function internalSubrogate(address donor, uint256 value) internal override {
+    donor;
+    // TODO transfer collateral from
+    emit ExcessCoverageIncreased(_excessCoverage += value);
+    internalOnCoverageRecovered();
   }
 
   function updateCoverageOnCancel(
@@ -235,16 +235,16 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     transferCollateral(recepient, value);
   }
 
-  function burnPremium(
+  function internalBurnPremium(
     address account,
     uint256 value,
     address drawdownRecepient
-  ) external override {
+  ) internal override {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
 
-  function collectDrawdownPremium() external override returns (uint256) {
+  function internalCollectDrawdownPremium() internal override returns (uint256) {
     // TODO
   }
 }

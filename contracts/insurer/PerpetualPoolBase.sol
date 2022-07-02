@@ -70,11 +70,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _afterBalanceUpdate(excessCoverage, totals, coverage);
   }
 
-  function internalSubrogate(uint256 value) private {
-    if (value > 0) {
-      internalAdjustCoverage(0, value);
-      internalOnCoverageRecovered();
-    }
+  function internalSubrogate(address donor, uint256 value) internal override {
+    donor;
+    // TODO transfer collateral from
+    internalAdjustCoverage(0, value);
+    internalOnCoverageRecovered();
   }
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
@@ -239,11 +239,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return internalBurn(msg.sender, _excessCoverage);
   }
 
-  function burnPremium(
+  function internalBurnPremium(
     address account,
     uint256 value,
     address drawdownRecepient
-  ) external override {
+  ) internal override {
     require(drawdownRecepient == address(0));
 
     (UserBalance memory b, ) = _beforeBalanceUpdate(account);
@@ -251,5 +251,5 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[account] = b;
   }
 
-  function collectDrawdownPremium() external override returns (uint256) {}
+  function internalCollectDrawdownPremium() internal override returns (uint256) {}
 }
