@@ -2,8 +2,9 @@
 pragma solidity ^0.8.4;
 
 import '../tools/math/PercentageMath.sol';
-import '../insurance/Collateralized.sol';
+import '../interfaces/IJoinHandler.sol';
 import '../interfaces/IPremiumDistributor.sol';
+import '../insurance/Collateralized.sol';
 import './WeightedPoolConfig.sol';
 
 // Contains all variables for both base and extension contract. Allows for upgrades without corruption
@@ -21,7 +22,7 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, Collateralized {
   }
   mapping(address => UserBalance) internal _balances; // [investor]
 
-  address internal _joinHandler;
+  IJoinHandler internal _governor;
   IPremiumDistributor internal _premiumHandler;
 
   /// @dev Amount of coverage provided to the pool that is not satisfying demand

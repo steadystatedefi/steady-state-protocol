@@ -2,7 +2,6 @@
 pragma solidity ^0.8.4;
 
 import '../libraries/Balances.sol';
-import '../interfaces/IJoinHandler.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
@@ -163,10 +162,8 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   }
 
   function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    address jh = _joinHandler;
-    if (jh == address(0)) return InsuredStatus.Joining;
-    if (jh == address(this)) return InsuredStatus.Accepted;
-    return IJoinHandler(jh).handleJoinRequest(insured);
+    IJoinHandler jh = _governor;
+    return address(jh) == address(0) ? InsuredStatus.Joining : jh.handleJoinRequest(insured);
   }
 
   ///@dev Return if an account has a balance or premium earned

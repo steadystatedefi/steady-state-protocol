@@ -36,7 +36,7 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, Delegat
     require(msg.sender == premiumDistributor());
   }
 
-  modifier onlyPremiumDistributor() {
+  modifier onlyPremiumDistributor() virtual {
     _onlyPremiumDistributor();
     _;
   }

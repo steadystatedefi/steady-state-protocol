@@ -4,14 +4,14 @@ pragma solidity ^0.8.4;
 import '../ImperpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
 
-contract MockImperpetualPool is ImperpetualPoolBase {
+contract MockImperpetualPool is IJoinHandler, ImperpetualPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
     uint8 decimals,
     ImperpetualPoolExtension extension
   ) ERC20DetailsBase('ImperpetualPoolToken', '$IC', decimals) ImperpetualPoolBase(unitSize, extension) Collateralized(collateral_) {
-    _joinHandler = address(this);
+    _governor = this;
     internalSetPoolParams(
       WeightedPoolParams({
         maxAdvanceUnits: 10000,
@@ -25,6 +25,10 @@ contract MockImperpetualPool is ImperpetualPoolBase {
         maxDrawdownInverse: 9000 // 90%
       })
     );
+  }
+
+  function handleJoinRequest(address) external pure override returns (InsuredStatus) {
+    return InsuredStatus.Accepted;
   }
 
   function setPoolParams(WeightedPoolParams calldata params) external {
@@ -96,5 +100,9 @@ contract MockImperpetualPool is ImperpetualPoolBase {
 
   function applyAdjustments() external {
     internalApplyAdjustmentsToTotals();
+  }
+
+  modifier onlyPremiumDistributor() override {
+    _;
   }
 }
