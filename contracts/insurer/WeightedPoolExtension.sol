@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
-import '../interfaces/IInsuredPool.sol';
-import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinHandler.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
-abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStorage, InsurerJoinBase {
+abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolStorage, InsurerJoinBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(uint256 unitSize) InsurancePoolBase(address(0)) WeightedRoundsBase(unitSize) {}
+  constructor(uint256 unitSize) Collateralized(address(0)) WeightedRoundsBase(unitSize) {}
 
   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
   /// IInsuredPool.joinProcessed will be called after the decision is made.
@@ -25,18 +22,13 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     internalRequestJoin(insured);
   }
 
-  /// @inheritdoc IInsurerPoolBase
-  function charteredDemand() external pure override returns (bool) {
-    return true;
-  }
-
   /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
   /// @return The coverage unit size
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
   }
 
-  /// @inheritdoc IInsurerPoolDemand
+  /// @inheritdoc ICoverageDistributor
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
@@ -58,7 +50,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     return addedCount;
   }
 
-  /// @inheritdoc IInsurerPoolDemand
+  /// @inheritdoc ICoverageDistributor
   function cancelCoverageDemand(uint256 unitCount) external override onlyActiveInsured returns (uint256 cancelledUnits) {
     CancelCoverageDemandParams memory params;
     params.insured = msg.sender;
@@ -72,7 +64,6 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
-  /// @inheritdoc IInsurerPoolBase
   function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     return internalCancelCoverage(msg.sender, payoutRatio);
   }
@@ -116,7 +107,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     uint256 receivedCoverage
   ) internal virtual returns (uint256);
 
-  /// @inheritdoc IInsurerPoolDemand
+  /// @inheritdoc ICoverageDistributor
   function receivableDemandedCoverage(address insured) external view override returns (uint256 receivableCoverage, DemandedCoverage memory coverage) {
     GetCoveredDemandParams memory params;
     params.insured = insured;
@@ -126,7 +117,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     return (params.receivedCoverage, coverage);
   }
 
-  /// @inheritdoc IInsurerPoolDemand
+  /// @inheritdoc ICoverageDistributor
   function receiveDemandedCoverage(address insured)
     external
     override

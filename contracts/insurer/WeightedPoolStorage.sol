@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '../tools/math/PercentageMath.sol';
-import '../insurance/InsurancePoolBase.sol';
+import '../insurance/Collateralized.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import './WeightedPoolConfig.sol';
 
@@ -11,7 +11,7 @@ import './WeightedPoolConfig.sol';
 /// @dev
 /// @dev WARNING! This contract MUST NOT be extended with new fields after deployment
 /// @dev
-abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
+abstract contract WeightedPoolStorage is WeightedPoolConfig, Collateralized {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
 

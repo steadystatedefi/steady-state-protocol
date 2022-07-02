@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/math/PercentageMath.sol';
-import '../tools/upgradeability/Delegator.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../libraries/Balances.sol';
-import '../interfaces/IInsurerPool.sol';
-import '../interfaces/IInsuredPool.sol';
 import './ImperpetualPoolStorage.sol';
 import './ImperpetualPoolExtension.sol';
 import './WeightedPoolBase.sol';

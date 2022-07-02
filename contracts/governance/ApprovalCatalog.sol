@@ -16,9 +16,15 @@ import './ProxyTypes.sol';
 
 contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   bytes32 private immutable _insuredProxyType;
+  IAccessController private immutable _acl;
 
-  constructor(IAccessController remoteAcl, bytes32 insuredProxyType) AccessHelper(remoteAcl) {
+  constructor(IAccessController acl, bytes32 insuredProxyType) {
+    _acl = acl;
     _insuredProxyType = insuredProxyType;
+  }
+
+  function remoteAcl() internal view override returns (IAccessController) {
+    return _acl;
   }
 
   struct RequestedPolicy {

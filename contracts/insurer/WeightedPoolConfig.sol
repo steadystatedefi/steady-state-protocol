@@ -2,7 +2,6 @@
 pragma solidity ^0.8.4;
 
 import '../tools/math/PercentageMath.sol';
-import '../insurance/InsurancePoolBase.sol';
 import './WeightedRoundsBase.sol';
 
 abstract contract WeightedPoolConfig is WeightedRoundsBase {

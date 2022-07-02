@@ -19,7 +19,15 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   mapping(address => bytes32) private _authImpls;
   mapping(address => bytes32) private _revokedImpls;
 
-  constructor(IAccessController remoteAcl) AccessHelper(remoteAcl) {}
+  IAccessController private immutable _acl;
+
+  constructor(IAccessController acl) {
+    _acl = acl;
+  }
+
+  function remoteAcl() internal view override returns (IAccessController) {
+    return _acl;
+  }
 
   function getImplementationType(address impl) public view returns (bytes32 n) {
     n = _authImpls[impl];

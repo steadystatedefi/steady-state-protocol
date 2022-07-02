@@ -8,12 +8,14 @@ import './AccessLib.sol';
 import './AccessFlags.sol';
 
 // solhint-disable func-name-mixedcase
-abstract contract AccessHelperBase {
+abstract contract AccessHelper {
   using AccessLib for IAccessController;
 
   function remoteAcl() internal view virtual returns (IAccessController);
 
-  function setRemoteAcl(IAccessController) internal virtual;
+  function setRemoteAcl(IAccessController acl) internal virtual {
+    State.require(acl == remoteAcl());
+  }
 
   function hasRemoteAcl() internal view returns (bool) {
     return address(remoteAcl()) != address(0);
@@ -103,21 +105,5 @@ abstract contract AccessHelperBase {
 
   function getProxyFactory() internal view returns (IProxyFactory) {
     return IProxyFactory(remoteAcl().getAddress(AccessFlags.PROXY_FACTORY));
-  }
-}
-
-abstract contract AccessHelper is AccessHelperBase {
-  IAccessController private immutable _acl;
-
-  constructor(IAccessController acl) {
-    _acl = acl;
-  }
-
-  function remoteAcl() internal view override returns (IAccessController) {
-    return _acl;
-  }
-
-  function setRemoteAcl(IAccessController acl) internal view override {
-    State.require(acl == _acl);
   }
 }

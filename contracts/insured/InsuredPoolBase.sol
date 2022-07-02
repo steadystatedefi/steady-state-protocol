@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/tokens/IERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
@@ -29,8 +28,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     _premiumRate = premiumRate;
   }
 
-  function collateral() public view override(ICollateralized, InsurancePoolBase, PremiumCollectorBase) returns (address) {
-    return InsurancePoolBase.collateral();
+  function collateral() public view override(ICollateralized, Collateralized, PremiumCollectorBase) returns (address) {
+    return Collateralized.collateral();
   }
 
   function _increaseRequiredCoverage(uint256 amount) internal {
@@ -106,7 +105,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   /// @notice Add coverage demand to the desired insurer
   /// @param target The insurer to add
   /// @param amount The amount of coverage demand to request
-  function pushCoverageDemandTo(IInsurerPool target, uint256 amount) external onlyAdmin {
+  function pushCoverageDemandTo(ICoverageDistributor target, uint256 amount) external onlyAdmin {
     internalPushCoverageDemandTo(target, amount);
   }
 
@@ -173,7 +172,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
       }
     }
     for (; startIndex < max; startIndex++) {
-      (uint256 cov, uint256 col, DemandedCoverage memory cv) = internalReconcileWithInsurer(IInsurerPoolDemand(insurers[startIndex]), false);
+      (uint256 cov, uint256 col, DemandedCoverage memory cv) = internalReconcileWithInsurer(ICoverageDistributor(insurers[startIndex]), false);
       receivedCoverage += cov;
       receivedCollateral += col;
       demandedCoverage += cv.totalDemand;
@@ -203,7 +202,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
     Balances.RateAcc memory totals = internalSyncTotals();
     for (; startIndex < max; startIndex++) {
-      (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(IInsurerPoolDemand(insurers[startIndex]), totals);
+      (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(ICoverageDistributor(insurers[startIndex]), totals);
       demandedCoverage += cov.totalDemand;
       providedCoverage += cov.totalCovered;
       receivableCoverage += c;
@@ -262,7 +261,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     for (uint256 i = insurers.length; i > 0; ) {
       address insurer = insurers[--i];
       uint256 allowance = t.allowance(address(this), insurer);
-      totalPayout += IInsurerPoolCore(insurer).cancelCoverage(payoutRatio);
+      totalPayout += ICancellableCoverage(insurer).cancelCoverage(payoutRatio);
       internalDecReceivedCollateral(allowance - t.allowance(address(this), insurer));
       require(t.approve(insurer, 0));
     }

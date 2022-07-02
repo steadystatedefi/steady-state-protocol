@@ -10,7 +10,7 @@ contract MockPerpetualPool is PerpetualPoolBase {
     uint256 unitSize,
     uint8 decimals,
     PerpetualPoolExtension extension
-  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
+  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(unitSize, extension) Collateralized(collateral_) {
     _joinHandler = address(this);
     internalSetPoolParams(
       WeightedPoolParams({
@@ -63,10 +63,6 @@ contract MockPerpetualPool is PerpetualPoolBase {
 
     coverage = internalUpdateCoveredDemand(params);
     receivedCoverage += params.receivedCoverage;
-  }
-
-  function cancelCoverage(uint256) external override returns (uint256) {
-    _delegate(_extension);
   }
 
   function dump() external view returns (Dump memory) {

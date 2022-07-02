@@ -11,7 +11,7 @@ import 'hardhat/console.sol';
 
 /// @title InsurerJoinBase
 /// @notice Handles Insured's requests on joining this Insurer
-abstract contract InsurerJoinBase is IJoinEvents {
+abstract contract InsurerJoinBase is IJoinableBase, IJoinEvents {
   function internalGetStatus(address) internal view virtual returns (InsuredStatus);
 
   function internalSetStatus(address, InsuredStatus) internal virtual;

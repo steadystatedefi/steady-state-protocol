@@ -4,20 +4,20 @@ pragma solidity ^0.8.4;
 import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../tools/math/PercentageMath.sol';
+import '../tools/math/WadRayMath.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
-import './WeightedPoolStorage.sol';
-import './WeightedPoolExtension.sol';
-import '../insurance/InsurancePoolBase.sol';
+import '../insurance/Collateralized.sol';
+import './InsurerJoinBase.sol';
 
 /// @title Direct Pool Base
 /// @notice Handles capital providing actions involving adding coverage DIRECTLY to an insured
 abstract contract DirectPoolBase is
-  IInsurerPoolCore,
+  ICancellableCoverage,
   IPerpetualInsurerPool,
-  InsurancePoolBase,
+  Collateralized,
   InsurerJoinBase,
   ERC20BalancelessBase,
   ERC1363ReceiverBase
@@ -57,7 +57,6 @@ abstract contract DirectPoolBase is
     _;
   }
 
-  /// @inheritdoc IInsurerPoolBase
   function charteredDemand() external pure override returns (bool) {
     return false;
   }
@@ -70,7 +69,6 @@ abstract contract DirectPoolBase is
     return _premiums[account].sync(at);
   }
 
-  /// @inheritdoc IInsurerPoolBase
   function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
     uint256 total = _totalBalance.rayMul(exchangeRate());
 

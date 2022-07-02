@@ -2,9 +2,9 @@
 pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
-import '../interfaces/IInsurancePool.sol';
+import '../interfaces/ICollateralized.sol';
 
-abstract contract InsurancePoolBase is IInsurancePool {
+abstract contract Collateralized is ICollateralized {
   address private _collateral;
 
   constructor(address collateral_) {
