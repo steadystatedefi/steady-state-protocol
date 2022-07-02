@@ -4,14 +4,18 @@ pragma solidity ^0.8.4;
 import '../PerpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
 
-contract MockPerpetualPool is IJoinHandler, PerpetualPoolBase {
+contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
     uint8 decimals,
     PerpetualPoolExtension extension
-  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(unitSize, extension) Collateralized(collateral_) {
-    _governor = this;
+  )
+    ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals)
+    PerpetualPoolBase(IAccessController(address(0)), unitSize, extension)
+    Collateralized(collateral_)
+  {
+    internalSetTypedGovernor(this);
     internalSetPoolParams(
       WeightedPoolParams({
         maxAdvanceUnits: 10000,
@@ -73,20 +77,7 @@ contract MockPerpetualPool is IJoinHandler, PerpetualPoolBase {
     return _dump();
   }
 
-  function dumpInsured(address insured)
-    external
-    view
-    returns (
-      Rounds.InsuredEntry memory,
-      Rounds.Demand[] memory,
-      Rounds.Coverage memory,
-      Rounds.CoveragePremium memory
-    )
-  {
-    return _dumpInsured(insured);
-  }
-
-  function getUnadjusted()
+  function getPendingAdjustments()
     external
     view
     returns (
@@ -98,7 +89,7 @@ contract MockPerpetualPool is IJoinHandler, PerpetualPoolBase {
     return internalGetUnadjustedUnits();
   }
 
-  function applyAdjustments() external {
+  function applyPendingAdjustments() external {
     internalApplyAdjustmentsToTotals();
   }
 }

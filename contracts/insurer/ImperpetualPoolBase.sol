@@ -12,10 +12,14 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(uint256 unitSize, ImperpetualPoolExtension extension) WeightedRoundsBase(unitSize) WeightedPoolBase(unitSize, extension) {}
+  constructor(
+    IAccessController acl,
+    uint256 unitSize,
+    ImperpetualPoolExtension extension
+  ) WeightedRoundsBase(unitSize) WeightedPoolBase(acl, unitSize, extension) {}
 
-  function premiumDistributor() public view override returns (address) {
-    return address(_premiumHandler);
+  function governor() public view override returns (address) {
+    return governorAccount();
   }
 
   function _addCoverage(uint256 value)
@@ -246,5 +250,17 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
   function internalCollectDrawdownPremium() internal override returns (uint256) {
     // TODO
+  }
+
+  function internalSetGovernor(address addr) internal override(WeightedPoolBase, WeightedPoolStorage) {
+    WeightedPoolStorage.internalSetGovernor(addr);
+  }
+
+  function premiumDistributor() public view override returns (address) {
+    return address(_premiumDistributor);
+  }
+
+  function internalSetPremiumDistributor(address addr) internal override(WeightedPoolBase, WeightedPoolStorage) {
+    WeightedPoolStorage.internalSetPremiumDistributor(addr);
   }
 }

@@ -353,7 +353,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const totalSupply0 = await pool.totalSupply();
 
     const insured = insureds[0];
-    const adj0 = await pool.getUnadjusted();
+    const adj0 = await pool.getPendingAdjustments();
 
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
@@ -423,7 +423,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     );
     expect(totals0.totalPremium).lt(totals1.totalPremium);
 
-    const adj1 = await pool.getUnadjusted();
+    const adj1 = await pool.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
   });
 
@@ -435,7 +435,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     await insured.reconcileWithAllInsurers(); // required to cancel
 
-    const adj0 = await pool.getUnadjusted();
+    const adj0 = await pool.getPendingAdjustments();
 
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
@@ -495,7 +495,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     );
     expect(totals0.totalPremium).lt(totals1.totalPremium);
 
-    const adj1 = await pool.getUnadjusted();
+    const adj1 = await pool.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
   });
 });

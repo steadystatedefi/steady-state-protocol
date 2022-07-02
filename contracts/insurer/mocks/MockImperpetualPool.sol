@@ -4,14 +4,18 @@ pragma solidity ^0.8.4;
 import '../ImperpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
 
-contract MockImperpetualPool is IJoinHandler, ImperpetualPoolBase {
+contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
     uint8 decimals,
     ImperpetualPoolExtension extension
-  ) ERC20DetailsBase('ImperpetualPoolToken', '$IC', decimals) ImperpetualPoolBase(unitSize, extension) Collateralized(collateral_) {
-    _governor = this;
+  )
+    ERC20DetailsBase('ImperpetualPoolToken', '$IC', decimals)
+    ImperpetualPoolBase(IAccessController(address(0)), unitSize, extension)
+    Collateralized(collateral_)
+  {
+    internalSetTypedGovernor(this);
     internalSetPoolParams(
       WeightedPoolParams({
         maxAdvanceUnits: 10000,
@@ -58,35 +62,24 @@ contract MockImperpetualPool is IJoinHandler, ImperpetualPoolBase {
     return (params.receivedCoverage, coverage);
   }
 
-  uint256 public receivedCoverage;
+  // function dump() external view returns (Dump memory) {
+  //   return _dump();
+  // }
 
-  function receiveDemandedCoverage(address insured, uint16 loopLimit) external returns (DemandedCoverage memory coverage) {
-    GetCoveredDemandParams memory params;
-    params.insured = insured;
-    params.loopLimit = loopLimit == 0 ? ~params.loopLimit : loopLimit;
+  // function dumpInsured(address insured)
+  //   external
+  //   view
+  //   returns (
+  //     Rounds.InsuredEntry memory,
+  //     Rounds.Demand[] memory,
+  //     Rounds.Coverage memory,
+  //     Rounds.CoveragePremium memory
+  //   )
+  // {
+  //   return _dumpInsured(insured);
+  // }
 
-    coverage = internalUpdateCoveredDemand(params);
-    receivedCoverage += params.receivedCoverage;
-  }
-
-  function dump() external view returns (Dump memory) {
-    return _dump();
-  }
-
-  function dumpInsured(address insured)
-    external
-    view
-    returns (
-      Rounds.InsuredEntry memory,
-      Rounds.Demand[] memory,
-      Rounds.Coverage memory,
-      Rounds.CoveragePremium memory
-    )
-  {
-    return _dumpInsured(insured);
-  }
-
-  function getUnadjusted()
+  function getPendingAdjustments()
     external
     view
     returns (
@@ -98,7 +91,7 @@ contract MockImperpetualPool is IJoinHandler, ImperpetualPoolBase {
     return internalGetUnadjustedUnits();
   }
 
-  function applyAdjustments() external {
+  function applyPendingAdjustments() external {
     internalApplyAdjustmentsToTotals();
   }
 

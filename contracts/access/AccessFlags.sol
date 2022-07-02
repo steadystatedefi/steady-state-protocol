@@ -4,9 +4,12 @@ pragma solidity ^0.8.4;
 library AccessFlags {
   // roles that can be assigned to multiple addresses - use range [0..15]
   uint256 public constant EMERGENCY_ADMIN = 1 << 0;
-  uint256 public constant COLLATERAL_FUND_ADMIN = 1 << 1;
-  uint256 public constant TREASURY_ADMIN = 1 << 2;
-  uint256 public constant PREMIUM_FUND_ADMIN = 1 << 3;
+  uint256 public constant TREASURY_ADMIN = 1 << 1;
+  uint256 public constant COLLATERAL_FUND_ADMIN = 1 << 2;
+  uint256 public constant INSURER_ADMIN = 1 << 3;
+  uint256 public constant INSURER_OPS = 1 << 4;
+
+  uint256 public constant PREMIUM_FUND_ADMIN = 1 << 5;
 
   uint256 public constant SWEEP_ADMIN = 1 << 6;
   uint256 public constant ORACLE_ADMIN = 1 << 7;

@@ -5,21 +5,32 @@ import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
+import '../governance/GovernedHelper.sol';
 import './WeightedPoolExtension.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
-abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, Delegator, ERC1363ReceiverBase {
+abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, Delegator, ERC1363ReceiverBase, GovernedHelper {
   address internal immutable _extension;
+  IAccessController private immutable _remoteAcl;
 
-  constructor(uint256 unitSize, WeightedPoolExtension extension) {
+  constructor(
+    IAccessController acl,
+    uint256 unitSize,
+    WeightedPoolExtension extension
+  ) {
     require(extension.coverageUnitSize() == unitSize);
     _extension = address(extension);
+    _remoteAcl = acl;
   }
 
   // solhint-disable-next-line payable-fallback
   fallback() external {
     // all ICoverageDistributor etc functions should be delegated to the extension
     _delegate(_extension);
+  }
+
+  function remoteAcl() internal view override returns (IAccessController) {
+    return _remoteAcl;
   }
 
   function charteredDemand() external pure override returns (bool) {
@@ -61,14 +72,23 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, Delegat
 
   function internalCollectDrawdownPremium() internal virtual returns (uint256);
 
-  function addSubrogation(
-    address donor,
-    uint256 value /* TODO permissions? */
-  ) external {
+  function addSubrogation(address donor, uint256 value) external aclHas(AccessFlags.INSURER_OPS) {
     if (value > 0) {
       internalSubrogate(donor, value);
     }
   }
 
   function internalSubrogate(address donor, uint256 value) internal virtual;
+
+  function internalSetGovernor(address) internal virtual;
+
+  function setGovernor(address addr) external aclHas(AccessFlags.INSURER_ADMIN) {
+    internalSetGovernor(addr);
+  }
+
+  function internalSetPremiumDistributor(address) internal virtual;
+
+  function setPremiumDistributor(address addr) external aclHas(AccessFlags.INSURER_ADMIN) {
+    internalSetPremiumDistributor(addr);
+  }
 }

@@ -71,7 +71,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   /// @param insured The address of the insured to cancel
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
   /// @return payoutValue The amount of coverage paid out to the insured
-  function internalCancelCoverage(address insured, uint256 payoutRatio) private onlyActiveInsured returns (uint256 payoutValue) {
+  function internalCancelCoverage(address insured, uint256 payoutRatio) private returns (uint256 payoutValue) {
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage, uint256 receivedPremium) = super
       .internalCancelCoverage(insured);
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
@@ -86,8 +86,8 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
 
     require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
 
-    if (address(_premiumHandler) != address(0)) {
-      uint256 premiumDebt = _premiumHandler.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
+    if (address(_premiumDistributor) != address(0)) {
+      uint256 premiumDebt = _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
       unchecked {
         payoutValue = payoutValue <= premiumDebt ? 0 : payoutValue - premiumDebt;
       }
@@ -133,8 +133,9 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
 
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
-    if (address(_premiumHandler) != address(0)) {
-      _premiumHandler.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
+
+    if (address(_premiumDistributor) != address(0)) {
+      _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
     }
 
     return (params.receivedCoverage, receivedCollateral, coverage);
@@ -162,7 +163,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   }
 
   function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    IJoinHandler jh = _governor;
+    IJoinHandler jh = governorContract();
     return address(jh) == address(0) ? InsuredStatus.Joining : jh.handleJoinRequest(insured);
   }
 
@@ -180,8 +181,8 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   }
 
   function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal override {
-    if (address(_premiumHandler) != address(0)) {
-      _premiumHandler.registerPremiumSource(insured, status == InsuredStatus.Accepted);
+    if (address(_premiumDistributor) != address(0)) {
+      _premiumDistributor.registerPremiumSource(insured, status == InsuredStatus.Accepted);
     }
   }
 }

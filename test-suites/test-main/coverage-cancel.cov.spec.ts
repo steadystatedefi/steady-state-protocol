@@ -391,7 +391,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(stats0.totalDemand).gt(stats1.totalDemand);
     expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
 
-    const adj = await pool.getUnadjusted();
+    const adj = await pool.getPendingAdjustments();
     expect(adj.pendingDemand.mul(unitSize)).eq(stats0.totalDemand.sub(stats1.totalDemand));
     expect(adj.pendingCovered).eq(0);
 
@@ -402,7 +402,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     const insured = insureds[0];
 
     const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
-    const adj0 = await pool.getUnadjusted();
+    const adj0 = await pool.getPendingAdjustments();
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
@@ -417,7 +417,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       expect(stats0.totalPremium).lt(stats1.totalPremium);
     }
 
-    const adj1 = await pool.getUnadjusted();
+    const adj1 = await pool.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
     expect(adj0.pendingCovered).eq(adj1.pendingCovered);
   });
@@ -431,7 +431,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await pool.totalSupplyValue()).eq(totalInvested);
 
     const insured = insureds[0];
-    const adj0 = await pool.getUnadjusted();
+    const adj0 = await pool.getPendingAdjustments();
 
     expect(await cc.balanceOf(insured.address)).eq(0);
 
@@ -510,7 +510,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     );
     expect(totals0.totalPremium).lt(totals1.totalPremium);
 
-    const adj1 = await pool.getUnadjusted();
+    const adj1 = await pool.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
     // TODO expect(adj0.pendingCovered).eq(stats0.totalCovered);
   });
@@ -551,7 +551,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
-    const adj0 = await pool.getUnadjusted();
+    const adj0 = await pool.getPendingAdjustments();
 
     const { coverage: totals1 } = await pool.getTotals();
     const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
@@ -580,7 +580,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(dump.batches[1].roundPremiumRateSum).eq(0);
     expect(dump.batches[1].state).eq(1); // this zero round MUST remain "ready to use" to avoid lockup
 
-    const adj1 = await pool.getUnadjusted();
+    const adj1 = await pool.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
     expect(adj0.pendingCovered).gt(0);
   });
@@ -656,10 +656,10 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
   it('Apply delayed adjustments', async () => {
     await callAndCheckTotals(async () => {
-      await pool.applyAdjustments();
+      await pool.applyPendingAdjustments();
     });
 
-    const adj0 = await pool.getUnadjusted();
+    const adj0 = await pool.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(0);
     expect(adj0.pendingCovered).eq(0);
   });
