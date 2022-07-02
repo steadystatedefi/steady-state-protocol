@@ -22,7 +22,7 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
   }
 
   function to128(uint256 v) internal pure returns (uint128) {
-    require(v >> 128 == 0);
+    require(v >> 128 == 0); // TODO overflow error
     return uint128(v);
   }
 

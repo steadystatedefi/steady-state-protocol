@@ -28,6 +28,15 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     _;
   }
 
+  function _onlySelf() private view {
+    require(msg.sender == address(this));
+  }
+
+  modifier onlySelf() {
+    _onlySelf();
+    _;
+  }
+
   function internalGetStatus(address account) internal view virtual returns (InsuredStatus) {
     return internalGetInsuredStatus(account);
   }

@@ -35,7 +35,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
         emit ExcessCoverageIncreased(newExcess);
       }
       if (params.unitsCovered > 0) {
-        // increase MCD in the premium pool
+        // TODO increase MCD in the premium pool
       }
       done = true;
     }
@@ -60,9 +60,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     address insured,
     uint256 payoutValue,
     uint256 excessCoverage
-  ) public returns (uint256) {
-    require(msg.sender == address(this));
-
+  ) external onlySelf returns (uint256) {
     uint256 givenValue = _insuredBalances[insured];
 
     if (givenValue != payoutValue) {
@@ -100,9 +98,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     address insured,
     uint256 receivedCoverage,
     uint256 totalCovered
-  ) public returns (uint256) {
-    require(msg.sender == address(this));
-
+  ) external onlySelf returns (uint256) {
     uint256 expectedAmount = totalCovered.percentMul(_params.maxDrawdownInverse);
     uint256 actualAmount = _insuredBalances[insured];
 

@@ -79,9 +79,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
   /// @dev Call _afterBalanceUpdate to update the rate of the pool
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
-    require(msg.sender == address(this));
-
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) external onlySelf {
     internalAdjustCoverage(paidoutCoverage, excess);
 
     if (excess > 0) {
