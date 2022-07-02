@@ -8,7 +8,7 @@ import '../access/AccessHelper.sol';
 abstract contract GovernedHelper is AccessHelper {
   function governor() public view virtual returns (address);
 
-  function _onlyGovernorOr(uint256 flags) private view {
+  function _onlyGovernorOr(uint256 flags) internal view {
     require(_isAllowed(flags) || hasAnyAcl(msg.sender, flags));
   }
 

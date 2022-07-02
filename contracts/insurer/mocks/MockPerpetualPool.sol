@@ -35,10 +35,6 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     return InsuredStatus.Accepted;
   }
 
-  function setPoolParams(WeightedPoolParams calldata params) external {
-    internalSetPoolParams(params);
-  }
-
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return internalGetTotals(type(uint256).max);
   }
@@ -91,5 +87,17 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
 
   function applyPendingAdjustments() external {
     internalApplyAdjustmentsToTotals();
+  }
+
+  function hasAnyAcl(address, uint256) internal pure override returns (bool) {
+    return true;
+  }
+
+  function hasAllAcl(address, uint256) internal pure override returns (bool) {
+    return true;
+  }
+
+  function isAdmin(address) internal pure override returns (bool) {
+    return true;
   }
 }

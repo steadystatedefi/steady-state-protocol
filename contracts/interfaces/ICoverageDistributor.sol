@@ -18,7 +18,11 @@ interface ICancellableCoverageDemand is ICancellableCoverage {
   /// @dev can only be called by an accepted insured pool
   /// @param unitCount The number of units that wishes to be cancelled
   /// @return cancelledUnits The amount of units that were cancelled
-  function cancelCoverageDemand(address insured, uint256 unitCount) external returns (uint256 cancelledUnits);
+  function cancelCoverageDemand(
+    address insured,
+    uint256 unitCount,
+    uint256 loopLimit
+  ) external returns (uint256 cancelledUnits);
 }
 
 interface ICoverageDistributor is ICancellableCoverageDemand {
@@ -34,14 +38,15 @@ interface ICoverageDistributor is ICancellableCoverageDemand {
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
-    bool hasMore
+    bool hasMore,
+    uint256 loopLimit
   ) external returns (uint256 addedCount);
 
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
   ///@param insured The insured pool
   ///@return receivedCoverage The amount coverage in terms of $CC
   ///@return coverage All the details relating to the coverage, demand and premium
-  function receivableDemandedCoverage(address insured) external view returns (uint256 receivedCoverage, DemandedCoverage memory);
+  function receivableDemandedCoverage(address insured, uint256 loopLimit) external view returns (uint256 receivedCoverage, DemandedCoverage memory);
 
   /// @notice Transfer the amount of coverage that been filled to the insured since last called
   /// @dev Only should be called when charteredDemand is true
@@ -50,7 +55,7 @@ interface ICoverageDistributor is ICancellableCoverageDemand {
   /// @return receivedCoverage amount of coverage the Insured received
   /// @return receivedCollateral amount of collateral sent to the Insured
   /// @return coverage Up to date information for this insured
-  function receiveDemandedCoverage(address insured)
+  function receiveDemandedCoverage(address insured, uint256 loopLimit)
     external
     returns (
       uint256 receivedCoverage,

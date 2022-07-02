@@ -20,6 +20,6 @@ contract MockInsuredPool is InsuredPoolBase {
   }
 
   function testCancelCoverageDemand(address insurer, uint64 unitCount) external {
-    ICoverageDistributor(insurer).cancelCoverageDemand(address(this), unitCount);
+    ICoverageDistributor(insurer).cancelCoverageDemand(address(this), unitCount, 0);
   }
 }

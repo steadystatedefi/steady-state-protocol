@@ -9,6 +9,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
   using WadRayMath for uint256;
 
   WeightedPoolParams internal _params;
+  uint256 private _loopLimits;
 
   function _onlyActiveInsured(address insurer) internal view {
     require(internalGetStatus(insurer) == InsuredStatus.Accepted);
@@ -41,6 +42,15 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     return internalGetInsuredStatus(account);
   }
 
+  function internalDefaultLoopLimits(uint16[] memory limits) internal virtual {
+    uint256 v;
+    for (uint256 i = limits.length; i > 0; ) {
+      i--;
+      v = (v << 16) | uint16(limits[i]);
+    }
+    _loopLimits = v;
+  }
+
   function internalSetPoolParams(WeightedPoolParams memory params) internal virtual {
     require(params.minUnitsPerRound > 0);
     require(params.maxUnitsPerRound >= params.minUnitsPerRound);
@@ -66,10 +76,10 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     uint32 openRounds,
     uint64 unitCount
   ) internal view override returns (uint24) {
-    WeightedPoolParams memory params = _params;
+    uint256 max = _params.maxUnitsPerRound;
+    uint256 min = _params.minAdvanceUnits / max;
+    max = _params.maxAdvanceUnits / max;
 
-    uint256 min = params.minAdvanceUnits / params.maxUnitsPerRound;
-    uint256 max = params.maxAdvanceUnits / params.maxUnitsPerRound;
     if (min > type(uint24).max) {
       if (openRounds + min > max) {
         return 0;
@@ -117,14 +127,14 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     returns (
       uint16, // maxShareUnitsPerRound,
       uint16, // minUnitsPerRound,
-      uint16, // readyUnitsPerRound //TODO: These labels do not correspond with actual return values
+      uint16, // readyUnitsPerRound
       uint16 // maxUnitsPerRound
     )
   {
-    WeightedPoolParams memory params = _params;
+    (uint16 minUnitsPerRound, uint16 maxUnitsPerRound) = (_params.minUnitsPerRound, _params.maxUnitsPerRound);
 
     // total # of units could be allocated when this round if full
-    uint256 x = uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound + 1) *
+    uint256 x = uint256(unitPerRound < minUnitsPerRound ? minUnitsPerRound : unitPerRound + 1) *
       batchRounds +
       totalUnitsBeforeBatch +
       internalGetPassiveCoverageUnits();
@@ -138,10 +148,10 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
       unchecked {
         x = (x - demandedUnits) / batchRounds;
       }
-      if (unitPerRound + x >= params.maxUnitsPerRound) {
-        if (unitPerRound < params.minUnitsPerRound) {
+      if (unitPerRound + x >= maxUnitsPerRound) {
+        if (unitPerRound < minUnitsPerRound) {
           // this prevents lockup of a batch when demand is added by small portions
-          params.minUnitsPerRound = unitPerRound + 1;
+          minUnitsPerRound = unitPerRound + 1;
         }
       }
 
@@ -150,7 +160,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
       }
     }
 
-    return (uint16(x), params.minUnitsPerRound, params.maxUnitsPerRound, params.overUnitsPerRound);
+    return (uint16(x), minUnitsPerRound, maxUnitsPerRound, _params.overUnitsPerRound);
   }
 
   /// TODO
@@ -169,6 +179,16 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     }
     return remainingUnits;
   }
+
+  function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view returns (uint256) {
+    if (limit == 0) {
+      limit = uint16(_loopLimits >> (uint8(t) << 1));
+      if (limit == 0) {
+        limit = t > LoopLimitType.ReceivableDemandedCoverage ? 31 : 255;
+      }
+    }
+    return limit;
+  }
 }
 
 struct WeightedPoolParams {
@@ -181,4 +201,13 @@ struct WeightedPoolParams {
   uint16 maxUnitsPerRound;
   uint16 overUnitsPerRound;
   uint16 maxDrawdownInverse; // 100% = no drawdown
+}
+
+enum LoopLimitType {
+  // View
+  ReceivableDemandedCoverage,
+  // Modify
+  AddCoverageDemand,
+  CancelCoverageDemand,
+  ReceiveDemandedCoverage
 }

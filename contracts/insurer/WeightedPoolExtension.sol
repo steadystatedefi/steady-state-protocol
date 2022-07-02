@@ -31,12 +31,13 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
-    bool hasMore
+    bool hasMore,
+    uint256 loopLimit
   ) external override onlyActiveInsured returns (uint256 addedCount) {
     AddCoverageDemandParams memory params;
     params.insured = msg.sender;
     require(premiumRate == (params.premiumRate = uint40(premiumRate)));
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemand, loopLimit);
     hasMore;
     require(unitCount <= type(uint64).max);
 
@@ -49,14 +50,18 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return addedCount;
   }
 
-  function cancelCoverageDemand(address insured, uint256 unitCount) external override returns (uint256 cancelledUnits) {
+  function cancelCoverageDemand(
+    address insured,
+    uint256 unitCount,
+    uint256 loopLimit
+  ) external override returns (uint256 cancelledUnits) {
     /*
     ATTN! Access check for msg.sender for this method is done by WeightedPoolBase.cancelCoverageDemand    
      */
     _onlyActiveInsured(insured);
     CancelCoverageDemandParams memory params;
     params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.CancelCoverageDemand, loopLimit);
 
     if (unitCount > type(uint64).max) {
       unitCount = type(uint64).max;
@@ -114,17 +119,22 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   ) internal virtual returns (uint256);
 
   /// @inheritdoc ICoverageDistributor
-  function receivableDemandedCoverage(address insured) external view override returns (uint256 receivableCoverage, DemandedCoverage memory coverage) {
+  function receivableDemandedCoverage(address insured, uint256 loopLimit)
+    external
+    view
+    override
+    returns (uint256 receivableCoverage, DemandedCoverage memory coverage)
+  {
     GetCoveredDemandParams memory params;
     params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.ReceivableDemandedCoverage, loopLimit);
 
     (coverage, , ) = internalGetCoveredDemand(params);
     return (params.receivedCoverage, coverage);
   }
 
   /// @inheritdoc ICoverageDistributor
-  function receiveDemandedCoverage(address insured)
+  function receiveDemandedCoverage(address insured, uint256 loopLimit)
     external
     override
     onlyActiveInsured
@@ -136,7 +146,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   {
     GetCoveredDemandParams memory params;
     params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.ReceiveDemandedCoverage, loopLimit);
 
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);

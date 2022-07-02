@@ -263,4 +263,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
   function internalSetPremiumDistributor(address addr) internal override(WeightedPoolBase, WeightedPoolStorage) {
     WeightedPoolStorage.internalSetPremiumDistributor(addr);
   }
+
+  function internalSetPoolParams(WeightedPoolParams memory params) internal override(WeightedPoolBase, WeightedPoolConfig) {
+    WeightedPoolConfig.internalSetPoolParams(params);
+  }
+
+  function internalDefaultLoopLimits(uint16[] memory limits) internal override(WeightedPoolBase, WeightedPoolConfig) {
+    WeightedPoolConfig.internalDefaultLoopLimits(limits);
+  }
 }

@@ -22,12 +22,6 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return governorAccount();
   }
 
-  function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    require(params.maxDrawdownInverse == PercentageMath.ONE);
-
-    super.internalSetPoolParams(params);
-  }
-
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
   function _mintForCoverage(address account, uint256 coverageValue) private {
@@ -267,5 +261,15 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   function internalSetPremiumDistributor(address addr) internal override(WeightedPoolBase, WeightedPoolStorage) {
     WeightedPoolStorage.internalSetPremiumDistributor(addr);
+  }
+
+  function internalSetPoolParams(WeightedPoolParams memory params) internal override(WeightedPoolBase, WeightedPoolConfig) {
+    require(params.maxDrawdownInverse == PercentageMath.ONE);
+
+    WeightedPoolConfig.internalSetPoolParams(params);
+  }
+
+  function internalDefaultLoopLimits(uint16[] memory limits) internal override(WeightedPoolBase, WeightedPoolConfig) {
+    WeightedPoolConfig.internalDefaultLoopLimits(limits);
   }
 }

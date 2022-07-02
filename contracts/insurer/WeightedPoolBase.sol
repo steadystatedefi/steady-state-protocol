@@ -7,6 +7,7 @@ import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../governance/GovernedHelper.sol';
 import './WeightedPoolExtension.sol';
+import './WeightedPoolConfig.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
 abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, ICancellableCoverageDemand, Delegator, ERC1363ReceiverBase, GovernedHelper {
@@ -92,9 +93,21 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, ICancel
     internalSetPremiumDistributor(addr);
   }
 
+  function internalSetPoolParams(WeightedPoolParams memory params) internal virtual;
+
+  function internalDefaultLoopLimits(uint16[] memory limits) internal virtual;
+
+  function setPoolParams(WeightedPoolParams calldata params) external onlyGovernorOr(AccessFlags.INSURER_ADMIN) {
+    internalSetPoolParams(params);
+  }
+
+  function setDefaultLoopLimits(uint16[] calldata limits) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
+    internalDefaultLoopLimits(limits);
+  }
+
   function _onlyInsuredOrOps(address insured) private view {
     if (insured != msg.sender) {
-      require(hasAnyAcl(msg.sender, AccessFlags.INSURER_OPS));
+      _onlyGovernorOr(AccessFlags.INSURER_OPS);
     }
   }
 
@@ -107,7 +120,11 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, ICancel
     _delegate(_extension);
   }
 
-  function cancelCoverageDemand(address insured, uint256) external override returns (uint256 cancelledUnits) {
+  function cancelCoverageDemand(
+    address insured,
+    uint256,
+    uint256
+  ) external override returns (uint256 cancelledUnits) {
     /*
     ATTN! This method does access check for msg.sender as the extension has no access to AccessController.
      */

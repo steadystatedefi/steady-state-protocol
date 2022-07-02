@@ -96,10 +96,11 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       value: '0x16345785D8A0000',
     });
 
-    const invest = async (kind: string, investment: number) => {
+    const invest = async (kind: string, investment: number, excess?: BigNumber) => {
       const v = BigNumber.from(unitSize).mul(investment);
       const tx = await mustWaitTx(fund.connect(user).invest(pool.address, v));
-      console.log(`${iteration}\tInvest\t${user.address}\t${v.toString()}\t${tx.gasUsed.toString()}\t${kind}`);
+      const extra = excess === undefined ? '' : `\t${excess.toString()}`;
+      console.log(`${iteration}\tInvest\t${user.address}\t${v.toString()}\t${tx.gasUsed.toString()}\t${kind}${extra}`);
     };
 
     const smallInvestment = 10;
@@ -107,7 +108,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     await invest('init', smallInvestment);
     await invest('next', smallInvestment);
     await invest('next', largeInvestment);
-    await invest('next', smallInvestment);
+    await invest('next', smallInvestment, await pool.getExcessCoverage());
   };
 
   it('Invest by 5 users', async () => {
