@@ -69,7 +69,9 @@ abstract contract DirectPoolBase is
     return _premiums[account].sync(at);
   }
 
-  function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
+  function cancelCoverage(address insured, uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
+    require(insured == msg.sender);
+
     uint256 total = _totalBalance.rayMul(exchangeRate());
 
     if (payoutRatio > 0) {

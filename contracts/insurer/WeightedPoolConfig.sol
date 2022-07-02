@@ -10,21 +10,21 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
 
   WeightedPoolParams internal _params;
 
-  function _onlyActiveInsured() private view {
-    require(internalGetStatus(msg.sender) == InsuredStatus.Accepted);
+  function _onlyActiveInsured(address insurer) internal view {
+    require(internalGetStatus(insurer) == InsuredStatus.Accepted);
+  }
+
+  function _onlyInsured(address insurer) private view {
+    require(internalGetStatus(insurer) > InsuredStatus.Unknown);
   }
 
   modifier onlyActiveInsured() {
-    _onlyActiveInsured();
+    _onlyActiveInsured(msg.sender);
     _;
   }
 
-  function _onlyInsured() private view {
-    require(internalGetStatus(msg.sender) > InsuredStatus.Unknown);
-  }
-
   modifier onlyInsured() {
-    _onlyInsured();
+    _onlyInsured(msg.sender);
     _;
   }
 

@@ -9,7 +9,7 @@ import '../governance/GovernedHelper.sol';
 import './WeightedPoolExtension.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
-abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, Delegator, ERC1363ReceiverBase, GovernedHelper {
+abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, ICancellableCoverageDemand, Delegator, ERC1363ReceiverBase, GovernedHelper {
   address internal immutable _extension;
   IAccessController private immutable _remoteAcl;
 
@@ -90,5 +90,29 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, Delegat
 
   function setPremiumDistributor(address addr) external aclHas(AccessFlags.INSURER_ADMIN) {
     internalSetPremiumDistributor(addr);
+  }
+
+  function _onlyInsuredOrOps(address insured) private view {
+    if (insured != msg.sender) {
+      require(hasAnyAcl(msg.sender, AccessFlags.INSURER_OPS));
+    }
+  }
+
+  function cancelCoverage(address insured, uint256) external override returns (uint256 payoutValue) {
+    /*
+    ATTN! This method does access check for msg.sender as the extension has no access to AccessController.
+     */
+    _onlyInsuredOrOps(insured);
+    payoutValue;
+    _delegate(_extension);
+  }
+
+  function cancelCoverageDemand(address insured, uint256) external override returns (uint256 cancelledUnits) {
+    /*
+    ATTN! This method does access check for msg.sender as the extension has no access to AccessController.
+     */
+    _onlyInsuredOrOps(insured);
+    cancelledUnits;
+    _delegate(_extension);
   }
 }

@@ -10,10 +10,18 @@ interface ICancellableCoverage {
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
   /// @dev e.g payoutRatio = 5e26 means 50% of coverage is paid
   /// @return payoutValue The amount of coverage paid out to the insured
-  function cancelCoverage(uint256 payoutRatio) external returns (uint256 payoutValue);
+  function cancelCoverage(address insured, uint256 payoutRatio) external returns (uint256 payoutValue);
 }
 
-interface ICoverageDistributor is ICancellableCoverage {
+interface ICancellableCoverageDemand is ICancellableCoverage {
+  /// @notice Cancel coverage that has been demanded, but not filled yet
+  /// @dev can only be called by an accepted insured pool
+  /// @param unitCount The number of units that wishes to be cancelled
+  /// @return cancelledUnits The amount of units that were cancelled
+  function cancelCoverageDemand(address insured, uint256 unitCount) external returns (uint256 cancelledUnits);
+}
+
+interface ICoverageDistributor is ICancellableCoverageDemand {
   /// @dev size of collateral allocation chunk made by this pool
   function coverageUnitSize() external view returns (uint256);
 
@@ -28,12 +36,6 @@ interface ICoverageDistributor is ICancellableCoverage {
     uint256 premiumRate,
     bool hasMore
   ) external returns (uint256 addedCount);
-
-  /// @notice Cancel coverage that has been demanded, but not filled yet
-  /// @dev can only be called by an accepted insured pool
-  /// @param unitCount The number of units that wishes to be cancelled
-  /// @return cancelledUnits The amount of units that were cancelled
-  function cancelCoverageDemand(uint256 unitCount) external returns (uint256 cancelledUnits);
 
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
   ///@param insured The insured pool

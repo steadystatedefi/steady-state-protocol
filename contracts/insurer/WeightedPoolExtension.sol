@@ -49,10 +49,13 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return addedCount;
   }
 
-  /// @inheritdoc ICoverageDistributor
-  function cancelCoverageDemand(uint256 unitCount) external override onlyActiveInsured returns (uint256 cancelledUnits) {
+  function cancelCoverageDemand(address insured, uint256 unitCount) external override returns (uint256 cancelledUnits) {
+    /*
+    ATTN! Access check for msg.sender for this method is done by WeightedPoolBase.cancelCoverageDemand    
+     */
+    _onlyActiveInsured(insured);
     CancelCoverageDemandParams memory params;
-    params.insured = msg.sender;
+    params.insured = insured;
     params.loopLimit = ~params.loopLimit;
 
     if (unitCount > type(uint64).max) {
@@ -63,8 +66,12 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
-  function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
-    return internalCancelCoverage(msg.sender, payoutRatio);
+  function cancelCoverage(address insured, uint256 payoutRatio) external override returns (uint256 payoutValue) {
+    /*
+    ATTN! Access check for msg.sender for this method is done by WeightedPoolBase.cancelCoverage
+     */
+    _onlyActiveInsured(insured);
+    return internalCancelCoverage(insured, payoutRatio);
   }
 
   /// @dev Cancel all coverage for the insured and payout

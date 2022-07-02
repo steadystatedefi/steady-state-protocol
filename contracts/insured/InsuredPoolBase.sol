@@ -261,7 +261,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     for (uint256 i = insurers.length; i > 0; ) {
       address insurer = insurers[--i];
       uint256 allowance = t.allowance(address(this), insurer);
-      totalPayout += ICancellableCoverage(insurer).cancelCoverage(payoutRatio);
+      totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
       internalDecReceivedCollateral(allowance - t.allowance(address(this), insurer));
       require(t.approve(insurer, 0));
     }
