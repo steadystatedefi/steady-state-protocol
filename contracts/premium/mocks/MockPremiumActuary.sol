@@ -9,6 +9,7 @@ import '../../tools/tokens/IERC20.sol';
 contract MockPremiumActuary is IPremiumActuary {
   address public premiumDistributor;
   address public collateral;
+  uint256 public drawdown;
 
   mapping(address => uint256) public premiumBurnt;
 
@@ -25,8 +26,13 @@ contract MockPremiumActuary is IPremiumActuary {
     IPremiumDistributor(premiumDistributor).registerPremiumSource(source, false);
   }
 
+  function setDrawdown(uint256 amount) external {
+    drawdown = amount;
+  }
+
   function collectDrawdownPremium() external returns (uint256 availablePremiumValue) {
-    availablePremiumValue = 0;
+    IERC20(collateral).transfer(msg.sender, drawdown);
+    availablePremiumValue = drawdown;
   }
 
   function burnPremium(

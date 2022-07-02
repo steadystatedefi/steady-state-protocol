@@ -456,27 +456,28 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     TokenInfo storage tokenInfo = config.tokens[token];
-
-    uint32 index = tokenInfo.nextReplenish;
     uint256 length = tokenInfo.sources.length();
 
-    if (index >= length) {
-      index = 0;
-    }
-    uint256 stop = index;
-
-    for (; sourceLimit > 0; sourceLimit--) {
-      _premiumAllocationUpdated(config, actuary, tokenInfo.sources.at(index), token, 0, 0, true);
-      index++;
+    if (length > 0) {
+      uint32 index = tokenInfo.nextReplenish;
       if (index >= length) {
         index = 0;
       }
-      if (index == stop) {
-        break;
-      }
-    }
+      uint256 stop = index;
 
-    tokenInfo.nextReplenish = index;
+      for (; sourceLimit > 0; sourceLimit--) {
+        _premiumAllocationUpdated(config, actuary, tokenInfo.sources.at(index), token, 0, 0, true);
+        index++;
+        if (index >= length) {
+          index = 0;
+        }
+        if (index == stop) {
+          break;
+        }
+      }
+
+      tokenInfo.nextReplenish = index;
+    }
 
     return sourceLimit;
   }

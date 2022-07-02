@@ -4,6 +4,8 @@ pragma solidity ^0.8.4;
 import '../PremiumFund.sol';
 
 contract MockPremiumFund is PremiumFund {
+  using EnumerableSet for EnumerableSet.AddressSet;
+
   mapping(address => uint256) private _prices;
 
   constructor(address collateral_) PremiumFund(collateral_) {}
