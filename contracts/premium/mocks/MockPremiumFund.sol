@@ -62,6 +62,9 @@ contract MockPremiumFund is PremiumFund {
   }
 
   function priceOf(address token) public view override returns (uint256) {
+    if (token == collateral()) {
+      return 1e18;
+    }
     return _prices[token];
   }
 

@@ -41,6 +41,11 @@ contract MockPremiumActuary is IPremiumActuary {
     address drawdownRecepient
   ) external {
     premiumBurnt[account] += value;
+    /// @dev THIS IS A HACK. NOT GOOD
+    if (drawdownRecepient == address(0)) {
+      drawdownRecepient = address(0x01);
+    }
+    IERC20(collateral).transfer(drawdownRecepient, value);
   }
 
   function callPremiumAllocationUpdated(

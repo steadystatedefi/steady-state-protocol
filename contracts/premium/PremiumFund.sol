@@ -453,6 +453,9 @@ contract PremiumFund is IPremiumDistributor {
     Value.require(token != address(0));
     if (_collateral == token) {
       IPremiumActuary(actuary).collectDrawdownPremium();
+      if (_balancers[actuary].configs[_collateral].price == 0) {
+        _balancers[actuary].configs[_collateral].price = 1e18;
+      }
     }
 
     TokenInfo storage tokenInfo = config.tokens[token];
