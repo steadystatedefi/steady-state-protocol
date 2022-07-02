@@ -20,7 +20,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   let actuary: MockPremiumActuary;
   const sources: MockPremiumSource[] = []; // todo: mapping of tokens => sources
   let token2Source: MockPremiumSource;
-  let cc: CollateralCurrency;
+  let cc: MockERC20;
   let token1: MockERC20;
   let token2: MockERC20;
   let user: SignerWithAddress;
@@ -41,7 +41,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   before(async () => {
     user = testEnv.users[0];
-    cc = await Factories.CollateralCurrency.deploy('Collateral', '$CC', 18);
+    cc = await Factories.MockERC20.deploy('Collateral', '$CC', 18);
     fund = await Factories.MockPremiumFund.deploy(cc.address);
     actuary = await Factories.MockPremiumActuary.deploy(fund.address, cc.address);
 
@@ -102,49 +102,75 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   const timeDiff = async (earlier: number) => (await currentTime()) - earlier;
 
-  it('Register actuary and premium sources', async () => {
+  const registerActuaryAndSource = async () => {
+    await fund.registerPremiumActuary(actuary.address, true);
+    await actuary.addSource(sources[0].address);
+    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
+    await actuary.setRate(sources[0].address, 10);
+  };
+
+  it('Must add actuary before adding source', async () => {
     // Must add actuary before adding source
     await expect(actuary.addSource(sources[0].address)).to.be.reverted;
     await fund.registerPremiumActuary(actuary.address, true);
     await actuary.addSource(sources[0].address);
     await expect(actuary.addSource(sources[0].address)).to.be.reverted;
+  });
 
-    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
+  /*
+  it('Must set rate before syncing', async() => {
+    await registerActuaryAndSource();
 
     // Must set rate before syncing
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await actuary.setRate(sources[0].address, 10);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+  });
+  */
+
+  it('Cant sync while token is paused GLOBALLY', async () => {
+    await registerActuaryAndSource();
 
     // Can't sync while token1 is paused GLOBALLY
     await fund.setPausedToken(token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await fund.setPausedToken(token1.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+  });
 
+  it('Cant sync/swap while token is paused IN BALANCER', async () => {
+    await registerActuaryAndSource();
     // Can't sync or swap while token1 is pasued IN BALANCER
     await fund['setPaused(address,address,bool)'](actuary.address, token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await expect(fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9)).to.be.reverted;
     await fund['setPaused(address,address,bool)'](actuary.address, token1.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+  });
+
+  it('Cant sync/swap while actuary is paused', async () => {
+    await registerActuaryAndSource();
 
     // Can't sync or swap while actuary is paused
     await fund['setPaused(address,bool)'](actuary.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
-    await expect(fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9)).to.be.reverted;
+    await expect(
+      fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9, testEnv.covGas(30000000))
+    ).to.be.reverted;
     await fund['setPaused(address,bool)'](actuary.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
     await actuary.removeSource(sources[0].address);
+  });
 
-    // premiumAllocationFinished
-    await actuary.addSource(sources[0].address);
-    await actuary.setRate(sources[0].address, 10);
+  it('Premium allocation finished', async () => {
+    await registerActuaryAndSource();
+
+    await advanceBlock((await currentTime()) + 10);
+    await fund.syncAsset(actuary.address, 0, token1.address);
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(10);
     await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(0);
-
-    await fund.registerPremiumActuary(actuary.address, false);
+    await fund.registerPremiumActuary(actuary.address, false, testEnv.covGas(30000000));
   });
 
   it('Test rates', async () => {
@@ -305,5 +331,21 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
     expect(await token2.balanceOf(user.address)).gte(token2bal.add(minAmt2));
     expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt1.add(amt2));
+  });
+
+  it('Collateral currency', async () => {
+    const rates: BigNumber[] = [];
+    for (let i = 0; i < numSources; i++) {
+      const x = BigNumber.from(1000);
+      rates.push(x);
+    }
+    const drawdownAmt = 1000;
+    await setupTestEnv(rates, BigNumber.from(100));
+    await cc.mint(actuary.address, 10000);
+    await actuary.setDrawdown(drawdownAmt);
+
+    await advanceBlock((await currentTime()) + 10);
+    await fund.syncAsset(actuary.address, 0, cc.address, testEnv.covGas(30000000));
+    expect(await cc.balanceOf(fund.address)).eq(drawdownAmt);
   });
 });
