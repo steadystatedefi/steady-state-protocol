@@ -25,6 +25,7 @@ contract MockPremiumSource is IPremiumSource {
     uint256 amount,
     uint256 value
   ) external {
+    actuary;
     uint256 balance = IERC20(token).balanceOf(address(this));
 
     if (balance > 0) {

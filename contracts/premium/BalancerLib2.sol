@@ -15,7 +15,7 @@ library BalancerLib2 {
   struct AssetBalance {
     uint128 accumAmount; // amount of asset
     uint96 rateValue; // value per second
-    // uint32
+    uint32 applyFrom;
   }
 
   struct AssetBalancer {
@@ -228,7 +228,11 @@ library BalancerLib2 {
     return
       balance.rateValue == 0 || (total.accum == 0 && c.extraTotal == 0)
         ? WadRayMath.RAY
-        : ((uint256(balance.accumAmount) * c.vA).wadToRay().divUp(total.accum + c.extraTotal) * total.rate).divUp(balance.rateValue);
+        : ((uint256(balance.accumAmount) *
+          c.vA +
+          (balance.applyFrom > 0 ? WadRayMath.WAD * uint256(total.updatedAt - balance.applyFrom) * balance.rateValue : 0)).wadToRay().divUp(
+            total.accum + c.extraTotal
+          ) * total.rate).divUp(balance.rateValue);
   }
 
   function _calcAmount(
@@ -381,6 +385,8 @@ library BalancerLib2 {
       balance.rateValue -= newRate;
       total.rate -= newRate;
     }
+
+    balance.applyFrom = _applyRateFrom(lastRate, newRate, balance.applyFrom, total.updatedAt);
   }
 
   function _replenishAsset(
@@ -402,6 +408,8 @@ library BalancerLib2 {
       total.accum = uint128(total.accum - expectedValue);
       require((total.accum += uint128(receivedValue)) >= receivedValue);
       require((assetBalance.accumAmount += uint128(receivedAmount)) >= receivedAmount);
+
+      _applyRateFromBalanceUpdate(expectedValue, assetBalance, total);
     }
     v = v.divUp(assetBalance.accumAmount);
 
@@ -412,17 +420,48 @@ library BalancerLib2 {
     return receivedValue;
   }
 
+  function _applyRateFromBalanceUpdate(
+    uint256 expectedValue,
+    AssetBalance memory assetBalance,
+    Balances.RateAcc memory total
+  ) private pure {
+    if (assetBalance.applyFrom == 0 || assetBalance.rateValue == 0) {
+      assetBalance.applyFrom = total.updatedAt;
+    } else if (expectedValue > 0) {
+      uint256 d = assetBalance.applyFrom + (uint256(expectedValue) + assetBalance.rateValue - 1) / assetBalance.rateValue;
+      assetBalance.applyFrom = d < total.updatedAt ? uint32(d) : total.updatedAt;
+    }
+  }
+
+  function _applyRateFrom(
+    uint256 oldRate,
+    uint256 newRate,
+    uint32 applyFrom,
+    uint32 current
+  ) private pure returns (uint32) {
+    if (oldRate == 0 || newRate == 0 || applyFrom == 0) {
+      return current;
+    }
+    uint256 d = (oldRate * uint256(current - applyFrom) + newRate - 1) / newRate;
+    return d >= current ? 1 : uint32(current - d);
+  }
+
   function decRate(
     AssetBalancer storage p,
     address targetToken,
     uint96 lastRate
   ) internal returns (uint96 rate) {
-    Balances.RateAcc memory total = _syncTotalBalance(p);
     AssetBalance storage balance = p.balances[targetToken];
+    rate = balance.rateValue;
 
-    total.rate -= lastRate;
-    p.totalBalance = total;
+    if (lastRate > 0) {
+      Balances.RateAcc memory total = _syncTotalBalance(p);
 
-    return (balance.rateValue -= lastRate);
+      total.rate -= lastRate;
+      p.totalBalance = total;
+
+      (lastRate, rate) = (rate, rate - lastRate);
+      (balance.rateValue, balance.applyFrom) = (rate, _applyRateFrom(lastRate, rate, balance.applyFrom, total.updatedAt));
+    }
   }
 }

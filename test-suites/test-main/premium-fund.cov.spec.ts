@@ -2,16 +2,10 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
+import { WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
-import {
-  CollateralCurrency,
-  MockPremiumActuary,
-  MockPremiumSource,
-  MockPremiumFund,
-  MockERC20,
-  PremiumFund,
-} from '../../types';
+import { MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20, PremiumFund } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
@@ -25,7 +19,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   let token2: MockERC20;
   let user: SignerWithAddress;
 
-  let numSources;
+  let numSources = 0;
 
   const createPremiumSource = async (premiumToken: string) => {
     const source = await Factories.MockPremiumSource.deploy(premiumToken, cc.address);
@@ -60,12 +54,12 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     }
 
     token2Source = await Factories.MockPremiumSource.deploy(token2.address, cc.address);
-    await token2.mint(token2Source.address, BigNumber.from(10).pow(18).mul(100));
+    await token2.mint(token2Source.address, WAD.mul(100));
 
     await fund.setDefaultConfig(
       actuary.address,
       0,
-      // BigNumber.from(10).pow(18),
+      // WAD,
       0,
       0,
       StarvationPointMode.Constant,
@@ -75,8 +69,8 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   const setupTestEnv = async (rates: BigNumber[], token2rate: BigNumber) => {
     await fund.registerPremiumActuary(actuary.address, true);
-    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
-    await fund.setPrice(token2.address, BigNumber.from(10).pow(17).mul(5));
+    await fund.setPrice(token1.address, WAD);
+    await fund.setPrice(token2.address, WAD.div(2));
 
     if (rates.length !== numSources) {
       throw Error('Incorrect rates length');
@@ -105,7 +99,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   const registerActuaryAndSource = async () => {
     await fund.registerPremiumActuary(actuary.address, true);
     await actuary.addSource(sources[0].address);
-    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
+    await fund.setPrice(token1.address, WAD);
     await actuary.setRate(sources[0].address, 10);
   };
 
@@ -337,8 +331,37 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await cc.mint(actuary.address, 10000);
     await actuary.addSource(sources[0].address);
 
-    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
+    await fund.setPrice(token1.address, WAD);
     await actuary.setRate(sources[0].address, 2000);
+    await fund.setAutoReplenish(actuary.address, token1.address);
+    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+
+    await advanceBlock((await currentTime()) + 20);
+
+    const amt1 = BigNumber.from(1500);
+    const minAmt1 = amt1.mul(95).div(100);
+    const token1bal = await token1.balanceOf(user.address);
+    const swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
+    swapInstructions.push({
+      valueToSwap: amt1,
+      targetToken: token1.address,
+      minAmount: minAmt1,
+      recipient: user.address,
+    });
+
+    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
+  });
+
+  it('Swap auto replenish (2)', async () => {
+    await fund.registerPremiumActuary(actuary.address, true);
+    await cc.mint(actuary.address, 10000);
+    await actuary.addSource(sources[0].address);
+    await actuary.addSource(sources[1].address);
+
+    await fund.setPrice(token1.address, WAD);
+    await actuary.setRate(sources[0].address, 1000);
+    await actuary.setRate(sources[1].address, 1000);
     await fund.setAutoReplenish(actuary.address, token1.address);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
 

@@ -37,7 +37,7 @@ contract MockBalancerLib2 {
     uint128 accum,
     uint96 rate
   ) external {
-    _poolBalance.balances[asset] = BalancerLib2.AssetBalance(accum, rate);
+    _poolBalance.balances[asset] = BalancerLib2.AssetBalance(accum, rate, uint32(block.timestamp));
   }
 
   function getBalance(address asset) external view returns (BalancerLib2.AssetBalance memory) {
