@@ -399,8 +399,11 @@ library BalancerLib2 {
     require(total.updatedAt == block.timestamp);
 
     (uint256 receivedAmount, uint256 receivedValue, uint256 expectedValue) = params.replenishFn(params, c.extraTotal);
-    if (receivedAmount == 0 && expectedValue == 0) {
-      return 0;
+    if (receivedAmount == 0) {
+      if (expectedValue == 0) {
+        return 0;
+      }
+      receivedValue = 0;
     }
 
     uint256 v = receivedValue * WadRayMath.WAD + uint256(assetBalance.accumAmount) * c.vA;
@@ -408,14 +411,18 @@ library BalancerLib2 {
       total.accum = uint128(total.accum - expectedValue);
       require((total.accum += uint128(receivedValue)) >= receivedValue);
       require((assetBalance.accumAmount += uint128(receivedAmount)) >= receivedAmount);
-
-      _applyRateFromBalanceUpdate(expectedValue, assetBalance, total);
     }
-    v = v.divUp(assetBalance.accumAmount);
 
+    if (assetBalance.accumAmount == 0) {
+      v = expectedValue = 0;
+    } else {
+      v = v.divUp(assetBalance.accumAmount);
+    }
     if (v != c.vA) {
       require((c.vA = p.configs[params.token].price = uint152(v)) == v);
     }
+
+    _applyRateFromBalanceUpdate(expectedValue, assetBalance, total);
 
     return receivedValue;
   }
