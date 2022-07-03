@@ -330,6 +330,7 @@ contract PremiumFund is IPremiumDistributor {
 
     if (params.source == address(0)) {
       params.source = _sourceForReplenish(config, params.token);
+      //console.log(params.source);
     }
 
     SourceBalance storage balance = config.sourceBalances[params.source];
@@ -343,21 +344,23 @@ contract PremiumFund is IPremiumDistributor {
         return (0, 0, 0);
       }
     }
+
+    if (requiredValue < expectedValue) {
+      requiredValue = expectedValue;
+    }
     uint256 debtValue = balance.debt;
     if (debtValue > 0) {
       requiredValue += debtValue;
       debtValue = 0;
     }
 
-    if (requiredValue > 0) {
-      uint256 missingValue;
-      uint256 price = priceOf(params.token);
+    uint256 missingValue;
+    uint256 price = priceOf(params.token);
 
-      (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
-      debtValue += missingValue;
+    (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
+    debtValue += missingValue;
+    replenishedValue = replenishedAmount.wadMul(price);
 
-      replenishedValue = replenishedAmount.wadMul(price);
-    }
     require((balance.debt = uint128(debtValue)) == debtValue);
   }
 

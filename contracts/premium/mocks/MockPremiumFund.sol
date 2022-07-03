@@ -45,6 +45,10 @@ contract MockPremiumFund is PremiumFund {
     return _balancers[actuary].configs[asset];
   }
 
+  function setAutoReplenish(address actuary, address asset) external {
+    _balancers[actuary].configs[asset].flags |= BalancerLib2.BF_AUTO_REPLENISH;
+  }
+
   function balancesOf(address actuary, address source) external view returns (SourceBalance memory) {
     return _configs[actuary].sourceBalances[source];
   }

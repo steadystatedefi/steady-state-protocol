@@ -131,7 +131,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   it('Cant sync while token is paused GLOBALLY', async () => {
     await registerActuaryAndSource();
 
-    // Can't sync while token1 is paused GLOBALLY
     await fund.setPausedToken(token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await fund.setPausedToken(token1.address, false);
@@ -140,7 +139,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   it('Cant sync/swap while token is paused IN BALANCER', async () => {
     await registerActuaryAndSource();
-    // Can't sync or swap while token1 is pasued IN BALANCER
+
     await fund['setPaused(address,address,bool)'](actuary.address, token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await expect(fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9)).to.be.reverted;
@@ -151,7 +150,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   it('Cant sync/swap while actuary is paused', async () => {
     await registerActuaryAndSource();
 
-    // Can't sync or swap while actuary is paused
     await fund['setPaused(address,bool)'](actuary.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await expect(
@@ -173,7 +171,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await fund.registerPremiumActuary(actuary.address, false, testEnv.covGas(30000000));
   });
 
-  it('Test rates', async () => {
+  it('Rates', async () => {
     let token1Rate = BigNumber.from(0);
     const token2Rate = BigNumber.from(10).pow(3);
 
@@ -252,7 +250,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   // This test does NOT test the correct balancing logic
   // It ensures the correct amount of tokens are received and premium burnt
-  it('Test swap', async () => {
+  it('Swap', async () => {
     let token1Rate = BigNumber.from(0);
     const rates: BigNumber[] = [];
     for (let i = 0; i < numSources; i++) {
@@ -264,6 +262,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     await advanceBlock((await currentTime()) + 100);
 
+    await cc.mint(actuary.address, 10000);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
     await fund.syncAsset(actuary.address, 0, token2.address, testEnv.covGas(30000000));
 
@@ -303,7 +302,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     burnt = await actuary.premiumBurnt(user.address);
 
     // Multiple token swap
-    await advanceBlock((await currentTime()) + 20);
+    await advanceBlock((await currentTime()) + 40);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
     await fund.syncAsset(actuary.address, 0, token2.address, testEnv.covGas(30000000));
     amt1 = BigNumber.from(1500);
@@ -333,6 +332,56 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt1.add(amt2));
   });
 
+  it('Swap replenish', async () => {
+    const t = await currentTime();
+    await fund.registerPremiumActuary(actuary.address, true);
+    await cc.mint(actuary.address, 10000);
+    await actuary.addSource(sources[0].address);
+    await actuary.addSource(sources[1].address);
+    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
+    await actuary.setRate(sources[0].address, 1000);
+    await actuary.setRate(sources[1].address, 500);
+    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+    await advanceBlock((await currentTime()) + 20);
+
+    const amt1 = BigNumber.from(1500);
+    const minAmt1 = amt1.mul(95).div(100);
+    const token1bal = await token1.balanceOf(user.address);
+    await fund.swapAsset(actuary.address, user.address, user.address, amt1, token1.address, minAmt1);
+    // expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
+    /*
+    let swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
+    swapInstructions.push({
+      valueToSwap: amt1,
+      targetToken: token1.address,
+      minAmount: minAmt1,
+      recipient: user.address,
+    });
+
+    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
+    */
+  });
+
+  it('Swap2', async () => {
+    await fund.registerPremiumActuary(actuary.address, true);
+    await cc.mint(actuary.address, 10000);
+    await actuary.addSource(sources[0].address);
+    await actuary.addSource(sources[1].address);
+    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
+    await actuary.setRate(sources[0].address, 1000);
+    await actuary.setRate(sources[1].address, 500);
+    await advanceBlock((await currentTime()) + 20);
+
+    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+    const amt1 = BigNumber.from(1500);
+    const minAmt1 = amt1.mul(95).div(100);
+    const token1bal = await token1.balanceOf(user.address);
+
+    await fund.swapAsset(actuary.address, user.address, user.address, amt1, token1.address, minAmt1);
+    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
+  });
+
   it('Collateral currency', async () => {
     const rates: BigNumber[] = [];
     for (let i = 0; i < numSources; i++) {
@@ -347,5 +396,72 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await advanceBlock((await currentTime()) + 10);
     await fund.syncAsset(actuary.address, 0, cc.address, testEnv.covGas(30000000));
     expect(await cc.balanceOf(fund.address)).eq(drawdownAmt);
+
+    let swapAmt = 200;
+    let swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
+    await fund.swapAsset(
+      actuary.address,
+      user.address,
+      user.address,
+      swapAmt,
+      cc.address,
+      swapAmtMin,
+      testEnv.covGas(30000000)
+    );
+    const bal = await cc.balanceOf(user.address);
+    expect(bal).gte(swapAmtMin);
+
+    swapAmt = 400;
+    swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
+    const swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
+    swapInstructions.push({
+      valueToSwap: swapAmt,
+      targetToken: cc.address,
+      minAmount: swapAmtMin,
+      recipient: user.address,
+    });
+    swapInstructions.push({
+      valueToSwap: swapAmt,
+      targetToken: cc.address,
+      minAmount: swapAmtMin,
+      recipient: user.address,
+    });
+
+    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    expect(await cc.balanceOf(user.address)).gte(bal.add(swapAmtMin.mul(2)));
+  });
+
+  it('Auto replenish swap', async () => {
+    const rates: BigNumber[] = [];
+    for (let i = 0; i < numSources; i++) {
+      const x = BigNumber.from(10000);
+      // token1Rate = token1Rate.add(x);
+      rates.push(x);
+    }
+    await setupTestEnv(rates, BigNumber.from(100));
+    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+    await advanceBlock((await currentTime()) + 10);
+
+    await cc.mint(actuary.address, 10000);
+    // await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+    // await fund.syncAsset(actuary.address, 0, token2.address, testEnv.covGas(30000000));
+
+    await fund.setAutoReplenish(actuary.address, token1.address);
+
+    // token1 swap
+    const amt1 = BigNumber.from(100);
+    const minAmt1 = amt1.mul(95).div(100);
+    await fund.swapAsset(
+      actuary.address,
+      user.address,
+      user.address,
+      amt1,
+      token1.address,
+      minAmt1,
+      testEnv.covGas(30000000)
+    );
+
+    const token1bal = await token1.balanceOf(user.address);
+    // expect(token1bal).gte(minAmt1);
   });
 });
