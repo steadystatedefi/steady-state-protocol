@@ -321,8 +321,16 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     expect(res[0]).gte(minAmt1);
     expect(res[1]).gte(minAmt2);
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
-    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
-    expect(await token2.balanceOf(user.address)).gte(token2bal.add(minAmt2));
+    {
+      const userBal = await token1.balanceOf(user.address);
+      expect(userBal).gte(token1bal.add(res[0]));
+      // expect(userBal).lte(token1bal.add(amt1));
+    }
+    {
+      const userBal = await token2.balanceOf(user.address);
+      expect(userBal).gte(token2bal.add(res[1]));
+      expect(userBal).lte(token2bal.add(amt2.mul(2)));
+    }
     expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt1.add(amt2));
   });
 
@@ -350,7 +358,11 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     });
 
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
-    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
+    {
+      const userBal = await token1.balanceOf(user.address);
+      expect(userBal).gte(token1bal.add(minAmt1));
+      expect(userBal).lte(token1bal.add(amt1));
+    }
   });
 
   it('Swap auto replenish (2)', async () => {
@@ -379,7 +391,11 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     });
 
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
-    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
+    {
+      const userBal = await token1.balanceOf(user.address);
+      expect(userBal).gte(token1bal.add(minAmt1));
+      expect(userBal).lte(token1bal.add(amt1));
+    }
   });
 
   it('Collateral currency', async () => {
@@ -428,6 +444,11 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     });
 
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
-    expect(await cc.balanceOf(user.address)).gte(bal.add(swapAmtMin.mul(2)));
+
+    {
+      const userBal = await cc.balanceOf(user.address);
+      expect(userBal).gte(bal.add(swapAmtMin.mul(2)));
+      expect(userBal).lte(bal.add(swapAmt * 2));
+    }
   });
 });
