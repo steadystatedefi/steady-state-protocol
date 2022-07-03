@@ -342,7 +342,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await fund.setPrice(token1.address, WAD);
     await actuary.setRate(sources[0].address, 2000);
     await fund.setAutoReplenish(actuary.address, token1.address);
-    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
 
     await advanceBlock((await currentTime()) + 20);
 
@@ -375,7 +374,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await actuary.setRate(sources[0].address, 1000);
     await actuary.setRate(sources[1].address, 1000);
     await fund.setAutoReplenish(actuary.address, token1.address);
-    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
 
     await advanceBlock((await currentTime()) + 20);
 

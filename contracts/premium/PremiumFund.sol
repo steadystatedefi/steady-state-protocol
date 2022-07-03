@@ -87,8 +87,11 @@ contract PremiumFund is IPremiumDistributor {
     ActuaryConfig storage config = _configs[actuary];
     if (register) {
       State.require(config.state < ActuaryState.Active);
-      Value.require(IPremiumActuary(actuary).collateral() == collateral());
-      _markTokenAsPresent(collateral());
+      address cc = collateral();
+      Value.require(IPremiumActuary(actuary).collateral() == cc);
+      if (_markTokenAsPresent(cc)) {
+        _balancers[actuary].configs[cc].price = uint152(WadRayMath.WAD);
+      }
 
       config.state = ActuaryState.Active;
     } else if (config.state >= ActuaryState.Active) {
@@ -152,13 +155,15 @@ contract PremiumFund is IPremiumDistributor {
     }
   }
 
-  function _markTokenAsPresent(address token) private {
+  function _markTokenAsPresent(address token) private returns (bool) {
     require(token != address(0));
     TokenState storage state = _tokens[token];
     uint8 flags = state.flags;
     if (flags & TS_PRESENT == 0) {
       state.flags = flags | TS_PRESENT;
+      return true;
     }
+    return false;
   }
 
   function _addPremiumSource(
@@ -455,11 +460,9 @@ contract PremiumFund is IPremiumDistributor {
   ) private returns (uint256) {
     _ensureToken(token);
     Value.require(token != address(0));
-    if (_collateral == token) {
+    if (collateral() == token) {
       IPremiumActuary(actuary).collectDrawdownPremium();
-      if (_balancers[actuary].configs[_collateral].price == 0) {
-        _balancers[actuary].configs[_collateral].price = 1e18;
-      }
+      return sourceLimit == 0 ? 0 : sourceLimit - 1;
     }
 
     TokenInfo storage tokenInfo = config.tokens[token];
@@ -538,7 +541,7 @@ contract PremiumFund is IPremiumDistributor {
     uint256 drawdownValue = IPremiumActuary(actuary).collectDrawdownPremium();
     BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
 
-    if (_collateral == targetToken) {
+    if (collateral() == targetToken) {
       (tokenAmount, fee) = balancer.swapExternalAsset(targetToken, valueToSwap, minAmount, drawdownValue);
       if (tokenAmount > 0) {
         if (fee == 0) {
@@ -635,7 +638,7 @@ contract PremiumFund is IPremiumDistributor {
       Balances.RateAcc memory total;
       (total.accum, total.rate, total.updatedAt) = (totalOrig.accum, totalOrig.rate, totalOrig.updatedAt);
 
-      if (_collateral == instructions[i].targetToken) {
+      if (collateral() == instructions[i].targetToken) {
         (tokenAmounts[i], fees[i]) = _swapExtTokenInBatch(balancer, instructions[i], drawdownBalance, total);
 
         if (tokenAmounts[i] > 0) {

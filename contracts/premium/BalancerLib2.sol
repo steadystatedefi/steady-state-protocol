@@ -173,7 +173,7 @@ library BalancerLib2 {
       }
 
       if (flags & BF_SPM_CONSTANT == 0) {
-        c.sA = (rateValue * (flags & BF_SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
+        c.sA = rateValue == 0 ? 0 : (rateValue * (flags & BF_SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
       } else {
         c.sA = flags & BF_SPM_GLOBAL == 0 ? config.spConst : p.spConst;
       }
