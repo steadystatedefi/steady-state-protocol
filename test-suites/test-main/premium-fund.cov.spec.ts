@@ -332,25 +332,22 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt1.add(amt2));
   });
 
-  it('Swap replenish', async () => {
-    const t = await currentTime();
+  it('Swap auto replenish', async () => {
     await fund.registerPremiumActuary(actuary.address, true);
     await cc.mint(actuary.address, 10000);
     await actuary.addSource(sources[0].address);
-    await actuary.addSource(sources[1].address);
+
     await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
-    await actuary.setRate(sources[0].address, 1000);
-    await actuary.setRate(sources[1].address, 500);
+    await actuary.setRate(sources[0].address, 2000);
+    await fund.setAutoReplenish(actuary.address, token1.address);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
+
     await advanceBlock((await currentTime()) + 20);
 
     const amt1 = BigNumber.from(1500);
     const minAmt1 = amt1.mul(95).div(100);
     const token1bal = await token1.balanceOf(user.address);
-    await fund.swapAsset(actuary.address, user.address, user.address, amt1, token1.address, minAmt1);
-    // expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
-    /*
-    let swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
+    const swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: amt1,
       targetToken: token1.address,
@@ -359,26 +356,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     });
 
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
-    expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
-    */
-  });
-
-  it('Swap2', async () => {
-    await fund.registerPremiumActuary(actuary.address, true);
-    await cc.mint(actuary.address, 10000);
-    await actuary.addSource(sources[0].address);
-    await actuary.addSource(sources[1].address);
-    await fund.setPrice(token1.address, BigNumber.from(10).pow(18));
-    await actuary.setRate(sources[0].address, 1000);
-    await actuary.setRate(sources[1].address, 500);
-    await advanceBlock((await currentTime()) + 20);
-
-    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
-    const amt1 = BigNumber.from(1500);
-    const minAmt1 = amt1.mul(95).div(100);
-    const token1bal = await token1.balanceOf(user.address);
-
-    await fund.swapAsset(actuary.address, user.address, user.address, amt1, token1.address, minAmt1);
     expect(await token1.balanceOf(user.address)).gte(token1bal.add(minAmt1));
   });
 
@@ -429,39 +406,5 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
     expect(await cc.balanceOf(user.address)).gte(bal.add(swapAmtMin.mul(2)));
-  });
-
-  it('Auto replenish swap', async () => {
-    const rates: BigNumber[] = [];
-    for (let i = 0; i < numSources; i++) {
-      const x = BigNumber.from(10000);
-      // token1Rate = token1Rate.add(x);
-      rates.push(x);
-    }
-    await setupTestEnv(rates, BigNumber.from(100));
-    await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
-    await advanceBlock((await currentTime()) + 10);
-
-    await cc.mint(actuary.address, 10000);
-    // await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
-    // await fund.syncAsset(actuary.address, 0, token2.address, testEnv.covGas(30000000));
-
-    await fund.setAutoReplenish(actuary.address, token1.address);
-
-    // token1 swap
-    const amt1 = BigNumber.from(100);
-    const minAmt1 = amt1.mul(95).div(100);
-    await fund.swapAsset(
-      actuary.address,
-      user.address,
-      user.address,
-      amt1,
-      token1.address,
-      minAmt1,
-      testEnv.covGas(30000000)
-    );
-
-    const token1bal = await token1.balanceOf(user.address);
-    // expect(token1bal).gte(minAmt1);
   });
 });
