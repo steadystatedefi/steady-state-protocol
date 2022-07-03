@@ -344,24 +344,25 @@ contract PremiumFund is IPremiumDistributor {
         return (0, 0, 0);
       }
     }
-
     if (requiredValue < expectedValue) {
       requiredValue = expectedValue;
     }
+
     uint256 debtValue = balance.debt;
-    if (debtValue > 0) {
-      requiredValue += debtValue;
-      debtValue = 0;
+    requiredValue += debtValue;
+
+    if (requiredValue > 0) {
+      uint256 missingValue;
+      uint256 price = priceOf(params.token);
+
+      (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
+
+      if (debtValue != missingValue) {
+        require((balance.debt = uint128(missingValue)) == missingValue);
+      }
+
+      replenishedValue = replenishedAmount.wadMul(price);
     }
-
-    uint256 missingValue;
-    uint256 price = priceOf(params.token);
-
-    (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
-    debtValue += missingValue;
-    replenishedValue = replenishedAmount.wadMul(price);
-
-    require((balance.debt = uint128(debtValue)) == debtValue);
   }
 
   function _sourceForReplenish(ActuaryConfig storage config, address token) private returns (address) {
@@ -732,7 +733,7 @@ contract PremiumFund is IPremiumDistributor {
       instruction.recipient != address(0) ? instruction.recipient : defaultRecepient,
       instruction.valueToSwap,
       instruction.targetToken,
-      instruction.valueToSwap
+      instruction.minAmount
     );
   }
 }
