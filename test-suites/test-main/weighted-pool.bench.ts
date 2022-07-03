@@ -11,10 +11,8 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   const decimals = 18;
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
-  //  let payInToken: tEthereumAddress;
   let pool: MockPerpetualPool;
   let fund: MockCollateralCurrency;
-  //  let collector: PremiumCollector;
   let iteration = 0;
   const weights: number[] = [];
   const insureds: MockInsuredPool[] = [];
@@ -23,20 +21,16 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
-    //    collector = await Factories.PremiumCollector.deploy();
-
-    //    payInToken = createRandomAddress();
-    //    await collector.setPremiumScale(payInToken, [fund.address], [RAY]);
 
     await pool.setPoolParams({
-      maxAdvanceUnits: 10_000_000,
+      maxAdvanceUnits: 100_000_000,
       minAdvanceUnits: 1_000,
       riskWeightTarget: 1_000,
       minInsuredShare: 100,
       maxInsuredShare: 1_500,
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
-      overUnitsPerRound: 0,
+      overUnitsPerRound: 30,
       maxDrawdownInverse: 10000,
     });
   });
@@ -56,7 +50,6 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   const deployProtocolPools = async () => {
     const minUnits = 10;
     const riskWeight = 1000; // 10%
-    // const protocol = Wallet.createRandom();
 
     const joinPool = async (poolDemand: number, riskWeightValue: number) => {
       const insured = await Factories.MockInsuredPool.deploy(
@@ -76,7 +69,6 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       const stats = await pool.receivableDemandedCoverage(insured.address);
       insureds.push(insured);
       weights.push(riskWeightValue);
-      //      collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       console.log(
         `${iteration}\tDemand\t${insured.address}\t${stats.coverage.totalDemand.toString()}\t${tx.gasUsed.toString()}`
       );

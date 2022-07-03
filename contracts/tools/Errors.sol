@@ -52,18 +52,24 @@ library Errors {
 
 library State {
   function require(bool ok) internal pure {
-    Errors.illegalState(ok);
+    if (!ok) {
+      revert Errors.IllegalState();
+    }
   }
 }
 
 library Value {
   function require(bool ok) internal pure {
-    Errors.illegalValue(ok);
+    if (!ok) {
+      revert Errors.IllegalValue();
+    }
   }
 }
 
 library Access {
   function require(bool ok) internal pure {
-    Errors.accessDenied(ok);
+    if (!ok) {
+      revert Errors.AccessDenied();
+    }
   }
 }
