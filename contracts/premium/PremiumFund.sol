@@ -576,6 +576,10 @@ contract PremiumFund is IPremiumDistributor {
     require((_tokens[targetToken].collectedFees += uint128(fee)) >= fee);
   }
 
+  function getFee(address targetToken) public view returns (uint256) {
+    return _tokens[targetToken].collectedFees;
+  }
+
   struct SwapInstruction {
     uint256 valueToSwap;
     address targetToken;
