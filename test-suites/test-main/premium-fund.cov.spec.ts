@@ -131,6 +131,19 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
   });
 
+  it('Can update/finish while token is paused GLOBALLY', async () => {
+    await registerActuaryAndSource();
+
+    await fund.setPausedToken(token1.address, true);
+    await actuary.setRate(sources[0].address, 100);
+    expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(100);
+
+    const bal = await token1.balanceOf(fund.address);
+    await advanceBlock((await currentTime()) + 10);
+    await actuary.callPremiumAllocationFinished(sources[0].address, 0);
+    expect(await token1.balanceOf(fund.address)).gt(bal);
+  });
+
   it('Cant sync/swap while token is paused IN BALANCER', async () => {
     await registerActuaryAndSource();
 
@@ -163,6 +176,13 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(0);
     await fund.registerPremiumActuary(actuary.address, false, testEnv.covGas(30000000));
+  });
+
+  it('Premium allocation finished before sync', async () => {
+    await registerActuaryAndSource();
+
+    await advanceBlock((await currentTime()) + 10);
+    await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
   });
 
   it('Rates', async () => {
@@ -332,6 +352,35 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       expect(userBal).lte(token2bal.add(amt2.mul(2)));
     }
     expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt1.add(amt2));
+  });
+
+  it('Swap without sync', async () => {
+    await fund.registerPremiumActuary(actuary.address, true);
+    await cc.mint(actuary.address, 10000);
+    await actuary.addSource(sources[0].address);
+
+    await fund.setPrice(token1.address, WAD);
+    await actuary.setRate(sources[0].address, 2000);
+    // Auto replenish doesn't need to be set because  balance.accumAmount < c.sA in _swapAsset
+
+    await advanceBlock((await currentTime()) + 20);
+    const amt1 = BigNumber.from(1000);
+    const minAmt1 = amt1.mul(95).div(100);
+    const token1bal = await token1.balanceOf(user.address);
+    await fund.swapAsset(
+      actuary.address,
+      user.address,
+      user.address,
+      amt1,
+      token1.address,
+      minAmt1,
+      testEnv.covGas(30000000)
+    );
+    {
+      const userBal = await token1.balanceOf(user.address);
+      expect(userBal).gte(token1bal.add(minAmt1));
+      expect(userBal).lte(token1bal.add(amt1));
+    }
   });
 
   it('Swap auto replenish', async () => {
