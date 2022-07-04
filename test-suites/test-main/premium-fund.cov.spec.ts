@@ -45,12 +45,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     for (let i = 0; i < numSources; i++) {
       await createPremiumSource(token1.address);
-      await token1.mint(
-        sources[i].address,
-        BigNumber.from(10)
-          .pow(18)
-          .mul((i + 1) * 100)
-      );
+      await token1.mint(sources[i].address, WAD.mul((i + 1) * 100));
     }
 
     token2Source = await Factories.MockPremiumSource.deploy(token2.address, cc.address);
@@ -497,5 +492,46 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       expect(userBal).gte(bal.add(swapAmtMin.mul(2)));
       expect(userBal).lte(bal.add(swapAmt * 2));
     }
+  });
+
+  it('Swap above balance to collect fee', async () => {
+    await fund.registerPremiumActuary(actuary.address, true);
+    await cc.mint(actuary.address, 100000);
+    await actuary.addSource(sources[0].address);
+    await actuary.setRate(sources[0].address, 1000);
+    await fund.setPrice(token1.address, WAD);
+
+    // await fund.setAutoReplenish(actuary.address, token1.address);
+    await advanceBlock((await currentTime()) + 3);
+    await fund.syncAsset(actuary.address, 0, token1.address);
+
+    const amt1 = BigNumber.from(8000);
+    await fund.swapAsset(
+      actuary.address,
+      user.address,
+      user.address,
+      amt1,
+      token1.address,
+      0,
+      testEnv.covGas(30000000)
+    );
+
+    const fee = await fund.getFee(token1.address);
+    const diff = amt1.sub(await token1.balanceOf(user.address));
+    expect(fee).gt(0);
+    expect(fee).eq(diff);
+
+    await advanceBlock((await currentTime()) + 20);
+    await fund.syncAsset(actuary.address, 0, token1.address);
+    const swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
+    swapInstructions.push({
+      valueToSwap: amt1,
+      targetToken: cc.address,
+      minAmount: 0,
+      recipient: user.address,
+    });
+
+    // await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    // expect(await fund.getFee(token1.address)).eq(fee.add(amt1.sub(await token1.balanceOf(user.address)).sub(diff)));
   });
 });
