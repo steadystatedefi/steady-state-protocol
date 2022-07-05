@@ -25,8 +25,8 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
   before(async () => {
     user = testEnv.users[0];
-    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
+    const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
     pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
     await cc.registerInsurer(pool.address);

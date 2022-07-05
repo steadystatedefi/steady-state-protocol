@@ -13,7 +13,7 @@ contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase {
     uint256 unitSize,
     ImperpetualPoolExtension extension,
     address collateral_
-  ) ERC20DetailsBase('', '', DECIMALS) ImperpetualPoolBase(acl, unitSize, extension) Collateralized(collateral_) {
+  ) ERC20DetailsBase('', '', DECIMALS) ImperpetualPoolBase(acl, unitSize, collateral_, extension) {
     // _joinHandler = address(this);
     // internalSetPoolParams(
     //   WeightedPoolParams({

@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 import '../tools/math/PercentageMath.sol';
+import '../interfaces/IInsurerGovernor.sol';
+import '../governance/GovernedHelper.sol';
 import './WeightedRoundsBase.sol';
 
-abstract contract WeightedPoolConfig is WeightedRoundsBase {
+abstract contract WeightedPoolConfig is WeightedRoundsBase, GovernedHelper {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
 
   WeightedPoolParams internal _params;
   uint256 private _loopLimits;
+
+  constructor(
+    IAccessController acl,
+    uint256 unitSize,
+    address collateral_
+  ) WeightedRoundsBase(unitSize) GovernedHelper(acl, collateral_) {}
 
   function _onlyActiveInsured(address insurer) internal view {
     require(internalGetStatus(insurer) == InsuredStatus.Accepted);
@@ -29,13 +38,19 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     _;
   }
 
-  function _onlySelf() private view {
-    require(msg.sender == address(this));
+  function internalSetTypedGovernor(IInsurerGovernor addr) internal {
+    _governorIsContract = true;
+    _setGovernor(address(addr));
   }
 
-  modifier onlySelf() {
-    _onlySelf();
-    _;
+  function internalSetGovernor(address addr) internal virtual {
+    // will also return false for EOA
+    _governorIsContract = ERC165Checker.supportsInterface(addr, type(IInsurerGovernor).interfaceId);
+    _setGovernor(addr);
+  }
+
+  function governorContract() internal view virtual returns (IInsurerGovernor) {
+    return IInsurerGovernor(_governorIsContract ? governorAccount() : address(0));
   }
 
   function internalGetStatus(address account) internal view virtual returns (InsuredStatus) {

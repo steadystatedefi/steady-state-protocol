@@ -6,41 +6,28 @@ import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinable.sol';
-import '../governance/GovernedHelper.sol';
 import './WeightedPoolExtension.sol';
-import './WeightedPoolConfig.sol';
+import './WeightedPoolStorage.sol';
 
-/// @dev NB! MUST HAVE NO STORAGE
-abstract contract WeightedPoolBase is
-  IJoinableBase,
-  IInsurerPoolBase,
-  IPremiumActuary,
-  ICancellableCoverageDemand,
-  Delegator,
-  ERC1363ReceiverBase,
-  GovernedHelper
-{
+abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumActuary, Delegator, ERC1363ReceiverBase, WeightedPoolStorage {
   address internal immutable _extension;
-  IAccessController private immutable _remoteAcl;
 
   constructor(
     IAccessController acl,
     uint256 unitSize,
+    address collateral_,
     WeightedPoolExtension extension
-  ) {
+  ) WeightedPoolConfig(acl, unitSize, collateral_) {
     require(extension.coverageUnitSize() == unitSize);
+    require(extension.collateral() == collateral_);
+    // TODO check for the same access controller
     _extension = address(extension);
-    _remoteAcl = acl;
   }
 
   // solhint-disable-next-line payable-fallback
   fallback() external {
     // all ICoverageDistributor etc functions should be delegated to the extension
     _delegate(_extension);
-  }
-
-  function remoteAcl() internal view override returns (IAccessController) {
-    return _remoteAcl;
   }
 
   function charteredDemand() external pure override returns (bool) {
@@ -56,11 +43,11 @@ abstract contract WeightedPoolBase is
     internalRequestJoin(insured);
   }
 
-  function internalRequestJoin(address insured) internal virtual returns (InsuredStatus status);
+  function governor() public view returns (address) {
+    return governorAccount();
+  }
 
   event ExcessCoverageIncreased(uint256 coverageExcess); // TODO => ExcessCoverageUpdated
-
-  function premiumDistributor() public view virtual returns (address);
 
   function _onlyPremiumDistributor() private view {
     require(msg.sender == premiumDistributor());
@@ -99,21 +86,13 @@ abstract contract WeightedPoolBase is
 
   function internalSubrogate(address donor, uint256 value) internal virtual;
 
-  function internalSetGovernor(address) internal virtual;
-
   function setGovernor(address addr) external aclHas(AccessFlags.INSURER_ADMIN) {
     internalSetGovernor(addr);
   }
 
-  function internalSetPremiumDistributor(address) internal virtual;
-
   function setPremiumDistributor(address addr) external aclHas(AccessFlags.INSURER_ADMIN) {
     internalSetPremiumDistributor(addr);
   }
-
-  function internalSetPoolParams(WeightedPoolParams memory params) internal virtual;
-
-  function internalDefaultLoopLimits(uint16[] memory limits) internal virtual;
 
   function setPoolParams(WeightedPoolParams calldata params) external onlyGovernorOr(AccessFlags.INSURER_ADMIN) {
     internalSetPoolParams(params);
@@ -123,32 +102,12 @@ abstract contract WeightedPoolBase is
     internalDefaultLoopLimits(limits);
   }
 
-  function _onlyInsuredOrOps(address insured) private view {
-    if (insured != msg.sender) {
-      _onlyGovernorOr(AccessFlags.INSURER_OPS);
-    }
+  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
+  function statusOf(address account) external view returns (InsuredStatus status) {
+    return internalStatusOf(account);
   }
 
-  function cancelCoverage(address insured, uint256) external override returns (uint256 payoutValue) {
-    /*
-    ATTN! This method does access check for msg.sender as the extension has no access to AccessController.
-     */
-    _onlyInsuredOrOps(insured);
-    payoutValue;
-    // TODO check if it was approved
-    _delegate(_extension);
-  }
-
-  function cancelCoverageDemand(
-    address insured,
-    uint256,
-    uint256
-  ) external override returns (uint256 cancelledUnits) {
-    /*
-    ATTN! This method does access check for msg.sender as the extension has no access to AccessController.
-     */
-    _onlyInsuredOrOps(insured);
-    cancelledUnits;
-    _delegate(_extension);
+  function premiumDistributor() public view override returns (address) {
+    return address(_premiumDistributor);
   }
 }

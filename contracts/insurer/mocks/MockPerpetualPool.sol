@@ -10,11 +10,7 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     uint256 unitSize,
     uint8 decimals,
     PerpetualPoolExtension extension
-  )
-    ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals)
-    PerpetualPoolBase(IAccessController(address(0)), unitSize, extension)
-    Collateralized(collateral_)
-  {
+  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(IAccessController(address(0)), unitSize, collateral_, extension) {
     internalSetTypedGovernor(this);
     internalSetPoolParams(
       WeightedPoolParams({

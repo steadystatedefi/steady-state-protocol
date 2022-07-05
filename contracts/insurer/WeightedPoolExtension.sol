@@ -12,8 +12,6 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(uint256 unitSize) Collateralized(address(0)) WeightedRoundsBase(unitSize) {}
-
   /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
   /// @return The coverage unit size
   function coverageUnitSize() external view override returns (uint256) {
@@ -43,15 +41,23 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return addedCount;
   }
 
+  function _onlyActiveInsuredOrOps(address insured) private view {
+    if (insured != msg.sender) {
+      _onlyGovernorOr(AccessFlags.INSURER_OPS);
+    }
+    _onlyActiveInsured(insured);
+  }
+
+  modifier onlyActiveInsuredOrOps(address insured) {
+    _onlyActiveInsuredOrOps(insured);
+    _;
+  }
+
   function cancelCoverageDemand(
     address insured,
     uint256 unitCount,
     uint256 loopLimit
-  ) external override returns (uint256 cancelledUnits) {
-    /*
-    ATTN! Access check for msg.sender for this method is done by WeightedPoolBase.cancelCoverageDemand    
-     */
-    _onlyActiveInsured(insured);
+  ) external override onlyActiveInsuredOrOps(insured) returns (uint256 cancelledUnits) {
     CancelCoverageDemandParams memory params;
     params.insured = insured;
     params.loopLimit = defaultLoopLimit(LoopLimitType.CancelCoverageDemand, loopLimit);
@@ -64,19 +70,30 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
-  function cancelCoverage(address insured, uint256 payoutRatio) external override returns (uint256 payoutValue) {
-    /*
-    ATTN! Access check for msg.sender for this method is done by WeightedPoolBase.cancelCoverage
-     */
-    _onlyActiveInsured(insured);
-    return internalCancelCoverage(insured, payoutRatio);
+  function cancelCoverage(address insured, uint256 payoutRatio) external override onlyActiveInsuredOrOps(insured) returns (uint256 payoutValue) {
+    bool enforcedCancel = msg.sender != insured;
+    if (payoutRatio > 0 && !enforcedCancel) {
+      require(isPayoutApproved(insured, payoutRatio));
+    }
+    return internalCancelCoverage(insured, payoutRatio, enforcedCancel);
+  }
+
+  function isPayoutApproved(address insured, uint256 payoutRatio) private view returns (bool) {
+    this;
+    insured;
+    payoutRatio;
+    return true;
   }
 
   /// @dev Cancel all coverage for the insured and payout
   /// @param insured The address of the insured to cancel
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
   /// @return payoutValue The amount of coverage paid out to the insured
-  function internalCancelCoverage(address insured, uint256 payoutRatio) private returns (uint256 payoutValue) {
+  function internalCancelCoverage(
+    address insured,
+    uint256 payoutRatio,
+    bool enforcedCancel
+  ) private returns (uint256 payoutValue) {
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage, uint256 receivedPremium) = super
       .internalCancelCoverage(insured);
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
@@ -89,7 +106,10 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
 
     payoutValue = providedCoverage.rayMul(payoutRatio);
 
-    require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
+    require(
+      enforcedCancel || ((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage)),
+      'must be reconciled'
+    );
 
     if (address(_premiumDistributor) != address(0)) {
       uint256 premiumDebt = _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
@@ -100,6 +120,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
 
     internalSetStatus(insured, InsuredStatus.Declined);
 
+    // TODO enforcedCancel
     return internalTransferCancelledCoverage(insured, payoutValue, excessCoverage, providedCoverage, providedCoverage - receivableCoverage);
   }
 

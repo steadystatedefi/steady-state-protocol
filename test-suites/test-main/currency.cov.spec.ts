@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { zeroAddress } from 'ethereumjs-util';
 
 import { Factories } from '../../helpers/contract-types';
 import { MockCollateralCurrency, MockPerpetualPool } from '../../types';
@@ -19,7 +20,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   });
 
   it('Create an insurer', async () => {
-    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
+    const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
   });
 

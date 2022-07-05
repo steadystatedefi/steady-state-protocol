@@ -7,7 +7,7 @@ import './WeightedPoolBase.sol';
 
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
-abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStorage, WeightedPoolBase {
+abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -15,12 +15,9 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   constructor(
     IAccessController acl,
     uint256 unitSize,
+    address collateral_,
     PerpetualPoolExtension extension
-  ) WeightedRoundsBase(unitSize) WeightedPoolBase(acl, unitSize, extension) {}
-
-  function governor() public view override returns (address) {
-    return governorAccount();
-  }
+  ) WeightedPoolBase(acl, unitSize, collateral_, extension) {}
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
@@ -185,11 +182,6 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return PerpetualPoolStorage.exchangeRate();
   }
 
-  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function statusOf(address account) external view returns (InsuredStatus status) {
-    return internalStatusOf(account);
-  }
-
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
   ///@param sender  The sender
   ///@param recipient The receiver
@@ -251,29 +243,9 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   function internalCollectDrawdownPremium() internal override returns (uint256) {}
 
-  function internalSetGovernor(address addr) internal override(WeightedPoolBase, WeightedPoolStorage) {
-    WeightedPoolStorage.internalSetGovernor(addr);
-  }
-
-  function premiumDistributor() public view override returns (address) {
-    return address(_premiumDistributor);
-  }
-
-  function internalSetPremiumDistributor(address addr) internal override(WeightedPoolBase, WeightedPoolStorage) {
-    WeightedPoolStorage.internalSetPremiumDistributor(addr);
-  }
-
-  function internalSetPoolParams(WeightedPoolParams memory params) internal override(WeightedPoolBase, WeightedPoolConfig) {
+  function internalSetPoolParams(WeightedPoolParams memory params) internal override {
     require(params.maxDrawdownInverse == PercentageMath.ONE);
 
-    WeightedPoolConfig.internalSetPoolParams(params);
-  }
-
-  function internalDefaultLoopLimits(uint16[] memory limits) internal override(WeightedPoolBase, WeightedPoolConfig) {
-    WeightedPoolConfig.internalDefaultLoopLimits(limits);
-  }
-
-  function internalRequestJoin(address insured) internal override(InsurerJoinBase, WeightedPoolBase) returns (InsuredStatus status) {
-    return InsurerJoinBase.internalRequestJoin(insured);
+    super.internalSetPoolParams(params);
   }
 }

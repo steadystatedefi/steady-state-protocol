@@ -4,12 +4,17 @@ pragma solidity ^0.8.4;
 import './WeightedPoolExtension.sol';
 import './PerpetualPoolBase.sol';
 
+/// @dev NB! MUST HAVE NO STORAGE
 contract PerpetualPoolExtension is WeightedPoolExtension {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(uint256 unitSize) WeightedPoolExtension(unitSize) {}
+  constructor(
+    IAccessController acl,
+    uint256 unitSize,
+    address collateral_
+  ) WeightedPoolConfig(acl, unitSize, collateral_) {}
 
   function internalTransferCancelledCoverage(
     address insured,

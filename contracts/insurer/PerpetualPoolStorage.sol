@@ -3,9 +3,9 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
-import './WeightedPoolStorage.sol';
+import './WeightedPoolBase.sol';
 
-abstract contract PerpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessBase {
+abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
 
