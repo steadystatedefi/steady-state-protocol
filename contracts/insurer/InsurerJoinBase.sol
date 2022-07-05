@@ -11,14 +11,14 @@ import 'hardhat/console.sol';
 
 /// @title InsurerJoinBase
 /// @notice Handles Insured's requests on joining this Insurer
-abstract contract InsurerJoinBase is IJoinableBase, IJoinEvents {
+abstract contract InsurerJoinBase is IJoinEvents {
   function internalGetStatus(address) internal view virtual returns (InsuredStatus);
 
   function internalSetStatus(address, InsuredStatus) internal virtual;
 
   function internalIsInvestor(address) internal view virtual returns (bool);
 
-  function internalRequestJoin(address insured) internal returns (InsuredStatus status) {
+  function internalRequestJoin(address insured) internal virtual returns (InsuredStatus status) {
     require(Address.isContract(insured));
     if ((status = internalGetStatus(insured)) >= InsuredStatus.Joining) {
       return status;

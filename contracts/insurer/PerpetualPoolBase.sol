@@ -272,4 +272,8 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   function internalDefaultLoopLimits(uint16[] memory limits) internal override(WeightedPoolBase, WeightedPoolConfig) {
     WeightedPoolConfig.internalDefaultLoopLimits(limits);
   }
+
+  function internalRequestJoin(address insured) internal override(InsurerJoinBase, WeightedPoolBase) returns (InsuredStatus status) {
+    return InsurerJoinBase.internalRequestJoin(insured);
+  }
 }

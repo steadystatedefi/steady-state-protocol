@@ -7,19 +7,12 @@ import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
-abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolStorage, InsurerJoinBase {
+abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
   constructor(uint256 unitSize) Collateralized(address(0)) WeightedRoundsBase(unitSize) {}
-
-  /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
-  /// IInsuredPool.joinProcessed will be called after the decision is made.
-  function requestJoin(address insured) external override {
-    require(msg.sender == insured); // TODO or admin?
-    internalRequestJoin(insured);
-  }
 
   /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
   /// @return The coverage unit size
@@ -166,43 +159,4 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     uint256 receivedCoverage,
     DemandedCoverage memory coverage
   ) internal virtual returns (uint256);
-
-  /// @dev Prepare for an insured pool to join by setting the parameters
-  function internalPrepareJoin(address insured) internal override {
-    InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
-
-    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
-    uint256 v;
-    if (maxShare >= (v = _params.maxInsuredShare)) {
-      maxShare = v;
-    } else if (maxShare < (v = _params.minInsuredShare)) {
-      maxShare = v;
-    }
-
-    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
-  }
-
-  function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    IJoinHandler jh = governorContract();
-    return address(jh) == address(0) ? InsuredStatus.Joining : jh.handleJoinRequest(insured);
-  }
-
-  ///@dev Return if an account has a balance or premium earned
-  function internalIsInvestor(address account) internal view override(InsurerJoinBase, WeightedPoolStorage) returns (bool) {
-    return WeightedPoolStorage.internalIsInvestor(account);
-  }
-
-  function internalGetStatus(address account) internal view override(InsurerJoinBase, WeightedPoolConfig) returns (InsuredStatus) {
-    return WeightedPoolConfig.internalGetStatus(account);
-  }
-
-  function internalSetStatus(address account, InsuredStatus status) internal override {
-    return super.internalSetInsuredStatus(account, status);
-  }
-
-  function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal override {
-    if (address(_premiumDistributor) != address(0)) {
-      _premiumDistributor.registerPremiumSource(insured, status == InsuredStatus.Accepted);
-    }
-  }
 }

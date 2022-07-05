@@ -5,12 +5,21 @@ import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
+import '../interfaces/IJoinable.sol';
 import '../governance/GovernedHelper.sol';
 import './WeightedPoolExtension.sol';
 import './WeightedPoolConfig.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
-abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, ICancellableCoverageDemand, Delegator, ERC1363ReceiverBase, GovernedHelper {
+abstract contract WeightedPoolBase is
+  IJoinableBase,
+  IInsurerPoolBase,
+  IPremiumActuary,
+  ICancellableCoverageDemand,
+  Delegator,
+  ERC1363ReceiverBase,
+  GovernedHelper
+{
   address internal immutable _extension;
   IAccessController private immutable _remoteAcl;
 
@@ -39,6 +48,15 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, ICancel
   }
 
   function pushCoverageExcess() public virtual;
+
+  /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
+  /// IInsuredPool.joinProcessed will be called after the decision is made.
+  function requestJoin(address insured) external override {
+    require(msg.sender == insured); // TODO or admin?
+    internalRequestJoin(insured);
+  }
+
+  function internalRequestJoin(address insured) internal virtual returns (InsuredStatus status);
 
   event ExcessCoverageIncreased(uint256 coverageExcess); // TODO => ExcessCoverageUpdated
 
@@ -117,6 +135,7 @@ abstract contract WeightedPoolBase is IInsurerPoolBase, IPremiumActuary, ICancel
      */
     _onlyInsuredOrOps(insured);
     payoutValue;
+    // TODO check if it was approved
     _delegate(_extension);
   }
 
