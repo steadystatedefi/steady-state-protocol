@@ -344,7 +344,9 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     {
       const userBal = await token2.balanceOf(user.address);
       expect(userBal).gte(token2bal.add(res[1]));
-      expect(userBal).lte(token2bal.add(amt2.mul(2)));
+      if (!testEnv.underCoverage) {
+        expect(userBal).lte(token2bal.add(amt2.mul(2)));
+      }
     }
     expect((await actuary.premiumBurnt(user.address)).sub(burnt)).eq(amt1.add(amt2));
   });
@@ -453,7 +455,11 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     await advanceBlock((await currentTime()) + 10);
     await fund.syncAsset(actuary.address, 0, cc.address, testEnv.covGas(30000000));
-    expect(await cc.balanceOf(fund.address)).eq(drawdownAmt);
+
+    // NB! CC is an exeption - it is not transferred on sync, but stays on actuary's balance
+    // this simplifies claim logic for an Index Pool
+    expect(await cc.balanceOf(fund.address)).eq(0);
+    expect(await cc.balanceOf(actuary.address)).eq(10000);
 
     let swapAmt = 200;
     let swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
@@ -468,6 +474,8 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     );
     const bal = await cc.balanceOf(user.address);
     expect(bal).gte(swapAmtMin);
+    expect(await cc.balanceOf(fund.address)).eq(0);
+    expect(bal.add(await cc.balanceOf(actuary.address))).eq(10000);
 
     swapAmt = 400;
     swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
@@ -516,22 +524,49 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       testEnv.covGas(30000000)
     );
 
-    const fee = await fund.getFee(token1.address);
+    const fee = await fund.availableFee(token1.address);
     const diff = amt1.sub(await token1.balanceOf(user.address));
     expect(fee).gt(0);
     expect(fee).eq(diff);
 
     await advanceBlock((await currentTime()) + 20);
     await fund.syncAsset(actuary.address, 0, token1.address);
-    const swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
-    swapInstructions.push({
-      valueToSwap: amt1,
-      targetToken: cc.address,
-      minAmount: 0,
-      recipient: user.address,
-    });
 
-    // await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
-    // expect(await fund.getFee(token1.address)).eq(fee.add(amt1.sub(await token1.balanceOf(user.address)).sub(diff)));
+    {
+      const swapInstructions: PremiumFund.SwapInstructionStruct[] = [];
+      swapInstructions.push({
+        valueToSwap: amt1,
+        targetToken: cc.address,
+        minAmount: 0,
+        recipient: user.address,
+      });
+
+      await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    }
+    const fee1 = await fund.availableFee(token1.address);
+    expect(fee1).eq(fee.add(amt1.sub(await token1.balanceOf(user.address)).sub(diff)));
+
+    const user2 = testEnv.users[1];
+
+    {
+      const results = await fund.callStatic.collectFees([token1.address, cc.address], WAD, user2.address);
+      expect(results[0]).eq(0);
+      expect(results[1]).eq(0);
+    }
+    {
+      const results = await fund.callStatic.collectFees([token1.address, cc.address], 0, user2.address);
+      expect(results[0]).eq(fee1);
+      expect(results[1]).eq(0);
+    }
+    {
+      expect(await token1.balanceOf(user2.address)).eq(0);
+
+      await fund.collectFees([token1.address, cc.address], 0, user2.address);
+      expect(await fund.availableFee(token1.address)).eq(0);
+      expect(await fund.availableFee(cc.address)).eq(0);
+
+      expect(await token1.balanceOf(user2.address)).eq(fee1);
+      expect(await cc.balanceOf(user2.address)).eq(0);
+    }
   });
 });

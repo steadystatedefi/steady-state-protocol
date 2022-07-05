@@ -30,9 +30,8 @@ contract MockPremiumActuary is IPremiumActuary {
     drawdown = amount;
   }
 
-  function collectDrawdownPremium() external returns (uint256 availablePremiumValue) {
-    IERC20(collateral).transfer(msg.sender, drawdown);
-    availablePremiumValue = drawdown;
+  function collectDrawdownPremium() external view override returns (uint256 availablePremiumValue) {
+    return drawdown;
   }
 
   function burnPremium(
@@ -41,11 +40,10 @@ contract MockPremiumActuary is IPremiumActuary {
     address drawdownRecepient
   ) external {
     premiumBurnt[account] += value;
-    /// @dev THIS IS A HACK. NOT GOOD
-    if (drawdownRecepient == address(0)) {
-      drawdownRecepient = address(0x01);
+    if (drawdownRecepient != address(0)) {
+      drawdown -= value;
+      IERC20(collateral).transfer(drawdownRecepient, value);
     }
-    IERC20(collateral).transfer(drawdownRecepient, value);
   }
 
   function callPremiumAllocationUpdated(

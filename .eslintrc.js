@@ -79,6 +79,7 @@ module.exports = {
         warnOnUnsupportedTypeScriptVersion: true,
       },
       rules: {
+        'no-lone-blocks': 'off',
         '@typescript-eslint/no-floating-promises': 'off',
         '@typescript-eslint/no-explicit-any': 'error',
         '@typescript-eslint/explicit-module-boundary-types': 'error',

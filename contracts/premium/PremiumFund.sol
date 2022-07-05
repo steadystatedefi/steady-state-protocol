@@ -79,6 +79,11 @@ contract PremiumFund is IPremiumDistributor {
     _;
   }
 
+  modifier onlyFeeCollector() virtual {
+    // TODO
+    _;
+  }
+
   // TODO collectedFee / withdrawFee
   // TODO balanceOf
   // TODO balanceOfSource/Prepay, prepay/withdraw
@@ -576,8 +581,31 @@ contract PremiumFund is IPremiumDistributor {
     require((_tokens[targetToken].collectedFees += uint128(fee)) >= fee);
   }
 
-  function getFee(address targetToken) public view returns (uint256) {
+  function availableFee(address targetToken) external view returns (uint256) {
     return _tokens[targetToken].collectedFees;
+  }
+
+  function collectFees(
+    address[] calldata tokens,
+    uint256 minAmount,
+    address recipient
+  ) external onlyFeeCollector returns (uint256[] memory fees) {
+    Value.require(recipient != address(0));
+    if (minAmount == 0) {
+      minAmount = 1;
+    }
+
+    fees = new uint256[](tokens.length);
+    for (uint256 i = tokens.length; i > 0; ) {
+      i--;
+      TokenState storage state = _tokens[tokens[i]];
+
+      uint256 fee = state.collectedFees;
+      if (fee >= minAmount) {
+        state.collectedFees = 0;
+        IERC20(tokens[i]).transfer(recipient, fees[i] = fee);
+      }
+    }
   }
 
   struct SwapInstruction {
@@ -660,11 +688,11 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (totalValue > 0) {
-      IPremiumActuary(actuary).burnPremium(account, totalValue, address(this));
+      IPremiumActuary(actuary).burnPremium(account, totalValue, address(0));
     }
 
     if (totalExtValue > 0) {
-      IPremiumActuary(actuary).burnPremium(account, totalValue, address(0));
+      IPremiumActuary(actuary).burnPremium(account, totalExtValue, address(this));
     }
 
     balancer.totalBalance = totalSum;

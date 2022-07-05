@@ -187,6 +187,10 @@ library BalancerLib2 {
     AssetBalance memory balance,
     Balances.RateAcc memory total
   ) private pure returns (uint256 amount, uint256 fee) {
+    if (balance.accumAmount == 0) {
+      return (0, 0);
+    }
+
     uint256 k = _calcScale(c, balance, total);
     amount = _calcAmount(c, balance.accumAmount, value.rayMul(k));
 
