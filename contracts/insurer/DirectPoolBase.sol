@@ -203,7 +203,9 @@ abstract contract DirectPoolBase is
     }
   }
 
-  function internalPrepareJoin(address) internal override {}
+  function internalPrepareJoin(address) internal pure override returns (bool) {
+    return true;
+  }
 
   function internalInitiateJoin(address account) internal override returns (InsuredStatus) {
     address insured = _insured;

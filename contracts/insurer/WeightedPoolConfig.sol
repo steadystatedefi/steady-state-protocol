@@ -169,9 +169,14 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return limit;
   }
 
+  function internalGetInsuredExternalParams(address insured) internal view virtual returns (InsuredParams memory) {
+    // TODO get approved risk level
+    return IInsuredPool(insured).insuredParams();
+  }
+
   /// @dev Prepare for an insured pool to join by setting the parameters
-  function internalPrepareJoin(address insured) internal override {
-    InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
+  function internalPrepareJoin(address insured) internal override returns (bool) {
+    InsuredParams memory insuredParams = internalGetInsuredExternalParams(insured);
 
     uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
     uint256 v;
@@ -181,7 +186,13 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
       maxShare = v;
     }
 
+    if (maxShare == 0) {
+      return false;
+    }
+
     super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
+
+    return true;
   }
 
   function internalGetStatus(address account) internal view override returns (InsuredStatus) {

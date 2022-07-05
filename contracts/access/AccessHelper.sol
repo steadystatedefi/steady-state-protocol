@@ -13,10 +13,6 @@ abstract contract AccessHelper {
 
   function remoteAcl() internal view virtual returns (IAccessController);
 
-  function setRemoteAcl(IAccessController acl) internal virtual {
-    State.require(acl == remoteAcl());
-  }
-
   function hasRemoteAcl() internal view returns (bool) {
     return address(remoteAcl()) != address(0);
   }
@@ -104,6 +100,11 @@ abstract contract AccessHelper {
   }
 
   function getProxyFactory() internal view returns (IProxyFactory) {
-    return IProxyFactory(remoteAcl().getAddress(AccessFlags.PROXY_FACTORY));
+    return IProxyFactory(getAclAddress(AccessFlags.PROXY_FACTORY));
+  }
+
+  function getAclAddress(uint256 t) internal view returns (address) {
+    IAccessController acl = remoteAcl();
+    return address(acl) == address(0) ? address(0) : acl.getAddress(t);
   }
 }

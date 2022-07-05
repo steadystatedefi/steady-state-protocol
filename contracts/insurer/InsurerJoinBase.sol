@@ -29,7 +29,6 @@ abstract contract InsurerJoinBase is IJoinEvents {
     internalSetStatus(insured, InsuredStatus.Joining);
     emit JoinRequested(insured);
 
-    internalPrepareJoin(insured);
     if ((status = internalInitiateJoin(insured)) != InsuredStatus.Joining) {
       return _updateInsuredStatus(insured, status);
     }
@@ -56,7 +55,11 @@ abstract contract InsurerJoinBase is IJoinEvents {
     if (currentStatus == InsuredStatus.Joining) {
       bool accepted;
       if (status == InsuredStatus.Accepted) {
-        accepted = true;
+        if (internalPrepareJoin(insured)) {
+          accepted = true;
+        } else {
+          status = InsuredStatus.JoinRejected;
+        }
       } else if (status != InsuredStatus.Banned) {
         status = InsuredStatus.JoinRejected;
       }
@@ -101,7 +104,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
     _updateInsuredStatus(insured, accepted ? InsuredStatus.Accepted : InsuredStatus.JoinRejected);
   }
 
-  function internalPrepareJoin(address) internal virtual;
+  function internalPrepareJoin(address) internal virtual returns (bool);
 
   function internalInitiateJoin(address) internal virtual returns (InsuredStatus);
 }

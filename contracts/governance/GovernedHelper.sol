@@ -5,6 +5,7 @@ import '../tools/Errors.sol';
 import '../interfaces/IProxyFactory.sol';
 import '../insurance/Collateralized.sol';
 import '../access/AccessHelper.sol';
+import './interfaces/IApprovalCatalog.sol';
 
 abstract contract GovernedHelper is AccessHelper, Collateralized {
   IAccessController private immutable _remoteAcl;
@@ -51,4 +52,8 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
   }
 
   function governorAccount() internal view virtual returns (address);
+
+  function approvalCatalog() internal view returns (IApprovalCatalog) {
+    return IApprovalCatalog(getAclAddress(AccessFlags.APPROVAL_CATALOG));
+  }
 }
