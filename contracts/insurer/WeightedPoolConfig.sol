@@ -6,8 +6,9 @@ import '../tools/math/PercentageMath.sol';
 import '../interfaces/IInsurerGovernor.sol';
 import '../governance/GovernedHelper.sol';
 import './WeightedRoundsBase.sol';
+import './WeightedPoolAccessControl.sol';
 
-abstract contract WeightedPoolConfig is WeightedRoundsBase, GovernedHelper {
+abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessControl {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
 
@@ -19,43 +20,6 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, GovernedHelper {
     uint256 unitSize,
     address collateral_
   ) WeightedRoundsBase(unitSize) GovernedHelper(acl, collateral_) {}
-
-  function _onlyActiveInsured(address insurer) internal view {
-    require(internalGetStatus(insurer) == InsuredStatus.Accepted);
-  }
-
-  function _onlyInsured(address insurer) private view {
-    require(internalGetStatus(insurer) > InsuredStatus.Unknown);
-  }
-
-  modifier onlyActiveInsured() {
-    _onlyActiveInsured(msg.sender);
-    _;
-  }
-
-  modifier onlyInsured() {
-    _onlyInsured(msg.sender);
-    _;
-  }
-
-  function internalSetTypedGovernor(IInsurerGovernor addr) internal {
-    _governorIsContract = true;
-    _setGovernor(address(addr));
-  }
-
-  function internalSetGovernor(address addr) internal virtual {
-    // will also return false for EOA
-    _governorIsContract = ERC165Checker.supportsInterface(addr, type(IInsurerGovernor).interfaceId);
-    _setGovernor(addr);
-  }
-
-  function governorContract() internal view virtual returns (IInsurerGovernor) {
-    return IInsurerGovernor(_governorIsContract ? governorAccount() : address(0));
-  }
-
-  function internalGetStatus(address account) internal view virtual returns (InsuredStatus) {
-    return internalGetInsuredStatus(account);
-  }
 
   function internalDefaultLoopLimits(uint16[] memory limits) internal virtual {
     uint256 v;
@@ -203,6 +167,37 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, GovernedHelper {
       }
     }
     return limit;
+  }
+
+  /// @dev Prepare for an insured pool to join by setting the parameters
+  function internalPrepareJoin(address insured) internal override {
+    InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
+
+    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
+    uint256 v;
+    if (maxShare >= (v = _params.maxInsuredShare)) {
+      maxShare = v;
+    } else if (maxShare < (v = _params.minInsuredShare)) {
+      maxShare = v;
+    }
+
+    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
+  }
+
+  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
+    return internalGetInsuredStatus(account);
+  }
+
+  function internalSetStatus(address account, InsuredStatus status) internal override {
+    return super.internalSetInsuredStatus(account, status);
+  }
+
+  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
+  function internalStatusOf(address account) internal view returns (InsuredStatus status) {
+    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
+      status = InsuredStatus.NotApplicable;
+    }
+    return status;
   }
 }
 

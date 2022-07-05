@@ -9,9 +9,6 @@ import '../access/AccessHelper.sol';
 abstract contract GovernedHelper is AccessHelper, Collateralized {
   IAccessController private immutable _remoteAcl;
 
-  address private _governor;
-  bool internal _governorIsContract;
-
   constructor(IAccessController acl, address collateral_) Collateralized(collateral_) {
     _remoteAcl = acl;
   }
@@ -29,7 +26,7 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
   }
 
   function _isAllowed(uint256 flags) private view returns (bool) {
-    return _governor == msg.sender || isAllowedByGovernor(msg.sender, flags);
+    return governorAccount() == msg.sender || isAllowedByGovernor(msg.sender, flags);
   }
 
   function isAllowedByGovernor(address account, uint256 flags) internal view virtual returns (bool) {}
@@ -53,13 +50,5 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
     _;
   }
 
-  function _setGovernor(address addr) internal {
-    emit GovernorUpdated(_governor = addr);
-  }
-
-  function governorAccount() internal view returns (address) {
-    return _governor;
-  }
-
-  event GovernorUpdated(address);
+  function governorAccount() internal view virtual returns (address);
 }

@@ -4,14 +4,13 @@ pragma solidity ^0.8.4;
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import './WeightedPoolConfig.sol';
-import './InsurerJoinBase.sol';
 
 // Contains all variables for both base and extension contract. Allows for upgrades without corruption
 
 /// @dev
 /// @dev WARNING! This contract MUST NOT be extended with new fields after deployment
 /// @dev
-abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurerJoinBase {
+abstract contract WeightedPoolStorage is WeightedPoolConfig {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
 
@@ -32,14 +31,6 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurerJoinBase {
     return b.extra != 0 || b.balance != 0;
   }
 
-  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function internalStatusOf(address account) internal view returns (InsuredStatus status) {
-    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
-      status = InsuredStatus.NotApplicable;
-    }
-    return status;
-  }
-
   event PremiumDistributorUpdated(address);
 
   function internalSetPremiumDistributor(address premiumDistributor_) internal virtual {
@@ -47,37 +38,10 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurerJoinBase {
     emit PremiumDistributorUpdated(premiumDistributor_);
   }
 
-  /// @dev Prepare for an insured pool to join by setting the parameters
-  function internalPrepareJoin(address insured) internal override {
-    InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
-
-    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
-    uint256 v;
-    if (maxShare >= (v = _params.maxInsuredShare)) {
-      maxShare = v;
-    } else if (maxShare < (v = _params.minInsuredShare)) {
-      maxShare = v;
-    }
-
-    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
-  }
-
-  function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    IJoinHandler jh = governorContract();
-    return address(jh) == address(0) ? InsuredStatus.Joining : jh.handleJoinRequest(insured);
-  }
-
-  function internalGetStatus(address account) internal view override(InsurerJoinBase, WeightedPoolConfig) returns (InsuredStatus) {
-    return WeightedPoolConfig.internalGetStatus(account);
-  }
-
-  function internalSetStatus(address account, InsuredStatus status) internal override {
-    return super.internalSetInsuredStatus(account, status);
-  }
-
   function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal override {
     if (address(_premiumDistributor) != address(0)) {
       _premiumDistributor.registerPremiumSource(insured, status == InsuredStatus.Accepted);
     }
+    super.internalAfterJoinOrLeave(insured, status);
   }
 }
