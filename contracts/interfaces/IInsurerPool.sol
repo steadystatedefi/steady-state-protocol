@@ -85,9 +85,9 @@ interface IInsurerPoolDemand is IInsurancePool, IInsurerPoolBase, IJoinable {
 
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
   ///@param insured The insured pool
-  ///@return receivedCoverage The amount coverage in terms of $CC
+  ///@return availableCoverage The amount coverage in terms of $CC
   ///@return coverage All the details relating to the coverage, demand and premium
-  function receivableDemandedCoverage(address insured) external view returns (uint256 receivedCoverage, DemandedCoverage memory);
+  function receivableDemandedCoverage(address insured) external view returns (uint256 availableCoverage, DemandedCoverage memory coverage);
 
   /// @notice Transfer the amount of coverage that been filled to the insured since last called
   /// @dev Only should be called when charteredDemand is true

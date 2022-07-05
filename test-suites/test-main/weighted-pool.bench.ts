@@ -1,9 +1,10 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { expect } from 'chai';
 
+import { Ifaces } from '../../helpers/contract-ifaces';
 import { Factories } from '../../helpers/contract-types';
 import { createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
-import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
+import { IInsurerPool, MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -12,6 +13,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let pool: MockPerpetualPool;
+  let poolIntf: IInsurerPool;
   let fund: MockCollateralCurrency;
   let iteration = 0;
   const weights: number[] = [];
@@ -21,6 +23,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
+    poolIntf = Ifaces.IInsurerPool.attach(pool.address);
 
     await pool.setPoolParams({
       maxAdvanceUnits: 100_000_000,
@@ -66,7 +69,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
 
-      const stats = await pool.receivableDemandedCoverage(insured.address);
+      const stats = await poolIntf.receivableDemandedCoverage(insured.address);
       insureds.push(insured);
       weights.push(riskWeightValue);
       console.log(

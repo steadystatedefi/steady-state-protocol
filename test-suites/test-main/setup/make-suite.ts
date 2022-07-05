@@ -111,10 +111,8 @@ function makeSuiteMaker(stateFn: SuiteStateFunc): IMakeSuite {
     return describe(title, stateFn(fn));
   } as IMakeSuite;
 
-  result.only = (title: string, fn: (testEnv: TestEnv) => void): Mocha.Suite => describe.only(title, stateFn(fn));
-
-  result.skip = (title: string, fn: (testEnv: TestEnv) => void): Mocha.Suite | void =>
-    describe.skip(title, stateFn(fn));
+  result.only = (title: string, fn: (testEnv: TestEnv) => void) => describe.only(title, stateFn(fn));
+  result.skip = (title: string, fn: (testEnv: TestEnv) => void) => describe.skip(title, stateFn(fn));
 
   return result;
 }
