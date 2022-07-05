@@ -60,7 +60,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
 
-      const stats = await poolIntf.receivableDemandedCoverage(insured.address);
+      const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       insureds.push(insured);
       // collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       return stats.coverage;
@@ -165,7 +165,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
     for (let index = 0; index < insureds.length; index++) {
       const insured = insureds[index];
-      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       expect(coverage.totalDemand).eq(insuredUnits[index] * unitSize);
 
       const covered = coverage.totalCovered.add(coverage.pendingCovered);
@@ -236,7 +236,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     }[] = [];
 
     for (const insured of insureds) {
-      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       expect(coverage.totalDemand.toNumber()).gte(coverage.totalCovered.toNumber());
       totalCovered += coverage.totalCovered.toNumber();
       totalDemand += coverage.totalDemand.toNumber();
@@ -280,10 +280,10 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
   it('Reconcile', async () => {
     for (const insured of insureds) {
-      const { coverage: coverage0 } = await poolIntf.receivableDemandedCoverage(insured.address);
+      const { coverage: coverage0 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       await insured.reconcileWithAllInsurers();
 
-      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       expect(coverage0.totalDemand).eq(coverage.totalDemand);
       expect(coverage0.totalCovered).eq(coverage.totalCovered);
       // console.log('after', insured.address, coverage.totalPremium.toNumber(), coverage.premiumRate.toNumber());
@@ -315,7 +315,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     let totalCovered = 0;
 
     for (const insured of insureds) {
-      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       totalInsuredPremium += coverage.totalPremium.toNumber();
       totalInsuredPremiumRate += coverage.premiumRate.toNumber();
 

@@ -69,7 +69,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
 
-      const stats = await poolIntf.receivableDemandedCoverage(insured.address);
+      const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       insureds.push(insured);
       weights.push(riskWeightValue);
       console.log(
