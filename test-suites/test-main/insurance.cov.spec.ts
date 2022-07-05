@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { Ifaces } from '../../helpers/contract-ifaces';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
+import { IInsurerPool, MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -13,11 +14,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 10000 * unitSize;
-  // let payInToken: tEthereumAddress;
-  // const protocol = Wallet.createRandom();
   let pool: MockPerpetualPool;
+  let poolIntf: IInsurerPool;
   let fund: MockCollateralCurrency;
-  // let collector: PremiumCollector;
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
@@ -26,10 +25,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
     fund = await Factories.MockCollateralCurrency.deploy();
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
-    // collector = await Factories.PremiumCollector.deploy();
-
-    // payInToken = createRandomAddress();
-    // await collector.setPremiumScale(payInToken, [fund.address], [RAY]);
+    poolIntf = Ifaces.IInsurerPool.attach(pool.address);
   });
 
   enum InsuredStatus {
@@ -64,7 +60,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
 
-      const stats = await pool.receivableDemandedCoverage(insured.address);
+      const stats = await poolIntf.receivableDemandedCoverage(insured.address);
       insureds.push(insured);
       // collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       return stats.coverage;
@@ -169,7 +165,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
     for (let index = 0; index < insureds.length; index++) {
       const insured = insureds[index];
-      const { coverage } = await pool.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
       expect(coverage.totalDemand).eq(insuredUnits[index] * unitSize);
 
       const covered = coverage.totalCovered.add(coverage.pendingCovered);
@@ -240,7 +236,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     }[] = [];
 
     for (const insured of insureds) {
-      const { coverage } = await pool.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
       expect(coverage.totalDemand.toNumber()).gte(coverage.totalCovered.toNumber());
       totalCovered += coverage.totalCovered.toNumber();
       totalDemand += coverage.totalDemand.toNumber();
@@ -284,10 +280,10 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
   it('Reconcile', async () => {
     for (const insured of insureds) {
-      const { coverage: coverage0 } = await pool.receivableDemandedCoverage(insured.address);
+      const { coverage: coverage0 } = await poolIntf.receivableDemandedCoverage(insured.address);
       await insured.reconcileWithAllInsurers();
 
-      const { coverage } = await pool.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
       expect(coverage0.totalDemand).eq(coverage.totalDemand);
       expect(coverage0.totalCovered).eq(coverage.totalCovered);
       // console.log('after', insured.address, coverage.totalPremium.toNumber(), coverage.premiumRate.toNumber());
@@ -319,7 +315,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     let totalCovered = 0;
 
     for (const insured of insureds) {
-      const { coverage } = await pool.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
       totalInsuredPremium += coverage.totalPremium.toNumber();
       totalInsuredPremiumRate += coverage.premiumRate.toNumber();
 

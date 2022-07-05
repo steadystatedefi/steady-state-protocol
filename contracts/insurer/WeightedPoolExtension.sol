@@ -126,6 +126,8 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     return (params.receivedCoverage, coverage);
   }
 
+  event DemandedCoverageReceived(address insured, uint256 receivedCoverage, uint256 receivedCollateral);
+
   /// @inheritdoc IInsurerPoolDemand
   function receiveDemandedCoverage(address insured)
     external
@@ -147,6 +149,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
       _premiumHandler.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
     }
 
+    emit DemandedCoverageReceived(insured, params.receivedCoverage, receivedCollateral);
     return (params.receivedCoverage, receivedCollateral, coverage);
   }
 
