@@ -65,30 +65,60 @@ export const revertSuiteState = async (): Promise<void> => {
   await evmRevert(snapshotId);
 };
 
-export function makeSharedStateSuite(name: string, tests: (testEnv: TestEnv) => void): void {
-  describe(name, () => {
+interface SuiteFunction {
+  (title: string, fn: (testEnv: TestEnv) => void): Mocha.Suite | void;
+}
+
+interface IMakeSuite extends SuiteFunction {
+  only: SuiteFunction;
+  skip: SuiteFunction;
+}
+
+function isolatedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (this: Mocha.Suite) => void {
+  return function (this: Mocha.Suite): void {
+    this.beforeEach(async () => {
+      await setSuiteState();
+    });
+
+    tests.call(this, testEnv);
+
+    this.afterEach(async () => {
+      await revertSuiteState();
+    });
+  };
+}
+
+function sharedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (this: Mocha.Suite) => void {
+  return function (this: Mocha.Suite): void {
     before(async () => {
       await setSuiteState();
     });
 
-    tests(testEnv);
+    tests.call(this, testEnv);
 
     after(async () => {
       await revertSuiteState();
     });
-  });
+  };
 }
 
-export function makeSuite(name: string, tests: (testEnv: TestEnv) => void): void {
-  describe(name, () => {
-    beforeEach(async () => {
-      await setSuiteState();
-    });
-
-    tests(testEnv);
-
-    afterEach(async () => {
-      await revertSuiteState();
-    });
-  });
+interface SuiteStateFunc {
+  (tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (this: Mocha.Suite) => void;
 }
+
+function makeSuiteMaker(stateFn: SuiteStateFunc): IMakeSuite {
+  const result = function (title: string, fn: (testEnv: TestEnv) => void): Mocha.Suite | void {
+    return describe(title, stateFn(fn));
+  } as IMakeSuite;
+
+  result.only = (title: string, fn: (testEnv: TestEnv) => void): Mocha.Suite => describe.only(title, stateFn(fn));
+
+  result.skip = (title: string, fn: (testEnv: TestEnv) => void): Mocha.Suite | void =>
+    describe.skip(title, stateFn(fn));
+
+  return result;
+}
+
+export const makeSuite = makeSuiteMaker(isolatedState);
+
+export const makeSharedStateSuite = makeSuiteMaker(sharedState);
