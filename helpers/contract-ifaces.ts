@@ -1,10 +1,7 @@
 import { Contract } from '@ethersproject/contracts';
 import { Signer } from 'ethers';
 
-import {
-  IERC20Detailed__factory as IERC20DetailedFactory,
-  IInsurerPool__factory as IInsurerPoolFactory,
-} from '../types';
+import * as types from '../types';
 
 import { getDefaultDeployer, UnnamedAttachable } from './factory-wrapper';
 import { tEthereumAddress } from './types';
@@ -18,9 +15,9 @@ const iface = <TResult extends Contract>(f: ConnectFunc<TResult>): UnnamedAttach
     }
   })();
 
+/* eslint-disable @typescript-eslint/unbound-method */
 export const Ifaces = {
-  /* eslint-disable @typescript-eslint/unbound-method */
-  IERC20: iface(IERC20DetailedFactory.connect),
-  IInsurerPool: iface(IInsurerPoolFactory.connect),
-  /* eslint-enable @typescript-eslint/unbound-method */
+  IERC20: iface(types.IERC20Detailed__factory.connect),
+  IInsurerPool: iface(types.IInsurerPool__factory.connect),
 };
+/* eslint-enable @typescript-eslint/unbound-method */

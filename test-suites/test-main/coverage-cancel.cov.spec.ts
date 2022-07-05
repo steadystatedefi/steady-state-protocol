@@ -2,9 +2,10 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { Ifaces } from '../../helpers/contract-ifaces';
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
+import { MockCollateralCurrency, IInsurerPool, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -15,6 +16,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const poolDemand = 100000 * unitSize;
   let pool: MockPerpetualPool;
+  let poolIntf: IInsurerPool;
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
@@ -28,6 +30,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     await cc.registerLiquidityProvider(testEnv.deployer.address);
     pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
     await cc.registerInsurer(pool.address);
+    poolIntf = Ifaces.IInsurerPool.attach(pool.address);
   });
 
   enum InsuredStatus {
@@ -62,7 +65,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
 
-      const stats = await pool.receivableDemandedCoverage(insured.address);
+      const stats = await poolIntf.receivableDemandedCoverage(insured.address);
       insureds.push(insured);
       return stats.coverage;
     };
@@ -108,7 +111,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     }[] = [];
 
     for (const insured of insureds) {
-      const { coverage } = await pool.receivableDemandedCoverage(insured.address);
+      const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address);
       expect(coverage.totalDemand.toNumber()).gte(coverage.totalCovered.toNumber());
       totalCovered += coverage.totalCovered.toNumber();
       totalDemand += coverage.totalDemand.toNumber();
@@ -370,12 +373,12 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     const insured = insureds[0];
 
     const { coverage: totals0 } = await pool.getTotals();
-    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
     const { coverage: totals1 } = await pool.getTotals();
-    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     expect(stats0.totalCovered).eq(stats1.totalCovered);
     expect(stats0.premiumRate).eq(stats1.premiumRate);
@@ -401,12 +404,12 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
   it('Repeat coverage demand cancellation for insureds[0]', async () => {
     const insured = insureds[0];
 
-    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address);
     const adj0 = await pool.getPendingAdjustments();
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
-    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     expect(stats0.totalCovered).eq(stats1.totalCovered);
     expect(stats0.premiumRate).eq(stats1.premiumRate);
@@ -436,7 +439,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await cc.balanceOf(insured.address)).eq(0);
 
     {
-      const { availableCoverage: expectedCollateral } = await pool.receivableDemandedCoverage(insured.address);
+      const { availableCoverage: expectedCollateral } = await poolIntf.receivableDemandedCoverage(insured.address);
       expect(expectedCollateral).gt(0);
 
       await insured.reconcileWithAllInsurers(); // required to cancel
@@ -448,7 +451,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     }
 
     const { coverage: totals0 } = await pool.getTotals();
-    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     expect(
       totals0.totalCovered
@@ -483,7 +486,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(excessCoverage).lte(stats0.totalCovered.add(stats0.pendingCovered));
 
     const { coverage: totals1 } = await pool.getTotals();
-    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     expect(
       totals1.totalCovered
@@ -547,14 +550,14 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     const insured = insureds[1];
 
     const { coverage: totals0 } = await pool.getTotals();
-    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
     const adj0 = await pool.getPendingAdjustments();
 
     const { coverage: totals1 } = await pool.getTotals();
-    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     expect(stats0.totalCovered).eq(stats1.totalCovered);
     expect(stats0.premiumRate).eq(stats1.premiumRate);
@@ -624,11 +627,11 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
         expect(await cc.balanceOf(insured.address)).eq(0);
 
-        const { coverage: stats0, availableCoverage: expectedCollateral } = await pool.receivableDemandedCoverage(
+        const { coverage: stats0, availableCoverage: expectedCollateral } = await poolIntf.receivableDemandedCoverage(
           insured.address
         );
         await insured.reconcileWithAllInsurers();
-        const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+        const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
         expect(await cc.balanceOf(insured.address)).eq(expectedCollateral);
         receivedCollateral += expectedCollateral.toNumber();
@@ -672,7 +675,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     await insured.reconcileWithAllInsurers(); // required to cancel
 
     const { coverage: totals0 } = await pool.getTotals();
-    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     // collateral will be returned from the insured
     receivedCollateral -= (await cc.balanceOf(insured.address)).toNumber();
@@ -703,7 +706,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(excessCoverage).lte(stats0.totalCovered.sub(payoutAmount).add(stats0.pendingCovered));
 
     const { coverage: totals1 } = await pool.getTotals();
-    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     expect(
       totals1.totalCovered
@@ -740,7 +743,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     await insured.reconcileWithAllInsurers(); // required to cancel
 
     const { coverage: totals0 } = await pool.getTotals();
-    const { coverage: stats0 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     // collateral will be returned from the insured
     receivedCollateral -= (await cc.balanceOf(insured.address)).toNumber();
@@ -770,7 +773,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(excessCoverage).lte(stats0.totalCovered.sub(payoutAmount).add(stats0.pendingCovered));
 
     const { coverage: totals1 } = await pool.getTotals();
-    const { coverage: stats1 } = await pool.receivableDemandedCoverage(insured.address);
+    const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address);
 
     expect(
       totals1.totalCovered

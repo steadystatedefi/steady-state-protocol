@@ -133,6 +133,8 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return (params.receivedCoverage, coverage);
   }
 
+  event DemandedCoverageReceived(address insured, uint256 receivedCoverage, uint256 receivedCollateral);
+
   /// @inheritdoc ICoverageDistributor
   function receiveDemandedCoverage(address insured, uint256 loopLimit)
     external
@@ -155,6 +157,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
       _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
     }
 
+    emit DemandedCoverageReceived(insured, params.receivedCoverage, receivedCollateral);
     return (params.receivedCoverage, receivedCollateral, coverage);
   }
 

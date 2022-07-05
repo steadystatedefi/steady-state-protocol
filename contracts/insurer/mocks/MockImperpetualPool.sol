@@ -49,15 +49,6 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
 
   function internalOnCoverageRecovered() internal override {}
 
-  function receivableDemandedCoverage(address insured) external view returns (uint256 availableCoverage, DemandedCoverage memory coverage) {
-    GetCoveredDemandParams memory params;
-    params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
-
-    (coverage, , ) = internalGetCoveredDemand(params);
-    return (params.receivedCoverage, coverage);
-  }
-
   // function dump() external view returns (Dump memory) {
   //   return _dump();
   // }
