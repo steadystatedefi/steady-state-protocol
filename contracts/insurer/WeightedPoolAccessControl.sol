@@ -51,11 +51,14 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
   }
 
   function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    IApprovalCatalog c = approvalCatalog();
-    require(address(c) == address(0) || c.hasApprovedApplication(insured));
-
     IJoinHandler jh = governorContract();
-    return address(jh) == address(0) ? InsuredStatus.Joining : jh.handleJoinRequest(insured);
+    if (address(jh) == address(0)) {
+      IApprovalCatalog c = approvalCatalog();
+      require(address(c) == address(0) || c.hasApprovedApplication(insured));
+      return InsuredStatus.Joining;
+    } else {
+      return jh.handleJoinRequest(insured);
+    }
   }
 
   event GovernorUpdated(address);

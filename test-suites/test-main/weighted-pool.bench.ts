@@ -60,10 +60,10 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
         fund.address,
         BigNumber.from(unitSize).mul(poolDemand),
         RATE,
-        minUnits,
-        riskWeightValue,
+        minUnits * unitSize,
         decimals
       );
+      await pool.approveNextJoin(riskWeightValue);
       const tx = await mustWaitTx(insured.joinPool(pool.address));
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();

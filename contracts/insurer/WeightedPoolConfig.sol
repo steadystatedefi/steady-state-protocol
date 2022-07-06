@@ -169,16 +169,21 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return limit;
   }
 
-  function internalGetInsuredExternalParams(address insured) internal view virtual returns (InsuredParams memory) {
-    // TODO get approved risk level
-    return IInsuredPool(insured).insuredParams();
+  function internalGetUnderwrittenParams(address insured) internal virtual returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
+    IApprovalCatalog ac = approvalCatalog();
+    if (address(ac) != address(0)) {
+      (ok, data) = ac.getAppliedApplicationForInsurer(insured);
+    }
   }
 
   /// @dev Prepare for an insured pool to join by setting the parameters
   function internalPrepareJoin(address insured) internal override returns (bool) {
-    InsuredParams memory insuredParams = internalGetInsuredExternalParams(insured);
+    (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory approvedParams) = internalGetUnderwrittenParams(insured);
+    if (!ok) {
+      return false;
+    }
 
-    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
+    uint256 maxShare = approvedParams.riskLevel == 0 ? PercentageMath.ONE : uint256(_params.riskWeightTarget).percentDiv(approvedParams.riskLevel);
     uint256 v;
     if (maxShare >= (v = _params.maxInsuredShare)) {
       maxShare = v;
@@ -190,7 +195,15 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
       return false;
     }
 
-    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
+    // IInsuredPool(insured).premiumToken() != insuredParams.premiumToken
+
+    InsuredParams memory insuredSelfParams = IInsuredPool(insured).insuredParams();
+
+    uint256 minUnits = internalUnitSize();
+    minUnits = (insuredSelfParams.minPerInsurer + minUnits - 1) / minUnits;
+    require(minUnits <= type(uint24).max);
+
+    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: uint24(minUnits), maxShare: uint16(maxShare)}));
 
     return true;
   }

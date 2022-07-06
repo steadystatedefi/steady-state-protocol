@@ -37,7 +37,6 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   }
 
   function internalSetInsuredParams(InsuredParams memory params) internal {
-    require(params.riskWeightPct > 0);
     _params = params;
   }
 

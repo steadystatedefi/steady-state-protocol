@@ -31,6 +31,10 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     return InsuredStatus.Accepted;
   }
 
+  function governerQueryAccessControlMask(address, uint256 filterMask) external pure returns (uint256) {
+    return filterMask;
+  }
+
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return internalGetTotals(type(uint256).max);
   }
@@ -92,5 +96,20 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
 
   function isAdmin(address) internal pure override returns (bool) {
     return true;
+  }
+
+  uint16 private _riskWeightValue;
+
+  function approveNextJoin(uint16 riskWeightValue) external {
+    _riskWeightValue = riskWeightValue + 1;
+  }
+
+  function internalGetUnderwrittenParams(address) internal override returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
+    data.riskLevel = _riskWeightValue;
+    if (data.riskLevel > 0) {
+      _riskWeightValue = 0;
+      data.riskLevel--;
+      ok = true;
+    }
   }
 }
