@@ -12,6 +12,7 @@ interface IProxyFactory {
 
   function createProxyWithImpl(
     address adminAddress,
+    bytes32 implName,
     address impl,
     bytes calldata params
   ) external returns (address);

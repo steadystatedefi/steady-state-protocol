@@ -19,15 +19,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   mapping(address => bytes32) private _authImpls;
   mapping(address => bytes32) private _revokedImpls;
 
-  IAccessController private immutable _acl;
-
-  constructor(IAccessController acl) {
-    _acl = acl;
-  }
-
-  function remoteAcl() internal view override returns (IAccessController) {
-    return _acl;
-  }
+  constructor(IAccessController acl) AccessHelper(acl) {}
 
   function getImplementationType(address impl) public view returns (bytes32 n) {
     n = _authImpls[impl];
@@ -49,7 +41,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     return addr;
   }
 
-  function addAuthenticImplementation(address impl, bytes32 name) public onlyOwner {
+  function addAuthenticImplementation(address impl, bytes32 name) public onlyAdmin {
     Value.require(name != 0);
     Value.require(impl != address(0));
     bytes32 implName = _authImpls[impl];
@@ -60,7 +52,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     }
   }
 
-  function removeAuthenticImplementation(address impl, address defReplacement) public onlyOwner {
+  function removeAuthenticImplementation(address impl, address defReplacement) public onlyAdmin {
     bytes32 name = _authImpls[impl];
     if (name != 0) {
       delete _authImpls[impl];
@@ -79,7 +71,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     }
   }
 
-  function unsetDefaultImplementation(address impl) public onlyOwner {
+  function unsetDefaultImplementation(address impl) public onlyAdmin {
     bytes32 name = _authImpls[impl];
     if (_defaultImpls[name] == impl) {
       delete _defaultImpls[name];
@@ -87,7 +79,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     }
   }
 
-  function setDefaultImplementation(address impl) public onlyOwner {
+  function setDefaultImplementation(address impl) public onlyAdmin {
     bytes32 name = _authImpls[impl];
     State.require(name != 0);
     _setDefaultImplementation(impl, name, true);
@@ -169,11 +161,12 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
 
   function createProxyWithImpl(
     address adminAddress,
+    bytes32 implName,
     address impl,
     bytes calldata params
-  ) external onlyOwner returns (address) {
+  ) external onlyAdmin returns (address) {
     bytes32 name = _authImpls[impl];
-    State.require(name != 0);
+    State.require(implName == 0 ? name != 0 : implName == name);
     return address(_createProxy(adminAddress, impl, params, name));
   }
 
@@ -203,7 +196,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     address newImpl,
     bool checkRevision,
     bytes calldata params
-  ) external onlyOwner returns (bool) {
+  ) external onlyAdmin returns (bool) {
     address prevImpl = getProxyImplementation(proxyAddress);
     if (prevImpl != newImpl) {
       bytes32 name = getImplementationType(prevImpl);

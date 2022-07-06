@@ -7,11 +7,18 @@ import './interfaces/IAccessController.sol';
 import './AccessLib.sol';
 import './AccessFlags.sol';
 
-// solhint-disable func-name-mixedcase
 abstract contract AccessHelper {
   using AccessLib for IAccessController;
 
-  function remoteAcl() internal view virtual returns (IAccessController);
+  IAccessController private immutable _remoteAcl;
+
+  constructor(IAccessController acl) {
+    _remoteAcl = acl;
+  }
+
+  function remoteAcl() internal view returns (IAccessController) {
+    return _remoteAcl;
+  }
 
   function hasRemoteAcl() internal view returns (bool) {
     return address(remoteAcl()) != address(0);
@@ -27,12 +34,12 @@ abstract contract AccessHelper {
     return address(acl) != address(0) ? acl.owner() : address(0);
   }
 
-  function _onlyOwner() private view {
+  function _onlyAdmin() private view {
     Access.require(isAdmin(msg.sender));
   }
 
-  modifier onlyOwner() {
-    _onlyOwner();
+  modifier onlyAdmin() {
+    _onlyAdmin();
     _;
   }
 

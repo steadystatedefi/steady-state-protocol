@@ -16,15 +16,9 @@ import './ProxyTypes.sol';
 
 contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   bytes32 private immutable _insuredProxyType;
-  IAccessController private immutable _acl;
 
-  constructor(IAccessController acl, bytes32 insuredProxyType) {
-    _acl = acl;
+  constructor(IAccessController acl, bytes32 insuredProxyType) AccessHelper(acl) {
     _insuredProxyType = insuredProxyType;
-  }
-
-  function remoteAcl() internal view override returns (IAccessController) {
-    return _acl;
   }
 
   struct RequestedPolicy {
@@ -40,7 +34,15 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   function submitApplication(bytes32 cid) external returns (address insured) {
     State.require(!hasApprovedApplication(insured));
 
-    insured = _createInsured(msg.sender);
+    insured = _createInsured(msg.sender, address(0));
+    _submitApplication(insured, cid);
+  }
+
+  function submitApplication(bytes32 cid, address impl) external returns (address insured) {
+    Value.require(impl != address(0));
+    State.require(!hasApprovedApplication(insured));
+
+    insured = _createInsured(msg.sender, impl);
     _submitApplication(insured, cid);
   }
 
@@ -50,8 +52,13 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     emit ApplicationSubmitted(insured, cid);
   }
 
-  function _createInsured(address requestedBy) private returns (address) {
-    return getProxyFactory().createProxy(requestedBy, _insuredProxyType, ProxyTypes.insuredInit(remoteAcl(), requestedBy));
+  function _createInsured(address requestedBy, address impl) private returns (address) {
+    IProxyFactory pf = getProxyFactory();
+    bytes memory callData = ProxyTypes.insuredInit(remoteAcl(), requestedBy);
+    if (impl == address(0)) {
+      return pf.createProxy(requestedBy, _insuredProxyType, callData);
+    }
+    return pf.createProxyWithImpl(requestedBy, _insuredProxyType, impl, callData);
   }
 
   function resubmitApplication(address insured, bytes32 cid) external {

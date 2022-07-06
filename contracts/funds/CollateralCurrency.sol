@@ -6,20 +6,12 @@ import '../interfaces/IManagedCollateralCurrency.sol';
 import './TokenDelegateBase.sol';
 
 contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDelegateBase {
-  IAccessController private immutable _acl;
-
   constructor(
     IAccessController acl,
     string memory name_,
     string memory symbol_,
     uint8 decimals_
-  ) ERC20Base(name_, symbol_, decimals_) {
-    _acl = acl;
-  }
-
-  function remoteAcl() internal view override returns (IAccessController) {
-    return _acl;
-  }
+  ) AccessHelper(acl) ERC20Base(name_, symbol_, decimals_) {}
 
   function registerLiquidityProvider(address account) external aclHas(AccessFlags.LP_ADMIN) {
     internalSetFlags(account, FLAG_MINT | FLAG_BURN);

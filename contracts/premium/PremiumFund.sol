@@ -9,6 +9,8 @@ import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import '../libraries/AddressExt.sol';
 import '../tools/tokens/IERC20.sol';
+import '../access/AccessHelper.sol';
+import '../funds/Collateralized.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IPremiumSource.sol';
@@ -18,7 +20,7 @@ import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
-contract PremiumFund is IPremiumDistributor {
+contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
   using BalancerLib2 for BalancerLib2.AssetBalancer;
@@ -64,20 +66,7 @@ contract PremiumFund is IPremiumDistributor {
   mapping(address => ActuaryConfig) internal _configs; // [actuary]
   mapping(address => TokenState) private _tokens; // [token]
 
-  address private _collateral;
-
-  constructor(address collateral_) {
-    _collateral = collateral_;
-  }
-
-  function collateral() public view override returns (address) {
-    return _collateral;
-  }
-
-  modifier onlyAdmin() virtual {
-    // TODO
-    _;
-  }
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   modifier onlyFeeCollector() virtual {
     // TODO
