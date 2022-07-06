@@ -14,6 +14,14 @@ contract MockPremiumFund is PremiumFund {
     return true;
   }
 
+  function hasAnyAcl(address, uint256) internal pure override returns (bool) {
+    return true;
+  }
+
+  function hasAllAcl(address, uint256) internal pure override returns (bool) {
+    return true;
+  }
+
   function setConfig(
     address actuary,
     address asset,
