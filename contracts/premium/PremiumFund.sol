@@ -25,7 +25,7 @@ contract PremiumFund is IPremiumDistributor {
   using Balances for Balances.RateAcc;
   using EnumerableSet for EnumerableSet.AddressSet;
 
-  mapping(address => BalancerLib2.AssetBalancer) private _balancers; // [actuary]
+  mapping(address => BalancerLib2.AssetBalancer) internal _balancers; // [actuary]
 
   enum ActuaryState {
     Unknown,
@@ -61,7 +61,7 @@ contract PremiumFund is IPremiumDistributor {
     ActuaryState state;
   }
 
-  mapping(address => ActuaryConfig) private _configs; // [actuary]
+  mapping(address => ActuaryConfig) internal _configs; // [actuary]
   mapping(address => TokenState) private _tokens; // [token]
 
   address private _collateral;
@@ -79,16 +79,24 @@ contract PremiumFund is IPremiumDistributor {
     _;
   }
 
+  modifier onlyFeeCollector() virtual {
+    // TODO
+    _;
+  }
+
   // TODO collectedFee / withdrawFee
   // TODO balanceOf
   // TODO balanceOfSource/Prepay, prepay/withdraw
 
-  function registerPremiumActuary(address actuary, bool register) external onlyAdmin {
+  function registerPremiumActuary(address actuary, bool register) external virtual onlyAdmin {
     ActuaryConfig storage config = _configs[actuary];
     if (register) {
       State.require(config.state < ActuaryState.Active);
-      Value.require(IPremiumActuary(actuary).collateral() == collateral());
-      _markTokenAsPresent(collateral());
+      address cc = collateral();
+      Value.require(IPremiumActuary(actuary).collateral() == cc);
+      if (_markTokenAsPresent(cc)) {
+        _balancers[actuary].configs[cc].price = uint152(WadRayMath.WAD);
+      }
 
       config.state = ActuaryState.Active;
     } else if (config.state >= ActuaryState.Active) {
@@ -152,13 +160,15 @@ contract PremiumFund is IPremiumDistributor {
     }
   }
 
-  function _markTokenAsPresent(address token) private {
+  function _markTokenAsPresent(address token) private returns (bool) {
     require(token != address(0));
     TokenState storage state = _tokens[token];
     uint8 flags = state.flags;
     if (flags & TS_PRESENT == 0) {
       state.flags = flags | TS_PRESENT;
+      return true;
     }
+    return false;
   }
 
   function _addPremiumSource(
@@ -174,9 +184,9 @@ contract PremiumFund is IPremiumDistributor {
     if (tokenSources.length() == 1) {
       BalancerLib2.AssetBalance storage balance = balancer.balances[source];
 
-      require(balance.rate == 0);
+      require(balance.rateValue == 0);
       // re-activation should keep price
-      uint152 price = balance.accum == 0 ? 0 : balancer.configs[targetToken].price;
+      uint152 price = balance.accumAmount == 0 ? 0 : balancer.configs[targetToken].price;
       balancer.configs[targetToken] = config.defaultConfig;
       balancer.configs[targetToken].price = price;
     }
@@ -209,6 +219,11 @@ contract PremiumFund is IPremiumDistributor {
   function _ensureActuary(address actuary) private view returns (ActuaryConfig storage config) {
     config = _configs[actuary];
     State.require(config.state >= ActuaryState.Active);
+  }
+
+  function _ensureActiveActuary(address actuary) private view returns (ActuaryConfig storage config) {
+    config = _configs[actuary];
+    State.require(config.state == ActuaryState.Active);
   }
 
   function _premiumAllocationUpdated(
@@ -305,12 +320,12 @@ contract PremiumFund is IPremiumDistributor {
     _removePremiumSource(config, balancer, source, targetToken);
   }
 
-  function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredAmount)
+  function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredValue)
     private
     returns (
       uint256 replenishedAmount,
       uint256 replenishedValue,
-      uint256 expectedAmount
+      uint256 expectedValue
     )
   {
     /* ============================================================ */
@@ -322,37 +337,42 @@ contract PremiumFund is IPremiumDistributor {
     /* ============================================================ */
 
     ActuaryConfig storage config = _configs[params.actuary];
-    uint256 price = priceOf(params.token);
 
     if (params.source == address(0)) {
       params.source = _sourceForReplenish(config, params.token);
+      //console.log(params.source);
     }
 
     SourceBalance storage balance = config.sourceBalances[params.source];
     {
       uint32 cur = uint32(block.timestamp);
       if (cur > balance.updatedAt) {
-        expectedAmount = uint256(cur - balance.updatedAt) * balance.rate;
+        expectedValue = uint256(cur - balance.updatedAt) * balance.rate;
         balance.updatedAt = cur;
       } else {
         require(cur == balance.updatedAt);
         return (0, 0, 0);
       }
     }
-    uint256 debtValue = balance.debt;
-    if (debtValue > 0) {
-      requiredAmount += uint256(debtValue).wadDiv(price);
-      debtValue = 0;
+    if (requiredValue < expectedValue) {
+      requiredValue = expectedValue;
     }
 
-    if (requiredAmount > 0) {
+    uint256 debtValue = balance.debt;
+    requiredValue += debtValue;
+
+    if (requiredValue > 0) {
       uint256 missingValue;
-      (replenishedAmount, missingValue) = _collectPremium(params, requiredAmount, price);
-      debtValue += missingValue;
+      uint256 price = priceOf(params.token);
+
+      (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
+
+      if (debtValue != missingValue) {
+        require((balance.debt = uint128(missingValue)) == missingValue);
+      }
 
       replenishedValue = replenishedAmount.wadMul(price);
     }
-    require((balance.debt = uint128(debtValue)) == debtValue);
   }
 
   function _sourceForReplenish(ActuaryConfig storage config, address token) private returns (address) {
@@ -370,22 +390,28 @@ contract PremiumFund is IPremiumDistributor {
 
   function _collectPremium(
     BalancerLib2.ReplenishParams memory params,
-    uint256 requiredAmount,
+    uint256 requiredValue,
     uint256 price
   ) private returns (uint256 collectedAmount, uint256 missingValue) {
-    collectedAmount = _collectPremiumCall(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredAmount.wadMul(price));
+    uint256 requiredAmount = requiredValue.wadDiv(price);
+    collectedAmount = _collectPremiumCall(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredValue);
     if (collectedAmount < requiredAmount) {
       missingValue = (requiredAmount - collectedAmount).wadMul(price);
 
-      if (missingValue > 0) {
-        // assert(params.token != collateral());
-        uint256 collectedValue = _collectPremiumCall(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
+      /*
+      // This section of code enables use of CC as an additional way of premium payment
 
-        if (collectedValue > 0) {
-          missingValue -= collectedValue;
-          collectedAmount += collectedValue.wadDiv(price);
-        }
-      }
+      // if (missingValue > 0) {
+      //   // assert(params.token != collateral());
+      //   uint256 collectedValue = _collectPremiumCall(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
+
+      //   if (collectedValue > 0) {
+      //     missingValue -= collectedValue;
+      //     collectedAmount += collectedValue.wadDiv(price);
+      //   }
+      // }
+
+      */
     }
   }
 
@@ -417,7 +443,7 @@ contract PremiumFund is IPremiumDistributor {
     return 0;
   }
 
-  function priceOf(address token) public pure returns (uint256) {
+  function priceOf(address token) public view virtual returns (uint256) {
     token;
     return WadRayMath.WAD;
     // TODO price oracle
@@ -439,32 +465,34 @@ contract PremiumFund is IPremiumDistributor {
   ) private returns (uint256) {
     _ensureToken(token);
     Value.require(token != address(0));
-    if (_collateral == token) {
+    if (collateral() == token) {
       IPremiumActuary(actuary).collectDrawdownPremium();
+      return sourceLimit == 0 ? 0 : sourceLimit - 1;
     }
 
     TokenInfo storage tokenInfo = config.tokens[token];
-
-    uint32 index = tokenInfo.nextReplenish;
     uint256 length = tokenInfo.sources.length();
 
-    if (index >= length) {
-      index = 0;
-    }
-    uint256 stop = index;
-
-    for (; sourceLimit > 0; sourceLimit--) {
-      _premiumAllocationUpdated(config, actuary, tokenInfo.sources.at(index), token, 0, 0, true);
-      index++;
+    if (length > 0) {
+      uint32 index = tokenInfo.nextReplenish;
       if (index >= length) {
         index = 0;
       }
-      if (index == stop) {
-        break;
-      }
-    }
+      uint256 stop = index;
 
-    tokenInfo.nextReplenish = index;
+      for (; sourceLimit > 0; sourceLimit--) {
+        _premiumAllocationUpdated(config, actuary, tokenInfo.sources.at(index), token, 0, 0, true);
+        index++;
+        if (index >= length) {
+          index = 0;
+        }
+        if (index == stop) {
+          break;
+        }
+      }
+
+      tokenInfo.nextReplenish = index;
+    }
 
     return sourceLimit;
   }
@@ -478,7 +506,7 @@ contract PremiumFund is IPremiumDistributor {
       sourceLimit = ~sourceLimit;
     }
 
-    ActuaryConfig storage config = _ensureActuary(actuary);
+    ActuaryConfig storage config = _ensureActiveActuary(actuary);
     _syncAsset(config, actuary, targetToken, sourceLimit);
   }
 
@@ -491,7 +519,7 @@ contract PremiumFund is IPremiumDistributor {
       sourceLimit = ~sourceLimit;
     }
 
-    ActuaryConfig storage config = _ensureActuary(actuary);
+    ActuaryConfig storage config = _ensureActiveActuary(actuary);
 
     for (; i < targetTokens.length; i++) {
       sourceLimit = _syncAsset(config, actuary, targetTokens[i], sourceLimit);
@@ -509,6 +537,7 @@ contract PremiumFund is IPremiumDistributor {
     address targetToken,
     uint256 minAmount
   ) public returns (uint256 tokenAmount) {
+    _ensureActiveActuary(actuary);
     _ensureToken(targetToken);
     Value.require(recipient != address(0));
 
@@ -517,7 +546,7 @@ contract PremiumFund is IPremiumDistributor {
     uint256 drawdownValue = IPremiumActuary(actuary).collectDrawdownPremium();
     BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
 
-    if (_collateral == targetToken) {
+    if (collateral() == targetToken) {
       (tokenAmount, fee) = balancer.swapExternalAsset(targetToken, valueToSwap, minAmount, drawdownValue);
       if (tokenAmount > 0) {
         if (fee == 0) {
@@ -552,6 +581,33 @@ contract PremiumFund is IPremiumDistributor {
     require((_tokens[targetToken].collectedFees += uint128(fee)) >= fee);
   }
 
+  function availableFee(address targetToken) external view returns (uint256) {
+    return _tokens[targetToken].collectedFees;
+  }
+
+  function collectFees(
+    address[] calldata tokens,
+    uint256 minAmount,
+    address recipient
+  ) external onlyFeeCollector returns (uint256[] memory fees) {
+    Value.require(recipient != address(0));
+    if (minAmount == 0) {
+      minAmount = 1;
+    }
+
+    fees = new uint256[](tokens.length);
+    for (uint256 i = tokens.length; i > 0; ) {
+      i--;
+      TokenState storage state = _tokens[tokens[i]];
+
+      uint256 fee = state.collectedFees;
+      if (fee >= minAmount) {
+        state.collectedFees = 0;
+        IERC20(tokens[i]).transfer(recipient, fees[i] = fee);
+      }
+    }
+  }
+
   struct SwapInstruction {
     uint256 valueToSwap;
     address targetToken;
@@ -566,8 +622,11 @@ contract PremiumFund is IPremiumDistributor {
     SwapInstruction[] calldata instructions
   ) external returns (uint256[] memory tokenAmounts) {
     if (instructions.length <= 1) {
+      // _ensureActiveActuary is applied inside swapToken invoked via _swapTokensOne
       return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuary, account, defaultRecepient, instructions[0]);
     }
+
+    _ensureActiveActuary(actuary);
 
     uint256[] memory fees;
     (tokenAmounts, fees) = _swapTokens(actuary, account, instructions, IPremiumActuary(actuary).collectDrawdownPremium());
@@ -611,7 +670,7 @@ contract PremiumFund is IPremiumDistributor {
       Balances.RateAcc memory total;
       (total.accum, total.rate, total.updatedAt) = (totalOrig.accum, totalOrig.rate, totalOrig.updatedAt);
 
-      if (_collateral == instructions[i].targetToken) {
+      if (collateral() == instructions[i].targetToken) {
         (tokenAmounts[i], fees[i]) = _swapExtTokenInBatch(balancer, instructions[i], drawdownBalance, total);
 
         if (tokenAmounts[i] > 0) {
@@ -629,11 +688,11 @@ contract PremiumFund is IPremiumDistributor {
     }
 
     if (totalValue > 0) {
-      IPremiumActuary(actuary).burnPremium(account, totalValue, address(this));
+      IPremiumActuary(actuary).burnPremium(account, totalValue, address(0));
     }
 
     if (totalExtValue > 0) {
-      IPremiumActuary(actuary).burnPremium(account, totalValue, address(0));
+      IPremiumActuary(actuary).burnPremium(account, totalExtValue, address(this));
     }
 
     balancer.totalBalance = totalSum;
@@ -709,7 +768,7 @@ contract PremiumFund is IPremiumDistributor {
       instruction.recipient != address(0) ? instruction.recipient : defaultRecepient,
       instruction.valueToSwap,
       instruction.targetToken,
-      instruction.valueToSwap
+      instruction.minAmount
     );
   }
 }
