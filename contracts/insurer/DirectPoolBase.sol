@@ -9,7 +9,7 @@ import '../tools/upgradeability/Delegator.sol';
 import '../libraries/Balances.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IInsuredPool.sol';
-import '../insurance/Collateralized.sol';
+import '../funds/Collateralized.sol';
 import './InsurerJoinBase.sol';
 
 /// @title Direct Pool Base

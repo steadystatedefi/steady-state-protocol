@@ -3,20 +3,12 @@ pragma solidity ^0.8.4;
 
 import '../tools/Errors.sol';
 import '../interfaces/IProxyFactory.sol';
-import '../insurance/Collateralized.sol';
+import '../funds/Collateralized.sol';
 import '../access/AccessHelper.sol';
 import './interfaces/IApprovalCatalog.sol';
 
 abstract contract GovernedHelper is AccessHelper, Collateralized {
-  IAccessController private immutable _remoteAcl;
-
-  constructor(IAccessController acl, address collateral_) Collateralized(collateral_) {
-    _remoteAcl = acl;
-  }
-
-  function remoteAcl() internal view override returns (IAccessController) {
-    return _remoteAcl;
-  }
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function _onlyGovernorOr(uint256 flags) internal view {
     require(_isAllowed(flags) || hasAnyAcl(msg.sender, flags));

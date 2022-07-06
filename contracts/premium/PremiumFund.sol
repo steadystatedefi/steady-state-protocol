@@ -9,6 +9,8 @@ import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import '../libraries/AddressExt.sol';
 import '../tools/tokens/IERC20.sol';
+import '../access/AccessHelper.sol';
+import '../funds/Collateralized.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IPremiumSource.sol';
@@ -18,7 +20,7 @@ import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
-contract PremiumFund is IPremiumDistributor {
+contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
   using BalancerLib2 for BalancerLib2.AssetBalancer;
@@ -64,31 +66,13 @@ contract PremiumFund is IPremiumDistributor {
   mapping(address => ActuaryConfig) internal _configs; // [actuary]
   mapping(address => TokenState) private _tokens; // [token]
 
-  address private _collateral;
-
-  constructor(address collateral_) {
-    _collateral = collateral_;
-  }
-
-  function collateral() public view override returns (address) {
-    return _collateral;
-  }
-
-  modifier onlyAdmin() virtual {
-    // TODO
-    _;
-  }
-
-  modifier onlyFeeCollector() virtual {
-    // TODO
-    _;
-  }
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   // TODO collectedFee / withdrawFee
   // TODO balanceOf
   // TODO balanceOfSource/Prepay, prepay/withdraw
 
-  function registerPremiumActuary(address actuary, bool register) external virtual onlyAdmin {
+  function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
     ActuaryConfig storage config = _configs[actuary];
     if (register) {
       State.require(config.state < ActuaryState.Active);
@@ -104,7 +88,7 @@ contract PremiumFund is IPremiumDistributor {
     }
   }
 
-  function setPaused(address actuary, bool paused) external onlyAdmin {
+  function setPaused(address actuary, bool paused) external onlyEmergencyAdmin {
     ActuaryConfig storage config = _configs[actuary];
     State.require(config.state >= ActuaryState.Active);
 
@@ -115,7 +99,7 @@ contract PremiumFund is IPremiumDistributor {
     address actuary,
     address token,
     bool paused
-  ) external onlyAdmin {
+  ) external onlyEmergencyAdmin {
     ActuaryConfig storage config = _configs[actuary];
     State.require(config.state > ActuaryState.Unknown);
     Value.require(token != address(0));
@@ -125,7 +109,7 @@ contract PremiumFund is IPremiumDistributor {
     assetConfig.flags = paused ? flags | BalancerLib2.BF_SUSPENDED : flags & ~BalancerLib2.BF_SUSPENDED;
   }
 
-  function setPausedToken(address token, bool paused) external onlyAdmin {
+  function setPausedToken(address token, bool paused) external onlyEmergencyAdmin {
     Value.require(token != address(0));
 
     TokenState storage state = _tokens[token];
@@ -434,9 +418,9 @@ contract PremiumFund is IPremiumDistributor {
     } catch Error(string memory reason) {
       errType = 'error';
       errReason = bytes(reason);
-    } catch Panic(uint256 reason) {
+    } catch (bytes memory reason) {
       errType = 'panic';
-      errReason = abi.encodePacked(reason);
+      errReason = reason;
     }
     emit PremiumCollectionFailed(source, address(token), amount, errType, errReason);
 
@@ -530,7 +514,7 @@ contract PremiumFund is IPremiumDistributor {
   }
 
   function swapAsset(
-    address actuary, // aka actuary
+    address actuary,
     address account,
     address recipient,
     uint256 valueToSwap,
@@ -589,7 +573,7 @@ contract PremiumFund is IPremiumDistributor {
     address[] calldata tokens,
     uint256 minAmount,
     address recipient
-  ) external onlyFeeCollector returns (uint256[] memory fees) {
+  ) external aclHas(AccessFlags.TREASURY) returns (uint256[] memory fees) {
     Value.require(recipient != address(0));
     if (minAmount == 0) {
       minAmount = 1;

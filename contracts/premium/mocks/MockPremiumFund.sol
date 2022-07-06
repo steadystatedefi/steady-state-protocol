@@ -8,10 +8,18 @@ contract MockPremiumFund is PremiumFund {
 
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) PremiumFund(collateral_) {}
+  constructor(address collateral_) PremiumFund(IAccessController(address(0)), collateral_) {}
 
-  modifier onlyAdmin() override {
-    _;
+  function isAdmin(address) internal pure override returns (bool) {
+    return true;
+  }
+
+  function hasAnyAcl(address, uint256) internal pure override returns (bool) {
+    return true;
+  }
+
+  function hasAllAcl(address, uint256) internal pure override returns (bool) {
+    return true;
   }
 
   function setConfig(

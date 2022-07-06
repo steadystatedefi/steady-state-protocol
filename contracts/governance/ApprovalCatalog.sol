@@ -16,15 +16,9 @@ import './ProxyTypes.sol';
 
 contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   bytes32 private immutable _insuredProxyType;
-  IAccessController private immutable _acl;
 
-  constructor(IAccessController acl, bytes32 insuredProxyType) {
-    _acl = acl;
+  constructor(IAccessController acl, bytes32 insuredProxyType) AccessHelper(acl) {
     _insuredProxyType = insuredProxyType;
-  }
-
-  function remoteAcl() internal view override returns (IAccessController) {
-    return _acl;
   }
 
   struct RequestedPolicy {
@@ -40,7 +34,15 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   function submitApplication(bytes32 cid) external returns (address insured) {
     State.require(!hasApprovedApplication(insured));
 
-    insured = _createInsured(msg.sender);
+    insured = _createInsured(msg.sender, address(0));
+    _submitApplication(insured, cid);
+  }
+
+  function submitApplication(bytes32 cid, address impl) external returns (address insured) {
+    Value.require(impl != address(0));
+    State.require(!hasApprovedApplication(insured));
+
+    insured = _createInsured(msg.sender, impl);
     _submitApplication(insured, cid);
   }
 
@@ -50,8 +52,13 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     emit ApplicationSubmitted(insured, cid);
   }
 
-  function _createInsured(address requestedBy) private returns (address) {
-    return getProxyFactory().createProxy(requestedBy, _insuredProxyType, ProxyTypes.insuredInit(remoteAcl(), requestedBy));
+  function _createInsured(address requestedBy, address impl) private returns (address) {
+    IProxyFactory pf = getProxyFactory();
+    bytes memory callData = ProxyTypes.insuredInit(remoteAcl(), requestedBy);
+    if (impl == address(0)) {
+      return pf.createProxy(requestedBy, _insuredProxyType, callData);
+    }
+    return pf.createProxyWithImpl(requestedBy, _insuredProxyType, impl, callData);
   }
 
   function resubmitApplication(address insured, bytes32 cid) external {
@@ -140,18 +147,18 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   struct RequestedClaim {
     bytes32 cid; // supporting documents
     address requestedBy;
-    uint256 payout;
+    uint256 payoutRatio;
   }
 
   mapping(address => RequestedClaim[]) private _requestedClaims;
   mapping(address => ApprovedClaim) private _approvedClaims;
 
-  event ClaimSubmitted(address indexed insured, bytes32 indexed cid, uint256 payout);
+  event ClaimSubmitted(address indexed insured, bytes32 indexed cid, uint256 payoutRatio);
 
   function submitClaim(
     address insured,
     bytes32 cid,
-    uint256 payout
+    uint256 payoutRatio
   ) external returns (uint256) {
     Value.require(cid != 0);
     Value.require(insured != address(0));
@@ -159,9 +166,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     Access.require(IClaimAccessValidator(insured).canClaimInsurance(msg.sender));
 
     RequestedClaim[] storage claims = _requestedClaims[insured];
-    claims.push(RequestedClaim({cid: cid, requestedBy: msg.sender, payout: payout}));
+    claims.push(RequestedClaim({cid: cid, requestedBy: msg.sender, payoutRatio: payoutRatio}));
 
-    emit ClaimSubmitted(insured, cid, payout);
+    emit ClaimSubmitted(insured, cid, payoutRatio);
 
     return claims.length;
   }
@@ -175,13 +182,6 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     return _approvedClaims[insured];
   }
 
-  event ClaimApplied(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
-
-  function applyApprovedClaim(address insured) external returns (ApprovedClaim memory data) {
-    data = getApprovedClaim(insured);
-    emit ClaimApplied(insured, data.requestCid, data);
-  }
-
   event ClaimApproved(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
   function approveClaim(address insured, ApprovedClaim calldata data) external aclHas(AccessFlags.UNDERWRITER_CLAIM) {
@@ -190,5 +190,12 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     State.require(!hasApprovedClaim(insured));
     _approvedClaims[insured] = data;
     emit ClaimApproved(insured, data.requestCid, data);
+  }
+
+  event ClaimApplied(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
+
+  function applyApprovedClaim(address insured) external returns (ApprovedClaim memory data) {
+    data = getApprovedClaim(insured);
+    emit ClaimApplied(insured, data.requestCid, data);
   }
 }

@@ -8,7 +8,7 @@ import '../interfaces/IPremiumCalculator.sol';
 import '../interfaces/ICoverageDistributor.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
-import '../insurance/Collateralized.sol';
+import '../funds/Collateralized.sol';
 
 import 'hardhat/console.sol';
 
