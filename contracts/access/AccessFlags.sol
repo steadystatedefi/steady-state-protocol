@@ -17,6 +17,8 @@ library AccessFlags {
   uint256 public constant UNDERWRITER_POLICY = 1 << 8;
   uint256 public constant UNDERWRITER_CLAIM = 1 << 9;
 
+  uint256 public constant LP_ADMIN = 1 << 10;
+
   uint256 public constant ROLES = (uint256(1) << 16) - 1;
 
   // singletons - use range [16..64] - can ONLY be assigned to a single address
@@ -25,6 +27,7 @@ library AccessFlags {
   // protected singletons - use for proxies
   uint256 public constant APPROVAL_CATALOG = 1 << 16;
   uint256 public constant TREASURY = 1 << 17;
+  // uint256 public constant COLLATERAL_CURRENCY = 1 << 18;
 
   uint256 public constant PROTECTED_SINGLETS = ((uint256(1) << 26) - 1) & ~ROLES;
 

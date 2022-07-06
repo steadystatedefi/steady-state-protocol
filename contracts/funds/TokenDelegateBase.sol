@@ -49,6 +49,10 @@ abstract contract TokenDelegateBase is ERC20Base {
     _notifyRecipient(sender, recipient, amount);
   }
 
+  function internalGetFlags(address account) internal view returns (uint256) {
+    return _flags[account];
+  }
+
   function internalSetFlags(address account, uint256 flags) internal {
     require(account != address(0));
     _flags[account] |= flags;

@@ -21,17 +21,19 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
     return _acl;
   }
 
-  function registerLiquidityProvider(address account) external onlyOwner {
+  function registerLiquidityProvider(address account) external aclHas(AccessFlags.LP_ADMIN) {
     internalSetFlags(account, FLAG_MINT | FLAG_BURN);
   }
 
-  function registerInsurer(address account) external onlyOwner {
+  function registerInsurer(address account) external aclHas(AccessFlags.INSURER_ADMIN) {
     // TODO protect insurer from withdraw
     internalSetFlags(account, FLAG_TRANSFER_CALLBACK);
   }
 
   function unregister(address account) external {
-    require(msg.sender == account || msg.sender == owner());
+    if (msg.sender != account) {
+      Access.require(hasAnyAcl(msg.sender, internalGetFlags(account) == FLAG_TRANSFER_CALLBACK ? AccessFlags.INSURER_ADMIN : AccessFlags.LP_ADMIN));
+    }
     internalUnsetFlags(account);
   }
 
