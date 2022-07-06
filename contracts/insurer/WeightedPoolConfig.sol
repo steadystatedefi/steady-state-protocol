@@ -1,36 +1,33 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 import '../tools/math/PercentageMath.sol';
-import '../insurance/InsurancePoolBase.sol';
+import '../interfaces/IInsurerGovernor.sol';
+import '../governance/GovernedHelper.sol';
 import './WeightedRoundsBase.sol';
+import './WeightedPoolAccessControl.sol';
 
-abstract contract WeightedPoolConfig is WeightedRoundsBase {
+abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessControl {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
 
   WeightedPoolParams internal _params;
+  uint256 private _loopLimits;
 
-  function _onlyActiveInsured() private view {
-    require(internalGetStatus(msg.sender) == InsuredStatus.Accepted);
-  }
+  constructor(
+    IAccessController acl,
+    uint256 unitSize,
+    address collateral_
+  ) WeightedRoundsBase(unitSize) GovernedHelper(acl, collateral_) {}
 
-  modifier onlyActiveInsured() {
-    _onlyActiveInsured();
-    _;
-  }
-
-  function _onlyInsured() private view {
-    require(internalGetStatus(msg.sender) > InsuredStatus.Unknown);
-  }
-
-  modifier onlyInsured() {
-    _onlyInsured();
-    _;
-  }
-
-  function internalGetStatus(address account) internal view virtual returns (InsuredStatus) {
-    return internalGetInsuredStatus(account);
+  function internalDefaultLoopLimits(uint16[] memory limits) internal virtual {
+    uint256 v;
+    for (uint256 i = limits.length; i > 0; ) {
+      i--;
+      v = (v << 16) | uint16(limits[i]);
+    }
+    _loopLimits = v;
   }
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal virtual {
@@ -58,10 +55,10 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     uint32 openRounds,
     uint64 unitCount
   ) internal view override returns (uint24) {
-    WeightedPoolParams memory params = _params;
+    uint256 max = _params.maxUnitsPerRound;
+    uint256 min = _params.minAdvanceUnits / max;
+    max = _params.maxAdvanceUnits / max;
 
-    uint256 min = params.minAdvanceUnits / params.maxUnitsPerRound;
-    uint256 max = params.maxAdvanceUnits / params.maxUnitsPerRound;
     if (min > type(uint24).max) {
       if (openRounds + min > max) {
         return 0;
@@ -109,14 +106,14 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     returns (
       uint16, // maxShareUnitsPerRound,
       uint16, // minUnitsPerRound,
-      uint16, // readyUnitsPerRound //TODO: These labels do not correspond with actual return values
+      uint16, // readyUnitsPerRound
       uint16 // maxUnitsPerRound
     )
   {
-    WeightedPoolParams memory params = _params;
+    (uint16 minUnitsPerRound, uint16 maxUnitsPerRound) = (_params.minUnitsPerRound, _params.maxUnitsPerRound);
 
     // total # of units could be allocated when this round if full
-    uint256 x = uint256(unitPerRound < params.minUnitsPerRound ? params.minUnitsPerRound : unitPerRound + 1) *
+    uint256 x = uint256(unitPerRound < minUnitsPerRound ? minUnitsPerRound : unitPerRound + 1) *
       batchRounds +
       totalUnitsBeforeBatch +
       internalGetPassiveCoverageUnits();
@@ -130,10 +127,10 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
       unchecked {
         x = (x - demandedUnits) / batchRounds;
       }
-      if (unitPerRound + x >= params.maxUnitsPerRound) {
-        if (unitPerRound < params.minUnitsPerRound) {
+      if (unitPerRound + x >= maxUnitsPerRound) {
+        if (unitPerRound < minUnitsPerRound) {
           // this prevents lockup of a batch when demand is added by small portions
-          params.minUnitsPerRound = unitPerRound + 1;
+          minUnitsPerRound = unitPerRound + 1;
         }
       }
 
@@ -142,7 +139,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
       }
     }
 
-    return (uint16(x), params.minUnitsPerRound, params.maxUnitsPerRound, params.overUnitsPerRound);
+    return (uint16(x), minUnitsPerRound, maxUnitsPerRound, _params.overUnitsPerRound);
   }
 
   /// TODO
@@ -161,6 +158,58 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase {
     }
     return remainingUnits;
   }
+
+  function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view returns (uint256) {
+    if (limit == 0) {
+      limit = uint16(_loopLimits >> (uint8(t) << 1));
+      if (limit == 0) {
+        limit = t > LoopLimitType.ReceivableDemandedCoverage ? 31 : 255;
+      }
+    }
+    return limit;
+  }
+
+  function internalGetInsuredExternalParams(address insured) internal view virtual returns (InsuredParams memory) {
+    // TODO get approved risk level
+    return IInsuredPool(insured).insuredParams();
+  }
+
+  /// @dev Prepare for an insured pool to join by setting the parameters
+  function internalPrepareJoin(address insured) internal override returns (bool) {
+    InsuredParams memory insuredParams = internalGetInsuredExternalParams(insured);
+
+    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
+    uint256 v;
+    if (maxShare >= (v = _params.maxInsuredShare)) {
+      maxShare = v;
+    } else if (maxShare < (v = _params.minInsuredShare)) {
+      maxShare = v;
+    }
+
+    if (maxShare == 0) {
+      return false;
+    }
+
+    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
+
+    return true;
+  }
+
+  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
+    return internalGetInsuredStatus(account);
+  }
+
+  function internalSetStatus(address account, InsuredStatus status) internal override {
+    return super.internalSetInsuredStatus(account, status);
+  }
+
+  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
+  function internalStatusOf(address account) internal view returns (InsuredStatus status) {
+    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
+      status = InsuredStatus.NotApplicable;
+    }
+    return status;
+  }
 }
 
 struct WeightedPoolParams {
@@ -173,4 +222,13 @@ struct WeightedPoolParams {
   uint16 maxUnitsPerRound;
   uint16 overUnitsPerRound;
   uint16 maxDrawdownInverse; // 100% = no drawdown
+}
+
+enum LoopLimitType {
+  // View
+  ReceivableDemandedCoverage,
+  // Modify
+  AddCoverageDemand,
+  CancelCoverageDemand,
+  ReceiveDemandedCoverage
 }

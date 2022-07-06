@@ -5,13 +5,13 @@ import { zeroAddress } from 'ethereumjs-util';
 import { MAX_UINT, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress } from '../../helpers/runtime-utils';
-import { MockCollateralFund, CollateralCurrency } from '../../types';
+import { MockCollateralFund, MockCollateralCurrency } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
 makeSuite('Collateral fund', (testEnv: TestEnv) => {
-  let cc: CollateralCurrency;
-  let token0: CollateralCurrency;
+  let cc: MockCollateralCurrency;
+  let token0: MockCollateralCurrency;
   let fund: MockCollateralFund;
   let user0: SignerWithAddress;
   let user1: SignerWithAddress;
@@ -21,8 +21,8 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
   before(async () => {
     user0 = testEnv.deployer;
     [user1, user2, user3] = testEnv.users;
-    cc = await Factories.CollateralCurrency.deploy('Collateral Currency', '$CC', 18);
-    token0 = await Factories.CollateralCurrency.deploy('Collateral Asset', '$TK0', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral Currency', '$CC', 18);
+    token0 = await Factories.MockCollateralCurrency.deploy('Collateral Asset', '$TK0', 18);
     fund = await Factories.MockCollateralFund.deploy(cc.address);
     await cc.registerLiquidityProvider(fund.address);
     await token0.registerLiquidityProvider(user0.address);

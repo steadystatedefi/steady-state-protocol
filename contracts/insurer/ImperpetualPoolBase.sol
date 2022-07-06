@@ -1,28 +1,23 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/math/PercentageMath.sol';
-import '../tools/upgradeability/Delegator.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../libraries/Balances.sol';
-import '../interfaces/IInsurerPool.sol';
-import '../interfaces/IInsuredPool.sol';
 import './ImperpetualPoolStorage.sol';
 import './ImperpetualPoolExtension.sol';
 import './WeightedPoolBase.sol';
 
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
-abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBase {
+abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(uint256 unitSize, ImperpetualPoolExtension extension) WeightedRoundsBase(unitSize) WeightedPoolBase(unitSize, extension) {}
-
-  function premiumDistributor() public view override returns (address) {
-    return address(_premiumHandler);
-  }
+  constructor(
+    IAccessController acl,
+    uint256 unitSize,
+    address collateral_,
+    ImperpetualPoolExtension extension
+  ) WeightedPoolBase(acl, unitSize, collateral_, extension) {}
 
   function _addCoverage(uint256 value)
     private
@@ -41,7 +36,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
         emit ExcessCoverageIncreased(newExcess);
       }
       if (params.unitsCovered > 0) {
-        // increase MCD in the premium pool
+        // TODO increase MCD in the premium pool
       }
       done = true;
     }
@@ -55,20 +50,18 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : value, value);
   }
 
-  function internalSubrogate(uint256 value) private {
-    if (value > 0) {
-      emit ExcessCoverageIncreased(_excessCoverage += value);
-      internalOnCoverageRecovered();
-    }
+  function internalSubrogate(address donor, uint256 value) internal override {
+    donor;
+    // TODO transfer collateral from
+    emit ExcessCoverageIncreased(_excessCoverage += value);
+    internalOnCoverageRecovered();
   }
 
   function updateCoverageOnCancel(
     address insured,
     uint256 payoutValue,
     uint256 excessCoverage
-  ) public returns (uint256) {
-    require(msg.sender == address(this));
-
+  ) external onlySelf returns (uint256) {
     uint256 givenValue = _insuredBalances[insured];
 
     if (givenValue != payoutValue) {
@@ -106,9 +99,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     address insured,
     uint256 receivedCoverage,
     uint256 totalCovered
-  ) public returns (uint256) {
-    require(msg.sender == address(this));
-
+  ) external onlySelf returns (uint256) {
     uint256 expectedAmount = totalCovered.percentMul(_params.maxDrawdownInverse);
     uint256 actualAmount = _insuredBalances[insured];
 
@@ -171,11 +162,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
 
   function balanceOf(address account) public view override returns (uint256) {
     return _balances[account].balance;
-  }
-
-  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function statusOf(address account) external view returns (InsuredStatus status) {
-    return internalStatusOf(account);
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
@@ -245,16 +231,16 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage, WeightedPoolBas
     transferCollateral(recepient, value);
   }
 
-  function burnPremium(
+  function internalBurnPremium(
     address account,
     uint256 value,
     address drawdownRecepient
-  ) external override {
+  ) internal override {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
 
-  function collectDrawdownPremium() external override returns (uint256) {
+  function internalCollectDrawdownPremium() internal override returns (uint256) {
     // TODO
   }
 }

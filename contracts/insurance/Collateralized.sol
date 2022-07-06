@@ -2,9 +2,9 @@
 pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
-import '../interfaces/IInsurancePool.sol';
+import '../interfaces/ICollateralized.sol';
 
-abstract contract InsurancePoolBase is IInsurancePool {
+abstract contract Collateralized is ICollateralized {
   address private _collateral;
 
   constructor(address collateral_) {
@@ -30,7 +30,7 @@ abstract contract InsurancePoolBase is IInsurancePool {
 
   function transferCollateral(address recipient, uint256 amount) internal {
     // collateral is a trusted token, hence we do not use safeTransfer here
-    require(IERC20(_collateral).transfer(recipient, amount));
+    require(IERC20(collateral()).transfer(recipient, amount));
   }
 
   function transferCollateralFrom(
@@ -39,6 +39,6 @@ abstract contract InsurancePoolBase is IInsurancePool {
     uint256 amount
   ) internal {
     // collateral is a trusted token, hence we do not use safeTransfer here
-    require(IERC20(_collateral).transferFrom(from, recipient, amount));
+    require(IERC20(collateral()).transferFrom(from, recipient, amount));
   }
 }

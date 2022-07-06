@@ -75,7 +75,7 @@ interface IMakeSuite extends SuiteFunction {
 }
 
 function isolatedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (this: Mocha.Suite) => void {
-  return function (this: Mocha.Suite): void {
+  return function isolatedStateFn(this: Mocha.Suite): void {
     this.beforeEach(async () => {
       await setSuiteState();
     });
@@ -89,7 +89,7 @@ function isolatedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (t
 }
 
 function sharedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (this: Mocha.Suite) => void {
-  return function (this: Mocha.Suite): void {
+  return function sharedStateFn(this: Mocha.Suite): void {
     before(async () => {
       await setSuiteState();
     });
@@ -107,10 +107,7 @@ interface SuiteStateFunc {
 }
 
 function makeSuiteMaker(stateFn: SuiteStateFunc): IMakeSuite {
-  const result = function (title: string, fn: (testEnv: TestEnv) => void): Mocha.Suite | void {
-    return describe(title, stateFn(fn));
-  } as IMakeSuite;
-
+  const result = ((title: string, fn: (testEnv: TestEnv) => void) => describe(title, stateFn(fn))) as IMakeSuite;
   result.only = (title: string, fn: (testEnv: TestEnv) => void) => describe.only(title, stateFn(fn));
   result.skip = (title: string, fn: (testEnv: TestEnv) => void) => describe.skip(title, stateFn(fn));
 

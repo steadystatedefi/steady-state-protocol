@@ -1,4 +1,4 @@
-import { TokenSwappedEvent } from '../types/premium/mocks/MockBalancerLib2';
+import { TokenSwappedEvent } from '../types/contracts/premium/mocks/MockBalancerLib2';
 
 import { addNamedEvent, EventFactory, wrap } from './event-wrapper';
 

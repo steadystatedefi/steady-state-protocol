@@ -36,7 +36,7 @@ abstract contract SafeOwnable {
   }
 
   /// @dev Returns active owner
-  function owner() public view returns (address) {
+  function owner() public view virtual returns (address) {
     return _activeOwner;
   }
 

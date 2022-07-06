@@ -408,9 +408,9 @@ contract PremiumFund is IPremiumDistributor {
     } catch Error(string memory reason) {
       errType = 'error';
       errReason = bytes(reason);
-    } catch (bytes memory reason) {
+    } catch Panic(uint256 reason) {
       errType = 'panic';
-      errReason = reason;
+      errReason = abi.encodePacked(reason);
     }
     emit PremiumCollectionFailed(source, address(token), amount, errType, errReason);
 
