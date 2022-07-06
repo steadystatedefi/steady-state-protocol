@@ -3,8 +3,6 @@ pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 import '../tools/math/PercentageMath.sol';
-import '../interfaces/IInsurerGovernor.sol';
-import '../governance/GovernedHelper.sol';
 import './WeightedRoundsBase.sol';
 import './WeightedPoolAccessControl.sol';
 
@@ -173,6 +171,11 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     IApprovalCatalog ac = approvalCatalog();
     if (address(ac) != address(0)) {
       (ok, data) = ac.getAppliedApplicationForInsurer(insured);
+    } else {
+      IInsurerGovernor g = governorContract();
+      if (address(g) != address(0)) {
+        (ok, data) = g.getApprovedPolicyForInsurer(insured);
+      }
     }
   }
 

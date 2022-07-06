@@ -104,7 +104,11 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     _riskWeightValue = riskWeightValue + 1;
   }
 
-  function internalGetUnderwrittenParams(address) internal override returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
+  function verifyPayoutRatio(address, uint256 payoutRatio) external pure override returns (uint256) {
+    return payoutRatio;
+  }
+
+  function getApprovedPolicyForInsurer(address) external returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
     data.riskLevel = _riskWeightValue;
     if (data.riskLevel > 0) {
       _riskWeightValue = 0;

@@ -110,4 +110,8 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
   function premiumDistributor() public view override returns (address) {
     return address(_premiumDistributor);
   }
+
+  function approveJoiner(address insured, bool accepted) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
+    internalProcessJoin(insured, accepted);
+  }
 }

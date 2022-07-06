@@ -34,7 +34,7 @@ interface IApprovalCatalog {
   struct ApprovedClaim {
     bytes32 requestCid;
     bytes32 approvalCid;
-    uint256 payoutValue;
+    uint16 payoutRatio;
     uint32 since;
   }
 
@@ -42,5 +42,5 @@ interface IApprovalCatalog {
 
   function getApprovedClaim(address insured) external view returns (ApprovedClaim memory);
 
-  function applyApprovedClaim() external returns (ApprovedClaim memory);
+  function applyApprovedClaim(address insured) external returns (ApprovedClaim memory);
 }

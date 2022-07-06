@@ -177,8 +177,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ClaimApplied(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
-  function applyApprovedClaim() external returns (ApprovedClaim memory data) {
-    address insured = msg.sender;
+  function applyApprovedClaim(address insured) external returns (ApprovedClaim memory data) {
     data = getApprovedClaim(insured);
     emit ClaimApplied(insured, data.requestCid, data);
   }
