@@ -24,7 +24,7 @@
     "run-env": "npm i && tail -f /dev/null",
     "build:package": "rm -rf ./dist && tsc -p tsconfig.build.json && cp types/*.d.ts dist/types && cp -R artifacts dist && cp -R contracts dist",
     "ci:test": "npm run compile && npm run test",
-    "ci:clean": "rm -rf ./artifacts ./cache ./types ./dist",
+    "ci:clean": "rm -rf ./artifacts ./cache ./types ./dist ./coverage ./storageLayout",
     "eslint": "eslint . --ext=ts,js",
     "eslint:fix": "npm run eslint -- --fix",
     "solhint": "solhint 'contracts/**/*.sol'",
