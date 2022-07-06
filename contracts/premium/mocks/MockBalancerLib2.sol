@@ -37,7 +37,7 @@ contract MockBalancerLib2 {
     uint128 accum,
     uint96 rate
   ) external {
-    _poolBalance.balances[asset] = BalancerLib2.AssetBalance(accum, rate);
+    _poolBalance.balances[asset] = BalancerLib2.AssetBalance(accum, rate, uint32(block.timestamp));
   }
 
   function getBalance(address asset) external view returns (BalancerLib2.AssetBalance memory) {
@@ -47,9 +47,14 @@ contract MockBalancerLib2 {
   event TokenSwapped(uint256 amount, uint256 fee);
 
   uint256 private _replenishDelta;
+  uint256 private _exchangeRate = WadRayMath.WAD;
 
   function setReplenishDelta(uint256 delta) external {
     _replenishDelta = delta;
+  }
+
+  function setExchangeRate(uint16 pctRate) external {
+    _exchangeRate = PercentageMath.percentMul(WadRayMath.WAD, pctRate);
   }
 
   function _replenishFn(BalancerLib2.ReplenishParams memory, uint256 v)
@@ -62,7 +67,7 @@ contract MockBalancerLib2 {
     )
   {
     v += _replenishDelta;
-    return (v, v, v);
+    return (WadRayMath.wadDiv(v, _exchangeRate), v, v);
   }
 
   function swapToken(
