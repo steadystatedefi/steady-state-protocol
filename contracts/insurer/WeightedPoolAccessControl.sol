@@ -3,7 +3,8 @@ pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 import '../tools/math/PercentageMath.sol';
-import '../interfaces/IInsurerGovernor.sol';
+import '../tools/math/WadRayMath.sol';
+import '../governance/interfaces/IInsurerGovernor.sol';
 import '../governance/GovernedHelper.sol';
 import './InsurerJoinBase.sol';
 
@@ -46,12 +47,19 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     return IInsurerGovernor(_governorIsContract ? governorAccount() : address(0));
   }
 
-  function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    IApprovalCatalog c = approvalCatalog();
-    require(address(c) == address(0) || c.hasApprovedApplication(insured));
+  function isAllowedByGovernor(address account, uint256 flags) internal view override returns (bool) {
+    return IInsurerGovernor(governorAccount()).governerQueryAccessControlMask(account, flags) & flags != 0;
+  }
 
+  function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
     IJoinHandler jh = governorContract();
-    return address(jh) == address(0) ? InsuredStatus.Joining : jh.handleJoinRequest(insured);
+    if (address(jh) == address(0)) {
+      IApprovalCatalog c = approvalCatalog();
+      require(address(c) == address(0) || c.hasApprovedApplication(insured));
+      return InsuredStatus.Joining;
+    } else {
+      return jh.handleJoinRequest(insured);
+    }
   }
 
   event GovernorUpdated(address);
@@ -62,5 +70,22 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
 
   function governorAccount() internal view override returns (address) {
     return _governor;
+  }
+
+  function internalVerifyPayoutRatio(address insured, uint256 payoutRatio) internal virtual returns (uint256 approvedPayoutRatio) {
+    IInsurerGovernor jh = governorContract();
+    if (address(jh) == address(0)) {
+      IApprovalCatalog c = approvalCatalog();
+      if (address(c) != address(0)) {
+        IApprovalCatalog.ApprovedClaim memory info = c.applyApprovedClaim(insured);
+        approvedPayoutRatio = WadRayMath.RAY.percentMul(info.payoutRatio);
+        if (payoutRatio >= approvedPayoutRatio) {
+          return approvedPayoutRatio;
+        }
+      }
+      return payoutRatio;
+    } else {
+      return jh.verifyPayoutRatio(insured, payoutRatio);
+    }
   }
 }

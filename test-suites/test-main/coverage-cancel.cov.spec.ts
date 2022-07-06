@@ -54,10 +54,10 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
         cc.address,
         poolDemand,
         RATE,
-        minUnits,
-        riskWeightValue,
+        minUnits * unitSize,
         decimals
       );
+      await pool.approveNextJoin(riskWeightValue);
       await insured.joinPool(pool.address);
       insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
@@ -78,9 +78,9 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     }
 
     {
-      const coverage = await joinPool(riskWeight / 10);
+      const coverage = await joinPool(riskWeight * 10);
       expect(coverage.totalCovered).eq(0);
-      expect(coverage.totalDemand).eq(1000 * unitSize); // lower weight, lower share
+      expect(coverage.totalDemand).eq(1000 * unitSize); // higher risk, lower share
       insuredUnits.push(1000);
     }
 

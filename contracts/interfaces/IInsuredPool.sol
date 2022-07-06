@@ -24,7 +24,5 @@ interface IInsuredPool is ICollateralized {
 }
 
 struct InsuredParams {
-  // TODO remove
-  uint24 minUnitsPerInsurer;
-  uint16 riskWeightPct;
+  uint128 minPerInsurer;
 }

@@ -17,16 +17,24 @@ interface IApprovalCatalog {
     bool applied;
   }
 
+  struct ApprovedPolicyForInsurer {
+    uint16 riskLevel;
+    uint80 basePremiumRate;
+    address premiumToken;
+  }
+
   function hasApprovedApplication(address insured) external view returns (bool);
 
   function getApprovedApplication(address insured) external view returns (ApprovedPolicy memory);
 
   function applyApprovedApplication() external returns (ApprovedPolicy memory);
 
+  function getAppliedApplicationForInsurer(address insured) external view returns (bool valid, ApprovedPolicyForInsurer memory data);
+
   struct ApprovedClaim {
     bytes32 requestCid;
     bytes32 approvalCid;
-    uint256 payoutValue;
+    uint16 payoutRatio;
     uint32 since;
   }
 
@@ -34,5 +42,5 @@ interface IApprovalCatalog {
 
   function getApprovedClaim(address insured) external view returns (ApprovedClaim memory);
 
-  function applyApprovedClaim() external returns (ApprovedClaim memory);
+  function applyApprovedClaim(address insured) external returns (ApprovedClaim memory);
 }

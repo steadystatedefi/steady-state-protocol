@@ -30,10 +30,8 @@ abstract contract InsurerJoinBase is IJoinEvents {
     emit JoinRequested(insured);
 
     if ((status = internalInitiateJoin(insured)) != InsuredStatus.Joining) {
-      return _updateInsuredStatus(insured, status);
+      status = _updateInsuredStatus(insured, status);
     }
-
-    return InsuredStatus.Joining;
   }
 
   function cancelJoin() external returns (InsuredStatus) {
@@ -72,7 +70,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
         emit JoinProcessed(insured, accepted);
 
         status = internalGetStatus(insured);
-        if (accepted) {
+        if (accepted && status == InsuredStatus.Accepted) {
           internalAfterJoinOrLeave(insured, status);
         }
         return status;

@@ -80,6 +80,14 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     emit ApplicationApplied(insured, data.requestCid);
   }
 
+  function getAppliedApplicationForInsurer(address insured) external view returns (bool valid, ApprovedPolicyForInsurer memory data) {
+    ApprovedPolicy storage policy = _approvedPolicies[insured];
+    if (policy.insured == insured && policy.applied) {
+      data = ApprovedPolicyForInsurer({riskLevel: policy.riskLevel, basePremiumRate: policy.basePremiumRate, premiumToken: policy.premiumToken});
+      valid = true;
+    }
+  }
+
   event ApplicationApproved(address indexed insured, bytes32 indexed requestCid, ApprovedPolicy data);
 
   function approveApplication(ApprovedPolicy calldata data) external aclHas(AccessFlags.UNDERWRITER_POLICY) {
@@ -169,8 +177,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ClaimApplied(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
-  function applyApprovedClaim() external returns (ApprovedClaim memory data) {
-    address insured = msg.sender;
+  function applyApprovedClaim(address insured) external returns (ApprovedClaim memory data) {
     data = getApprovedClaim(insured);
     emit ClaimApplied(insured, data.requestCid, data);
   }
