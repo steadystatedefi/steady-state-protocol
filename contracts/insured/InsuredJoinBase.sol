@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/tokens/IERC20.sol';
-import '../tools/math/WadRayMath.sol';
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
 /// @title Insured Join Base
 /// @notice Handles tracking and joining insurers
 abstract contract InsuredJoinBase is IInsuredPool {
-  address[] private _genericInsurers; // IInsurerPool[]
+  address[] private _genericInsurers; // ICoverageDistributor[]
   address[] private _charteredInsurers;
 
   uint16 private constant STATUS_MAX = type(uint16).max;
@@ -53,7 +51,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
       require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
       internalSetServiceAccountStatus(insurer, uint16(index));
-      _addCoverageDemandTo(IInsurerPool(insurer), getDemandOnJoin());
+      _addCoverageDemandTo(ICoverageDistributor(insurer), getDemandOnJoin());
     } else {
       internalSetServiceAccountStatus(insurer, STATUS_NOT_JOINED);
     }
@@ -67,10 +65,10 @@ abstract contract InsuredJoinBase is IInsuredPool {
     }
 
     require(status > 0);
-    return _addCoverageDemandTo(IInsurerPool(msg.sender), 0);
+    return _addCoverageDemandTo(ICoverageDistributor(msg.sender), 0);
   }
 
-  function internalPushCoverageDemandTo(IInsurerPool target, uint256 amount) internal {
+  function internalPushCoverageDemandTo(ICoverageDistributor target, uint256 amount) internal {
     uint16 status = getAccountStatus(address(target));
     require(status > 0 && status <= INDEX_MAX);
     _addCoverageDemandTo(target, amount);
@@ -80,13 +78,13 @@ abstract contract InsuredJoinBase is IInsuredPool {
   /// @param target The insurer to add demand to
   /// @param amount The desired amount of demand to add
   /// @return True if there is more demand that can be added
-  function _addCoverageDemandTo(IInsurerPool target, uint256 amount) private returns (bool) {
-    uint256 unitSize = IInsurerPool(target).coverageUnitSize();
+  function _addCoverageDemandTo(ICoverageDistributor target, uint256 amount) private returns (bool) {
+    uint256 unitSize = target.coverageUnitSize();
 
     (uint256 amountAdd, uint256 premiumRate) = internalAllocateCoverageDemand(address(target), amount, unitSize);
     require(amountAdd <= amount);
 
-    amountAdd = amountAdd < unitSize ? 0 : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0);
+    amountAdd = amountAdd < unitSize ? 0 : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0, 0);
     if (amountAdd == 0) {
       return false;
     }

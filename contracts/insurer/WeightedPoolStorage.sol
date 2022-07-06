@@ -2,7 +2,6 @@
 pragma solidity ^0.8.4;
 
 import '../tools/math/PercentageMath.sol';
-import '../insurance/InsurancePoolBase.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import './WeightedPoolConfig.sol';
 
@@ -11,7 +10,7 @@ import './WeightedPoolConfig.sol';
 /// @dev
 /// @dev WARNING! This contract MUST NOT be extended with new fields after deployment
 /// @dev
-abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
+abstract contract WeightedPoolStorage is WeightedPoolConfig {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
 
@@ -21,22 +20,28 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig, InsurancePoolBase {
   }
   mapping(address => UserBalance) internal _balances; // [investor]
 
-  address internal _joinHandler;
-  IPremiumDistributor internal _premiumHandler;
+  IPremiumDistributor internal _premiumDistributor;
 
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;
 
-  function internalIsInvestor(address account) internal view virtual returns (bool) {
+  ///@dev Return if an account has a balance or premium earned
+  function internalIsInvestor(address account) internal view override returns (bool) {
     UserBalance memory b = _balances[account];
     return b.extra != 0 || b.balance != 0;
   }
 
-  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function internalStatusOf(address account) internal view returns (InsuredStatus status) {
-    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
-      status = InsuredStatus.NotApplicable;
+  event PremiumDistributorUpdated(address);
+
+  function internalSetPremiumDistributor(address premiumDistributor_) internal virtual {
+    _premiumDistributor = IPremiumDistributor(premiumDistributor_);
+    emit PremiumDistributorUpdated(premiumDistributor_);
+  }
+
+  function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal override {
+    if (address(_premiumDistributor) != address(0)) {
+      _premiumDistributor.registerPremiumSource(insured, status == InsuredStatus.Accepted);
     }
-    return status;
+    super.internalAfterJoinOrLeave(insured, status);
   }
 }

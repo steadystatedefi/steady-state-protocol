@@ -4,14 +4,14 @@ pragma solidity ^0.8.4;
 import '../PerpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
 
-contract MockPerpetualPool is PerpetualPoolBase {
+contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
     uint8 decimals,
     PerpetualPoolExtension extension
-  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(unitSize, extension) InsurancePoolBase(collateral_) {
-    _joinHandler = address(this);
+  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(IAccessController(address(0)), unitSize, collateral_, extension) {
+    internalSetTypedGovernor(this);
     internalSetPoolParams(
       WeightedPoolParams({
         maxAdvanceUnits: 10000,
@@ -27,8 +27,8 @@ contract MockPerpetualPool is PerpetualPoolBase {
     );
   }
 
-  function setPoolParams(WeightedPoolParams calldata params) external {
-    internalSetPoolParams(params);
+  function handleJoinRequest(address) external pure override returns (InsuredStatus) {
+    return InsuredStatus.Accepted;
   }
 
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
@@ -45,28 +45,11 @@ contract MockPerpetualPool is PerpetualPoolBase {
 
   function internalOnCoverageRecovered() internal override {}
 
-  function cancelCoverage(uint256) external override returns (uint256) {
-    _delegate(_extension);
-  }
-
   function dump() external view returns (Dump memory) {
     return _dump();
   }
 
-  function dumpInsured(address insured)
-    external
-    view
-    returns (
-      Rounds.InsuredEntry memory,
-      Rounds.Demand[] memory,
-      Rounds.Coverage memory,
-      Rounds.CoveragePremium memory
-    )
-  {
-    return _dumpInsured(insured);
-  }
-
-  function getUnadjusted()
+  function getPendingAdjustments()
     external
     view
     returns (
@@ -78,7 +61,19 @@ contract MockPerpetualPool is PerpetualPoolBase {
     return internalGetUnadjustedUnits();
   }
 
-  function applyAdjustments() external {
+  function applyPendingAdjustments() external {
     internalApplyAdjustmentsToTotals();
+  }
+
+  function hasAnyAcl(address, uint256) internal pure override returns (bool) {
+    return true;
+  }
+
+  function hasAllAcl(address, uint256) internal pure override returns (bool) {
+    return true;
+  }
+
+  function isAdmin(address) internal pure override returns (bool) {
+    return true;
   }
 }

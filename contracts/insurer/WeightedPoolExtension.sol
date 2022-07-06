@@ -1,34 +1,16 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/math/PercentageMath.sol';
 import '../libraries/Balances.sol';
-import '../interfaces/IInsuredPool.sol';
-import '../interfaces/IInsurerPool.sol';
-import '../interfaces/IJoinHandler.sol';
 import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
-abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStorage, InsurerJoinBase {
+abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
-
-  constructor(uint256 unitSize) InsurancePoolBase(address(0)) WeightedRoundsBase(unitSize) {}
-
-  /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
-  /// IInsuredPool.joinProcessed will be called after the decision is made.
-  function requestJoin(address insured) external override {
-    require(msg.sender == insured); // TODO or admin?
-    internalRequestJoin(insured);
-  }
-
-  /// @inheritdoc IInsurerPoolBase
-  function charteredDemand() external pure override returns (bool) {
-    return true;
-  }
 
   /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
   /// @return The coverage unit size
@@ -36,16 +18,17 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     return internalUnitSize();
   }
 
-  /// @inheritdoc IInsurerPoolDemand
+  /// @inheritdoc ICoverageDistributor
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
-    bool hasMore
+    bool hasMore,
+    uint256 loopLimit
   ) external override onlyActiveInsured returns (uint256 addedCount) {
     AddCoverageDemandParams memory params;
     params.insured = msg.sender;
     require(premiumRate == (params.premiumRate = uint40(premiumRate)));
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemand, loopLimit);
     hasMore;
     require(unitCount <= type(uint64).max);
 
@@ -58,11 +41,26 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     return addedCount;
   }
 
-  /// @inheritdoc IInsurerPoolDemand
-  function cancelCoverageDemand(uint256 unitCount) external override onlyActiveInsured returns (uint256 cancelledUnits) {
+  function _onlyActiveInsuredOrOps(address insured) private view {
+    if (insured != msg.sender) {
+      _onlyGovernorOr(AccessFlags.INSURER_OPS);
+    }
+    _onlyActiveInsured(insured);
+  }
+
+  modifier onlyActiveInsuredOrOps(address insured) {
+    _onlyActiveInsuredOrOps(insured);
+    _;
+  }
+
+  function cancelCoverageDemand(
+    address insured,
+    uint256 unitCount,
+    uint256 loopLimit
+  ) external override onlyActiveInsuredOrOps(insured) returns (uint256 cancelledUnits) {
     CancelCoverageDemandParams memory params;
-    params.insured = msg.sender;
-    params.loopLimit = ~params.loopLimit;
+    params.insured = insured;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.CancelCoverageDemand, loopLimit);
 
     if (unitCount > type(uint64).max) {
       unitCount = type(uint64).max;
@@ -72,16 +70,30 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
-  /// @inheritdoc IInsurerPoolBase
-  function cancelCoverage(uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
-    return internalCancelCoverage(msg.sender, payoutRatio);
+  function cancelCoverage(address insured, uint256 payoutRatio) external override onlyActiveInsuredOrOps(insured) returns (uint256 payoutValue) {
+    bool enforcedCancel = msg.sender != insured;
+    if (payoutRatio > 0 && !enforcedCancel) {
+      require(isPayoutApproved(insured, payoutRatio));
+    }
+    return internalCancelCoverage(insured, payoutRatio, enforcedCancel);
+  }
+
+  function isPayoutApproved(address insured, uint256 payoutRatio) private view returns (bool) {
+    this;
+    insured;
+    payoutRatio;
+    return true;
   }
 
   /// @dev Cancel all coverage for the insured and payout
   /// @param insured The address of the insured to cancel
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
   /// @return payoutValue The amount of coverage paid out to the insured
-  function internalCancelCoverage(address insured, uint256 payoutRatio) private onlyActiveInsured returns (uint256 payoutValue) {
+  function internalCancelCoverage(
+    address insured,
+    uint256 payoutRatio,
+    bool enforcedCancel
+  ) private returns (uint256 payoutValue) {
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage, uint256 receivedPremium) = super
       .internalCancelCoverage(insured);
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
@@ -94,10 +106,13 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
 
     payoutValue = providedCoverage.rayMul(payoutRatio);
 
-    require((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage), 'must be reconciled');
+    require(
+      enforcedCancel || ((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage)),
+      'must be reconciled'
+    );
 
-    if (address(_premiumHandler) != address(0)) {
-      uint256 premiumDebt = _premiumHandler.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
+    if (address(_premiumDistributor) != address(0)) {
+      uint256 premiumDebt = _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
       unchecked {
         payoutValue = payoutValue <= premiumDebt ? 0 : payoutValue - premiumDebt;
       }
@@ -105,6 +120,7 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
 
     internalSetStatus(insured, InsuredStatus.Declined);
 
+    // TODO enforcedCancel
     return internalTransferCancelledCoverage(insured, payoutValue, excessCoverage, providedCoverage, providedCoverage - receivableCoverage);
   }
 
@@ -116,11 +132,16 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     uint256 receivedCoverage
   ) internal virtual returns (uint256);
 
-  /// @inheritdoc IInsurerPoolDemand
-  function receivableDemandedCoverage(address insured) external view override returns (uint256 receivableCoverage, DemandedCoverage memory coverage) {
+  /// @inheritdoc ICoverageDistributor
+  function receivableDemandedCoverage(address insured, uint256 loopLimit)
+    external
+    view
+    override
+    returns (uint256 receivableCoverage, DemandedCoverage memory coverage)
+  {
     GetCoveredDemandParams memory params;
     params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.ReceivableDemandedCoverage, loopLimit);
 
     (coverage, , ) = internalGetCoveredDemand(params);
     return (params.receivedCoverage, coverage);
@@ -128,8 +149,8 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
 
   event DemandedCoverageReceived(address insured, uint256 receivedCoverage, uint256 receivedCollateral);
 
-  /// @inheritdoc IInsurerPoolDemand
-  function receiveDemandedCoverage(address insured)
+  /// @inheritdoc ICoverageDistributor
+  function receiveDemandedCoverage(address insured, uint256 loopLimit)
     external
     override
     onlyActiveInsured
@@ -141,12 +162,13 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
   {
     GetCoveredDemandParams memory params;
     params.insured = insured;
-    params.loopLimit = ~params.loopLimit;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.ReceiveDemandedCoverage, loopLimit);
 
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
-    if (address(_premiumHandler) != address(0)) {
-      _premiumHandler.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
+
+    if (address(_premiumDistributor) != address(0)) {
+      _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
     }
 
     emit DemandedCoverageReceived(insured, params.receivedCoverage, receivedCollateral);
@@ -158,45 +180,4 @@ abstract contract WeightedPoolExtension is IInsurerPoolDemand, WeightedPoolStora
     uint256 receivedCoverage,
     DemandedCoverage memory coverage
   ) internal virtual returns (uint256);
-
-  /// @dev Prepare for an insured pool to join by setting the parameters
-  function internalPrepareJoin(address insured) internal override {
-    InsuredParams memory insuredParams = IInsuredPool(insured).insuredParams();
-
-    uint256 maxShare = uint256(insuredParams.riskWeightPct).percentDiv(_params.riskWeightTarget);
-    uint256 v;
-    if (maxShare >= (v = _params.maxInsuredShare)) {
-      maxShare = v;
-    } else if (maxShare < (v = _params.minInsuredShare)) {
-      maxShare = v;
-    }
-
-    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: insuredParams.minUnitsPerInsurer, maxShare: uint16(maxShare)}));
-  }
-
-  function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
-    address jh = _joinHandler;
-    if (jh == address(0)) return InsuredStatus.Joining;
-    if (jh == address(this)) return InsuredStatus.Accepted;
-    return IJoinHandler(jh).handleJoinRequest(insured);
-  }
-
-  ///@dev Return if an account has a balance or premium earned
-  function internalIsInvestor(address account) internal view override(InsurerJoinBase, WeightedPoolStorage) returns (bool) {
-    return WeightedPoolStorage.internalIsInvestor(account);
-  }
-
-  function internalGetStatus(address account) internal view override(InsurerJoinBase, WeightedPoolConfig) returns (InsuredStatus) {
-    return WeightedPoolConfig.internalGetStatus(account);
-  }
-
-  function internalSetStatus(address account, InsuredStatus status) internal override {
-    return super.internalSetInsuredStatus(account, status);
-  }
-
-  function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal override {
-    if (address(_premiumHandler) != address(0)) {
-      _premiumHandler.registerPremiumSource(insured, status == InsuredStatus.Accepted);
-    }
-  }
 }

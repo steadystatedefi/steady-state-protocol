@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import './IVersioned.sol';
+
 /**
  * @title VersionedInitializable
  *
@@ -22,7 +24,7 @@ pragma solidity ^0.8.4;
  * WARNING: When used with inheritance, parent initializers with `initializerRunAlways` modifier
  * are NOT protected from multiple calls by another initializer.
  */
-abstract contract VersionedInitializable {
+abstract contract VersionedInitializable is IVersioned {
   uint256 private constant BLOCK_REVISION = type(uint256).max;
   // This revision number is applied to implementations
   uint256 private constant IMPL_REVISION = BLOCK_REVISION - 1;
@@ -133,7 +135,7 @@ abstract contract VersionedInitializable {
   }
 
   // solhint-disable-next-line func-name-mixedcase
-  function REVISION() public pure returns (uint256) {
+  function REVISION() public pure override returns (uint256) {
     return getRevision();
   }
 

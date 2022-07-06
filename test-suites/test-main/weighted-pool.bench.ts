@@ -1,10 +1,11 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { expect } from 'chai';
+import { zeroAddress } from 'ethereumjs-util';
 
 import { Ifaces } from '../../helpers/contract-ifaces';
 import { Factories } from '../../helpers/contract-types';
 import { createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
-import { IInsurerPool, MockCollateralCurrency, MockInsuredPool, MockPerpetualPool } from '../../types';
+import { IInsurerPool, MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -14,14 +15,14 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let pool: MockPerpetualPool;
   let poolIntf: IInsurerPool;
-  let fund: MockCollateralCurrency;
+  let fund: MockCollateralCurrencyStub;
   let iteration = 0;
   const weights: number[] = [];
   const insureds: MockInsuredPool[] = [];
 
   before(async () => {
-    const extension = await Factories.PerpetualPoolExtension.deploy(unitSize);
-    fund = await Factories.MockCollateralCurrency.deploy();
+    fund = await Factories.MockCollateralCurrencyStub.deploy();
+    const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, fund.address);
     pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, decimals, extension.address);
     poolIntf = Ifaces.IInsurerPool.attach(pool.address);
 
@@ -69,7 +70,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
 
-      const stats = await poolIntf.receivableDemandedCoverage(insured.address);
+      const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       insureds.push(insured);
       weights.push(riskWeightValue);
       console.log(
@@ -99,10 +100,11 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       value: '0x16345785D8A0000',
     });
 
-    const invest = async (kind: string, investment: number) => {
+    const invest = async (kind: string, investment: number, excess?: BigNumber) => {
       const v = BigNumber.from(unitSize).mul(investment);
       const tx = await mustWaitTx(fund.connect(user).invest(pool.address, v));
-      console.log(`${iteration}\tInvest\t${user.address}\t${v.toString()}\t${tx.gasUsed.toString()}\t${kind}`);
+      const extra = excess === undefined ? '' : `\t${excess.toString()}`;
+      console.log(`${iteration}\tInvest\t${user.address}\t${v.toString()}\t${tx.gasUsed.toString()}\t${kind}${extra}`);
     };
 
     const smallInvestment = 10;
@@ -110,7 +112,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     await invest('init', smallInvestment);
     await invest('next', smallInvestment);
     await invest('next', largeInvestment);
-    await invest('next', smallInvestment);
+    await invest('next', smallInvestment, await pool.getExcessCoverage());
   };
 
   it('Invest by 5 users', async () => {

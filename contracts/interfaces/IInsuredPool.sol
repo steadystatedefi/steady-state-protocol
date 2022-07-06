@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import './IInsurancePool.sol';
+import './ICollateralized.sol';
 
-interface IInsuredPool is IInsurancePool {
+interface IInsuredPool is ICollateralized {
   /// @notice Called by insurer during or after requestJoin() to inform this insured if it was accepted or not
   /// @param accepted true if accepted by the insurer
   function joinProcessed(bool accepted) external;
@@ -24,6 +24,7 @@ interface IInsuredPool is IInsurancePool {
 }
 
 struct InsuredParams {
+  // TODO remove
   uint24 minUnitsPerInsurer;
   uint16 riskWeightPct;
 }

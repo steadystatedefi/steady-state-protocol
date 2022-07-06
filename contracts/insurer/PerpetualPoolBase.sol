@@ -1,34 +1,23 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/math/PercentageMath.sol';
-import '../tools/upgradeability/Delegator.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../libraries/Balances.sol';
-import '../interfaces/IInsurerPool.sol';
-import '../interfaces/IInsuredPool.sol';
 import './PerpetualPoolStorage.sol';
 import './PerpetualPoolExtension.sol';
 import './WeightedPoolBase.sol';
 
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
-abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStorage, WeightedPoolBase {
+abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(uint256 unitSize, PerpetualPoolExtension extension) WeightedRoundsBase(unitSize) WeightedPoolBase(unitSize, extension) {}
-
-  function premiumDistributor() public view override returns (address) {
-    return address(_premiumHandler);
-  }
-
-  function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    require(params.maxDrawdownInverse == PercentageMath.ONE);
-
-    super.internalSetPoolParams(params);
-  }
+  constructor(
+    IAccessController acl,
+    uint256 unitSize,
+    address collateral_,
+    PerpetualPoolExtension extension
+  ) WeightedPoolBase(acl, unitSize, collateral_, extension) {}
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
@@ -76,18 +65,16 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _afterBalanceUpdate(excessCoverage, totals, coverage);
   }
 
-  function internalSubrogate(uint256 value) private {
-    if (value > 0) {
-      internalAdjustCoverage(0, value);
-      internalOnCoverageRecovered();
-    }
+  function internalSubrogate(address donor, uint256 value) internal override {
+    donor;
+    // TODO transfer collateral from
+    internalAdjustCoverage(0, value);
+    internalOnCoverageRecovered();
   }
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
   /// @dev Call _afterBalanceUpdate to update the rate of the pool
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) public {
-    require(msg.sender == address(this));
-
+  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) external onlySelf {
     internalAdjustCoverage(paidoutCoverage, excess);
 
     if (excess > 0) {
@@ -191,13 +178,8 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return (0, accumulated);
   }
 
-  function exchangeRate() public view override(IInsurerPoolCore, PerpetualPoolStorage) returns (uint256) {
+  function exchangeRate() public view override(IInsurerPoolBase, PerpetualPoolStorage) returns (uint256) {
     return PerpetualPoolStorage.exchangeRate();
-  }
-
-  /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function statusOf(address account) external view returns (InsuredStatus status) {
-    return internalStatusOf(account);
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
@@ -247,11 +229,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return internalBurn(msg.sender, _excessCoverage);
   }
 
-  function burnPremium(
+  function internalBurnPremium(
     address account,
     uint256 value,
     address drawdownRecepient
-  ) external override {
+  ) internal override {
     require(drawdownRecepient == address(0));
 
     (UserBalance memory b, ) = _beforeBalanceUpdate(account);
@@ -259,5 +241,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[account] = b;
   }
 
-  function collectDrawdownPremium() external override returns (uint256) {}
+  function internalCollectDrawdownPremium() internal override returns (uint256) {}
+
+  function internalSetPoolParams(WeightedPoolParams memory params) internal override {
+    require(params.maxDrawdownInverse == PercentageMath.ONE);
+
+    super.internalSetPoolParams(params);
+  }
 }

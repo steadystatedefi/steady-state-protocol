@@ -4,9 +4,9 @@ pragma solidity ^0.8.4;
 import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../tools/Errors.sol';
 import '../libraries/Balances.sol';
-import './WeightedPoolStorage.sol';
+import './WeightedPoolBase.sol';
 
-abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20BalancelessBase {
+abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase {
   using WadRayMath for uint256;
 
   mapping(address => uint256) internal _insuredBalances; // [insured]
@@ -22,7 +22,7 @@ abstract contract ImperpetualPoolStorage is WeightedPoolStorage, ERC20Balanceles
   }
 
   function to128(uint256 v) internal pure returns (uint128) {
-    require(v >> 128 == 0);
+    require(v >> 128 == 0); // TODO overflow error
     return uint128(v);
   }
 

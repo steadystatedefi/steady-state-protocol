@@ -4,13 +4,11 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
-import '../tools/tokens/IERC20.sol';
 import '../interfaces/IPremiumCalculator.sol';
-import '../interfaces/IInsurancePool.sol';
-import '../interfaces/IInsurerPool.sol';
+import '../interfaces/ICoverageDistributor.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
-import '../insurance/InsurancePoolBase.sol';
+import '../insurance/Collateralized.sol';
 
 import 'hardhat/console.sol';
 
@@ -18,7 +16,7 @@ import 'hardhat/console.sol';
 /// @notice Holds balances of how much Insured owes to each Insurer in terms of rate
 /// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
 /// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
-abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase, IPremiumCalculator {
+abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, IPremiumCalculator {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
@@ -158,7 +156,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
   /// @return receivedCoverage Amount of new coverage provided since the last reconcilation
   /// @return receivedCollateral Amount of collateral currency received during this reconcilation (<= receivedCoverage)
   /// @return coverage The new information on coverage demanded, provided and premium paid
-  function internalReconcileWithInsurer(IInsurerPoolDemand insurer, bool updateRate)
+  function internalReconcileWithInsurer(ICoverageDistributor insurer, bool updateRate)
     internal
     returns (
       uint256 receivedCoverage,
@@ -169,7 +167,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
     Balances.RateAccWithUint16 memory b = _syncBalance(address(insurer));
     _ensureHolder(b.extra);
 
-    (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this));
+    (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this), 0);
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
     if (receivedCollateral > 0) {
       internalCollateralReceived(address(insurer), receivedCollateral);
@@ -235,7 +233,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
   }
 
   /// @dev Do the same as `internalReconcileWithInsurer` but only as a view, don't make changes
-  function internalReconcileWithInsurerView(IInsurerPoolDemand insurer, Balances.RateAcc memory totals)
+  function internalReconcileWithInsurerView(ICoverageDistributor insurer, Balances.RateAcc memory totals)
     internal
     view
     returns (
@@ -247,7 +245,7 @@ abstract contract InsuredBalancesBase is InsurancePoolBase, ERC20BalancelessBase
     b = _syncBalance(address(insurer));
     _ensureHolder(b.extra);
 
-    (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this));
+    (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this), 0);
     require(b.updatedAt >= coverage.premiumUpdatedAt);
 
     (totals, ) = _syncInsurerBalance(b, coverage);

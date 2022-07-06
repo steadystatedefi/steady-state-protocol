@@ -6,13 +6,5 @@
     "noEmit": true
   },
   "exclude": ["node_modules", ".*", "soljson-*"],
-  "include": [
-    "./types",
-    "./helpers",
-    "./tasks",
-    "./test-suites",
-    "hardhat.config.ts",
-    "helper-hardhat-config.ts",
-    "index.ts"
-  ]
+  "include": ["./helpers", "./tasks", "./test-suites", "hardhat.config.ts", "helper-hardhat-config.ts", "index.ts"]
 }
