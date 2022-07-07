@@ -26,3 +26,7 @@ interface IInsuredPool is ICollateralized {
 struct InsuredParams {
   uint128 minPerInsurer;
 }
+
+interface IInsuredPoolInit {
+  function initializeInsured(address governor) external;
+}

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
+import '../interfaces/IWeightedPool.sol';
 import '../tools/math/PercentageMath.sol';
 import './WeightedRoundsBase.sol';
 import './WeightedPoolAccessControl.sol';
@@ -232,18 +233,6 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     }
     return status;
   }
-}
-
-struct WeightedPoolParams {
-  uint32 maxAdvanceUnits;
-  uint32 minAdvanceUnits;
-  uint16 riskWeightTarget;
-  uint16 minInsuredShare;
-  uint16 maxInsuredShare;
-  uint16 minUnitsPerRound;
-  uint16 maxUnitsPerRound;
-  uint16 overUnitsPerRound;
-  uint16 maxDrawdownInverse; // 100% = no drawdown
 }
 
 enum LoopLimitType {

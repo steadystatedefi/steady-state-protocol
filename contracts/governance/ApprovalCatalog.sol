@@ -54,7 +54,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   function _createInsured(address requestedBy, address impl) private returns (address) {
     IProxyFactory pf = getProxyFactory();
-    bytes memory callData = ProxyTypes.insuredInit(remoteAcl(), requestedBy);
+    bytes memory callData = ProxyTypes.insuredInit(requestedBy);
     if (impl == address(0)) {
       return pf.createProxy(requestedBy, _insuredProxyType, callData);
     }
