@@ -360,4 +360,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   function governor() public view returns (address) {
     return governorAccount();
   }
+
+  function setGovernor(address addr) external onlyGovernorOr(AccessFlags.INSURED_ADMIN) {
+    internalSetGovernor(addr);
+  }
 }
