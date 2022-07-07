@@ -2,16 +2,19 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
+import { AbiCoder } from 'ethers/lib/utils';
 
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
-import { AccessController, MockCaller } from '../../types';
+import { AccessController, IManagedAccessController, MockCaller } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
 // Singletons are roles that are ONLY singleton
 // nonSingletons are roles that are Multilets
 // protected are roles that are protectedSinglet
+
+// roles are multilets
 enum roles {
   EMERGENCY_ADMIN = 2 ** 0,
   TREASURY_ADMIN = 2 ** 1,
@@ -172,13 +175,76 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     expect(await controller.getAddress(TEST_ONE)).eq(caller2.address);
   });
 
-  /*
-  it('Call with Roles', async() => {
+  it('Call with roles direct', async () => {
+    const role1 = roles.PREMIUM_FUND_ADMIN;
+    const role2 = roles.SWEEP_ADMIN;
+    const singletonCall = caller1.interface.encodeFunctionData('checkRoleDirect', [TEST_ONE]);
+    const protectedCall = caller1.interface.encodeFunctionData('checkRoleDirect', [protectedSingletons.TREASURY]);
+    const role1Call = caller1.interface.encodeFunctionData('checkRoleDirect', [role1]);
+    const bothRolesCall = caller1.interface.encodeFunctionData('checkRoleDirect', [role1 | role2]);
+    const singletonBothRolesCall = caller1.interface.encodeFunctionData('checkRoleDirect', [TEST_ONE.or(role1)]);
 
+    await expect(controller.directCallWithRoles(TEST_ONE, caller1.address, singletonCall)).to.be.reverted;
+    await expect(controller.directCallWithRoles(protectedSingletons.TREASURY, caller1.address, protectedCall)).to.be
+      .reverted;
+
+    await controller.directCallWithRoles(role1, caller1.address, role1Call);
+    expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(0);
+
+    await controller.grantRoles(caller1.address, role2);
+    expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(role2);
+    await controller.directCallWithRoles(role1, caller1.address, bothRolesCall);
+    expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(role2);
+    await controller.revokeAllRoles(caller1.address);
+
+    await controller.setAddress(TEST_ONE, caller2.address);
+    const params: IManagedAccessController.CallParamsStruct[] = [];
+    params.push({
+      accessFlags: role1,
+      callAddr: caller1.address,
+      callData: role1Call,
+      callFlag: 0,
+    });
+    params.push({
+      accessFlags: role1,
+      callAddr: caller2.address,
+      callData: singletonBothRolesCall,
+      callFlag: TEST_ONE,
+    });
+
+    await controller.directCallWithRolesBatch(params);
+    expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(0);
+    expect(await controller.queryAccessControlMask(caller2.address, 0)).eq(TEST_ONE);
   });
 
-  it('Grant any role', async() => {
+  it('Call with roles indirect', async () => {
+    const role1 = roles.PREMIUM_FUND_ADMIN;
+    const singletonCall = caller1.interface.encodeFunctionData('checkRoleIndirect', [controller.address, TEST_ONE]);
+    const role1Call = caller1.interface.encodeFunctionData('checkRoleIndirect', [controller.address, role1]);
 
+    const params: IManagedAccessController.CallParamsStruct[] = [];
+    params.push({
+      accessFlags: TEST_ONE,
+      callAddr: caller1.address,
+      callData: singletonCall,
+      callFlag: 0,
+    });
+    await expect(controller.callWithRolesBatch(params)).to.be.reverted;
+
+    params.pop();
+    params.push({
+      accessFlags: role1,
+      callAddr: caller1.address,
+      callData: role1Call,
+      callFlag: 0,
+    });
+
+    await controller.callWithRolesBatch(params);
   });
-  */
+
+  it('Grant any role', async () => {
+    await expect(controller.grantAnyRoles(user1.address, roles.ORACLE_ADMIN)).to.be.reverted;
+    await controller.setAnyRoleMode(true);
+    await controller.grantAnyRoles(user1.address, roles.ORACLE_ADMIN);
+  });
 });

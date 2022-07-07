@@ -58,6 +58,7 @@ module.exports = {
     'max-classes-per-file': 'off',
     'no-use-before-define': ['off'],
     'no-shadow': 'off',
+    'no-bitwise': 'off',
   },
   overrides: [
     {
