@@ -197,11 +197,11 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
 
   function internalCollateralReceived(address insurer, uint256 amount) internal virtual {
     insurer;
-    _receivedCollateral += uint224(amount); // TODO check?
+    require((_receivedCollateral += uint224(amount)) >= amount);
   }
 
   function internalDecReceivedCollateral(uint256 amount) internal virtual {
-    _receivedCollateral -= uint224(amount); // TODO check?
+    _receivedCollateral = uint224(_receivedCollateral - amount);
   }
 
   function totalReceivedCollateral() public view returns (uint256) {

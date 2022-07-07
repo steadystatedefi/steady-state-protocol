@@ -87,11 +87,12 @@ abstract contract WeightedRoundsBase {
     Rounds.InsuredEntry storage entry = _insureds[account];
     entry.minUnits = params.minUnits;
     entry.maxShare = params.maxShare;
+    entry.minPremiumRate = params.minPremiumRate;
   }
 
   function internalGetInsuredParams(address account) internal view returns (InsuredStatus, Rounds.InsuredParams memory) {
     Rounds.InsuredEntry storage entry = _insureds[account];
-    return (entry.status, Rounds.InsuredParams({minUnits: entry.minUnits, maxShare: entry.maxShare}));
+    return (entry.status, Rounds.InsuredParams({minUnits: entry.minUnits, maxShare: entry.maxShare, minPremiumRate: entry.minPremiumRate}));
   }
 
   function internalUnitSize() internal view returns (uint256) {
@@ -119,6 +120,8 @@ abstract contract WeightedRoundsBase {
     // console.log('\ninternalAddCoverageDemand', unitCount);
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
     require(entry.status == InsuredStatus.Accepted);
+    require(entry.minPremiumRate <= params.premiumRate);
+
     if (unitCount == 0 || params.loopLimit == 0) {
       return unitCount;
     }

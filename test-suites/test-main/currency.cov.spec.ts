@@ -8,7 +8,6 @@ import { MockCollateralCurrency, MockPerpetualPool } from '../../types';
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
-  const decimals = 18;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let pool: MockPerpetualPool;
   let cc: MockCollateralCurrency;
@@ -21,7 +20,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
 
   it('Create an insurer', async () => {
     const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, cc.address);
-    pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, extension.address);
   });
 
   it('Fails to mint/burn without a permission', async () => {

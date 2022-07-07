@@ -8,9 +8,8 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   constructor(
     address collateral_,
     uint256 unitSize,
-    uint8 decimals,
     PerpetualPoolExtension extension
-  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', decimals) PerpetualPoolBase(IAccessController(address(0)), unitSize, collateral_, extension) {
+  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', 18) PerpetualPoolBase(IAccessController(address(0)), unitSize, collateral_, extension) {
     internalSetTypedGovernor(this);
     internalSetPoolParams(
       WeightedPoolParams({
