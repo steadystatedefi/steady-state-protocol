@@ -51,8 +51,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   }
 
   function internalSubrogate(address donor, uint256 value) internal override {
-    donor;
-    // TODO transfer collateral from
+    transferCollateralFrom(donor, address(this), value);
     emit ExcessCoverageIncreased(_excessCoverage += value);
     internalOnCoverageRecovered();
   }
@@ -60,35 +59,56 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   function updateCoverageOnCancel(
     address insured,
     uint256 payoutValue,
-    uint256 excessCoverage
+    uint256 advanceValue,
+    uint256 recoveredValue,
+    uint256 premiumDebt
   ) external onlySelf returns (uint256) {
-    uint256 givenValue = _insuredBalances[insured];
+    uint256 givenOutValue = _insuredBalances[insured];
+    require(givenOutValue <= advanceValue);
+
+    delete _insuredBalances[insured];
+    uint256 givenValue = givenOutValue + premiumDebt;
 
     if (givenValue != payoutValue) {
       if (givenValue > payoutValue) {
-        // take back the given coverage
-        transferCollateralFrom(insured, address(this), givenValue - payoutValue);
+        recoveredValue += advanceValue - givenValue;
+
+        // try to take back the given coverage
+        uint256 recovered = transferAvailableCollateralFrom(insured, address(this), givenValue - payoutValue);
+
+        // only the outstanding premium debt should be deducted, an outstanding coverage debt is managed as reduction of coverage itself
+        if (premiumDebt > recovered) {
+          _decrementTotalValue(premiumDebt - recovered);
+        }
+
+        recoveredValue += recovered;
       } else {
+        recoveredValue += advanceValue;
+
         uint128 drawndownSupply = _drawdownSupply;
 
         if (drawndownSupply > 0) {
           uint256 underpay = payoutValue - givenValue;
-          if (drawndownSupply > underpay) {
+
+          if (drawndownSupply >= underpay) {
             drawndownSupply = uint128(drawndownSupply - underpay);
           } else {
-            // TODO use excess
+            // TODO use excess also??
+
+            payoutValue -= underpay - drawndownSupply;
             (underpay, drawndownSupply) = (drawndownSupply, 0);
-            payoutValue = givenValue + underpay;
           }
           _drawdownSupply = drawndownSupply;
 
           transferCollateral(insured, underpay);
         }
+
+        recoveredValue -= payoutValue;
       }
     }
 
-    if (excessCoverage > 0) {
-      emit ExcessCoverageIncreased(_excessCoverage += excessCoverage);
+    if (recoveredValue > 0) {
+      emit ExcessCoverageIncreased(_excessCoverage += recoveredValue);
       internalOnCoverageRecovered();
     }
 
@@ -100,6 +120,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 receivedCoverage,
     uint256 totalCovered
   ) external onlySelf returns (uint256) {
+    // TODO remove
     uint256 expectedAmount = totalCovered.percentMul(_params.maxDrawdownInverse);
     uint256 actualAmount = _insuredBalances[insured];
 
@@ -118,6 +139,19 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
 
     return receivedCoverage;
+  }
+
+  function _toInt128(uint256 v) private pure returns (int128) {
+    require(v <= type(uint128).max);
+    return int128(uint128(v));
+  }
+
+  function _decrementTotalValue(uint256 valueLoss) private {
+    _valueAdjustment -= _toInt128(valueLoss);
+  }
+
+  function _incrementTotalValue(uint256 valueGain) private {
+    _valueAdjustment += _toInt128(valueGain);
   }
 
   function internalOnCoverageRecovered() internal virtual {
