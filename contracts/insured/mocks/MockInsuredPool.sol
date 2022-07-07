@@ -8,9 +8,9 @@ contract MockInsuredPool is InsuredPoolBase {
     address collateral_,
     uint256 totalDemand,
     uint64 premiumRate,
-    uint128 minPerInsurer,
-    uint8 decimals
-  ) ERC20DetailsBase('InsuredPoolToken', '$DC', decimals) InsuredPoolBase(IAccessController(address(0)), collateral_) {
+    uint128 minPerInsurer
+  ) InsuredPoolBase(IAccessController(address(0)), collateral_) {
+    _initializeERC20('InsuredPoolToken', '$DC', DECIMALS);
     _initialize(totalDemand, premiumRate);
     internalSetInsuredParams(InsuredParams({minPerInsurer: minPerInsurer}));
     internalSetGovernor(msg.sender);
@@ -22,5 +22,9 @@ contract MockInsuredPool is InsuredPoolBase {
 
   function testCancelCoverageDemand(address insurer, uint64 unitCount) external {
     ICoverageDistributor(insurer).cancelCoverageDemand(address(this), unitCount, 0);
+  }
+
+  function internalHasAppliedApplication() internal pure override returns (bool) {
+    return true;
   }
 }

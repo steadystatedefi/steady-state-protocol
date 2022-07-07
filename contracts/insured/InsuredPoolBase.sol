@@ -24,15 +24,35 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   InsuredParams private _params;
 
-  constructor(IAccessController acl, address collateral_) GovernedHelper(acl, collateral_) {}
+  uint8 internal constant DECIMALS = 18;
+
+  constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) GovernedHelper(acl, collateral_) {}
 
   function _initialize(uint256 requiredCoverage, uint64 premiumRate) internal {
     require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
     _premiumRate = premiumRate;
   }
 
-  function _applyApprovedApplication() internal {
-    // TODO should try to apply before first join
+  function applyApprovedApplication() external onlyGovernor {
+    State.require(!internalHasAppliedApplication());
+    _applyApprovedApplication();
+  }
+
+  function internalHasAppliedApplication() internal view virtual returns (bool) {
+    return premiumToken() != address(0);
+  }
+
+  function _applyApprovedApplication() private {
+    IApprovalCatalog ac = approvalCatalog();
+    if (address(ac) != address(0)) {
+      IApprovalCatalog.ApprovedPolicy memory ap = ac.applyApprovedApplication();
+
+      State.require(ap.insured == address(this));
+      State.require(ap.expiresAt > block.timestamp);
+
+      _initializeERC20(ap.policyName, ap.policySymbol, DECIMALS);
+      _initializePremiumCollector(ap.premiumToken, ap.minPrepayValue, ap.rollingAdvanceWindow);
+    }
   }
 
   function collateral() public view override(ICollateralized, Collateralized, PremiumCollectorBase) returns (address) {
@@ -101,6 +121,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   /// @notice Attempt to join an insurer
   function joinPool(IJoinable pool) external onlyGovernor {
+    if (!internalHasAppliedApplication()) {
+      _applyApprovedApplication();
+    }
     internalJoinPool(pool);
   }
 

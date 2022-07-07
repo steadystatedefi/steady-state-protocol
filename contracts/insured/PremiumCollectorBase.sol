@@ -23,8 +23,24 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
   uint32 private _rollingAdvanceWindow;
   uint160 private _minPrepayValue;
 
-  function premiumToken() external view override(IPremiumCollector, IPremiumSource) returns (address) {
+  function premiumToken() public view override(IPremiumCollector, IPremiumSource) returns (address) {
     return address(_premiumToken);
+  }
+
+  function _initializePremiumCollector(
+    address token,
+    uint160 minPrepayValue,
+    uint32 rollingAdvanceWindow
+  ) internal {
+    Value.require(token == address(0));
+    State.require(address(_premiumToken) == address(0));
+    _premiumToken = IERC20(token);
+    internalSetPrepay(minPrepayValue, rollingAdvanceWindow);
+  }
+
+  function internalSetPrepay(uint160 minPrepayValue, uint32 rollingAdvanceWindow) internal {
+    _minPrepayValue = minPrepayValue;
+    _rollingAdvanceWindow = rollingAdvanceWindow;
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view virtual returns (uint256);
