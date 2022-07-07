@@ -5,7 +5,7 @@ import '../tools/tokens/IERC20.sol';
 import '../interfaces/ICollateralized.sol';
 
 abstract contract Collateralized is ICollateralized {
-  address private _collateral;
+  address private immutable _collateral;
 
   constructor(address collateral_) {
     _collateral = collateral_;
@@ -13,10 +13,6 @@ abstract contract Collateralized is ICollateralized {
 
   function collateral() public view virtual override returns (address) {
     return _collateral;
-  }
-
-  function _initialize(address collateral_) internal {
-    _collateral = collateral_;
   }
 
   function _onlyCollateralCurrency() private view {

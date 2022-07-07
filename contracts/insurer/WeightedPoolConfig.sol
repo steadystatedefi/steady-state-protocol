@@ -198,15 +198,21 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
       return false;
     }
 
-    // IInsuredPool(insured).premiumToken() != insuredParams.premiumToken
+    // TODO check IInsuredPool(insured).premiumToken() == insuredParams.premiumToken
 
     InsuredParams memory insuredSelfParams = IInsuredPool(insured).insuredParams();
 
-    uint256 minUnits = internalUnitSize();
-    minUnits = (insuredSelfParams.minPerInsurer + minUnits - 1) / minUnits;
+    uint256 unitSize = internalUnitSize();
+    uint256 minUnits = (insuredSelfParams.minPerInsurer + unitSize - 1) / unitSize;
     require(minUnits <= type(uint24).max);
 
-    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: uint24(minUnits), maxShare: uint16(maxShare)}));
+    uint256 baseRate = (approvedParams.basePremiumRate + unitSize - 1) / unitSize;
+    require(baseRate <= type(uint40).max);
+
+    super.internalSetInsuredParams(
+      insured,
+      Rounds.InsuredParams({minUnits: uint24(minUnits), maxShare: uint16(maxShare), minPremiumRate: uint40(baseRate)})
+    );
 
     return true;
   }

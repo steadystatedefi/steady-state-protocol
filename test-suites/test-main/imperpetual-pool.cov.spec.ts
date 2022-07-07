@@ -11,7 +11,6 @@ import { MockCollateralCurrency, IInsurerPool, MockInsuredPool, MockImperpetualP
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
 makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
-  const decimals = 18;
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
@@ -30,7 +29,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
     const extension = await Factories.ImperpetualPoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
-    pool = await Factories.MockImperpetualPool.deploy(cc.address, unitSize, decimals, extension.address);
+    pool = await Factories.MockImperpetualPool.deploy(cc.address, unitSize, extension.address);
     await cc.registerInsurer(pool.address);
     poolIntf = Ifaces.IInsurerPool.attach(pool.address);
   });
@@ -52,13 +51,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const riskWeight = 1000; // 10%
 
     const joinPool = async (riskWeightValue: number) => {
-      const insured = await Factories.MockInsuredPool.deploy(
-        cc.address,
-        poolDemand,
-        RATE,
-        minUnits * unitSize,
-        decimals
-      );
+      const insured = await Factories.MockInsuredPool.deploy(cc.address, poolDemand, RATE, minUnits * unitSize);
       await pool.approveNextJoin(riskWeightValue);
       await insured.joinPool(pool.address);
       insuredTS.push(await currentTime());
