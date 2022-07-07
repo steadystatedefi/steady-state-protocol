@@ -13,7 +13,7 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
     uint8 decimals_
   ) AccessHelper(acl) ERC20Base(name_, symbol_, decimals_) {}
 
-  function registerLiquidityProvider(address account) external aclHas(AccessFlags.LP_ADMIN) {
+  function registerLiquidityProvider(address account) external aclHas(AccessFlags.LP_DEPLOY) {
     internalSetFlags(account, FLAG_MINT | FLAG_BURN);
   }
 
@@ -24,7 +24,7 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
 
   function unregister(address account) external {
     if (msg.sender != account) {
-      Access.require(hasAnyAcl(msg.sender, internalGetFlags(account) == FLAG_TRANSFER_CALLBACK ? AccessFlags.INSURER_ADMIN : AccessFlags.LP_ADMIN));
+      Access.require(hasAnyAcl(msg.sender, internalGetFlags(account) == FLAG_TRANSFER_CALLBACK ? AccessFlags.INSURER_ADMIN : AccessFlags.LP_DEPLOY));
     }
     internalUnsetFlags(account);
   }

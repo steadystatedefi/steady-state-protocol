@@ -17,9 +17,10 @@ library AccessFlags {
   uint256 public constant UNDERWRITER_POLICY = 1 << 8;
   uint256 public constant UNDERWRITER_CLAIM = 1 << 9;
 
-  uint256 public constant LP_ADMIN = 1 << 10;
+  uint256 public constant LP_DEPLOY = 1 << 10;
+  uint256 public constant LP_ADMIN = 1 << 11;
 
-  uint256 public constant INSURED_OPS = 1 << 11;
+  uint256 public constant INSURED_OPS = 1 << 12;
 
   uint256 public constant ROLES = (uint256(1) << 16) - 1;
 

@@ -6,14 +6,20 @@ import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
+import '../access/AccessHelper.sol';
+import './Collateralized.sol';
 
-abstract contract CollateralFundBase {
+abstract contract CollateralFundBase is AccessHelper {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 
-  IManagedCollateralCurrency private _collateral;
+  IManagedCollateralCurrency private immutable _collateral;
+
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) {
+    _collateral = IManagedCollateralCurrency(collateral_);
+  }
 
   struct CollateralAsset {
     uint8 flags; // TODO flags
@@ -27,11 +33,6 @@ abstract contract CollateralFundBase {
   EnumerableSet.AddressSet private _tokens;
   mapping(address => CollateralAsset) private _assets; // [token]
   mapping(address => mapping(address => uint256)) private _approvals; // [owner][delegate]
-
-  function _initialize(address collateral_) internal {
-    State.require(address(_collateral) == address(0));
-    _collateral = IManagedCollateralCurrency(collateral_);
-  }
 
   function _onlyApproved(
     address operator,
@@ -99,7 +100,7 @@ abstract contract CollateralFundBase {
     uint64 priceTarget,
     uint16 priceTolerance,
     address trusted
-  ) internal {
+  ) internal virtual {
     Value.require(token != address(0));
     State.require(_tokens.add(token));
 
@@ -299,6 +300,31 @@ abstract contract CollateralFundBase {
     uint256 amount
   ) external {
     _withdraw(_ensureTrusted(operator, account, token, CollateralFundLib.APPROVED_WITHDRAW), account, to, token, amount);
+  }
+
+  function setPaused(address token, bool paused) external onlyEmergencyAdmin {
+    internalSetFlags(token, paused ? 0 : type(uint8).max);
+  }
+
+  function setTrustedOperator(address token, address trusted) external aclHas(AccessFlags.LP_DEPLOY) {
+    internalSetTrusted(token, trusted);
+  }
+
+  function setSpecialRoles(address operator, uint256 accessFlags) external aclHas(AccessFlags.LP_ADMIN) {
+    internalSetSpecialApprovals(operator, accessFlags);
+  }
+
+  function addAsset(
+    address token,
+    uint64 priceTarget,
+    uint16 priceTolerance,
+    address trusted
+  ) external aclHas(AccessFlags.LP_DEPLOY) {
+    internalAddAsset(token, priceTarget, priceTolerance, trusted);
+  }
+
+  function removeAsset(address token) external aclHas(AccessFlags.LP_DEPLOY) {
+    internalRemoveAsset(token);
   }
 }
 
