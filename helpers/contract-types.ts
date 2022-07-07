@@ -6,6 +6,7 @@ export const Factories = {
   PriceOracle: wrap(types.PriceOracle__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
+  AccessController: wrap(types.AccessController__factory),
 
   MockCollateralCurrency: wrap(types.MockCollateralCurrency__factory),
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),
@@ -20,6 +21,7 @@ export const Factories = {
   MockERC20: mock(types.MockERC20__factory),
   MockCollateralFund: mock(types.MockCollateralFund__factory),
   MockLibs: mock(types.MockLibs__factory),
+  MockCaller: mock(types.MockCaller__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));

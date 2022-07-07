@@ -11,6 +11,8 @@ import '../tools/upgradeability/IProxy.sol';
 import './interfaces/IAccessController.sol';
 import './interfaces/IManagedAccessController.sol';
 
+import 'hardhat/console.sol';
+
 contract AccessController is SafeOwnable, IManagedAccessController {
   using BitUtils for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
@@ -265,7 +267,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     addrList = new address[](1 + multilets.length());
     addrList[0] = singleton;
 
-    for (uint256 i = addrList.length; i > 0; ) {
+    for (uint256 i = addrList.length; i > 1; ) {
       i--;
       addrList[i] = multilets.at(i - 1);
     }
