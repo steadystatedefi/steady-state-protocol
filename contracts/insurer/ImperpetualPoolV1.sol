@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import '../tools/upgradeability/VersionedInitializable.sol';
 import './ImperpetualPoolBase.sol';
 
-contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase {
+contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase, IWeightedPoolInit {
   uint256 private constant CONTRACT_REVISION = 1;
   uint8 internal constant DECIMALS = 18;
 
@@ -13,31 +13,17 @@ contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase {
     uint256 unitSize,
     ImperpetualPoolExtension extension,
     address collateral_
-  ) ERC20DetailsBase('', '', DECIMALS) ImperpetualPoolBase(acl, unitSize, collateral_, extension) {
-    // _joinHandler = address(this);
-    // internalSetPoolParams(
-    //   WeightedPoolParams({
-    //     maxAdvanceUnits: 10000,
-    //     minAdvanceUnits: 1000,
-    //     riskWeightTarget: 1000, // 10%
-    //     minInsuredShare: 100, // 1%
-    //     maxInsuredShare: 4000, // 25%
-    //     minUnitsPerRound: 20,
-    //     maxUnitsPerRound: 20,
-    //     overUnitsPerRound: 30,
-    //     maxDrawdownInverse: 9000 // 90%
-    //   })
-    // );
-  }
+  ) ERC20DetailsBase('', '', DECIMALS) ImperpetualPoolBase(acl, unitSize, collateral_, extension) {}
 
-  function initializeToken(
-    address acl,
+  function initializeWeighted(
+    address governor,
     string calldata tokenName,
-    string calldata tokenSymbol
-  ) public initializer(CONTRACT_REVISION) {
+    string calldata tokenSymbol,
+    WeightedPoolParams calldata params
+  ) public override initializer(CONTRACT_REVISION) {
     _initializeERC20(tokenName, tokenSymbol, DECIMALS);
-    acl;
-    // setRemoteAcl(acl);
+    internalSetGovernor(governor);
+    internalSetPoolParams(params);
   }
 
   function getRevision() internal pure override returns (uint256) {

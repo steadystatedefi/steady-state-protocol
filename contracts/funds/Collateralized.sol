@@ -29,6 +29,10 @@ abstract contract Collateralized is ICollateralized {
     require(IERC20(collateral()).transfer(recipient, amount));
   }
 
+  function balanceOfCollateral(address account) internal view returns (uint256) {
+    return IERC20(collateral()).balanceOf(account);
+  }
+
   function transferCollateralFrom(
     address from,
     address recipient,
@@ -36,5 +40,27 @@ abstract contract Collateralized is ICollateralized {
   ) internal {
     // collateral is a trusted token, hence we do not use safeTransfer here
     require(IERC20(collateral()).transferFrom(from, recipient, amount));
+  }
+
+  function transferAvailableCollateralFrom(
+    address from,
+    address recipient,
+    uint256 maxAmount
+  ) internal returns (uint256 amount) {
+    IERC20 token = IERC20(collateral());
+    amount = maxAmount;
+    if (amount > (maxAmount = token.allowance(from, address(this)))) {
+      if (maxAmount == 0) {
+        return 0;
+      }
+      amount = maxAmount;
+    }
+    if (amount > (maxAmount = token.balanceOf(address(this)))) {
+      if (maxAmount == 0) {
+        return 0;
+      }
+      amount = maxAmount;
+    }
+    transferCollateralFrom(from, recipient, amount);
   }
 }
