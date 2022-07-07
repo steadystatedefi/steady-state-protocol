@@ -236,14 +236,9 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     fundToken2Balance = fundToken2Balance.add(token2Rate.mul(timed2).mul(2));
     expect(await token1.balanceOf(fund.address)).eq(fundToken1Balance);
     expect(await token2.balanceOf(fund.address)).eq(fundToken2Balance);
-
-    // Must add 1 for the token rate because 1 second of token1 rate occurs from
-    // syncing token2
-    if (!testEnv.underCoverage) {
-      expect((await fund.balancerTotals(actuary.address)).accum).eq(
-        fundToken1Balance.add(fundToken2Balance.div(2)).add(token1Rate)
-      );
-    }
+    expect((await fund.balancerTotals(actuary.address)).accum).eq(
+      fundToken1Balance.add(fundToken2Balance.div(2)).add(token1Rate.mul((await currentTime()) - curTime1))
+    );
 
     // syncAssets
     await advanceBlock((await currentTime()) + 10);
