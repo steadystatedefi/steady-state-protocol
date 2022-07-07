@@ -46,7 +46,7 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     return expectedPrepay(uint32(block.timestamp) + timeDelta);
   }
 
-  function withdrawPrepay(address recipient, uint256 amount) external override onlyWithdrawalRole {
+  function internalWithdrawPrepay(address recipient, uint256 amount) internal {
     IERC20 token = _premiumToken;
 
     uint256 balance = token.balanceOf(address(this));
@@ -69,22 +69,11 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
 
   function internalReservedCollateral() internal view virtual returns (uint256);
 
-  modifier onlyWithdrawalRole() virtual {
-    _; // TODO
-  }
-
-  modifier onlyActiveActuary(address actuary) virtual {
-    _; // TODO
-  }
-
-  function collectPremium(
-    address actuary,
+  function internalCollectPremium(
     address token,
     uint256 amount,
     uint256 value
-  ) external override onlyActiveActuary(actuary) {
-    Access.require(IPremiumActuary(actuary).premiumDistributor() == msg.sender);
-
+  ) internal {
     uint256 balance = IERC20(token).balanceOf(address(this));
 
     if (balance > 0) {

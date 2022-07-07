@@ -19,6 +19,8 @@ library AccessFlags {
 
   uint256 public constant LP_ADMIN = 1 << 10;
 
+  uint256 public constant INSURED_OPS = 1 << 11;
+
   uint256 public constant ROLES = (uint256(1) << 16) - 1;
 
   // singletons - use range [16..64] - can ONLY be assigned to a single address

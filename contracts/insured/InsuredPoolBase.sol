@@ -6,13 +6,14 @@ import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 import './PremiumCollectorBase.sol';
 import '../interfaces/IPremiumActuary.sol';
+import './InsuredAccessControl.sol';
 
 import 'hardhat/console.sol';
 
 /// @title Insured Pool Base
 /// @notice The base pool that tracks how much coverage is requested, provided and paid
 /// @dev Reconcilation must be called for the most accurate information
-abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase, PremiumCollectorBase {
+abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase, PremiumCollectorBase, InsuredAccessControl {
   using WadRayMath for uint256;
 
   uint128 private _requiredCoverage;
@@ -23,10 +24,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   InsuredParams private _params;
 
-  constructor(uint256 requiredCoverage, uint64 premiumRate) {
-    require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
-    _premiumRate = premiumRate;
-  }
+  constructor(IAccessController acl, address collateral_) GovernedHelper(acl, collateral_) {}
 
   function _initialize(uint256 requiredCoverage, uint64 premiumRate) internal {
     require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
@@ -101,19 +99,15 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     // console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
   }
 
-  modifier onlyAdmin() virtual {
-    _; // TODO
-  }
-
   /// @notice Attempt to join an insurer
-  function joinPool(IJoinable pool) external onlyAdmin {
+  function joinPool(IJoinable pool) external onlyGovernor {
     internalJoinPool(pool);
   }
 
   /// @notice Add coverage demand to the desired insurer
   /// @param target The insurer to add
   /// @param amount The amount of coverage demand to request
-  function pushCoverageDemandTo(ICoverageDistributor target, uint256 amount) external onlyAdmin {
+  function pushCoverageDemandTo(ICoverageDistributor target, uint256 amount) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalPushCoverageDemandTo(target, amount);
   }
 
@@ -130,7 +124,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   /// @return providedCoverage Total coverage provided (demand satisfied)
   function reconcileWithAllInsurers()
     external
-    onlyAdmin
+    onlyGovernorOr(AccessFlags.INSURED_OPS)
     returns (
       uint256 receivedCoverage,
       uint256 receivedCollateral,
@@ -150,7 +144,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
   /// @return providedCoverage Total coverage provided (demand satisfied)
   function reconcileWithInsurers(uint256 startIndex, uint256 count)
     external
-    onlyAdmin
+    onlyGovernorOr(AccessFlags.INSURED_OPS)
     returns (
       uint256 receivedCoverage,
       uint256 receivedCollateral,
@@ -233,10 +227,12 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return _reconcileWithInsurersView(0, type(uint256).max);
   }
 
+  // TODO cancelCoverageDemnad
+
   /// @notice Cancel coverage and get paid out the coverage amount
   /// @param payoutReceiver The receiver of the collateral currency
   /// @param payoutAmount Amount to get paid out for
-  function cancelCoverage(address payoutReceiver, uint256 payoutAmount) external onlyAdmin {
+  function cancelCoverage(address payoutReceiver, uint256 payoutAmount) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalCancelRates();
 
     uint256 payoutRatio = super.totalReceivedCollateral();
@@ -319,13 +315,26 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return internalExpectedTotals(uint32(atTimestamp)).accum;
   }
 
-  modifier onlyPremiumDistributorOf(address actuary) override {
+  function collectPremium(
+    address actuary,
+    address token,
+    uint256 amount,
+    uint256 value
+  ) external override {
     _ensureHolder(actuary);
-    require(IPremiumActuary(actuary).premiumDistributor() == msg.sender);
-    _;
+    Access.require(IPremiumActuary(actuary).premiumDistributor() == msg.sender);
+    internalCollectPremium(token, amount, value);
   }
 
   function internalReservedCollateral() internal view override returns (uint256) {
     return super.totalReceivedCollateral();
+  }
+
+  function withdrawPrepay(address recipient, uint256 amount) external override onlyGovernor {
+    internalWithdrawPrepay(recipient, amount);
+  }
+
+  function governor() public view returns (address) {
+    return governorAccount();
   }
 }
