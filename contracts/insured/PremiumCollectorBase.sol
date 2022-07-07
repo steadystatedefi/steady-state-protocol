@@ -6,6 +6,7 @@ import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/SafeERC20.sol';
 import '../tools/Errors.sol';
 import '../tools/tokens/IERC20.sol';
+import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IPremiumCollector.sol';
 import '../interfaces/IPremiumSource.sol';
 import '../tools/math/WadRayMath.sol';
@@ -21,14 +22,6 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
 
   uint32 private _rollingAdvanceWindow;
   uint160 private _minPrepayValue;
-
-  modifier onlyWithdrawalRole() virtual {
-    _; // TODO
-  }
-
-  modifier onlyPremiumDistributorOf(address actuary) virtual {
-    _;
-  }
 
   function premiumToken() external view override(IPremiumCollector, IPremiumSource) returns (address) {
     return address(_premiumToken);
@@ -76,12 +69,22 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
 
   function internalReservedCollateral() internal view virtual returns (uint256);
 
+  modifier onlyWithdrawalRole() virtual {
+    _; // TODO
+  }
+
+  modifier onlyActiveActuary(address actuary) virtual {
+    _; // TODO
+  }
+
   function collectPremium(
     address actuary,
     address token,
     uint256 amount,
     uint256 value
-  ) external override onlyPremiumDistributorOf(actuary) {
+  ) external override onlyActiveActuary(actuary) {
+    Access.require(IPremiumActuary(actuary).premiumDistributor() == msg.sender);
+
     uint256 balance = IERC20(token).balanceOf(address(this));
 
     if (balance > 0) {

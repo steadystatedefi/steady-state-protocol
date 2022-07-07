@@ -28,6 +28,15 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     _premiumRate = premiumRate;
   }
 
+  function _initialize(uint256 requiredCoverage, uint64 premiumRate) internal {
+    require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
+    _premiumRate = premiumRate;
+  }
+
+  function _applyApprovedApplication() internal {
+    // TODO should try to apply before first join
+  }
+
   function collateral() public view override(ICollateralized, Collateralized, PremiumCollectorBase) returns (address) {
     return Collateralized.collateral();
   }
@@ -249,6 +258,13 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
+  mapping(address => uint256) private _receivedCollaterals; // [insurer]
+
+  function internalCollateralReceived(address insurer, uint256 amount) internal override {
+    super.internalCollateralReceived(insurer, amount);
+    _receivedCollaterals[insurer] += amount;
+  }
+
   /// @dev Goes through the insurers and cancels with the payout ratio
   /// @param insurers The insurers to cancel with
   /// @param payoutRatio The ratio of coverage to get paid out
@@ -259,18 +275,17 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
     for (uint256 i = insurers.length; i > 0; ) {
       address insurer = insurers[--i];
-      uint256 allowance = t.allowance(address(this), insurer);
+
+      uint256 allowance = _receivedCollaterals[insurer];
+      _receivedCollaterals[insurer] = 0;
+
+      require(t.approve(insurer, allowance));
+
       totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
+
       internalDecReceivedCollateral(allowance - t.allowance(address(this), insurer));
       require(t.approve(insurer, 0));
     }
-  }
-
-  function internalCollateralReceived(address insurer, uint256 amount) internal override {
-    super.internalCollateralReceived(insurer, amount);
-
-    IERC20 t = IERC20(collateral());
-    require(t.approve(insurer, t.allowance(address(this), insurer) + amount));
   }
 
   /// @inheritdoc IInsuredPool
@@ -297,10 +312,6 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     this;
     // TODO price oracle
     return WadRayMath.WAD;
-  }
-
-  function updatePrepayBalances() external {
-    // TODO
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
