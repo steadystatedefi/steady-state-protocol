@@ -13,20 +13,6 @@ interface IManagedAccessController is IAccessController {
 
   function setAddress(uint256 id, address newAddress) external;
 
-  // function setAddressAsProxy(uint256 id, address impl) external;
-
-  // function setAddressAsProxyWithInit(
-  //   uint256 id,
-  //   address impl,
-  //   bytes calldata initCall
-  // ) external;
-
-  function callWithRoles(
-    uint256 flags,
-    address addr,
-    bytes calldata data
-  ) external returns (bytes memory result);
-
   struct CallParams {
     uint256 accessFlags;
     uint256 callFlag;
@@ -35,6 +21,14 @@ interface IManagedAccessController is IAccessController {
   }
 
   function callWithRolesBatch(CallParams[] calldata params) external returns (bytes[] memory result);
+
+  function directCallWithRoles(
+    uint256 flags,
+    address addr,
+    bytes calldata data
+  ) external returns (bytes memory result);
+
+  function directCallWithRolesBatch(CallParams[] calldata params) external returns (bytes[] memory result);
 
   event AddressSet(uint256 indexed id, address indexed newAddress);
   event RolesUpdated(address indexed addr, uint256 flags);

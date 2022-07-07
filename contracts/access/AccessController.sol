@@ -10,6 +10,7 @@ import '../tools/upgradeability/TransparentProxy.sol';
 import '../tools/upgradeability/IProxy.sol';
 import './interfaces/IAccessController.sol';
 import './interfaces/IManagedAccessController.sol';
+import './AccessCallHelper.sol';
 
 import 'hardhat/console.sol';
 
@@ -32,6 +33,8 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   mapping(address => uint256) private _masks;
   mapping(uint256 => AddrInfo) private _singlets;
   mapping(uint256 => EnumerableSet.AddressSet) private _multilets;
+
+  AccessCallHelper private immutable _callHelper;
 
   uint256 private _singletons;
 
@@ -58,6 +61,8 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     }
 
     _singletons = singletons;
+
+    _callHelper = new AccessCallHelper(address(this));
   }
 
   function _onlyOwnerOrAdmin() private view {
@@ -333,44 +338,65 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     info.mode = protection ? AddrMode.ProtectedSinglet : AddrMode.Singlet;
   }
 
-  function callWithRoles(
-    uint256 flags,
-    address addr,
-    bytes calldata data
-  ) external override onlyOwnerOrAdmin returns (bytes memory) {
-    return _callWithRoles(flags, addr, data);
-  }
-
   function _callWithRoles(
     uint256 flags,
-    address addr,
+    address grantAddr,
+    function(address, bytes calldata) internal returns (bytes memory) callFn,
+    address callAddr,
     bytes calldata data
   ) private returns (bytes memory result) {
-    require(addr != address(this) && Address.isContract(addr), 'must be another contract');
+    require(callAddr != address(this) && Address.isContract(callAddr), 'must be another contract');
 
-    (bool restoreMask, uint256 oldMask) = _beforeDirectCallWithRoles(flags, addr);
+    (bool restoreMask, uint256 oldMask) = _beforeCallWithRoles(flags, grantAddr);
 
-    result = Address.functionCall(addr, data);
+    result = callFn(callAddr, data);
 
     if (restoreMask) {
-      _masks[addr] = oldMask;
-      emit RolesUpdated(addr, oldMask);
+      _masks[grantAddr] = oldMask;
+      emit RolesUpdated(grantAddr, oldMask);
     }
     return result;
   }
 
-  function _beforeDirectCallWithRoles(uint256 flags, address addr) private returns (bool restoreMask, uint256 oldMask) {
+  function _directCall(address callAddr, bytes calldata callData) private returns (bytes memory) {
+    return Address.functionCall(callAddr, callData);
+  }
+
+  function _indirectCall(address callAddr, bytes calldata callData) private returns (bytes memory) {
+    return _callHelper.doCall(callAddr, callData);
+  }
+
+  function _beforeCallWithRoles(uint256 flags, address addr) private returns (bool restoreMask, uint256 oldMask) {
     if (_singletons & flags != 0) {
       require(_anyRoleMode == anyRoleEnabled, 'singleton should use setAddress');
     }
 
     oldMask = _masks[addr];
     if (flags & ~oldMask != 0) {
-      _masks[addr] = oldMask | flags;
-      emit RolesUpdated(addr, oldMask | flags);
-      return (true, oldMask);
+      flags |= oldMask;
+      emit RolesUpdated(addr, flags);
+      _masks[addr] = flags;
+
+      restoreMask = true;
     }
-    return (false, oldMask);
+  }
+
+  function directCallWithRoles(
+    uint256 flags,
+    address addr,
+    bytes calldata data
+  ) external override returns (bytes memory result) {
+    return _callWithRoles(flags, addr, _directCall, addr, data);
+  }
+
+  function directCallWithRolesBatch(CallParams[] calldata params) external override onlyOwnerOrAdmin returns (bytes[] memory results) {
+    results = new bytes[](params.length);
+
+    for (uint256 i = 0; i < params.length; i++) {
+      address callAddr = params[i].callAddr == address(0) ? getAddress(params[i].callFlag) : params[i].callAddr;
+      results[i] = _callWithRoles(params[i].accessFlags, callAddr, _directCall, callAddr, params[i].callData);
+    }
+    return results;
   }
 
   function callWithRolesBatch(CallParams[] calldata params) external override onlyOwnerOrAdmin returns (bytes[] memory results) {
@@ -378,7 +404,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
 
     for (uint256 i = 0; i < params.length; i++) {
       address callAddr = params[i].callAddr == address(0) ? getAddress(params[i].callFlag) : params[i].callAddr;
-      results[i] = _callWithRoles(params[i].accessFlags, callAddr, params[i].callData);
+      results[i] = _callWithRoles(params[i].accessFlags, address(_callHelper), _indirectCall, callAddr, params[i].callData);
     }
     return results;
   }
