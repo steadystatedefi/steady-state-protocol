@@ -20,7 +20,8 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
         overUnitsPerRound: 30,
-        maxDrawdownInverse: 10000 // 100%
+        coveragePrepayPct: 10000, // 100%
+        maxUserDrawdownPct: 0 // 0%
       })
     );
   }

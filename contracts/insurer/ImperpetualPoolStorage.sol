@@ -12,8 +12,8 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
   mapping(address => uint256) internal _insuredBalances; // [insured]
 
   uint128 private _totalSupply;
-  uint128 internal _drawdownSupply;
 
+  uint128 internal _burntDrawdown;
   uint128 internal _burntPremium;
 
   /// @dev decreased on losses (e.g. premium underpaid or collateral loss), increased on external value streams, e.g. collateral yield

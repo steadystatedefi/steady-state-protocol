@@ -2,6 +2,18 @@
 pragma solidity ^0.8.4;
 
 library Math {
+  function boundedSub(uint256 x, uint256 y) internal pure returns (uint256) {
+    unchecked {
+      return x < y ? 0 : x - y;
+    }
+  }
+
+  function boundedSub2(uint256 x, uint256 y) internal pure returns (uint256, uint256) {
+    unchecked {
+      return x < y ? (uint256(0), y - x) : (x - y, 0);
+    }
+  }
+
   function sqrt(uint256 y) internal pure returns (uint256 z) {
     if (y > 3) {
       z = y;

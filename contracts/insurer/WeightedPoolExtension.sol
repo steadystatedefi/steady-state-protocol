@@ -75,18 +75,18 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     if (payoutRatio > 0 && !enforcedCancel) {
       payoutRatio = internalVerifyPayoutRatio(insured, payoutRatio);
     }
-    return internalCancelCoverage(insured, payoutRatio, enforcedCancel);
+    (payoutValue, ) = internalCancelCoverage(insured, payoutRatio, enforcedCancel);
   }
 
   /// @dev Cancel all coverage for the insured and payout
   /// @param insured The address of the insured to cancel
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
-  /// @return payoutValue The amount of coverage paid out to the insured
+  /// @return payoutValue The effective amount of coverage paid out to the insured (includes all )
   function internalCancelCoverage(
     address insured,
     uint256 payoutRatio,
     bool enforcedCancel
-  ) private returns (uint256 payoutValue) {
+  ) private returns (uint256 payoutValue, uint256 deductedValue) {
     (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage, uint256 receivedPremium) = super
       .internalCancelCoverage(insured);
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
@@ -104,25 +104,35 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
       'must be reconciled'
     );
 
-    if (address(_premiumDistributor) != address(0)) {
-      uint256 premiumDebt = _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
-      unchecked {
-        payoutValue = payoutValue <= premiumDebt ? 0 : payoutValue - premiumDebt;
-      }
-    }
+    uint256 premiumDebt = address(_premiumDistributor) == address(0) ? 0 : 
+      _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
 
     internalSetStatus(insured, InsuredStatus.Declined);
 
-    // TODO enforcedCancel
-    return internalTransferCancelledCoverage(insured, payoutValue, excessCoverage, providedCoverage, providedCoverage - receivableCoverage);
+    if (premiumDebt > 0) {
+      unchecked {
+        if (premiumDebt >= payoutValue) {
+          deductedValue = payoutValue;
+          premiumDebt -= payoutValue;
+          payoutValue = 0;
+        } else {
+          deductedValue = premiumDebt;
+          payoutValue -= premiumDebt;
+          premiumDebt = 0;
+        }
+      }
+    }
+
+    payoutValue = internalTransferCancelledCoverage(insured, payoutValue, providedCoverage - receivableCoverage, 
+      excessCoverage + receivableCoverage, premiumDebt);
   }
 
   function internalTransferCancelledCoverage(
     address insured,
     uint256 payoutValue,
-    uint256 excessCoverage,
-    uint256 providedCoverage,
-    uint256 receivedCoverage
+    uint256 advanceValue,
+    uint256 recoveredValue,
+    uint256 premiumDebt
   ) internal virtual returns (uint256);
 
   /// @inheritdoc ICoverageDistributor

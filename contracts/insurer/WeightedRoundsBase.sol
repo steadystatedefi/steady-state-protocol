@@ -686,6 +686,15 @@ abstract contract WeightedRoundsBase {
     );
   }
 
+  function internalGetCoveredTotals() internal view returns (uint256 totalCovered, uint256 pendingCovered) {
+    uint64 batchNo = _partial.batchNo;
+    if (batchNo > 0) {
+      Rounds.Batch storage b = _batches[batchNo];
+      totalCovered = _unitSize * (_adjustedTotalUnits(b.totalUnitsBeforeBatch) + uint256(_partial.roundNo) * b.unitPerRound);
+      pendingCovered = _partial.roundCoverage;
+    }
+  }
+
   function internalGetPremiumTotals() internal view returns (DemandedCoverage memory coverage) {
     return internalGetPremiumTotals(_partial, _poolPremium);
   }
@@ -770,7 +779,7 @@ abstract contract WeightedRoundsBase {
     bool openBatchUpdated;
     bool batchUpdated;
     bool premiumUpdated;
-    uint256 unitsCovered;
+    // uint256 unitsCovered;
   }
 
   /// @dev Satisfy coverage demand by adding coverage
@@ -837,7 +846,7 @@ abstract contract WeightedRoundsBase {
         part.roundCoverage += uint128(amount);
         return (0, loopLimit - 1, b);
       }
-      params.unitsCovered = b.unitPerRound;
+      // params.unitsCovered = b.unitPerRound;
       part.roundCoverage = 0;
       part.roundNo++;
       amount -= vacant;
@@ -912,14 +921,14 @@ abstract contract WeightedRoundsBase {
         require(vacantRounds > 0);
 
         if (n < vacantRounds) {
-          params.unitsCovered += n * b.unitPerRound;
+          // params.unitsCovered += n * b.unitPerRound;
           part.roundNo += uint24(n);
           part.roundCoverage = uint128(amount - maxRoundCoverage * n);
           amount = 0;
           break;
         }
 
-        params.unitsCovered += vacantRounds * b.unitPerRound;
+        // params.unitsCovered += vacantRounds * b.unitPerRound;
         part.roundNo = b.rounds;
         amount -= maxRoundCoverage * vacantRounds;
         if (loopLimit > 0) continue; // make sure to move to the next batch

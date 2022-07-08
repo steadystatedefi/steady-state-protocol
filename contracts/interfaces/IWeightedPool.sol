@@ -17,5 +17,6 @@ struct WeightedPoolParams {
   uint16 minUnitsPerRound;
   uint16 maxUnitsPerRound;
   uint16 overUnitsPerRound;
-  uint16 maxDrawdownInverse; // 100% = no drawdown
+  uint16 coveragePrepayPct; // 100% = no drawdown, this value can ONLY be increased 
+  uint16 maxUserDrawdownPct; // 0% = no drawdown, maxUserDrawdownPct + coveragePrepayPct <= 100%
 }
