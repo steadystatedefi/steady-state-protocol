@@ -2,7 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
-import { AbiCoder } from 'ethers/lib/utils';
+import { MAX_UINT } from '../../helpers/constants';
 
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
@@ -28,9 +28,8 @@ enum roles {
   UNDERWRITER_CLAIM = 2 ** 9,
 }
 
-const ROLES = BigNumber.from(1).shl(16).sub(1);
-const NOT_ROLES = BigNumber.from('115792089237316195423570985008687907853269984665640564039457584007913129574400');
-const SINGLETS = BigNumber.from(1).shl(64).sub(1).and(NOT_ROLES);
+const ROLES = MAX_UINT.mask(16);
+const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
 
 const SINGLET_ONE = BigNumber.from(1).shl(30);
 const SINGLET_TWO = BigNumber.from(1).shl(31);
@@ -41,7 +40,7 @@ enum protectedSingletons {
   TREASURY = 2 ** 17,
 }
 
-const PROTECTED_SINGLETS = BigNumber.from(1).shl(26).sub(1).and(NOT_ROLES);
+const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
 
 makeSuite.only('Access Controller', (testEnv: TestEnv) => {
   let controller: AccessController;
@@ -62,10 +61,6 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     ]);
     caller1 = await Factories.MockCaller.deploy();
     caller2 = await Factories.MockCaller.deploy();
-
-    console.log('singlets', SINGLETS.toHexString());
-    console.log('roles', ROLES.toHexString());
-    console.log('protected', PROTECTED_SINGLETS.toHexString());
   });
 
   it('Admin roles', async () => {
