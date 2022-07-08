@@ -32,8 +32,9 @@ const ROLES = BigNumber.from(1).shl(16).sub(1);
 const NOT_ROLES = BigNumber.from('115792089237316195423570985008687907853269984665640564039457584007913129574400');
 const SINGLETS = BigNumber.from(1).shl(64).sub(1).and(NOT_ROLES);
 
-const TEST_ONE = BigNumber.from(1).shl(30);
-const TEST_TWO = BigNumber.from(1).shl(31);
+const SINGLET_ONE = BigNumber.from(1).shl(30);
+const SINGLET_TWO = BigNumber.from(1).shl(31);
+const MULTILET_ONE = BigNumber.from(1).shl(65);
 
 enum protectedSingletons {
   APPROVAL_CATALOG = 2 ** 16,
@@ -76,7 +77,7 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     const curTime = await currentTime();
     const expiry = curTime + 100;
     await controller.setTemporaryAdmin(user1.address, 100);
-    const t = await controller.getTemporaryAdmin();
+    let t = await controller.getTemporaryAdmin();
     expect(t.admin).eq(user1.address);
     expect(await controller.isAdmin(user1.address)).eq(true);
     // expect(t.expiresAt).eq(expiry);
@@ -84,6 +85,9 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     await advanceBlock(expiry + 10);
     expect(await controller.isAdmin(user1.address)).eq(false);
     await controller.renounceTemporaryAdmin();
+    t = await controller.getTemporaryAdmin();
+    expect(t.admin).eq(zeroAddress());
+    expect(t.expiresAt).eq(0);
 
     await controller.setTemporaryAdmin(user1.address, 100);
     expect(await controller.isAdmin(user1.address)).eq(true);
@@ -91,6 +95,17 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     expect(await controller.isAdmin(user1.address)).eq(true);
     await controller.connect(user1).renounceTemporaryAdmin();
     expect(await controller.isAdmin(user1.address)).eq(false);
+
+    await controller.setTemporaryAdmin(user1.address, 100);
+    await controller.setTemporaryAdmin(user2.address, 100);
+    expect(await controller.isAdmin(user2.address)).eq(true);
+    expect(await controller.isAdmin(user1.address)).eq(false);
+
+    await controller.setTemporaryAdmin(zeroAddress(), 100);
+    expect(await controller.isAdmin(user2.address)).eq(false);
+    t = await controller.getTemporaryAdmin();
+    expect(t.admin).eq(zeroAddress());
+    expect(t.expiresAt).eq(0);
   });
 
   it('Add and remove Multilet role', async () => {
@@ -113,44 +128,57 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     await controller.revokeRolesFromAll(roles.COLLATERAL_FUND_ADMIN, 2);
     expect(await controller.queryAccessControlMask(user1.address, 0)).eq(0);
     expect(await controller.queryAccessControlMask(user2.address, 0)).eq(0);
+
+    await controller.grantRoles(user1.address, MULTILET_ONE);
+    expect(await controller.queryAccessControlMask(user1.address, 0)).eq(MULTILET_ONE);
   });
 
   it('Add and remove singlet role', async () => {
     // Cannot add multiple roles for a singlet
-    await expect(controller.setAddress(TEST_ONE.add(TEST_TWO), caller1.address)).to.be.reverted;
+    await expect(controller.setAddress(SINGLET_ONE.add(SINGLET_TWO), caller1.address)).to.be.reverted;
 
-    await controller.setAddress(TEST_ONE, caller1.address);
-    let holders = await controller.roleHolders(TEST_ONE);
+    await controller.setAddress(SINGLET_ONE, caller1.address);
+    let holders = await controller.roleHolders(SINGLET_ONE);
     {
-      expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(TEST_ONE);
-      expect(await controller.isAddress(TEST_ONE, caller1.address)).eq(true);
-      expect(await controller.isAddress(TEST_TWO, caller1.address)).eq(false);
-      expect(await controller.getAddress(TEST_ONE)).eq(caller1.address);
+      expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(SINGLET_ONE);
+      expect(await controller.isAddress(SINGLET_ONE, caller1.address)).eq(true);
+      expect(await controller.isAddress(SINGLET_TWO, caller1.address)).eq(false);
+      expect(await controller.getAddress(SINGLET_ONE)).eq(caller1.address);
       expect(holders[0]).eq(caller1.address);
     }
 
-    await controller.setAddress(TEST_ONE, caller2.address);
-    holders = await controller.roleHolders(TEST_ONE);
+    await controller.setAddress(SINGLET_ONE, caller2.address);
+    holders = await controller.roleHolders(SINGLET_ONE);
     {
-      expect(await controller.queryAccessControlMask(caller2.address, 0)).eq(TEST_ONE);
-      expect(await controller.getAddress(TEST_ONE)).eq(caller2.address);
-      expect(await controller.isAddress(TEST_ONE, caller2.address)).eq(true);
+      expect(await controller.queryAccessControlMask(caller2.address, 0)).eq(SINGLET_ONE);
+      expect(await controller.getAddress(SINGLET_ONE)).eq(caller2.address);
+      expect(await controller.isAddress(SINGLET_ONE, caller2.address)).eq(true);
       expect(holders[0]).eq(caller2.address);
-      expect(await controller.isAddress(TEST_ONE, caller1.address)).eq(false);
+      expect(await controller.isAddress(SINGLET_ONE, caller1.address)).eq(false);
       expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(0);
     }
 
-    await controller.setAddress(TEST_ONE, zeroAddress());
-    holders = await controller.roleHolders(TEST_ONE);
+    await controller.setAddress(SINGLET_ONE, zeroAddress());
+    holders = await controller.roleHolders(SINGLET_ONE);
     {
       expect(await controller.queryAccessControlMask(caller2.address, 0)).eq(0);
-      expect(await controller.getAddress(TEST_ONE)).eq(zeroAddress());
-      expect(await controller.isAddress(TEST_ONE, caller2.address)).eq(false);
+      expect(await controller.getAddress(SINGLET_ONE)).eq(zeroAddress());
+      expect(await controller.isAddress(SINGLET_ONE, caller2.address)).eq(false);
       expect(holders.length).eq(0);
     }
+
+    await controller.setAddress(SINGLET_ONE, caller1.address);
+    await controller.revokeAllRoles(caller1.address);
+    expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(0);
+    expect(await controller.getAddress(SINGLET_ONE)).eq(zeroAddress());
+
+    await controller.setAddress(SINGLET_ONE, caller1.address);
+    await controller.revokeRolesFromAll(SINGLET_ONE, 10);
+    expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(0);
+    expect(await controller.getAddress(SINGLET_ONE)).eq(zeroAddress());
   });
 
-  it('Protected singlet from construactor', async () => {
+  it('Protected singlet from constructor', async () => {
     await expect(controller.setAddress(protectedSingletons.TREASURY, caller1.address)).to.be.reverted;
     await controller.setProtection(protectedSingletons.TREASURY, false);
     await controller.setAddress(protectedSingletons.TREASURY, caller1.address);
@@ -167,24 +195,24 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
   });
 
   it('Protected singlet from regular singlet', async () => {
-    await controller.setAddress(TEST_ONE, caller1.address);
-    await controller.setProtection(TEST_ONE, true);
-    await expect(controller.setAddress(TEST_ONE, caller2.address)).to.be.reverted;
-    await controller.setProtection(TEST_ONE, false);
-    await controller.setAddress(TEST_ONE, caller2.address);
-    expect(await controller.getAddress(TEST_ONE)).eq(caller2.address);
+    await controller.setAddress(SINGLET_ONE, caller1.address);
+    await controller.setProtection(SINGLET_ONE, true);
+    await expect(controller.setAddress(SINGLET_ONE, caller2.address)).to.be.reverted;
+    await controller.setProtection(SINGLET_ONE, false);
+    await controller.setAddress(SINGLET_ONE, caller2.address);
+    expect(await controller.getAddress(SINGLET_ONE)).eq(caller2.address);
   });
 
   it('Call with roles direct', async () => {
     const role1 = roles.PREMIUM_FUND_ADMIN;
     const role2 = roles.SWEEP_ADMIN;
-    const singletonCall = caller1.interface.encodeFunctionData('checkRoleDirect', [TEST_ONE]);
+    const singletonCall = caller1.interface.encodeFunctionData('checkRoleDirect', [SINGLET_ONE]);
     const protectedCall = caller1.interface.encodeFunctionData('checkRoleDirect', [protectedSingletons.TREASURY]);
     const role1Call = caller1.interface.encodeFunctionData('checkRoleDirect', [role1]);
     const bothRolesCall = caller1.interface.encodeFunctionData('checkRoleDirect', [role1 | role2]);
-    const singletonBothRolesCall = caller1.interface.encodeFunctionData('checkRoleDirect', [TEST_ONE.or(role1)]);
+    const singletonBothRolesCall = caller1.interface.encodeFunctionData('checkRoleDirect', [SINGLET_ONE.or(role1)]);
 
-    await expect(controller.directCallWithRoles(TEST_ONE, caller1.address, singletonCall)).to.be.reverted;
+    await expect(controller.directCallWithRoles(SINGLET_ONE, caller1.address, singletonCall)).to.be.reverted;
     await expect(controller.directCallWithRoles(protectedSingletons.TREASURY, caller1.address, protectedCall)).to.be
       .reverted;
 
@@ -197,7 +225,7 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(role2);
     await controller.revokeAllRoles(caller1.address);
 
-    await controller.setAddress(TEST_ONE, caller2.address);
+    await controller.setAddress(SINGLET_ONE, caller2.address);
     const params: IManagedAccessController.CallParamsStruct[] = [];
     params.push({
       accessFlags: role1,
@@ -209,22 +237,22 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
       accessFlags: role1,
       callAddr: caller2.address,
       callData: singletonBothRolesCall,
-      callFlag: TEST_ONE,
+      callFlag: SINGLET_ONE,
     });
 
     await controller.directCallWithRolesBatch(params);
     expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(0);
-    expect(await controller.queryAccessControlMask(caller2.address, 0)).eq(TEST_ONE);
+    expect(await controller.queryAccessControlMask(caller2.address, 0)).eq(SINGLET_ONE);
   });
 
   it('Call with roles indirect', async () => {
     const role1 = roles.PREMIUM_FUND_ADMIN;
-    const singletonCall = caller1.interface.encodeFunctionData('checkRoleIndirect', [controller.address, TEST_ONE]);
+    const singletonCall = caller1.interface.encodeFunctionData('checkRoleIndirect', [controller.address, SINGLET_ONE]);
     const role1Call = caller1.interface.encodeFunctionData('checkRoleIndirect', [controller.address, role1]);
 
     const params: IManagedAccessController.CallParamsStruct[] = [];
     params.push({
-      accessFlags: TEST_ONE,
+      accessFlags: SINGLET_ONE,
       callAddr: caller1.address,
       callData: singletonCall,
       callFlag: 0,
@@ -245,6 +273,13 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
   it('Grant any role', async () => {
     await expect(controller.grantAnyRoles(user1.address, roles.ORACLE_ADMIN)).to.be.reverted;
     await controller.setAnyRoleMode(true);
-    await controller.grantAnyRoles(user1.address, roles.ORACLE_ADMIN);
+
+    // Usually setAddress must be used for singletons
+    await controller.grantAnyRoles(user1.address, SINGLET_ONE);
+    expect(await controller.queryAccessControlMask(user1.address, 0)).eq(SINGLET_ONE);
+
+    await controller.setAnyRoleMode(false);
+    await expect(controller.grantAnyRoles(user1.address, SINGLET_TWO)).to.be.reverted;
+    await expect(controller.setAnyRoleMode(true)).to.be.reverted;
   });
 });

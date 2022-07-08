@@ -213,7 +213,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   }
 
   function _ensureNotProtected(AddrMode mode) private pure {
-    require(mode == AddrMode.ProtectedSinglet, 'protected singleton can not be revoked');
+    require(mode != AddrMode.ProtectedSinglet, 'protected singleton can not be revoked');
   }
 
   function _revokeRoles(address addr, uint256 flags) private returns (uint256) {
@@ -235,6 +235,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
         AddrInfo storage info = _singlets[mask];
         if (info.addr != address(0)) {
           _ensureNotProtected(info.mode);
+          _masks[info.addr] &= ~mask;
           info.addr = address(0);
           emit AddressSet(mask, address(0));
         }
