@@ -42,7 +42,7 @@ enum protectedSingletons {
 
 const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
 
-makeSuite.only('Access Controller', (testEnv: TestEnv) => {
+makeSuite('Access Controller', (testEnv: TestEnv) => {
   let controller: AccessController;
   let admin: SignerWithAddress;
   let user1: SignerWithAddress;
