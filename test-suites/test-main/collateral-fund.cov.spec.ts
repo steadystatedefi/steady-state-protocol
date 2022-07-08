@@ -77,7 +77,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     expect(await fund.isApprovedFor(zeroAddress(), user1.address, APPROVED_DEPOSIT)).eq(false);
     expect(await fund.getAllApprovalsFor(zeroAddress(), user1.address)).eq(0);
 
-    await fund.setSpecialApprovals(user1.address, APPROVED_DEPOSIT);
+    await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
     expect(await fund.isApprovedFor(zeroAddress(), user1.address, APPROVED_DEPOSIT)).eq(true);
     expect(await fund.getAllApprovalsFor(zeroAddress(), user1.address)).eq(APPROVED_DEPOSIT);
   });
@@ -89,7 +89,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
       testEnv.covReason('AccessDenied()')
     );
 
-    await fund.setSpecialApprovals(user1.address, APPROVED_DEPOSIT);
+    await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
     await fund.connect(user1).deposit(user1.address, token0.address, 1000);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(1000));
@@ -177,7 +177,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
   it('Invest including deposit', async () => {
     await token0.connect(user1).approve(fund.address, WAD);
-    await fund.setSpecialApprovals(user1.address, APPROVED_DEPOSIT);
+    await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
     await fund.connect(user1).deposit(user1.address, token0.address, 1000);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(1000));
@@ -205,12 +205,12 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
       testEnv.covReason('AccessDenied()')
     );
 
-    await fund.setSpecialApprovals(user2.address, APPROVED_DEPOSIT);
+    await fund.setSpecialRoles(user2.address, APPROVED_DEPOSIT);
     await expect(fund.connect(user3).trustedDeposit(user1.address, user2.address, token0.address, 1000)).revertedWith(
       testEnv.covReason('AccessDenied()')
     );
 
-    await fund.setTrusted(token0.address, user3.address);
+    await fund.setTrustedOperator(token0.address, user3.address);
     await expect(fund.connect(user3).trustedDeposit(user1.address, user2.address, token0.address, 1000)).revertedWith(
       testEnv.covReason('AccessDenied()')
     );
@@ -255,7 +255,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
     await token0.connect(user1).approve(fund.address, WAD);
 
-    await fund.setSpecialApprovals(user1.address, APPROVED_DEPOSIT);
+    await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
     await fund.connect(user1).deposit(user1.address, token0.address, 1000);
 
     await fund.removeAsset(token0.address);
@@ -273,7 +273,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
   it('Pause an asset', async () => {
     await token0.connect(user1).approve(fund.address, WAD);
 
-    await fund.setSpecialApprovals(user1.address, APPROVED_DEPOSIT);
+    await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
     await fund.connect(user1).deposit(user1.address, token0.address, 1000);
     await fund.connect(user1).withdraw(user1.address, user1.address, token0.address, 500);
 
@@ -303,7 +303,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
     await fund.setPriceOf(token0.address, WAD.sub(WAD.div(200)));
 
-    await fund.setSpecialApprovals(user1.address, APPROVED_DEPOSIT);
+    await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
     await fund.connect(user1).deposit(user1.address, token0.address, 1000000);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(1000000));

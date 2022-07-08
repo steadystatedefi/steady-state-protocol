@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
+import '../interfaces/IWeightedPool.sol';
 import '../tools/math/PercentageMath.sol';
 import './WeightedRoundsBase.sol';
 import './WeightedPoolAccessControl.sol';
@@ -198,15 +199,21 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
       return false;
     }
 
-    // IInsuredPool(insured).premiumToken() != insuredParams.premiumToken
+    // TODO check IInsuredPool(insured).premiumToken() == insuredParams.premiumToken
 
     InsuredParams memory insuredSelfParams = IInsuredPool(insured).insuredParams();
 
-    uint256 minUnits = internalUnitSize();
-    minUnits = (insuredSelfParams.minPerInsurer + minUnits - 1) / minUnits;
+    uint256 unitSize = internalUnitSize();
+    uint256 minUnits = (insuredSelfParams.minPerInsurer + unitSize - 1) / unitSize;
     require(minUnits <= type(uint24).max);
 
-    super.internalSetInsuredParams(insured, Rounds.InsuredParams({minUnits: uint24(minUnits), maxShare: uint16(maxShare)}));
+    uint256 baseRate = (approvedParams.basePremiumRate + unitSize - 1) / unitSize;
+    require(baseRate <= type(uint40).max);
+
+    super.internalSetInsuredParams(
+      insured,
+      Rounds.InsuredParams({minUnits: uint24(minUnits), maxShare: uint16(maxShare), minPremiumRate: uint40(baseRate)})
+    );
 
     return true;
   }
@@ -226,18 +233,6 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     }
     return status;
   }
-}
-
-struct WeightedPoolParams {
-  uint32 maxAdvanceUnits;
-  uint32 minAdvanceUnits;
-  uint16 riskWeightTarget;
-  uint16 minInsuredShare;
-  uint16 maxInsuredShare;
-  uint16 minUnitsPerRound;
-  uint16 maxUnitsPerRound;
-  uint16 overUnitsPerRound;
-  uint16 maxDrawdownInverse; // 100% = no drawdown
 }
 
 enum LoopLimitType {

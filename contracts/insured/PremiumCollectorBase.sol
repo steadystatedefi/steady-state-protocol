@@ -6,6 +6,7 @@ import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/SafeERC20.sol';
 import '../tools/Errors.sol';
 import '../tools/tokens/IERC20.sol';
+import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IPremiumCollector.sol';
 import '../interfaces/IPremiumSource.sol';
 import '../tools/math/WadRayMath.sol';
@@ -22,16 +23,24 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
   uint32 private _rollingAdvanceWindow;
   uint160 private _minPrepayValue;
 
-  modifier onlyWithdrawalRole() virtual {
-    _; // TODO
-  }
-
-  modifier onlyPremiumDistributorOf(address actuary) virtual {
-    _;
-  }
-
-  function premiumToken() external view override(IPremiumCollector, IPremiumSource) returns (address) {
+  function premiumToken() public view override(IPremiumCollector, IPremiumSource) returns (address) {
     return address(_premiumToken);
+  }
+
+  function _initializePremiumCollector(
+    address token,
+    uint160 minPrepayValue,
+    uint32 rollingAdvanceWindow
+  ) internal {
+    Value.require(token == address(0));
+    State.require(address(_premiumToken) == address(0));
+    _premiumToken = IERC20(token);
+    internalSetPrepay(minPrepayValue, rollingAdvanceWindow);
+  }
+
+  function internalSetPrepay(uint160 minPrepayValue, uint32 rollingAdvanceWindow) internal {
+    _minPrepayValue = minPrepayValue;
+    _rollingAdvanceWindow = rollingAdvanceWindow;
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view virtual returns (uint256);
@@ -53,7 +62,7 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     return expectedPrepay(uint32(block.timestamp) + timeDelta);
   }
 
-  function withdrawPrepay(address recipient, uint256 amount) external override onlyWithdrawalRole {
+  function internalWithdrawPrepay(address recipient, uint256 amount) internal {
     IERC20 token = _premiumToken;
 
     uint256 balance = token.balanceOf(address(this));
@@ -76,12 +85,11 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
 
   function internalReservedCollateral() internal view virtual returns (uint256);
 
-  function collectPremium(
-    address actuary,
+  function internalCollectPremium(
     address token,
     uint256 amount,
     uint256 value
-  ) external override onlyPremiumDistributorOf(actuary) {
+  ) internal {
     uint256 balance = IERC20(token).balanceOf(address(this));
 
     if (balance > 0) {

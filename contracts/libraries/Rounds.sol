@@ -31,8 +31,12 @@ library Rounds {
   }
 
   struct InsuredParams {
+    /// @dev a minimum number of units to be allocated for an insured in a single batch. Best effort, but may be ignored.
     uint24 minUnits;
+    /// @dev a maximum % of units this insured can have per round. This is a hard limit.
     uint16 maxShare;
+    /// @dev a minimum premium rate to accept new coverage demand
+    uint40 minPremiumRate;
   }
 
   struct InsuredEntry {
@@ -44,6 +48,8 @@ library Rounds {
     uint24 minUnits;
     /// @dev see InsuredParams
     uint16 maxShare;
+    /// @dev see InsuredParams
+    uint40 minPremiumRate;
     /// @dev status of the insured pool
     InsuredStatus status;
 

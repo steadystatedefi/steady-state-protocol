@@ -6,26 +6,16 @@ import '../CollateralFundBase.sol';
 contract MockCollateralFund is CollateralFundBase {
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) {
-    _initialize(collateral_);
-  }
+  constructor(address collateral_) CollateralFundBase(IAccessController(address(0)), collateral_) {}
 
-  function setSpecialApprovals(address operator, uint256 access) external {
-    internalSetSpecialApprovals(operator, access);
-  }
-
-  function addAsset(
+  function internalAddAsset(
     address token,
     uint64 priceTarget,
     uint16 priceTolerance,
     address trusted
-  ) external {
-    internalAddAsset(token, priceTarget, priceTolerance, trusted);
+  ) internal override {
+    super.internalAddAsset(token, priceTarget, priceTolerance, trusted);
     _prices[token] = priceTarget;
-  }
-
-  function removeAsset(address token) external {
-    internalRemoveAsset(token);
   }
 
   function internalPriceOf(address token) internal view override returns (uint256) {
@@ -36,11 +26,11 @@ contract MockCollateralFund is CollateralFundBase {
     _prices[token] = price;
   }
 
-  function setTrusted(address token, address trusted) external {
-    internalSetTrusted(token, trusted);
+  function hasAnyAcl(address, uint256) internal pure override returns (bool) {
+    return true;
   }
 
-  function setPaused(address token, bool paused) external {
-    internalSetFlags(token, paused ? 0 : type(uint8).max);
+  function hasAllAcl(address, uint256) internal pure override returns (bool) {
+    return true;
   }
 }

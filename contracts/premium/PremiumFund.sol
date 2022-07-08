@@ -399,7 +399,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     }
   }
 
-  event PremiumCollectionFailed(address indexed source, address indexed token, uint256 amount, string failureType, bytes reason);
+  event PremiumCollectionFailed(address indexed source, address indexed token, uint256 amount, bool isPanic, bytes reason);
 
   function _collectPremiumCall(
     address actuary,
@@ -410,19 +410,18 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
   ) private returns (uint256) {
     uint256 balance = token.balanceOf(address(this));
 
-    string memory errType;
+    bool isPanic;
     bytes memory errReason;
 
     try IPremiumSource(source).collectPremium(actuary, address(token), amount, value) {
       return token.balanceOf(address(this)) - balance;
     } catch Error(string memory reason) {
-      errType = 'error';
       errReason = bytes(reason);
     } catch (bytes memory reason) {
-      errType = 'panic';
+      isPanic = true;
       errReason = reason;
     }
-    emit PremiumCollectionFailed(source, address(token), amount, errType, errReason);
+    emit PremiumCollectionFailed(source, address(token), amount, isPanic, errReason);
 
     return 0;
   }

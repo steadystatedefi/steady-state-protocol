@@ -63,7 +63,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
       }
       internalSetStatus(insured, status);
 
-      string memory errType;
+      bool isPanic;
       bytes memory errReason;
 
       try IInsuredPool(insured).joinProcessed(accepted) {
@@ -75,13 +75,12 @@ abstract contract InsurerJoinBase is IJoinEvents {
         }
         return status;
       } catch Error(string memory reason) {
-        errType = 'error';
         errReason = bytes(reason);
       } catch (bytes memory reason) {
-        errType = 'panic';
+        isPanic = true;
         errReason = reason;
       }
-      emit JoinFailed(insured, errType, errReason);
+      emit JoinFailed(insured, isPanic, errReason);
       status = InsuredStatus.JoinFailed;
     } else {
       if (status == InsuredStatus.Declined) {

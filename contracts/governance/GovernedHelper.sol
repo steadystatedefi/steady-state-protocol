@@ -15,7 +15,7 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
   }
 
   function _onlyGovernor() private view {
-    require(_isAllowed(0));
+    require(governorAccount() == msg.sender);
   }
 
   function _isAllowed(uint256 flags) private view returns (bool) {
