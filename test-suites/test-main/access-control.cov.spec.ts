@@ -75,12 +75,15 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
 
     // TODO: Ensure that expiry does not change in implementation
     const curTime = await currentTime();
-    const expiry = curTime + 100;
-    await controller.setTemporaryAdmin(user1.address, 100);
+    let expiry = curTime + 100;
+    const tx = await controller.setTemporaryAdmin(user1.address, 100);
     let t = await controller.getTemporaryAdmin();
     expect(t.admin).eq(user1.address);
     expect(await controller.isAdmin(user1.address)).eq(true);
-    // expect(t.expiresAt).eq(expiry);
+    if (tx.timestamp !== undefined) {
+      expiry = tx.timestamp + 100;
+      expect(t.expiresAt).eq(expiry);
+    }
 
     await advanceBlock(expiry + 10);
     expect(await controller.isAdmin(user1.address)).eq(false);
@@ -110,27 +113,41 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
 
   it('Add and remove Multilet role', async () => {
     await controller.grantRoles(user1.address, roles.COLLATERAL_FUND_ADMIN);
+    await controller.grantRoles(user1.address, roles.COLLATERAL_FUND_ADMIN); // Called for branch coverage
     await controller.grantRoles(user2.address, roles.COLLATERAL_FUND_ADMIN);
-    expect(await controller.queryAccessControlMask(user1.address, 0)).eq(roles.COLLATERAL_FUND_ADMIN);
-    expect(await controller.queryAccessControlMask(user2.address, 0)).eq(roles.COLLATERAL_FUND_ADMIN);
+
+    let holders = await controller.roleHolders(roles.COLLATERAL_FUND_ADMIN);
+    {
+      expect(await controller.queryAccessControlMask(user1.address, 0)).eq(roles.COLLATERAL_FUND_ADMIN);
+      expect(await controller.queryAccessControlMask(user2.address, 0)).eq(roles.COLLATERAL_FUND_ADMIN);
+      expect(holders.includes(user1.address));
+      expect(holders.includes(user2.address));
+      expect(holders.length).eq(2);
+    }
 
     await controller.revokeRoles(user1.address, roles.COLLATERAL_FUND_ADMIN);
     await controller.revokeRoles(user2.address, roles.COLLATERAL_FUND_ADMIN);
+    holders = await controller.roleHolders(roles.COLLATERAL_FUND_ADMIN);
+    {
+      expect(await controller.queryAccessControlMask(user1.address, 0)).eq(0);
+      expect(await controller.queryAccessControlMask(user2.address, 0)).eq(0);
+      expect(holders.length).eq(0);
+    }
+
+    await controller.grantRoles(user1.address, roles.COLLATERAL_FUND_ADMIN);
+    await controller.grantRoles(user2.address, roles.COLLATERAL_FUND_ADMIN);
+    await controller.revokeRolesFromAll(roles.COLLATERAL_FUND_ADMIN, 2);
     expect(await controller.queryAccessControlMask(user1.address, 0)).eq(0);
     expect(await controller.queryAccessControlMask(user2.address, 0)).eq(0);
 
     await controller.grantRoles(user1.address, roles.COLLATERAL_FUND_ADMIN);
     await controller.grantRoles(user2.address, roles.COLLATERAL_FUND_ADMIN);
-    const holders = await controller.roleHolders(roles.COLLATERAL_FUND_ADMIN);
-    expect(holders.includes(user1.address));
-    expect(holders.includes(user2.address));
+    await controller.revokeRolesFromAll(roles.COLLATERAL_FUND_ADMIN, 1);
+    holders = await controller.roleHolders(roles.COLLATERAL_FUND_ADMIN);
+    expect(holders.length).eq(1);
 
-    await controller.revokeRolesFromAll(roles.COLLATERAL_FUND_ADMIN, 2);
-    expect(await controller.queryAccessControlMask(user1.address, 0)).eq(0);
-    expect(await controller.queryAccessControlMask(user2.address, 0)).eq(0);
-
-    await controller.grantRoles(user1.address, MULTILET_ONE);
-    expect(await controller.queryAccessControlMask(user1.address, 0)).eq(MULTILET_ONE);
+    await controller.grantRoles(caller1.address, MULTILET_ONE);
+    expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(MULTILET_ONE);
   });
 
   it('Add and remove singlet role', async () => {
@@ -176,6 +193,17 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
     await controller.revokeRolesFromAll(SINGLET_ONE, 10);
     expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(0);
     expect(await controller.getAddress(SINGLET_ONE)).eq(zeroAddress());
+
+    // Create new singlet role
+    const newRole = BigNumber.from(1).shl(64);
+    await controller.setAddress(newRole, caller1.address);
+    holders = await controller.roleHolders(newRole);
+    {
+      expect(await controller.queryAccessControlMask(caller1.address, 0)).eq(newRole);
+      expect(await controller.isAddress(newRole, caller1.address)).eq(true);
+      expect(await controller.getAddress(newRole)).eq(caller1.address);
+      expect(holders[0]).eq(caller1.address);
+    }
   });
 
   it('Protected singlet from constructor', async () => {
@@ -276,7 +304,19 @@ makeSuite.only('Access Controller', (testEnv: TestEnv) => {
 
     // Usually setAddress must be used for singletons
     await controller.grantAnyRoles(user1.address, SINGLET_ONE);
+    await controller.grantAnyRoles(user2.address, SINGLET_ONE);
+
     expect(await controller.queryAccessControlMask(user1.address, 0)).eq(SINGLET_ONE);
+    expect(await controller.queryAccessControlMask(user2.address, 0)).eq(SINGLET_ONE);
+
+    await controller.setAddress(SINGLET_ONE, caller1.address);
+    const holders = await controller.roleHolders(SINGLET_ONE);
+    {
+      expect(holders.includes(user1.address));
+      expect(holders.includes(user2.address));
+      expect(holders.includes(caller1.address));
+      expect(holders.length).eq(3);
+    }
 
     await controller.setAnyRoleMode(false);
     await expect(controller.grantAnyRoles(user1.address, SINGLET_TWO)).to.be.reverted;
