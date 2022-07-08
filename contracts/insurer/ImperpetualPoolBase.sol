@@ -13,11 +13,9 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using Balances for Balances.RateAcc;
 
   constructor(
-    IAccessController acl,
-    uint256 unitSize,
-    address collateral_,
-    ImperpetualPoolExtension extension
-  ) WeightedPoolBase(acl, unitSize, collateral_, extension) {}
+    ImperpetualPoolExtension extension,
+    JoinablePoolExtension joinExtension
+  ) WeightedPoolBase(extension, joinExtension) {}
 
   function _addCoverage(uint256 value)
     private
