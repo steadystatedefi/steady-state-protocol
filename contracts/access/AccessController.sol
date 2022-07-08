@@ -233,9 +233,10 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     for (uint256 mask = 1; flags > 0; (flags, mask) = (flags >> 1, mask << 1)) {
       if (flags & 1 != 0) {
         AddrInfo storage info = _singlets[mask];
-        if (info.addr != address(0)) {
+        address addr = info.addr;
+        if (addr != address(0)) {
           _ensureNotProtected(info.mode);
-          _masks[info.addr] &= ~mask;
+          _masks[addr] &= ~mask;
           info.addr = address(0);
           emit AddressSet(mask, address(0));
         }
