@@ -44,7 +44,10 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     require(params.riskWeightTarget > 0);
     require(params.riskWeightTarget < PercentageMath.ONE);
 
-    require(params.maxDrawdownInverse >= PercentageMath.HALF_ONE);
+    require(params.coveragePrepayPct >= _params.coveragePrepayPct);
+    require(params.coveragePrepayPct >= PercentageMath.HALF_ONE);
+    require(params.maxUserDrawdownPct <= PercentageMath.ONE - params.coveragePrepayPct);
+
     _params = params;
   }
 

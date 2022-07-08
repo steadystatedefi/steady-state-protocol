@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
+import '../tools/math/Math.sol';
 import '../governance/interfaces/IInsurerGovernor.sol';
 import '../governance/GovernedHelper.sol';
 import './InsurerJoinBase.sol';

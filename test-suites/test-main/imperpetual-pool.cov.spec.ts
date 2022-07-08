@@ -286,11 +286,13 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(user.address)).eq(0);
 
     const userBalance = await pool.balanceOf(user.address);
-    const withdrawable = await pool.getExcessCoverage();
+    const excess = await pool.getExcessCoverage();
 
     const premium0 = (await pool.getTotals()).coverage.totalPremium;
     const totalValue0 = await pool.totalSupplyValue();
     const totalSupply0 = await pool.totalSupply();
+    const drawdown = await pool.callStatic.collectDrawdownPremium();
+    const withdrawable = excess;
 
     const exchangeRate0 = await pool.exchangeRate();
     expect(totalValue0.mul(RAY).add(totalSupply0.div(2)).div(totalSupply0)).eq(exchangeRate0);
@@ -306,7 +308,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     totalInvested -= withdrawable.toNumber();
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
-    expect(await pool.getExcessCoverage()).eq(0);
+    expect(await pool.getExcessCoverage()).eq(excess);
     expect(await cc.balanceOf(user.address)).eq(withdrawable);
 
     const balanceDelta = totalSupply0.sub(await pool.totalSupply());
@@ -314,6 +316,8 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     expect(await pool.balanceOf(user.address)).eq(userBalance.sub(balanceDelta));
 
     expect(balanceDelta.mul(exchangeRateX).add(HALF_RAY).div(RAY)).eq(withdrawable);
+
+    expect(await pool.callStatic.collectDrawdownPremium()).eq(drawdown.sub(withdrawable));
   });
 
   it('Fails to cancel coverage without reconcillation', async () => {

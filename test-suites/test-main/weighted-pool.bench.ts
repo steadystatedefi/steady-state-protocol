@@ -35,7 +35,8 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
       overUnitsPerRound: 30,
-      maxDrawdownInverse: 10000,
+      coveragePrepayPct: 100_00,
+      maxUserDrawdownPct: 0,
     });
   });
 

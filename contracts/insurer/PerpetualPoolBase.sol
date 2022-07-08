@@ -247,7 +247,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   function internalCollectDrawdownPremium() internal override returns (uint256) {}
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    require(params.maxDrawdownInverse == PercentageMath.ONE);
+    require(params.coveragePrepayPct == PercentageMath.ONE);
 
     super.internalSetPoolParams(params);
   }
