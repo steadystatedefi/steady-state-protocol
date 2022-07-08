@@ -8,6 +8,7 @@ import './WeightedPoolBase.sol';
 /// @title Index Pool Base with Perpetual Index Pool Tokens
 /// @notice Handles adding coverage by users.
 abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
+  using Math for uint256;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -33,9 +34,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
         _excessCoverage = newExcess;
         emit ExcessCoverageIncreased(newExcess);
       }
-      if (params.unitsCovered > 0) {
-        // TODO increase MCD in the premium pool
-      }
       done = true;
     }
   }
@@ -45,12 +43,11 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   function _mintForCoverage(address account, uint256 value) private {
     (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
     // TODO test adding coverage to an empty pool
-    _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : value, value);
+    _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
   }
 
   function internalSubrogate(address donor, uint256 value) internal override {
-    donor;
-    // TODO transfer collateral from
+    transferCollateralFrom(donor, address(this), value);
     emit ExcessCoverageIncreased(_excessCoverage += value);
     internalOnCoverageRecovered();
   }
@@ -58,64 +55,97 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   function updateCoverageOnCancel(
     address insured,
     uint256 payoutValue,
-    uint256 excessCoverage
+    uint256 advanceValue,
+    uint256 recoveredValue,
+    uint256 premiumDebt
   ) external onlySelf returns (uint256) {
-    uint256 givenValue = _insuredBalances[insured];
+    uint256 givenOutValue = _insuredBalances[insured];
+    require(givenOutValue <= advanceValue);
+
+    delete _insuredBalances[insured];
+    uint256 givenValue = givenOutValue + premiumDebt;
 
     if (givenValue != payoutValue) {
       if (givenValue > payoutValue) {
-        // take back the given coverage
-        transferCollateralFrom(insured, address(this), givenValue - payoutValue);
+        recoveredValue += advanceValue - givenValue;
+
+        // try to take back the given coverage
+        uint256 recovered = transferAvailableCollateralFrom(insured, address(this), givenValue - payoutValue);
+
+        // only the outstanding premium debt should be deducted, an outstanding coverage debt is managed as reduction of coverage itself
+        if (premiumDebt > recovered) {
+          _decrementTotalValue(premiumDebt - recovered);
+        }
+
+        recoveredValue += recovered;
       } else {
-        uint128 drawndownSupply = _drawdownSupply;
+        uint256 underpay = payoutValue - givenValue;
 
-        if (drawndownSupply > 0) {
-          uint256 underpay = payoutValue - givenValue;
-          if (drawndownSupply > underpay) {
-            drawndownSupply = uint128(drawndownSupply - underpay);
-          } else {
-            // TODO use excess
-            (underpay, drawndownSupply) = (drawndownSupply, 0);
-            payoutValue = givenValue + underpay;
+        if (recoveredValue < underpay) {
+          recoveredValue += _calcAvailableDrawdownReserve(recoveredValue + advanceValue);
+          if (recoveredValue < underpay) {
+            underpay = recoveredValue;
           }
-          _drawdownSupply = drawndownSupply;
+          recoveredValue = 0;
+        } else {
+          recoveredValue -= underpay;
+        }
 
+        if (underpay > 0) {
           transferCollateral(insured, underpay);
         }
+        payoutValue = givenValue + underpay;
       }
     }
 
-    if (excessCoverage > 0) {
-      emit ExcessCoverageIncreased(_excessCoverage += excessCoverage);
+    if (recoveredValue > 0) {
+      emit ExcessCoverageIncreased(_excessCoverage += recoveredValue);
       internalOnCoverageRecovered();
     }
 
     return payoutValue;
   }
+ 
 
   function updateCoverageOnReconcile(
     address insured,
     uint256 receivedCoverage,
     uint256 totalCovered
   ) external onlySelf returns (uint256) {
-    uint256 expectedAmount = totalCovered.percentMul(_params.maxDrawdownInverse);
+    uint256 expectedAmount = totalCovered.percentMul(_params.coveragePrepayPct);
     uint256 actualAmount = _insuredBalances[insured];
 
     if (actualAmount < expectedAmount) {
-      uint256 v = expectedAmount - actualAmount;
-      if (v < receivedCoverage) {
-        // TODO update the premium fund
-        _drawdownSupply += to128(receivedCoverage - v);
-        receivedCoverage = v;
+      uint256 d = expectedAmount - actualAmount;
+      if (d < receivedCoverage) {
+        receivedCoverage = d;
+      }
+      if ((d = balanceOfCollateral(address(this))) < receivedCoverage) {
+        receivedCoverage = d;
       }
 
-      _insuredBalances[insured] = actualAmount + receivedCoverage;
-      transferCollateral(insured, receivedCoverage);
+      if (receivedCoverage > 0) {
+        _insuredBalances[insured] = actualAmount + receivedCoverage;
+        transferCollateral(insured, receivedCoverage);
+      }
     } else {
       receivedCoverage = 0;
     }
 
     return receivedCoverage;
+  }
+
+  function _toInt128(uint256 v) private pure returns (int128) {
+    require(v <= type(uint128).max);
+    return int128(uint128(v));
+  }
+
+  function _decrementTotalValue(uint256 valueLoss) private {
+    _valueAdjustment -= _toInt128(valueLoss);
+  }
+
+  function _incrementTotalValue(uint256 valueGain) private {
+    _valueAdjustment += _toInt128(valueGain);
   }
 
   function internalOnCoverageRecovered() internal virtual {
@@ -129,7 +159,9 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   }
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
-    v = (coverage.totalCovered + coverage.pendingCovered) - added;
+    v = coverage.totalCovered - _burntDrawdown;
+    v = (v + coverage.pendingCovered) - added;
+
     {
       int256 va = _valueAdjustment;
       if (va >= 0) {
@@ -212,20 +244,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     address recepient,
     DemandedCoverage memory coverage
   ) internal returns (uint256 burntAmount) {
-    uint256 usableExcess = _excessCoverage;
-    if (usableExcess < value) {
-      // TODO fix oveflow
-      _drawdownSupply = uint128(_drawdownSupply + usableExcess - value);
-    } else if (usableExcess > value) {
-      usableExcess = value;
-    }
+    // NB! removed for performance reasons 
+    // Value.require(value <= _calcAvailableUserDrawdown(totalCovered + pendingCovered));
 
     burntAmount = _burnValue(account, value, coverage);
 
-    if (usableExcess > 0) {
-      _excessCoverage -= usableExcess;
-    }
-
+    _burntDrawdown += to128(value);
     transferCollateral(recepient, value);
   }
 
@@ -238,7 +262,28 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
 
-  function internalCollectDrawdownPremium() internal override returns (uint256) {
-    // TODO
+  function __calcAvailableDrawdown(uint256 totalCovered, uint16 maxDrawdown) internal view returns (uint256) {
+    uint256 burntDrawdown = _burntDrawdown;
+    totalCovered += _excessCoverage;
+    totalCovered = totalCovered.percentMul(maxDrawdown);
+    return totalCovered.boundedSub(burntDrawdown);
+  }
+
+  function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256) {
+    (uint256 totalCovered, uint256 pendingCovered) = internalGetCoveredTotals();
+    return __calcAvailableDrawdown(totalCovered + pendingCovered + extra, PercentageMath.ONE - _params.coveragePrepayPct);
+  }
+
+  function _calcAvailableUserDrawdown() internal view returns (uint256) {
+    (uint256 totalCovered, uint256 pendingCovered) = internalGetCoveredTotals();
+    return _calcAvailableUserDrawdown(totalCovered + pendingCovered);
+  }
+
+  function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256) {
+    return __calcAvailableDrawdown(totalCovered, _params.maxUserDrawdownPct);
+  }
+
+  function internalCollectDrawdownPremium() internal override view returns (uint256) {
+    return _calcAvailableUserDrawdown();
   }
 }

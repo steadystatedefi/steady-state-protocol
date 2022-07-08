@@ -254,26 +254,26 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   /// @notice Cancel coverage and get paid out the coverage amount
   /// @param payoutReceiver The receiver of the collateral currency
-  /// @param payoutAmount Amount to get paid out for
-  function cancelCoverage(address payoutReceiver, uint256 payoutAmount) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
+  /// @param expectedPayout Amount to get paid out for
+  function cancelCoverage(address payoutReceiver, uint256 expectedPayout) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalCancelRates();
 
     uint256 payoutRatio = super.totalReceivedCollateral();
-    if (payoutRatio <= payoutAmount) {
+    if (payoutRatio <= expectedPayout) {
       payoutRatio = WadRayMath.RAY;
     } else if (payoutRatio > 0) {
-      payoutRatio = payoutAmount.rayDiv(payoutRatio);
+      payoutRatio = expectedPayout.rayDiv(payoutRatio);
     } else {
-      require(payoutAmount == 0);
+      require(expectedPayout == 0);
     }
 
     uint256 totalPayout = internalCancelInsurers(getCharteredInsurers(), payoutRatio);
     totalPayout += internalCancelInsurers(getGenericInsurers(), payoutRatio);
 
-    require(totalPayout >= payoutAmount);
-    if (payoutAmount > 0) {
+    // NB! it is possible for totalPayout < expectedPayout when drawdown takes place
+    if (totalPayout > 0) {
       require(payoutReceiver != address(0));
-      transferCollateral(payoutReceiver, payoutAmount);
+      transferCollateral(payoutReceiver, totalPayout);
     }
   }
 

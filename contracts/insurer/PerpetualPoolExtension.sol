@@ -19,17 +19,46 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
   function internalTransferCancelledCoverage(
     address insured,
     uint256 payoutValue,
-    uint256 excessCoverage,
-    uint256 providedCoverage,
-    uint256 receivedCoverage
+    uint256 advanceValue,
+    uint256 recoveredValue,
+    uint256 premiumDebt
   ) internal override returns (uint256) {
-    if (receivedCoverage > payoutValue) {
-      // take back the unused provided coverage
-      transferCollateralFrom(insured, address(this), receivedCoverage - payoutValue);
+    uint256 deficitValue;
+    uint256 toPay = payoutValue;
+    unchecked {
+      if (toPay >= advanceValue) {
+        toPay -= advanceValue;
+        advanceValue = 0;
+      } else {
+        deficitValue = (advanceValue -= toPay);
+        toPay = 0;
+      }
+
+      if (toPay >= premiumDebt) {
+        toPay -= premiumDebt;
+      } else {
+        deficitValue += (premiumDebt - toPay);
+      }
+    }
+
+    uint256 collateralAsPremium;
+    
+    if (deficitValue > 0) {
+      // toPay is zero
+      toPay = transferAvailableCollateralFrom(insured, address(this), deficitValue);
+      if (toPay > advanceValue) {
+        unchecked {
+          collateralAsPremium = toPay - advanceValue;
+        }
+        toPay = advanceValue;
+      }
+      recoveredValue += toPay;
+    } else if (toPay > 0) {
+      transferCollateral(insured, toPay);
     }
 
     // this call is to consider / reinvest the released funds
-    PerpetualPoolBase(address(this)).updateCoverageOnCancel(payoutValue, excessCoverage + (providedCoverage - payoutValue));
+    PerpetualPoolBase(address(this)).updateCoverageOnCancel(payoutValue + premiumDebt, recoveredValue, collateralAsPremium);
     // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
 
     return payoutValue;

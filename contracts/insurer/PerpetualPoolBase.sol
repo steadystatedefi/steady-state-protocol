@@ -72,12 +72,17 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
   /// @dev Call _afterBalanceUpdate to update the rate of the pool
-  function updateCoverageOnCancel(uint256 paidoutCoverage, uint256 excess) external onlySelf {
-    internalAdjustCoverage(paidoutCoverage, excess);
+  function updateCoverageOnCancel(uint256 valueLoss, uint256 excess, uint256 collateralAsPremium) external onlySelf {
+    internalAdjustCoverage(valueLoss, excess);
+    internalCollateralAsPremium(collateralAsPremium);
 
     if (excess > 0) {
       internalOnCoverageRecovered();
     }
+  }
+
+  function internalCollateralAsPremium(uint256 amount) internal virtual {
+    // TODO internalCollateralAsPremium
   }
 
   function internalOnCoverageRecovered() internal virtual {
@@ -242,7 +247,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   function internalCollectDrawdownPremium() internal override returns (uint256) {}
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    require(params.maxDrawdownInverse == PercentageMath.ONE);
+    require(params.coveragePrepayPct == PercentageMath.ONE);
 
     super.internalSetPoolParams(params);
   }

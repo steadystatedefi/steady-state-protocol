@@ -41,6 +41,8 @@ library Errors {
 
   error CalllerNotEmergencyAdmin();
   error CalllerNotSweepAdmin();
+
+  error CollateralTransferFailed();
 }
 
 library State {
