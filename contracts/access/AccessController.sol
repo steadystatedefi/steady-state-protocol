@@ -12,6 +12,8 @@ import './interfaces/IAccessController.sol';
 import './interfaces/IManagedAccessController.sol';
 import './AccessCallHelper.sol';
 
+import 'hardhat/console.sol';
+
 contract AccessController is SafeOwnable, IManagedAccessController {
   using BitUtils for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
@@ -211,7 +213,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   }
 
   function _ensureNotProtected(AddrMode mode) private pure {
-    require(mode == AddrMode.ProtectedSinglet, 'protected singleton can not be revoked');
+    require(mode != AddrMode.ProtectedSinglet, 'protected singleton can not be revoked');
   }
 
   function _revokeRoles(address addr, uint256 flags) private returns (uint256) {
@@ -231,8 +233,10 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     for (uint256 mask = 1; flags > 0; (flags, mask) = (flags >> 1, mask << 1)) {
       if (flags & 1 != 0) {
         AddrInfo storage info = _singlets[mask];
-        if (info.addr != address(0)) {
+        address addr = info.addr;
+        if (addr != address(0)) {
           _ensureNotProtected(info.mode);
+          _masks[addr] &= ~mask;
           info.addr = address(0);
           emit AddressSet(mask, address(0));
         }
@@ -270,7 +274,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     addrList = new address[](1 + multilets.length());
     addrList[0] = singleton;
 
-    for (uint256 i = addrList.length; i > 0; ) {
+    for (uint256 i = addrList.length; i > 1; ) {
       i--;
       addrList[i] = multilets.at(i - 1);
     }
