@@ -7,21 +7,23 @@ import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinable.sol';
 import './WeightedPoolExtension.sol';
+import './JoinablePoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
 abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumActuary, Delegator, ERC1363ReceiverBase, WeightedPoolStorage {
   address internal immutable _extension;
+  address internal immutable _joinExtension;
 
   constructor(
-    IAccessController acl,
-    uint256 unitSize,
-    address collateral_,
-    WeightedPoolExtension extension
-  ) WeightedPoolConfig(acl, unitSize, collateral_) {
-    require(extension.coverageUnitSize() == unitSize);
-    require(extension.collateral() == collateral_);
+    WeightedPoolExtension extension,
+    JoinablePoolExtension joinExtension
+  ) WeightedPoolConfig(joinExtension.accessController(), extension.coverageUnitSize(), extension.collateral()) {
+    // require(extension.accessController() == joinExtension.accessController());
+    // require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
+    require(extension.collateral() == joinExtension.collateral());
     // TODO check for the same access controller
     _extension = address(extension);
+    _joinExtension = address(joinExtension);
   }
 
   // solhint-disable-next-line payable-fallback
@@ -38,9 +40,12 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
 
   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
   /// IInsuredPool.joinProcessed will be called after the decision is made.
-  function requestJoin(address insured) external override {
-    require(msg.sender == insured); // TODO or admin?
-    internalRequestJoin(insured);
+  function requestJoin(address) external override {
+    _delegate(_joinExtension);
+  }
+
+  function approveJoiner(address, bool) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
+    _delegate(_joinExtension);
   }
 
   function governor() public view returns (address) {
@@ -109,9 +114,5 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
 
   function premiumDistributor() public view override returns (address) {
     return address(_premiumDistributor);
-  }
-
-  function approveJoiner(address insured, bool accepted) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
-    internalProcessJoin(insured, accepted);
   }
 }
