@@ -25,9 +25,10 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
   before(async () => {
     user = testEnv.users[0];
     cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
+    const joinExtension = await Factories.JoinablePoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
-    pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(extension.address, joinExtension.address);
     await cc.registerInsurer(pool.address);
     poolIntf = Ifaces.IInsurerPool.attach(pool.address);
   });

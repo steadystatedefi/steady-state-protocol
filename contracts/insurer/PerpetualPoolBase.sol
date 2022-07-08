@@ -13,11 +13,9 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   using Balances for Balances.RateAcc;
 
   constructor(
-    IAccessController acl,
-    uint256 unitSize,
-    address collateral_,
-    PerpetualPoolExtension extension
-  ) WeightedPoolBase(acl, unitSize, collateral_, extension) {}
+    PerpetualPoolExtension extension,
+    JoinablePoolExtension joinExtension
+  ) WeightedPoolBase(extension, joinExtension) {}
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage

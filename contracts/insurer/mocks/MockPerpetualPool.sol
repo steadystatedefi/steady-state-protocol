@@ -6,10 +6,9 @@ import './MockWeightedRounds.sol';
 
 contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   constructor(
-    address collateral_,
-    uint256 unitSize,
-    PerpetualPoolExtension extension
-  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', 18) PerpetualPoolBase(IAccessController(address(0)), unitSize, collateral_, extension) {
+    PerpetualPoolExtension extension,
+    JoinablePoolExtension joinExtension
+  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', 18) PerpetualPoolBase(extension, joinExtension) {
     internalSetTypedGovernor(this);
     internalSetPoolParams(
       WeightedPoolParams({

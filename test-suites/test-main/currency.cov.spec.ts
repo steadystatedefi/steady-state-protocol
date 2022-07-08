@@ -19,8 +19,9 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   });
 
   it('Create an insurer', async () => {
+    const joinExtension = await Factories.JoinablePoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, cc.address);
-    pool = await Factories.MockPerpetualPool.deploy(cc.address, unitSize, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(extension.address, joinExtension.address);
   });
 
   it('Fails to mint/burn without a permission', async () => {

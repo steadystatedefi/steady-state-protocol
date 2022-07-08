@@ -9,11 +9,9 @@ contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase, IWeig
   uint8 internal constant DECIMALS = 18;
 
   constructor(
-    IAccessController acl,
-    uint256 unitSize,
     ImperpetualPoolExtension extension,
-    address collateral_
-  ) ERC20DetailsBase('', '', DECIMALS) ImperpetualPoolBase(acl, unitSize, collateral_, extension) {}
+    JoinablePoolExtension joinExtension
+  ) ERC20DetailsBase('', '', DECIMALS) ImperpetualPoolBase(extension, joinExtension) {}
 
   function initializeWeighted(
     address governor,

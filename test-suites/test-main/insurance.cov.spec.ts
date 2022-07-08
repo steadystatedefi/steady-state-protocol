@@ -22,8 +22,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
   before(async () => {
     fund = await Factories.MockCollateralCurrencyStub.deploy();
+    const joinExtension = await Factories.JoinablePoolExtension.deploy(zeroAddress(), unitSize, fund.address);
     const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, fund.address);
-    pool = await Factories.MockPerpetualPool.deploy(fund.address, unitSize, extension.address);
+    pool = await Factories.MockPerpetualPool.deploy(extension.address, joinExtension.address);
     poolIntf = Ifaces.IInsurerPool.attach(pool.address);
   });
 
