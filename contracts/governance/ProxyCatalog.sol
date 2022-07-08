@@ -29,7 +29,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   }
 
   function isAuthenticImplementation(address impl) public view returns (bool) {
-    return _authImpls[impl] != 0;
+    return impl != address(0) && _authImpls[impl] != 0;
   }
 
   function isAuthenticProxy(address proxy) public view returns (bool) {
@@ -150,12 +150,16 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     return proxy;
   }
 
+  modifier onlyAccessibleImpl(bytes32 implName) {
+    // TODO access ???
+    _;
+  }
+
   function createProxy(
     address adminAddress,
     bytes32 implName,
     bytes memory params
-  ) external returns (address) {
-    // TODO access ???
+  ) external onlyAccessibleImpl(implName) returns (address) {
     return address(_createProxy(adminAddress, getDefaultImplementation(implName), params, implName));
   }
 
@@ -164,10 +168,9 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     bytes32 implName,
     address impl,
     bytes calldata params
-  ) external onlyAdmin returns (address) {
-    bytes32 name = _authImpls[impl];
-    State.require(implName == 0 ? name != 0 : implName == name);
-    return address(_createProxy(adminAddress, impl, params, name));
+  ) external onlyAccessibleImpl(implName) returns (address) {
+    State.require(implName != 0 && implName == _authImpls[impl]);
+    return address(_createProxy(adminAddress, impl, params, implName));
   }
 
   function _onlyAdminOrProxyOwner(address proxyAddress) private view {
