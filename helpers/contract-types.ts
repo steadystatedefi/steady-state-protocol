@@ -8,6 +8,7 @@ export const Factories = {
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
   AccessController: wrap(types.AccessController__factory),
+  ProxyCatalog: wrap(types.ProxyCatalog__factory),
 
   MockCollateralCurrency: wrap(types.MockCollateralCurrency__factory),
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),
@@ -23,6 +24,8 @@ export const Factories = {
   MockCollateralFund: mock(types.MockCollateralFund__factory),
   MockLibs: mock(types.MockLibs__factory),
   MockCaller: mock(types.MockCaller__factory),
+  MockVersionedInitializable1: mock(types.MockVersionedInitializable1__factory),
+  MockVersionedInitializable2: mock(types.MockVersionedInitializable2__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));
