@@ -25,6 +25,8 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
   uint256 internal _excessCoverage;
 
+  event ExcessCoverageUpdated(uint256 coverageExcess);
+
   ///@dev Return if an account has a balance or premium earned
   function internalIsInvestor(address account) internal view override returns (bool) {
     UserBalance memory b = _balances[account];

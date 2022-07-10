@@ -38,6 +38,10 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
 
   function pushCoverageExcess() public virtual;
 
+  function internalOnCoverageRecovered() internal virtual {
+    pushCoverageExcess();
+  }
+
   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
   /// IInsuredPool.joinProcessed will be called after the decision is made.
   function requestJoin(address) external override {
@@ -51,8 +55,6 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
   function governor() public view returns (address) {
     return governorAccount();
   }
-
-  event ExcessCoverageIncreased(uint256 coverageExcess); // TODO => ExcessCoverageUpdated
 
   function _onlyPremiumDistributor() private view {
     require(msg.sender == premiumDistributor());
@@ -85,11 +87,13 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
 
   function addSubrogation(address donor, uint256 value) external aclHas(AccessFlags.INSURER_OPS) {
     if (value > 0) {
-      internalSubrogate(donor, value);
+      transferCollateralFrom(donor, address(this), value);
+      internalSubrogated(value);
+      internalOnCoverageRecovered();
     }
   }
 
-  function internalSubrogate(address donor, uint256 value) internal virtual;
+  function internalSubrogated(uint256 value) internal virtual;
 
   function setGovernor(address addr) external aclHas(AccessFlags.INSURER_ADMIN) {
     internalSetGovernor(addr);

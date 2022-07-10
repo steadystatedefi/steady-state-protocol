@@ -31,8 +31,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
       uint256 newExcess;
       (newExcess, , params, part) = super.internalAddCoverage(value + excessCoverage, type(uint256).max);
       if (newExcess != excessCoverage) {
-        _excessCoverage = newExcess;
-        emit ExcessCoverageIncreased(newExcess);
+        emit ExcessCoverageUpdated(_excessCoverage = newExcess);
       }
       done = true;
     }
@@ -46,10 +45,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
   }
 
-  function internalSubrogate(address donor, uint256 value) internal override {
-    transferCollateralFrom(donor, address(this), value);
-    emit ExcessCoverageIncreased(_excessCoverage += value);
-    internalOnCoverageRecovered();
+  function internalSubrogated(uint256 value) internal override {
+    emit ExcessCoverageUpdated(_excessCoverage += value);
   }
 
   function updateCoverageOnCancel(
@@ -99,7 +96,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
 
     if (recoveredValue > 0) {
-      emit ExcessCoverageIncreased(_excessCoverage += recoveredValue);
+      emit ExcessCoverageUpdated(_excessCoverage += recoveredValue);
       internalOnCoverageRecovered();
     }
 
@@ -148,10 +145,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     _valueAdjustment += _toInt128(valueGain);
   }
 
-  function internalOnCoverageRecovered() internal virtual {
-    pushCoverageExcess();
-  }
-
   /// @dev Attempt to take the excess coverage and fill batches
   /// @dev Occurs when there is excess and a new batch is ready (more demand added)
   function pushCoverageExcess() public override {
@@ -192,6 +185,20 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   function balanceOf(address account) public view override returns (uint256) {
     return _balances[account].balance;
+  }
+
+  function balancesOf(address account)
+    public
+    view
+    returns (
+      uint256 coverage,
+      uint256 scaled,
+      uint256 premium
+    )
+  {
+    scaled = balanceOf(account);
+    coverage = scaled.rayMul(exchangeRate());
+    premium;
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer

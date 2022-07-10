@@ -134,6 +134,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
       require(config.sourceToken[source] == address(0));
 
       address targetToken = IPremiumSource(source).premiumToken();
+      _ensureNonCollateral(actuary, targetToken);
       _markTokenAsPresent(targetToken);
       config.sourceToken[source] = targetToken;
     } else {
@@ -142,6 +143,10 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
         _removePremiumSource(config, _balancers[actuary], source, targetToken);
       }
     }
+  }
+
+  function _ensureNonCollateral(address actuary, address token) private view {
+    Value.require(token != IPremiumActuary(actuary).collateral());
   }
 
   function _markTokenAsPresent(address token) private returns (bool) {
@@ -233,7 +238,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     (uint96 lastRate, uint32 updatedAt) = (sBalance.rate, sBalance.updatedAt);
 
     if (token == address(0)) {
-      // this is a call from the actuary
+      // this is a call from the actuary - it doesnt know about tokens, only about sources
       targetToken = config.sourceToken[source];
       Value.require(targetToken != address(0));
 
@@ -241,7 +246,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
         _addPremiumSource(config, balancer, targetToken, source);
       }
     } else {
-      // this is a sync call from a user
+      // this is a sync call from a user - who knows about tokens, but not about sources
       targetToken = token;
       rate = lastRate;
       increment = rate * (uint32(block.timestamp - updatedAt));
@@ -256,6 +261,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
         checkSuspended
       )
     ) {
+      // the source failed to keep the promised premium rate, stop the rate to avoid false inflow
       rate = 0;
     }
 
@@ -323,6 +329,8 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     ActuaryConfig storage config = _configs[params.actuary];
 
     if (params.source == address(0)) {
+      // this is called by auto-replenishment during swap - it is not related to any specific source
+      // will auto-replenish from one source only to keep gas cost stable
       params.source = _sourceForReplenish(config, params.token);
       //console.log(params.source);
     }
@@ -383,7 +391,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
       missingValue = (requiredAmount - collectedAmount).wadMul(price);
 
       /*
-      // This section of code enables use of CC as an additional way of premium payment
+      // // This section of code enables use of CC as an additional way of premium payment
 
       // if (missingValue > 0) {
       //   // assert(params.token != collateral());

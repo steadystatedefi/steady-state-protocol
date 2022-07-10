@@ -56,8 +56,9 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     await lib.setBalance(token, balance, 0, { gasLimit: 2000000 });
     await lib.setTotalBalance(scaleValue(balance), 0, { gasLimit: 2000000 });
 
-    await Events.TokenSwapped.waitOneAndUnwrap(
-      lib.swapToken(token, scaleValue(value), minAmount ?? 0, { gasLimit: 3000000 }),
+    await Events.TokenSwapped.waitOne(
+      lib.swapToken(token, scaleValue(value), minAmount ?? 0),
+
       (ev) => {
         expect(ev.amount).eq(expectedAmount);
         expect(ev.fee).eq(scaleValue(expectedFee ?? BigNumber.from(value).sub(expectedAmount)));

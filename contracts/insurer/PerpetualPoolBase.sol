@@ -30,10 +30,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
       );
 
       if (newExcess != excessCoverage) {
-        _excessCoverage = newExcess;
-        if (newExcess > excessCoverage) {
-          emit ExcessCoverageIncreased(newExcess);
-        }
+        emit ExcessCoverageUpdated(_excessCoverage = newExcess);
       }
 
       _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
@@ -57,36 +54,31 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     }
 
     if (excess > 0) {
-      _excessCoverage = excessCoverage;
-      emit ExcessCoverageIncreased(excessCoverage);
+      emit ExcessCoverageUpdated(_excessCoverage = excessCoverage);
     }
     _afterBalanceUpdate(excessCoverage, totals, coverage);
   }
 
-  function internalSubrogate(address donor, uint256 value) internal override {
-    donor;
-    // TODO transfer collateral from
+  function internalSubrogated(uint256 value) internal override {
     internalAdjustCoverage(0, value);
-    internalOnCoverageRecovered();
   }
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
   /// @dev Call _afterBalanceUpdate to update the rate of the pool
   function updateCoverageOnCancel(uint256 valueLoss, uint256 excess, uint256 collateralAsPremium) external onlySelf {
     internalAdjustCoverage(valueLoss, excess);
-    internalCollateralAsPremium(collateralAsPremium);
-
+    if (collateralAsPremium > 0) {
+      internalCollateralAsPremium(collateralAsPremium);
+    }
     if (excess > 0) {
       internalOnCoverageRecovered();
     }
   }
 
   function internalCollateralAsPremium(uint256 amount) internal virtual {
+    amount;
     // TODO internalCollateralAsPremium
-  }
-
-  function internalOnCoverageRecovered() internal virtual {
-    pushCoverageExcess();
+    Errors.notImplemented();
   }
 
   /// @dev Attempt to take the excess coverage and fill batches
