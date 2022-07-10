@@ -9,6 +9,7 @@ export const Factories = {
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
   AccessController: wrap(types.AccessController__factory),
   ProxyCatalog: wrap(types.ProxyCatalog__factory),
+  ApprovalCatalog: wrap(types.ApprovalCatalog__factory),
   TransparentProxy: wrap(types.TransparentProxy__factory),
 
   MockCollateralCurrency: wrap(types.MockCollateralCurrency__factory),
