@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../PremiumFund.sol';
+import '../PremiumFundBase.sol';
 
-contract MockPremiumFund is PremiumFund {
+contract MockPremiumFund is PremiumFundBase {
   using EnumerableSet for EnumerableSet.AddressSet;
 
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) PremiumFund(IAccessController(address(0)), collateral_) {}
+  constructor(address collateral_) PremiumFundBase(IAccessController(address(0)), collateral_) {}
 
   function isAdmin(address) internal pure override returns (bool) {
     return true;
@@ -82,7 +82,7 @@ contract MockPremiumFund is PremiumFund {
 
   /*
   function registerPremiumActuary(address actuary, bool register) external override onlyAdmin {
-    PremiumFund.registerPremiumActuary(actuary,register);
+    PremiumFundBase.registerPremiumActuary(actuary,register);
   }
   */
 }

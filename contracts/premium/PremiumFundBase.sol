@@ -20,7 +20,7 @@ import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
-contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
+contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
   using BalancerLib2 for BalancerLib2.AssetBalancer;
@@ -94,7 +94,6 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
 
     config.state = paused ? ActuaryState.Paused : ActuaryState.Active;
   }
-
 
   function isPaused(address actuary) public view returns (bool) {
     return _configs[actuary].state == ActuaryState.Paused;
