@@ -18,7 +18,7 @@ const ZERO_BYTES = formatBytes32String('');
 const implStr = 'MockToken';
 const implName = formatBytes32String(implStr);
 
-makeSuite.only('Proxy Catalog', (testEnv: TestEnv) => {
+makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
   let controller: AccessController;
   let proxyCatalog: ProxyCatalog;
   let rev1: MockVersionedInitializable1;
