@@ -71,10 +71,11 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   }
 
   function cancelCoverage(address insured, uint256 payoutRatio) external override onlyActiveInsuredOrOps(insured) onlyUnpaused 
-  returns (uint256 payoutValue) {
+    returns (uint256 payoutValue) 
+  {
     bool enforcedCancel = msg.sender != insured;
-    if (payoutRatio > 0 && !enforcedCancel) {
-      payoutRatio = internalVerifyPayoutRatio(insured, payoutRatio);
+    if (payoutRatio > 0) {
+      payoutRatio = internalVerifyPayoutRatio(insured, payoutRatio, enforcedCancel);
     }
     (payoutValue, ) = internalCancelCoverage(insured, payoutRatio, enforcedCancel);
   }
