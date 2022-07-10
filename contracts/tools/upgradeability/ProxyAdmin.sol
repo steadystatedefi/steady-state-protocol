@@ -18,9 +18,15 @@ contract ProxyAdmin is ProxyAdminBase {
     return _owner;
   }
 
+  function _onlyOwner() private view {
+    if (_owner != msg.sender) {
+      revert Errors.CallerNotProxyOwner();
+    }
+  }
+
   /// @dev Throws if called by any account other than the owner.
   modifier onlyOwner() {
-    require(_owner == msg.sender, Errors.TXT_CALLER_NOT_PROXY_OWNER);
+    _onlyOwner();
     _;
   }
 

@@ -86,7 +86,7 @@ abstract contract AccessHelper {
 
   function _onlyEmergencyAdmin() private view {
     if (!hasAnyAcl(msg.sender, AccessFlags.EMERGENCY_ADMIN)) {
-      revert Errors.CalllerNotEmergencyAdmin();
+      revert Errors.CallerNotEmergencyAdmin();
     }
   }
 
@@ -97,7 +97,7 @@ abstract contract AccessHelper {
 
   function _onlySweepAdmin() private view {
     if (!hasAnyAcl(msg.sender, AccessFlags.SWEEP_ADMIN)) {
-      revert Errors.CalllerNotSweepAdmin();
+      revert Errors.CallerNotSweepAdmin();
     }
   }
 

@@ -330,6 +330,10 @@ abstract contract CollateralFundBase is AccessHelper {
   function removeAsset(address token) external aclHas(AccessFlags.LP_DEPLOY) {
     internalRemoveAsset(token);
   }
+
+  function assets() external view returns (address[] memory) {
+    return _tokens.values();
+  }
 }
 
 library CollateralFundLib {
