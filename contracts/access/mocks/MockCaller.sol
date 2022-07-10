@@ -12,11 +12,11 @@ contract MockCaller {
   }
   */
 
-  function checkRoleDirect(uint256 flags) external {
+  function checkRoleDirect(uint256 flags) external view {
     require(IManagedAccessController(msg.sender).queryAccessControlMask(address(this), flags) == flags, 'Incorrect roles');
   }
 
-  function checkRoleIndirect(IManagedAccessController controller, uint256 flags) external {
+  function checkRoleIndirect(IManagedAccessController controller, uint256 flags) external view {
     require(controller.queryAccessControlMask(msg.sender, flags) == flags, 'Incorrect roles');
   }
 }

@@ -20,7 +20,7 @@ import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
-contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
+contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
   using BalancerLib2 for BalancerLib2.AssetBalancer;
@@ -95,6 +95,10 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     config.state = paused ? ActuaryState.Paused : ActuaryState.Active;
   }
 
+  function isPaused(address actuary) public view returns (bool) {
+    return _configs[actuary].state == ActuaryState.Paused;
+  }
+
   function setPaused(
     address actuary,
     address token,
@@ -109,12 +113,24 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     assetConfig.flags = paused ? flags | BalancerLib2.BF_SUSPENDED : flags & ~BalancerLib2.BF_SUSPENDED;
   }
 
+  function isPaused(address actuary, address token) public view returns (bool) {
+    ActuaryState state = _configs[actuary].state;
+    if (state == ActuaryState.Active) {
+      return _balancers[actuary].configs[token].flags & BalancerLib2.BF_SUSPENDED != 0;
+    }
+    return state == ActuaryState.Paused;
+  }
+
   function setPausedToken(address token, bool paused) external onlyEmergencyAdmin {
     Value.require(token != address(0));
 
     TokenState storage state = _tokens[token];
     uint8 flags = state.flags;
     state.flags = paused ? flags | TS_SUSPENDED : flags & ~TS_SUSPENDED;
+  }
+
+  function isPausedToken(address token) public view returns (bool) {
+    return _tokens[token].flags & TS_SUSPENDED != 0;
   }
 
   uint8 private constant SOURCE_MULTI_MODE_MASK = 3;
@@ -134,6 +150,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
       require(config.sourceToken[source] == address(0));
 
       address targetToken = IPremiumSource(source).premiumToken();
+      _ensureNonCollateral(actuary, targetToken);
       _markTokenAsPresent(targetToken);
       config.sourceToken[source] = targetToken;
     } else {
@@ -142,6 +159,10 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
         _removePremiumSource(config, _balancers[actuary], source, targetToken);
       }
     }
+  }
+
+  function _ensureNonCollateral(address actuary, address token) private view {
+    Value.require(token != IPremiumActuary(actuary).collateral());
   }
 
   function _markTokenAsPresent(address token) private returns (bool) {
@@ -233,7 +254,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     (uint96 lastRate, uint32 updatedAt) = (sBalance.rate, sBalance.updatedAt);
 
     if (token == address(0)) {
-      // this is a call from the actuary
+      // this is a call from the actuary - it doesnt know about tokens, only about sources
       targetToken = config.sourceToken[source];
       Value.require(targetToken != address(0));
 
@@ -241,7 +262,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
         _addPremiumSource(config, balancer, targetToken, source);
       }
     } else {
-      // this is a sync call from a user
+      // this is a sync call from a user - who knows about tokens, but not about sources
       targetToken = token;
       rate = lastRate;
       increment = rate * (uint32(block.timestamp - updatedAt));
@@ -256,6 +277,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
         checkSuspended
       )
     ) {
+      // the source failed to keep the promised premium rate, stop the rate to avoid false inflow
       rate = 0;
     }
 
@@ -323,6 +345,8 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     ActuaryConfig storage config = _configs[params.actuary];
 
     if (params.source == address(0)) {
+      // this is called by auto-replenishment during swap - it is not related to any specific source
+      // will auto-replenish from one source only to keep gas cost stable
       params.source = _sourceForReplenish(config, params.token);
       //console.log(params.source);
     }
@@ -383,7 +407,7 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
       missingValue = (requiredAmount - collectedAmount).wadMul(price);
 
       /*
-      // This section of code enables use of CC as an additional way of premium payment
+      // // This section of code enables use of CC as an additional way of premium payment
 
       // if (missingValue > 0) {
       //   // assert(params.token != collateral());

@@ -42,17 +42,24 @@ export type ContractReceiptSource =
   | Promise<ContractTransaction>;
 
 export interface EventFactory<TArgObj = unknown> {
-  one(receipt: ContractReceipt | ContractTransaction): TArgObj;
-  many(receipt: ContractReceipt): TArgObj[];
+  one<Result = TArgObj>(receipt: ContractReceipt, fn?: (args: TArgObj) => Result): Result;
+  many<Result = TArgObj>(receipt: ContractReceipt, fn?: (args: TArgObj) => Result): Result[];
 
-  waitOne(source: ContractReceiptSource): Promise<TArgObj>;
-  waitMany(source: ContractReceiptSource): Promise<TArgObj[]>;
+  waitOne<Result = TArgObj>(source: ContractReceiptSource, fn?: (args: TArgObj) => Result): Promise<Result>;
+  waitMany<Result = TArgObj>(source: ContractReceiptSource, fn?: (args: TArgObj) => Result): Promise<Result[]>;
 
-  waitOneWithReceipt(source: ContractReceiptSource): Promise<{ args: TArgObj; receipt: ContractReceipt }>;
-  waitManyWithReceipt(source: ContractReceiptSource): Promise<{ args: TArgObj[]; receipt: ContractReceipt }>;
+  waitOneWithReceipt<Result = TArgObj>(
+    source: ContractReceiptSource,
+    fn?: (args: TArgObj) => Result
+  ): Promise<{ result: Result; receipt: ContractReceipt }>;
 
-  waitOneAndUnwrap(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt>;
-  waitManyAndUnwrap(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt>;
+  waitManyWithReceipt<Result = TArgObj>(
+    source: ContractReceiptSource,
+    fn?: (args: TArgObj) => Result
+  ): Promise<{ result: Result[]; receipt: ContractReceipt }>;
+
+  chainOne(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt>;
+  chainMany(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt>;
 
   toString(): string;
   name(): string | undefined;
@@ -66,62 +73,69 @@ async function receiptOf(av: ContractReceiptSource): Promise<ContractReceipt> {
 const nameByFactory = new Map<EventFactory, string>();
 
 export const wrap = <TArgList extends unknown[], TArgObj>(
-  template: TypedEvent<TArgList, TArgObj>,
+  template: TypedEvent<TArgList, TArgObj>, // only for type
   customName?: string
 ): EventFactory<TArgObj> =>
   new (class implements EventFactory<TArgObj> {
-    one(receipt: ContractReceipt): TArgObj {
-      return eventArg(this.toString(), receipt) as TArgObj;
+    one<Result = TArgObj>(receipt: ContractReceipt, fn?: (args: TArgObj) => Result): Result {
+      const arg = eventArg(this.toString(), receipt) as TArgObj;
+      if (fn === undefined) {
+        return arg as unknown as Result;
+      }
+      return fn(arg);
     }
 
-    unwrapOne<Result>(receipt: ContractReceipt, fn: (args: TArgObj) => Result): Result {
-      return fn(this.one(receipt));
-    }
+    many<Result = TArgObj>(receipt: ContractReceipt, fn?: (args: TArgObj) => Result): Result[] {
+      const args = eventsArg(this.toString(), receipt) as TArgObj[];
+      if (fn === undefined) {
+        return args as unknown[] as Result[];
+      }
 
-    many(receipt: ContractReceipt): TArgObj[] {
-      return eventsArg(this.toString(), receipt) as TArgObj[];
-    }
-
-    unwrapMany<Result>(receipt: ContractReceipt, fn: (args: TArgObj) => Result): Result[] {
       const result: Result[] = [];
-      this.many(receipt).forEach((v) => result.push(fn(v)));
+      args.forEach((v) => result.push(fn(v)));
       return result;
     }
 
-    async waitOne(source: ContractReceiptSource): Promise<TArgObj> {
+    async waitOne<Result = TArgObj>(source: ContractReceiptSource, fn?: (args: TArgObj) => Result): Promise<Result> {
       const receipt = await receiptOf(source);
-      return this.one(receipt);
+      return this.one(receipt, fn);
     }
 
-    async waitMany(source: ContractReceiptSource): Promise<TArgObj[]> {
+    async waitMany<Result = TArgObj>(source: ContractReceiptSource, fn?: (args: TArgObj) => Result): Promise<Result[]> {
       const receipt = await receiptOf(source);
-      return this.many(receipt);
+      return this.many(receipt, fn);
     }
 
-    async waitOneWithReceipt(source: ContractReceiptSource): Promise<{ args: TArgObj; receipt: ContractReceipt }> {
+    async waitOneWithReceipt<Result = TArgObj>(
+      source: ContractReceiptSource,
+      fn?: (args: TArgObj) => Result
+    ): Promise<{ result: Result; receipt: ContractReceipt }> {
       const receipt = await receiptOf(source);
-      return { args: this.one(receipt), receipt } as const;
+      return { result: this.one(receipt, fn), receipt } as const;
     }
 
-    async waitManyWithReceipt(source: ContractReceiptSource): Promise<{ args: TArgObj[]; receipt: ContractReceipt }> {
+    async waitManyWithReceipt<Result = TArgObj>(
+      source: ContractReceiptSource,
+      fn?: (args: TArgObj) => Result
+    ): Promise<{ result: Result[]; receipt: ContractReceipt }> {
       const receipt = await receiptOf(source);
-      return { args: this.many(receipt), receipt } as const;
+      return { result: this.many(receipt, fn), receipt } as const;
     }
 
-    async waitOneAndUnwrap(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt> {
+    async chainOne(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt> {
       const receipt = await receiptOf(source);
-      this.unwrapOne(receipt, fn);
+      this.one(receipt, fn);
       return receipt;
     }
 
-    async waitManyAndUnwrap(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt> {
+    async chainMany(source: ContractReceiptSource, fn: (args: TArgObj) => void): Promise<ContractReceipt> {
       const receipt = await receiptOf(source);
-      this.unwrapMany(receipt, fn);
+      this.many(receipt, fn);
       return receipt;
     }
 
     toString(): string {
-      return this.name() || 'unknown';
+      return this.name() ?? 'unknown';
     }
 
     name(): string | undefined {

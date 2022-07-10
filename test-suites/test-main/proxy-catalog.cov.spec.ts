@@ -18,7 +18,7 @@ const ZERO_BYTES = formatBytes32String('');
 const implStr = 'MockToken';
 const implName = formatBytes32String(implStr);
 
-makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
+makeSuite.only('Proxy Catalog', (testEnv: TestEnv) => {
   let controller: AccessController;
   let proxyCatalog: ProxyCatalog;
   let rev1: MockVersionedInitializable1;
@@ -34,7 +34,7 @@ makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
     await proxyCatalog.addAuthenticImplementation(rev2.address, implName);
 
     await proxyCatalog.setDefaultImplementation(rev1.address);
-    await Events.ProxyCreated.waitOneAndUnwrap(
+    await Events.ProxyCreated.waitOne(
       proxyCatalog.createProxy(admin, implName, rev1.interface.encodeFunctionData('initialize', [name])),
       (ev) => {
         proxyAddr = ev.proxy;
@@ -145,7 +145,7 @@ makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
     await proxyCatalog.addAuthenticImplementation(rev2.address, implName);
 
     await proxyCatalog.setDefaultImplementation(rev1.address);
-    await Events.ProxyCreated.waitOneAndUnwrap(
+    await Events.ProxyCreated.waitOne(
       proxyCatalog.createProxy(zeroAddress(), implName, rev1.interface.encodeFunctionData('initialize', [name])),
       (ev) => {
         proxyAddr = ev.proxy;
@@ -192,7 +192,7 @@ makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
     await expect(proxyCatalog.createProxyWithImpl(user1.address, implName, rev2.address, params)).to.be.reverted;
 
     await proxyCatalog.addAuthenticImplementation(rev2.address, implName);
-    await Events.ProxyCreated.waitOneAndUnwrap(
+    await Events.ProxyCreated.waitOne(
       proxyCatalog.createProxyWithImpl(user1.address, implName, rev2.address, params),
       (ev) => {
         proxyAddr = ev.proxy;
@@ -213,13 +213,10 @@ makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
     await expect(proxyCatalog.createCustomProxy(proxyCatalog.address, rev2.address, params)).to.be.reverted;
 
     expect(await proxyCatalog.isAuthenticImplementation(rev2.address)).eq(false);
-    await Events.ProxyCreated.waitOneAndUnwrap(
-      proxyCatalog.createCustomProxy(user1.address, rev2.address, params),
-      (ev) => {
-        proxyAddr = ev.proxy;
-        expect(ev.impl).eq(rev2.address);
-      }
-    );
+    await Events.ProxyCreated.waitOne(proxyCatalog.createCustomProxy(user1.address, rev2.address, params), (ev) => {
+      proxyAddr = ev.proxy;
+      expect(ev.impl).eq(rev2.address);
+    });
 
     const contract = Factories.MockVersionedInitializable2.attach(proxyAddr);
     const proxyContract = Factories.TransparentProxy.attach(proxyAddr);

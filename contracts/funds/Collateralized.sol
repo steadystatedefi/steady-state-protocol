@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/Errors.sol';
 import '../tools/tokens/IERC20.sol';
+import '../interfaces/IManagedCollateralCurrency.sol';
 import '../interfaces/ICollateralized.sol';
 
 abstract contract Collateralized is ICollateralized {
@@ -22,6 +23,15 @@ abstract contract Collateralized is ICollateralized {
 
   modifier onlyCollateralCurrency() {
     _onlyCollateralCurrency();
+    _;
+  }
+
+  function _onlyLiquidityProvider() private view {
+    Access.require(IManagedCollateralCurrency(_collateral).isLiquidityProvider(msg.sender));
+  }
+
+  modifier onlyLiquidityProvider() {
+    _onlyLiquidityProvider();
     _;
   }
 

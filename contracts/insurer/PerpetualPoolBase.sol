@@ -12,14 +12,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(
-    PerpetualPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) WeightedPoolBase(extension, joinExtension) {}
+  constructor(PerpetualPoolExtension extension, JoinablePoolExtension joinExtension) WeightedPoolBase(extension, joinExtension) {}
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
-  function _mintForCoverage(address account, uint256 coverageValue) private {
+  function internalMintForCoverage(address account, uint256 coverageValue) internal override {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
     uint256 excessCoverage = _excessCoverage;
@@ -30,10 +27,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
       );
 
       if (newExcess != excessCoverage) {
-        _excessCoverage = newExcess;
-        if (newExcess > excessCoverage) {
-          emit ExcessCoverageIncreased(newExcess);
-        }
+        internalSetExcess(newExcess);
       }
 
       _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
@@ -57,36 +51,35 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     }
 
     if (excess > 0) {
-      _excessCoverage = excessCoverage;
-      emit ExcessCoverageIncreased(excessCoverage);
+      internalSetExcess(excessCoverage);
     }
     _afterBalanceUpdate(excessCoverage, totals, coverage);
   }
 
-  function internalSubrogate(address donor, uint256 value) internal override {
-    donor;
-    // TODO transfer collateral from
+  function internalSubrogated(uint256 value) internal override {
     internalAdjustCoverage(0, value);
-    internalOnCoverageRecovered();
   }
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
   /// @dev Call _afterBalanceUpdate to update the rate of the pool
-  function updateCoverageOnCancel(uint256 valueLoss, uint256 excess, uint256 collateralAsPremium) external onlySelf {
+  function updateCoverageOnCancel(
+    uint256 valueLoss,
+    uint256 excess,
+    uint256 collateralAsPremium
+  ) external onlySelf {
     internalAdjustCoverage(valueLoss, excess);
-    internalCollateralAsPremium(collateralAsPremium);
-
+    if (collateralAsPremium > 0) {
+      internalCollateralAsPremium(collateralAsPremium);
+    }
     if (excess > 0) {
       internalOnCoverageRecovered();
     }
   }
 
   function internalCollateralAsPremium(uint256 amount) internal virtual {
+    amount;
     // TODO internalCollateralAsPremium
-  }
-
-  function internalOnCoverageRecovered() internal virtual {
-    pushCoverageExcess();
+    Errors.notImplemented();
   }
 
   /// @dev Attempt to take the excess coverage and fill batches
@@ -100,7 +93,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(excessCoverage, type(uint256).max);
 
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
-    _excessCoverage = newExcess;
+    internalSetExcess(newExcess);
     _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
   }
 
@@ -119,7 +112,9 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     }
 
     if (coverageValue > 0) {
-      totals = _afterBalanceUpdate(_excessCoverage -= coverageValue, totals, super.internalGetPremiumTotals());
+      uint256 excess = _excessCoverage - coverageValue;
+      internalSetExcess(excess);
+      totals = _afterBalanceUpdate(excess, totals, super.internalGetPremiumTotals());
     }
     emit Transfer(account, address(0), coverageValue);
     _balances[account] = b;
@@ -204,19 +199,6 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[recipient] = b;
   }
 
-  ///
-  function internalReceiveTransfer(
-    address operator,
-    address account,
-    uint256 amount,
-    bytes calldata data
-  ) internal override onlyCollateralCurrency {
-    require(data.length == 0);
-    require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
-
-    _mintForCoverage(account, amount);
-  }
-
   /// @dev Max amount withdrawable is the amount of excess coverage
   function withdrawable(address account) public view override returns (uint256 amount) {
     amount = _excessCoverage;
@@ -228,7 +210,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     }
   }
 
-  function withdrawAll() external override returns (uint256) {
+  function withdrawAll() external override onlyUnpaused returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }
 
@@ -237,11 +219,19 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     uint256 value,
     address drawdownRecepient
   ) internal override {
-    require(drawdownRecepient == address(0));
+    if (drawdownRecepient == address(0)) {
+      (UserBalance memory b, ) = _beforeBalanceUpdate(account);
+      b.extra = uint128(b.extra - value);
+      _balances[account] = b;
+    } else {
+      _burnDrawdown(account, value);
+    }
+  }
 
-    (UserBalance memory b, ) = _beforeBalanceUpdate(account);
-    b.extra = uint128(b.extra - value);
-    _balances[account] = b;
+  function _burnDrawdown(address account, uint256 value) private {
+    account;
+    value;
+    Errors.notImplemented();
   }
 
   function internalCollectDrawdownPremium() internal override returns (uint256) {}

@@ -17,6 +17,10 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
     internalSetFlags(account, FLAG_MINT | FLAG_BURN);
   }
 
+  function isLiquidityProvider(address account) external view override returns (bool) {
+    return internalGetFlags(account) & FLAG_MINT != 0;
+  }
+
   function registerInsurer(address account) external aclHas(AccessFlags.INSURER_ADMIN) {
     // TODO protect insurer from withdraw
     internalSetFlags(account, FLAG_TRANSFER_CALLBACK);

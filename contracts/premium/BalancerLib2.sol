@@ -96,8 +96,9 @@ library BalancerLib2 {
 
     // NB!!!!! value and amount are the same for this case
     c.vA = WadRayMath.WAD;
-    balance.accumAmount = uint128(assetAmount);
+
     require((total.accum += uint128(assetAmount)) >= assetAmount);
+    balance.accumAmount = uint128(assetAmount);
 
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
   }

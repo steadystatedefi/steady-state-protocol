@@ -13,10 +13,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(
-    ImperpetualPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) WeightedPoolBase(extension, joinExtension) {}
+  constructor(ImperpetualPoolExtension extension, JoinablePoolExtension joinExtension) WeightedPoolBase(extension, joinExtension) {}
 
   function _addCoverage(uint256 value)
     private
@@ -31,8 +28,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
       uint256 newExcess;
       (newExcess, , params, part) = super.internalAddCoverage(value + excessCoverage, type(uint256).max);
       if (newExcess != excessCoverage) {
-        _excessCoverage = newExcess;
-        emit ExcessCoverageIncreased(newExcess);
+        internalSetExcess(newExcess);
       }
       done = true;
     }
@@ -40,16 +36,14 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
-  function _mintForCoverage(address account, uint256 value) private {
+  function internalMintForCoverage(address account, uint256 value) internal override {
     (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
     // TODO test adding coverage to an empty pool
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
   }
 
-  function internalSubrogate(address donor, uint256 value) internal override {
-    transferCollateralFrom(donor, address(this), value);
-    emit ExcessCoverageIncreased(_excessCoverage += value);
-    internalOnCoverageRecovered();
+  function internalSubrogated(uint256 value) internal override {
+    internalSetExcess(_excessCoverage + value);
   }
 
   function updateCoverageOnCancel(
@@ -99,13 +93,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
 
     if (recoveredValue > 0) {
-      emit ExcessCoverageIncreased(_excessCoverage += recoveredValue);
+      internalSetExcess(_excessCoverage + recoveredValue);
       internalOnCoverageRecovered();
     }
 
     return payoutValue;
   }
- 
 
   function updateCoverageOnReconcile(
     address insured,
@@ -146,10 +139,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   function _incrementTotalValue(uint256 valueGain) private {
     _valueAdjustment += _toInt128(valueGain);
-  }
-
-  function internalOnCoverageRecovered() internal virtual {
-    pushCoverageExcess();
   }
 
   /// @dev Attempt to take the excess coverage and fill batches
@@ -194,6 +183,20 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     return _balances[account].balance;
   }
 
+  function balancesOf(address account)
+    public
+    view
+    returns (
+      uint256 coverage,
+      uint256 scaled,
+      uint256 premium
+    )
+  {
+    scaled = balanceOf(account);
+    coverage = scaled.rayMul(exchangeRate());
+    premium;
+  }
+
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
   ///@param sender  The sender
   ///@param recipient The receiver
@@ -205,19 +208,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   ) internal override {
     _balances[sender].balance = uint128(_balances[sender].balance - amount);
     _balances[recipient].balance += uint128(amount);
-  }
-
-  ///
-  function internalReceiveTransfer(
-    address operator,
-    address account,
-    uint256 amount,
-    bytes calldata data
-  ) internal override onlyCollateralCurrency {
-    require(data.length == 0);
-    require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
-
-    _mintForCoverage(account, amount);
   }
 
   function _burnValue(
@@ -244,7 +234,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     address recepient,
     DemandedCoverage memory coverage
   ) internal returns (uint256 burntAmount) {
-    // NB! removed for performance reasons 
+    // NB! removed for performance reasons
     // Value.require(value <= _calcAvailableUserDrawdown(totalCovered + pendingCovered));
 
     burntAmount = _burnValue(account, value, coverage);
@@ -283,7 +273,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     return __calcAvailableDrawdown(totalCovered, _params.maxUserDrawdownPct);
   }
 
-  function internalCollectDrawdownPremium() internal override view returns (uint256) {
+  function internalCollectDrawdownPremium() internal view override returns (uint256) {
     return _calcAvailableUserDrawdown();
   }
 }

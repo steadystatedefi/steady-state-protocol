@@ -70,10 +70,16 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
-  function cancelCoverage(address insured, uint256 payoutRatio) external override onlyActiveInsuredOrOps(insured) returns (uint256 payoutValue) {
+  function cancelCoverage(address insured, uint256 payoutRatio)
+    external
+    override
+    onlyActiveInsuredOrOps(insured)
+    onlyUnpaused
+    returns (uint256 payoutValue)
+  {
     bool enforcedCancel = msg.sender != insured;
-    if (payoutRatio > 0 && !enforcedCancel) {
-      payoutRatio = internalVerifyPayoutRatio(insured, payoutRatio);
+    if (payoutRatio > 0) {
+      payoutRatio = internalVerifyPayoutRatio(insured, payoutRatio, enforcedCancel);
     }
     (payoutValue, ) = internalCancelCoverage(insured, payoutRatio, enforcedCancel);
   }
@@ -104,8 +110,9 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
       'must be reconciled'
     );
 
-    uint256 premiumDebt = address(_premiumDistributor) == address(0) ? 0 : 
-      _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
+    uint256 premiumDebt = address(_premiumDistributor) == address(0)
+      ? 0
+      : _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
 
     internalSetStatus(insured, InsuredStatus.Declined);
 
@@ -123,8 +130,13 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
       }
     }
 
-    payoutValue = internalTransferCancelledCoverage(insured, payoutValue, providedCoverage - receivableCoverage, 
-      excessCoverage + receivableCoverage, premiumDebt);
+    payoutValue = internalTransferCancelledCoverage(
+      insured,
+      payoutValue,
+      providedCoverage - receivableCoverage,
+      excessCoverage + receivableCoverage,
+      premiumDebt
+    );
   }
 
   function internalTransferCancelledCoverage(
@@ -157,6 +169,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     external
     override
     onlyActiveInsured
+    onlyUnpaused
     returns (
       uint256 receivedCoverage,
       uint256 receivedCollateral,
