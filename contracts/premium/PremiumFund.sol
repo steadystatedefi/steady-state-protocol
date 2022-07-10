@@ -95,6 +95,11 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     config.state = paused ? ActuaryState.Paused : ActuaryState.Active;
   }
 
+
+  function isPaused(address actuary) public view returns (bool) {
+    return _configs[actuary].state == ActuaryState.Paused;
+  }
+
   function setPaused(
     address actuary,
     address token,
@@ -109,12 +114,24 @@ contract PremiumFund is IPremiumDistributor, AccessHelper, Collateralized {
     assetConfig.flags = paused ? flags | BalancerLib2.BF_SUSPENDED : flags & ~BalancerLib2.BF_SUSPENDED;
   }
 
+  function isPaused(address actuary, address token) public view returns (bool) {
+    ActuaryState state = _configs[actuary].state;
+    if (state == ActuaryState.Active) {
+      return _balancers[actuary].configs[token].flags & BalancerLib2.BF_SUSPENDED != 0;
+    }
+    return state == ActuaryState.Paused;
+  }
+
   function setPausedToken(address token, bool paused) external onlyEmergencyAdmin {
     Value.require(token != address(0));
 
     TokenState storage state = _tokens[token];
     uint8 flags = state.flags;
     state.flags = paused ? flags | TS_SUSPENDED : flags & ~TS_SUSPENDED;
+  }
+
+  function isPausedToken(address token) public view returns (bool) {
+    return _tokens[token].flags & TS_SUSPENDED != 0;
   }
 
   uint8 private constant SOURCE_MULTI_MODE_MASK = 3;

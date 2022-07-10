@@ -31,7 +31,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
       uint256 newExcess;
       (newExcess, , params, part) = super.internalAddCoverage(value + excessCoverage, type(uint256).max);
       if (newExcess != excessCoverage) {
-        emit ExcessCoverageUpdated(_excessCoverage = newExcess);
+        internalSetExcess(newExcess);
       }
       done = true;
     }
@@ -39,14 +39,14 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
-  function _mintForCoverage(address account, uint256 value) private {
+  function internalMintForCoverage(address account, uint256 value) internal override {
     (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
     // TODO test adding coverage to an empty pool
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
   }
 
   function internalSubrogated(uint256 value) internal override {
-    emit ExcessCoverageUpdated(_excessCoverage += value);
+    internalSetExcess(_excessCoverage + value);
   }
 
   function updateCoverageOnCancel(
@@ -96,7 +96,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
 
     if (recoveredValue > 0) {
-      emit ExcessCoverageUpdated(_excessCoverage += recoveredValue);
+      internalSetExcess(_excessCoverage + recoveredValue);
       internalOnCoverageRecovered();
     }
 
@@ -212,19 +212,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   ) internal override {
     _balances[sender].balance = uint128(_balances[sender].balance - amount);
     _balances[recipient].balance += uint128(amount);
-  }
-
-  ///
-  function internalReceiveTransfer(
-    address operator,
-    address account,
-    uint256 amount,
-    bytes calldata data
-  ) internal override onlyCollateralCurrency {
-    require(data.length == 0);
-    require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
-
-    _mintForCoverage(account, amount);
   }
 
   function _burnValue(

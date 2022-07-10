@@ -119,4 +119,26 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
   function premiumDistributor() public view override returns (address) {
     return address(_premiumDistributor);
   }
+
+  function internalReceiveTransfer(
+    address operator,
+    address account,
+    uint256 amount,
+    bytes calldata data
+  ) internal override onlyCollateralCurrency onlyUnpaused {
+    require(data.length == 0);
+    require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
+
+    internalMintForCoverage(account, amount);
+  }
+
+  function internalMintForCoverage(address account, uint256 value) internal virtual;
+
+  function setPaused(bool paused) external onlyEmergencyAdmin {
+    _paused = paused;
+  }
+
+  function isPaused() public view returns (bool) {
+    return _paused;
+  }
 }

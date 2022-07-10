@@ -23,9 +23,20 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
   IPremiumDistributor internal _premiumDistributor;
 
   /// @dev Amount of coverage provided to the pool that is not satisfying demand
-  uint256 internal _excessCoverage;
+  uint192 internal _excessCoverage;
+  bool internal _paused;
 
   event ExcessCoverageUpdated(uint256 coverageExcess);
+
+  function internalSetExcess(uint256 excess) internal {
+    require((_excessCoverage = uint192(excess)) == excess);
+    emit ExcessCoverageUpdated(excess);
+  }
+
+  modifier onlyUnpaused() {
+    require(!_paused);
+    _;
+  }
 
   ///@dev Return if an account has a balance or premium earned
   function internalIsInvestor(address account) internal view override returns (bool) {

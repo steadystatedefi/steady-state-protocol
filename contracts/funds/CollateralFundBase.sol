@@ -306,6 +306,10 @@ abstract contract CollateralFundBase is AccessHelper {
     internalSetFlags(token, paused ? 0 : type(uint8).max);
   }
 
+  function isPaused(address token) public view returns (bool) {
+    return _assets[token].flags == type(uint8).max;
+  }
+
   function setTrustedOperator(address token, address trusted) external aclHas(AccessFlags.LP_DEPLOY) {
     internalSetTrusted(token, trusted);
   }

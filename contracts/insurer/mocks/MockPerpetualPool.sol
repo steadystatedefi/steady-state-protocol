@@ -43,7 +43,7 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   }
 
   function setExcessCoverage(uint256 v) external {
-    _excessCoverage = v;
+    internalSetExcess(v);
   }
 
   function internalOnCoverageRecovered() internal override {}
