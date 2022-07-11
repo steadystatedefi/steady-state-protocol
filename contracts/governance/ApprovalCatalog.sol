@@ -32,15 +32,12 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   event ApplicationSubmitted(address indexed insured, bytes32 indexed requestCid);
 
   function submitApplication(bytes32 cid) external returns (address insured) {
-    State.require(!hasApprovedApplication(insured));
-
     insured = _createInsured(msg.sender, address(0));
     _submitApplication(insured, cid);
   }
 
   function submitApplication(bytes32 cid, address impl) external returns (address insured) {
     Value.require(impl != address(0));
-    State.require(!hasApprovedApplication(insured));
 
     insured = _createInsured(msg.sender, impl);
     _submitApplication(insured, cid);

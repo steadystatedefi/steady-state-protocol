@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { zeroAddress, zeros } from 'ethereumjs-util';
+import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
 import { formatBytes32String } from 'ethers/lib/utils';
 
@@ -14,8 +14,8 @@ import {
   ApprovalCatalogV1,
   InsuredPoolV1,
   MockERC20,
-  ApprovalCatalog,
   IApprovalCatalog,
+  InsuredPoolV2,
 } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
@@ -36,6 +36,7 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
   let proxyCatalog: ProxyCatalog;
   let approvalCatalog: ApprovalCatalogV1;
   let insuredV1: InsuredPoolV1;
+  let insuredV2: InsuredPoolV2;
   let cc: MockERC20;
   let premiumToken: MockERC20;
   let user1: SignerWithAddress;
@@ -59,6 +60,7 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     cc = await Factories.MockERC20.deploy('Collateral Currency', 'CC', 18);
     premiumToken = await Factories.MockERC20.deploy('Premium Token', 'PRM', 18);
     insuredV1 = await Factories.InsuredPoolV1.deploy(controller.address, cc.address);
+    insuredV2 = await Factories.InsuredPoolV2.deploy(controller.address, cc.address);
 
     await controller.setAddress(PROXY_FACTORY, proxyCatalog.address);
     await controller.setAddress(APPROVAL_CATALOG, approvalCatalog.address);
@@ -75,9 +77,7 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(false);
     await expect(approvalCatalog.getApprovedApplication(insuredAddr)).to.be.reverted;
 
-    const insuredV2 = await Factories.InsuredPoolV2.deploy(controller.address, cc.address);
     await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType);
-
     cid = formatBytes32String('policy2');
     await Events.ApplicationSubmitted.waitOne(
       approvalCatalog['submitApplication(bytes32,address)'](cid, insuredV2.address),
@@ -119,7 +119,7 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     policy.insured = zeroAddress();
     await expect(user1Catalog.approveApplication(policy)).to.be.reverted;
     policy.insured = insuredAddr;
-    policy.requestCid = formatBytes32String('');
+    policy.requestCid = ZERO_BYTES;
     await expect(user1Catalog.approveApplication(policy)).to.be.reverted;
     policy.requestCid = cid;
     policy.applied = true;
@@ -192,5 +192,63 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(true);
     await user1Catalog.declineApplication(insuredAddr, cid, 'Decline reason');
     expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(false);
+  });
+
+  it('Submit and approve claim', async () => {
+    const cid = formatBytes32String('policy1');
+    const claimcid = formatBytes32String('claim1');
+    const user1Catalog = approvalCatalog.connect(user1);
+    let insuredAddr = '';
+
+    await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType);
+    await Events.ApplicationSubmitted.waitOne(
+      approvalCatalog['submitApplication(bytes32,address)'](cid, insuredV2.address),
+      (ev) => {
+        insuredAddr = ev.insured;
+        expect(ev.requestCid).eq(cid);
+      }
+    );
+
+    const insured = Factories.InsuredPoolV2.attach(insuredAddr);
+    await insured.setClaimInsurance(user1.address);
+
+    {
+      await expect(user1Catalog.submitClaim(insuredAddr, ZERO_BYTES, 10)).to.be.reverted;
+      await expect(user1Catalog.submitClaim(zeroAddress(), claimcid, 10)).to.be.reverted;
+      await expect(approvalCatalog.submitClaim(insuredAddr, claimcid, 10)).to.be.reverted;
+    }
+
+    let res = await user1Catalog.callStatic.submitClaim(insuredAddr, claimcid, 10);
+    await user1Catalog.submitClaim(insuredAddr, claimcid, 10);
+    {
+      expect(res).eq(1);
+      expect(await user1Catalog.hasApprovedClaim(insuredAddr)).eq(false);
+      await expect(user1Catalog.getApprovedClaim(insuredAddr)).to.be.reverted;
+    }
+    res = await user1Catalog.callStatic.submitClaim(insuredAddr, claimcid, 10);
+    expect(res).eq(2);
+
+    const claim: IApprovalCatalog.ApprovedClaimStruct = {
+      requestCid: claimcid,
+      approvalCid: claimcid,
+      payoutRatio: 10,
+      since: await currentTime(),
+    };
+    {
+      await expect(approvalCatalog.approveClaim(insuredAddr, claim)).to.be.reverted;
+      claim.requestCid = ZERO_BYTES;
+      await expect(user1Catalog.approveClaim(insuredAddr, claim)).to.be.reverted;
+      claim.requestCid = claimcid;
+    }
+
+    await user1Catalog.approveClaim(insuredAddr, claim);
+    {
+      expect(await approvalCatalog.hasApprovedClaim(insuredAddr)).eq(true);
+      const res2 = await approvalCatalog.getApprovedClaim(insuredAddr);
+      expect(res2.requestCid).eq(claim.requestCid);
+      expect(res2.payoutRatio).eq(claim.payoutRatio);
+      await expect(user1Catalog.approveClaim(insuredAddr, claim)).to.be.reverted;
+    }
+    await approvalCatalog.applyApprovedClaim(insuredAddr);
   });
 });
