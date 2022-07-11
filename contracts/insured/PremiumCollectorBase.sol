@@ -2,7 +2,6 @@
 pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/Address.sol';
-import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/SafeERC20.sol';
 import '../tools/Errors.sol';
 import '../tools/tokens/IERC20.sol';

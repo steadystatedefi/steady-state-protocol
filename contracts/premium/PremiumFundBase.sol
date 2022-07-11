@@ -37,7 +37,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
   }
 
   struct TokenInfo {
-    EnumerableSet.AddressSet sources;
+    EnumerableSet.AddressSet activeSources;
     uint32 nextReplenish;
   }
 
@@ -65,26 +65,26 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
 
   mapping(address => ActuaryConfig) internal _configs; // [actuary]
   mapping(address => TokenState) private _tokens; // [token]
+  mapping(address => EnumerableSet.AddressSet) private _tokenActuaries; // [token]
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
-  // TODO collectedFee / withdrawFee
-  // TODO balanceOf
-  // TODO balanceOfSource/Prepay, prepay/withdraw
-
   function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
     ActuaryConfig storage config = _configs[actuary];
+    address cc = collateral();
+
     if (register) {
       State.require(config.state < ActuaryState.Active);
-      address cc = collateral();
       Value.require(IPremiumActuary(actuary).collateral() == cc);
       if (_markTokenAsPresent(cc)) {
         _balancers[actuary].configs[cc].price = uint152(WadRayMath.WAD);
       }
 
       config.state = ActuaryState.Active;
+      _tokenActuaries[cc].add(actuary);
     } else if (config.state >= ActuaryState.Active) {
       config.state = ActuaryState.Inactive;
+      _tokenActuaries[cc].remove(actuary);
     }
   }
 
@@ -153,10 +153,13 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
       _ensureNonCollateral(actuary, targetToken);
       _markTokenAsPresent(targetToken);
       config.sourceToken[source] = targetToken;
+      _tokenActuaries[targetToken].add(actuary);
     } else {
       address targetToken = config.sourceToken[source];
       if (targetToken != address(0)) {
-        _removePremiumSource(config, _balancers[actuary], source, targetToken);
+        if (_removePremiumSource(config, _balancers[actuary], source, targetToken)) {
+          _tokenActuaries[targetToken].remove(actuary);
+        }
       }
     }
   }
@@ -182,11 +185,11 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     address targetToken,
     address source
   ) private {
-    EnumerableSet.AddressSet storage tokenSources = config.tokens[targetToken].sources;
+    EnumerableSet.AddressSet storage activeSources = config.tokens[targetToken].activeSources;
 
-    State.require(tokenSources.add(source));
+    State.require(activeSources.add(source));
 
-    if (tokenSources.length() == 1) {
+    if (activeSources.length() == 1) {
       BalancerLib2.AssetBalance storage balance = balancer.balances[source];
 
       require(balance.rateValue == 0);
@@ -202,11 +205,11 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     BalancerLib2.AssetBalancer storage balancer,
     address source,
     address targetToken
-  ) private {
+  ) private returns (bool allRemoved) {
     delete config.sourceToken[source];
-    EnumerableSet.AddressSet storage tokenSources = config.tokens[targetToken].sources;
+    EnumerableSet.AddressSet storage activeSources = config.tokens[targetToken].activeSources;
 
-    if (tokenSources.remove(source)) {
+    if (activeSources.remove(source)) {
       BalancerLib2.AssetConfig storage balancerConfig = balancer.configs[targetToken];
 
       SourceBalance storage sBalance = config.sourceBalances[source];
@@ -214,10 +217,14 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
 
       delete config.sourceBalances[source];
 
-      if (tokenSources.length() == 0) {
+      if (activeSources.length() == 0) {
         require(rate == 0);
         balancerConfig.flags |= BalancerLib2.BF_FINISHED;
+
+        allRemoved = true;
       }
+    } else {
+      allRemoved = activeSources.length() == 0;
     }
   }
 
@@ -387,13 +394,14 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     TokenInfo storage tokenInfo = config.tokens[token];
 
     uint32 index = tokenInfo.nextReplenish;
-    uint256 length = tokenInfo.sources.length();
+    EnumerableSet.AddressSet storage activeSources = tokenInfo.activeSources;
+    uint256 length = activeSources.length();
     if (index >= length) {
       index = 0;
     }
     tokenInfo.nextReplenish = index + 1;
 
-    return tokenInfo.sources.at(index);
+    return activeSources.at(index);
   }
 
   function _collectPremium(
@@ -478,7 +486,8 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     }
 
     TokenInfo storage tokenInfo = config.tokens[token];
-    uint256 length = tokenInfo.sources.length();
+    EnumerableSet.AddressSet storage activeSources = tokenInfo.activeSources;
+    uint256 length = activeSources.length();
 
     if (length > 0) {
       uint32 index = tokenInfo.nextReplenish;
@@ -488,7 +497,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
       uint256 stop = index;
 
       for (; sourceLimit > 0; sourceLimit--) {
-        _premiumAllocationUpdated(config, actuary, tokenInfo.sources.at(index), token, 0, 0, true);
+        _premiumAllocationUpdated(config, actuary, activeSources.at(index), token, 0, 0, true);
         index++;
         if (index >= length) {
           index = 0;
@@ -777,5 +786,17 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
       instruction.targetToken,
       instruction.minAmount
     );
+  }
+
+  function actuariesOfToken(address token) public view returns (address[] memory) {
+    return _tokenActuaries[token].values();
+  }
+
+  function actuaries() external view returns (address[] memory) {
+    return actuariesOfToken(collateral());
+  }
+
+  function activeSourcesOf(address actuary, address token) external view returns (address[] memory) {
+    return _configs[actuary].tokens[token].activeSources.values();
   }
 }
