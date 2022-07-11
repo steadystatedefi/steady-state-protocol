@@ -14,7 +14,7 @@ contract InsuredPoolV1 is VersionedInitializable, IInsuredPoolInit, InsuredPoolB
     internalSetGovernor(governor);
   }
 
-  function getRevision() internal pure override returns (uint256) {
+  function getRevision() internal pure virtual override returns (uint256) {
     return CONTRACT_REVISION;
   }
 }

@@ -32,7 +32,7 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     uint160 minPrepayValue,
     uint32 rollingAdvanceWindow
   ) internal {
-    Value.require(token == address(0));
+    Value.require(token != address(0));
     State.require(address(_premiumToken) == address(0));
     _premiumToken = IERC20(token);
     internalSetPrepay(minPrepayValue, rollingAdvanceWindow);

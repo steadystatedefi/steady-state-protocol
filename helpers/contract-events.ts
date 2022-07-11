@@ -1,3 +1,4 @@
+import { ApplicationSubmittedEvent } from '../types/contracts/governance/ApprovalCatalog';
 import { ProxyCreatedEvent } from '../types/contracts/governance/ProxyCatalog';
 import { TokenSwappedEvent } from '../types/contracts/premium/mocks/MockBalancerLib2';
 import { TransferEvent } from '../types/contracts/tools/tokens/ERC20Base';
@@ -10,6 +11,7 @@ export const Events = {
   TokenSwapped: wrap(stub as TokenSwappedEvent),
   ProxyCreated: wrap(stub as ProxyCreatedEvent),
   Transfer: wrap(stub as TransferEvent),
+  ApplicationSubmitted: wrap(stub as ApplicationSubmittedEvent),
 };
 
 Object.entries(Events).forEach(([name, factory]) => addNamedEvent(factory, name));

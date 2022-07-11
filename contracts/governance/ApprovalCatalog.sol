@@ -68,7 +68,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   }
 
   function hasApprovedApplication(address insured) public view returns (bool) {
-    return _approvedPolicies[insured].insured == insured;
+    return insured == address(0) ? false : _approvedPolicies[insured].insured == insured;
   }
 
   function getApprovedApplication(address insured) external view returns (ApprovedPolicy memory) {
