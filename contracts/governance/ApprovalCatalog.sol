@@ -129,9 +129,8 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     bytes32 r,
     bytes32 s
   ) external {
-    uint256 currentNonce = ++_nonces[data.insured];
-    bytes32 value = keccak256(abi.encode(data));
-    EIP712Lib.verifyPermit(approver, data.insured, value, deadline, v, r, s, APPROVE_APPL_TYPEHASH, DOMAIN_SEPARATOR, currentNonce);
+    uint256 nonce = ++_nonces[data.insured];
+    EIP712Lib.verifyCustomPermit(approver, abi.encode(APPROVE_APPL_TYPEHASH, approver, data, nonce, deadline), deadline, v, r, s, DOMAIN_SEPARATOR);
 
     _approveApplication(approver, data);
   }
@@ -237,10 +236,8 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     bytes32 r,
     bytes32 s
   ) external {
-    uint256 currentNonce = ++_nonces[insured];
-    bytes32 value = keccak256(abi.encode(data));
-    EIP712Lib.verifyPermit(approver, insured, value, deadline, v, r, s, APPROVE_CLAIM_TYPEHASH, DOMAIN_SEPARATOR, currentNonce);
-
+    uint256 nonce = ++_nonces[insured];
+    EIP712Lib.verifyCustomPermit(approver, abi.encode(APPROVE_CLAIM_TYPEHASH, approver, data, nonce, deadline), deadline, v, r, s, DOMAIN_SEPARATOR);
     _approveClaim(approver, insured, data);
   }
 

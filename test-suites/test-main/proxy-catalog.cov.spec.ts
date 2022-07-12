@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { zeroAddress, zeros } from 'ethereumjs-util';
+import { zeroAddress } from 'ethereumjs-util';
 import { formatBytes32String } from 'ethers/lib/utils';
 
 import { MAX_UINT } from '../../helpers/constants';

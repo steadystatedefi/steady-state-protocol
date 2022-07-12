@@ -38,12 +38,24 @@ library EIP712Lib {
     bytes32 domainSep,
     uint256 nonce
   ) internal view {
+    verifyCustomPermit(owner, abi.encode(typeHash, owner, spender, value, nonce, deadline), deadline, v, r, s, domainSep);
+  }
+
+  function verifyCustomPermit(
+    address owner,
+    bytes memory params,
+    uint256 deadline,
+    uint8 v,
+    bytes32 r,
+    bytes32 s,
+    bytes32 domainSep
+  ) internal view {
     Value.require(owner != address(0));
     if (block.timestamp > deadline) {
       revert Errors.ExpiredPermit();
     }
 
-    bytes32 digest = keccak256(abi.encodePacked('\x19\x01', domainSep, keccak256(abi.encode(typeHash, owner, spender, value, nonce, deadline))));
+    bytes32 digest = keccak256(abi.encodePacked('\x19\x01', domainSep, keccak256(params)));
 
     if (owner != ecrecover(digest, v, r, s)) {
       revert Errors.WrongPermitSignature();
