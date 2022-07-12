@@ -37,6 +37,9 @@ library Errors {
   error NotImplemented();
   error AccessDenied();
 
+  error ExpiredPermit();
+  error WrongPermitSignature();
+
   error ExcessiveVolatility();
 
   error CalllerNotEmergencyAdmin();
