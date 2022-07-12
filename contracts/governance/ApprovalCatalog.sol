@@ -7,6 +7,7 @@ import '../tools/upgradeability/TransparentProxy.sol';
 import '../tools/upgradeability/ProxyAdminBase.sol';
 import '../tools/upgradeability/IProxy.sol';
 import '../tools/upgradeability/IVersioned.sol';
+import '../tools/EIP712Lib.sol';
 import '../access/interfaces/IAccessController.sol';
 import '../access/AccessHelper.sol';
 import '../access/AccessFlags.sol';
@@ -15,10 +16,33 @@ import './interfaces/IClaimAccessValidator.sol';
 import './ProxyTypes.sol';
 
 contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
+  // solhint-disable-next-line var-name-mixedcase
+  bytes32 public DOMAIN_SEPARATOR;
+
+  bytes32 public constant APPROVE_APPL_TYPEHASH = keccak256('approveApplicationByPermit');
+  bytes32 public constant APPROVE_CLAIM_TYPEHASH = keccak256('approveClaimByPermit');
+
   bytes32 private immutable _insuredProxyType;
 
   constructor(IAccessController acl, bytes32 insuredProxyType) AccessHelper(acl) {
     _insuredProxyType = insuredProxyType;
+    // _initializeDomainSeparator();
+  }
+
+  mapping(address => uint256) private _nonces;
+
+  /// @dev returns nonce, to comply with eip-2612
+  function nonces(address addr) external view returns (uint256) {
+    return _nonces[addr];
+  }
+
+  function _initializeDomainSeparator(bytes memory permitDomainName) internal {
+    DOMAIN_SEPARATOR = EIP712Lib.domainSeparator(permitDomainName);
+  }
+
+  // solhint-disable-next-line func-name-mixedcase
+  function EIP712_REVISION() external pure returns (bytes memory) {
+    return EIP712Lib.EIP712_REVISION;
   }
 
   struct RequestedPolicy {
@@ -32,16 +56,12 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   event ApplicationSubmitted(address indexed insured, bytes32 indexed requestCid);
 
   function submitApplication(bytes32 cid) external returns (address insured) {
-    State.require(!hasApprovedApplication(insured));
-
     insured = _createInsured(msg.sender, address(0));
     _submitApplication(insured, cid);
   }
 
   function submitApplication(bytes32 cid, address impl) external returns (address insured) {
     Value.require(impl != address(0));
-    State.require(!hasApprovedApplication(insured));
-
     insured = _createInsured(msg.sender, impl);
     _submitApplication(insured, cid);
   }
@@ -95,15 +115,35 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     }
   }
 
-  event ApplicationApproved(address indexed insured, bytes32 indexed requestCid, ApprovedPolicy data);
+  event ApplicationApproved(address indexed approver, address indexed insured, bytes32 indexed requestCid, ApprovedPolicy data);
 
   function approveApplication(ApprovedPolicy calldata data) external aclHas(AccessFlags.UNDERWRITER_POLICY) {
+    _approveApplication(msg.sender, data);
+  }
+
+  function approveApplicationByPermit(
+    address approver,
+    ApprovedPolicy calldata data,
+    uint256 deadline,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) external {
+    uint256 currentNonce = ++_nonces[data.insured];
+    bytes32 value = keccak256(abi.encode(data));
+    EIP712Lib.verifyPermit(approver, data.insured, value, deadline, v, r, s, APPROVE_APPL_TYPEHASH, DOMAIN_SEPARATOR, currentNonce);
+
+    _approveApplication(approver, data);
+  }
+
+  function _approveApplication(address approver, ApprovedPolicy calldata data) private {
+    Access.require(hasAnyAcl(approver, AccessFlags.UNDERWRITER_POLICY));
     Value.require(data.insured != address(0));
     Value.require(data.requestCid != 0);
     Value.require(!data.applied);
     State.require(!hasApprovedApplication(data.insured));
     _approvedPolicies[data.insured] = data;
-    emit ApplicationApproved(data.insured, data.requestCid, data);
+    emit ApplicationApproved(approver, data.insured, data.requestCid, data);
   }
 
   event ApplicationDeclined(address indexed insured, bytes32 indexed cid, string reason);
@@ -182,14 +222,39 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     return _approvedClaims[insured];
   }
 
-  event ClaimApproved(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
+  event ClaimApproved(address indexed approver, address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
   function approveClaim(address insured, ApprovedClaim calldata data) external aclHas(AccessFlags.UNDERWRITER_CLAIM) {
+    _approveClaim(msg.sender, insured, data);
+  }
+
+  function approveClaimByPermit(
+    address approver,
+    address insured,
+    ApprovedClaim calldata data,
+    uint256 deadline,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) external {
+    uint256 currentNonce = ++_nonces[insured];
+    bytes32 value = keccak256(abi.encode(data));
+    EIP712Lib.verifyPermit(approver, insured, value, deadline, v, r, s, APPROVE_CLAIM_TYPEHASH, DOMAIN_SEPARATOR, currentNonce);
+
+    _approveClaim(approver, insured, data);
+  }
+
+  function _approveClaim(
+    address approver,
+    address insured,
+    ApprovedClaim calldata data
+  ) private {
+    Access.require(hasAnyAcl(approver, AccessFlags.UNDERWRITER_CLAIM));
     Value.require(insured != address(0));
     Value.require(data.requestCid != 0);
     State.require(!hasApprovedClaim(insured));
     _approvedClaims[insured] = data;
-    emit ClaimApproved(insured, data.requestCid, data);
+    emit ClaimApproved(approver, insured, data.requestCid, data);
   }
 
   event ClaimApplied(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
