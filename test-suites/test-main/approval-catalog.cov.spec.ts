@@ -31,7 +31,7 @@ const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES).xor(APPROVAL_CATALOG);
 
 const ZERO_BYTES = formatBytes32String('');
 
-makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
+makeSuite('Approval Catalog', (testEnv: TestEnv) => {
   let controller: AccessController;
   let proxyCatalog: ProxyCatalog;
   let approvalCatalog: ApprovalCatalogV1;
@@ -126,14 +126,19 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     await expect(user1Catalog.approveApplication(policy)).to.be.reverted;
     policy.applied = false;
 
-    await user1Catalog.approveApplication(policy);
-    expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(true);
+    await Events.ApplicationApproved.waitOne(user1Catalog.approveApplication(policy), (ev) => {
+      expect(ev.approver).eq(user1.address);
+      expect(ev.insured).eq(insuredAddr);
+      expect(ev.requestCid).eq(cid);
+    });
 
-    // await expect(approvalCatalog['submitApplication(bytes32)'](cid)).to.be.reverted;
-    await expect(approvalCatalog.resubmitApplication(insuredAddr, cid)).to.be.reverted;
-    await approvalCatalog.getApprovedApplication(insuredAddr);
-    const res = await approvalCatalog.getAppliedApplicationForInsurer(insuredAddr);
-    expect(res.valid).eq(false);
+    {
+      expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(true);
+      await expect(approvalCatalog.resubmitApplication(insuredAddr, cid)).to.be.reverted;
+      await approvalCatalog.getApprovedApplication(insuredAddr);
+      const res = await approvalCatalog.getAppliedApplicationForInsurer(insuredAddr);
+      expect(res.valid).eq(false);
+    }
   });
 
   it('Apply an application', async () => {
@@ -159,7 +164,9 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     const insured = Factories.InsuredPoolV1.attach(insuredAddr);
 
     await expect(insured.connect(user1).applyApprovedApplication()).to.be.reverted;
-    await insured.applyApprovedApplication();
+    await expect(insured.applyApprovedApplication())
+      .to.emit(approvalCatalog, 'ApplicationApplied')
+      .withArgs(insuredAddr, cid);
 
     const res = await approvalCatalog.getAppliedApplicationForInsurer(insuredAddr);
     expect(res.valid).eq(true);
@@ -190,7 +197,13 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     await expect(user1Catalog.declineApplication(zeroAddress(), cid, 'Decline reason')).to.be.reverted;
     await user1Catalog.approveApplication(policy);
     expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(true);
-    await user1Catalog.declineApplication(insuredAddr, cid, 'Decline reason');
+
+    const reason = 'Decline reason';
+    await Events.ApplicationDeclined.waitOne(user1Catalog.declineApplication(insuredAddr, cid, reason), (ev) => {
+      expect(ev.insured).eq(insuredAddr);
+      expect(ev.cid).eq(cid);
+      expect(ev.reason).eq(reason);
+    });
     expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(false);
   });
 
@@ -205,7 +218,6 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
       approvalCatalog['submitApplication(bytes32,address)'](cid, insuredV2.address),
       (ev) => {
         insuredAddr = ev.insured;
-        expect(ev.requestCid).eq(cid);
       }
     );
 
@@ -219,7 +231,11 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     }
 
     let res = await user1Catalog.callStatic.submitClaim(insuredAddr, claimcid, 10);
-    await user1Catalog.submitClaim(insuredAddr, claimcid, 10);
+    await Events.ClaimSubmitted.waitOne(user1Catalog.submitClaim(insuredAddr, claimcid, 10), (ev) => {
+      expect(ev.insured).eq(insuredAddr);
+      expect(ev.cid).eq(claimcid);
+      expect(ev.payoutRatio).eq(10);
+    });
     {
       expect(res).eq(1);
       expect(await user1Catalog.hasApprovedClaim(insuredAddr)).eq(false);
@@ -234,6 +250,7 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
       payoutRatio: 10,
       since: await currentTime(),
     };
+
     {
       await expect(approvalCatalog.approveClaim(insuredAddr, claim)).to.be.reverted;
       claim.requestCid = ZERO_BYTES;
@@ -241,7 +258,12 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
       claim.requestCid = claimcid;
     }
 
-    await user1Catalog.approveClaim(insuredAddr, claim);
+    await Events.ClaimApproved.waitOne(user1Catalog.approveClaim(insuredAddr, claim), (ev) => {
+      expect(ev.approver).eq(user1.address);
+      expect(ev.insured).eq(insuredAddr);
+      expect(ev.requestCid).eq(claim.requestCid);
+    });
+
     {
       expect(await approvalCatalog.hasApprovedClaim(insuredAddr)).eq(true);
       const res2 = await approvalCatalog.getApprovedClaim(insuredAddr);
@@ -249,6 +271,10 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
       expect(res2.payoutRatio).eq(claim.payoutRatio);
       await expect(user1Catalog.approveClaim(insuredAddr, claim)).to.be.reverted;
     }
-    await approvalCatalog.applyApprovedClaim(insuredAddr);
+
+    await Events.ClaimApplied.waitOne(approvalCatalog.applyApprovedClaim(insuredAddr), (ev) => {
+      expect(ev.insured).eq(insuredAddr);
+      expect(ev.requestCid).eq(claim.requestCid);
+    });
   });
 });
