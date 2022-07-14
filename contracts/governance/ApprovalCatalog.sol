@@ -18,15 +18,11 @@ import './ProxyTypes.sol';
 contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   // solhint-disable-next-line var-name-mixedcase
   bytes32 public DOMAIN_SEPARATOR;
-
-  bytes32 public constant APPROVE_APPL_TYPEHASH = keccak256('approveApplicationByPermit');
-  bytes32 public constant APPROVE_CLAIM_TYPEHASH = keccak256('approveClaimByPermit');
-
   bytes32 private immutable _insuredProxyType;
 
   constructor(IAccessController acl, bytes32 insuredProxyType) AccessHelper(acl) {
     _insuredProxyType = insuredProxyType;
-    // _initializeDomainSeparator();
+    _initializeDomainSeparator();
   }
 
   mapping(address => uint256) private _nonces;
@@ -36,8 +32,8 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     return _nonces[addr];
   }
 
-  function _initializeDomainSeparator(bytes memory permitDomainName) internal {
-    DOMAIN_SEPARATOR = EIP712Lib.domainSeparator(permitDomainName);
+  function _initializeDomainSeparator() internal {
+    DOMAIN_SEPARATOR = EIP712Lib.domainSeparator('ApprovalCatalog');
   }
 
   // solhint-disable-next-line func-name-mixedcase
@@ -60,7 +56,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     _submitApplication(insured, cid);
   }
 
-  function submitApplication(bytes32 cid, address impl) external returns (address insured) {
+  function submitApplicationWithImpl(bytes32 cid, address impl) external returns (address insured) {
     Value.require(impl != address(0));
     insured = _createInsured(msg.sender, impl);
     _submitApplication(insured, cid);
@@ -88,7 +84,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   }
 
   function hasApprovedApplication(address insured) public view returns (bool) {
-    return _approvedPolicies[insured].insured == insured;
+    return insured != address(0) && _approvedPolicies[insured].insured == insured;
   }
 
   function getApprovedApplication(address insured) external view returns (ApprovedPolicy memory) {
@@ -121,6 +117,17 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     _approveApplication(msg.sender, data);
   }
 
+  bytes32 public constant APPROVE_APPL_TYPEHASH =
+    keccak256(
+      // solhint-disable-next-line max-line-length
+      'approveApplicationByPermit(address approver,T1 data,uint256 nonce,uint256 expiry)T1(bytes32 requestCid,bytes32 approvalCid,address insured,uint16 riskLevel,uint80 basePremiumRate,string policyName,string policySymbol,address premiumToken,uint96 minPrepayValue,uint32 rollingAdvanceWindow,uint32 expiresAt,bool applied)'
+    );
+  bytes32 private constant APPROVE_APPL_DATA_TYPEHASH =
+    keccak256(
+      // solhint-disable-next-line max-line-length
+      'T1(bytes32 requestCid,bytes32 approvalCid,address insured,uint16 riskLevel,uint80 basePremiumRate,string policyName,string policySymbol,address premiumToken,uint96 minPrepayValue,uint32 rollingAdvanceWindow,uint32 expiresAt,bool applied)'
+    );
+
   function approveApplicationByPermit(
     address approver,
     ApprovedPolicy calldata data,
@@ -129,11 +136,39 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     bytes32 r,
     bytes32 s
   ) external {
-    uint256 currentNonce = ++_nonces[data.insured];
-    bytes32 value = keccak256(abi.encode(data));
-    EIP712Lib.verifyPermit(approver, data.insured, value, deadline, v, r, s, APPROVE_APPL_TYPEHASH, DOMAIN_SEPARATOR, currentNonce);
+    uint256 nonce = _nonces[data.insured]++;
+    EIP712Lib.verifyCustomPermit(
+      approver,
+      abi.encode(APPROVE_APPL_TYPEHASH, approver, _encodeApplicationPermit(data), nonce, deadline),
+      deadline,
+      v,
+      r,
+      s,
+      DOMAIN_SEPARATOR
+    );
 
     _approveApplication(approver, data);
+  }
+
+  function _encodeApplicationPermit(ApprovedPolicy calldata data) private pure returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          APPROVE_APPL_DATA_TYPEHASH,
+          data.requestCid,
+          data.approvalCid,
+          data.insured,
+          data.riskLevel,
+          data.basePremiumRate,
+          keccak256(abi.encodePacked(data.policyName)),
+          keccak256(abi.encodePacked(data.policySymbol)),
+          data.premiumToken,
+          data.minPrepayValue,
+          data.rollingAdvanceWindow,
+          data.expiresAt,
+          data.applied
+        )
+      );
   }
 
   function _approveApplication(address approver, ApprovedPolicy calldata data) private {
@@ -228,6 +263,17 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     _approveClaim(msg.sender, insured, data);
   }
 
+  bytes32 public constant APPROVE_CLAIM_TYPEHASH =
+    keccak256(
+      // solhint-disable-next-line max-line-length
+      'approveClaimByPermit(address approver,address insured,T1 data,uint256 nonce,uint256 expiry)T1(bytes32 requestCid,bytes32 approvalCid,uint16 payoutRatio,uint32 since)'
+    );
+  bytes32 private constant APPROVE_CLAIM_DATA_TYPEHASH = keccak256('T1(bytes32 requestCid,bytes32 approvalCid,uint16 payoutRatio,uint32 since)');
+
+  function _encodeClaimPermit(ApprovedClaim calldata data) private pure returns (bytes32) {
+    return keccak256(abi.encode(APPROVE_CLAIM_DATA_TYPEHASH, data));
+  }
+
   function approveClaimByPermit(
     address approver,
     address insured,
@@ -237,10 +283,16 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     bytes32 r,
     bytes32 s
   ) external {
-    uint256 currentNonce = ++_nonces[insured];
-    bytes32 value = keccak256(abi.encode(data));
-    EIP712Lib.verifyPermit(approver, insured, value, deadline, v, r, s, APPROVE_CLAIM_TYPEHASH, DOMAIN_SEPARATOR, currentNonce);
-
+    uint256 nonce = _nonces[insured]++;
+    EIP712Lib.verifyCustomPermit(
+      approver,
+      abi.encode(APPROVE_CLAIM_TYPEHASH, approver, insured, _encodeClaimPermit(data), nonce, deadline),
+      deadline,
+      v,
+      r,
+      s,
+      DOMAIN_SEPARATOR
+    );
     _approveClaim(approver, insured, data);
   }
 

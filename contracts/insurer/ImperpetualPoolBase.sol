@@ -13,10 +13,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(
-    ImperpetualPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) WeightedPoolBase(extension, joinExtension) {}
+  constructor(ImperpetualPoolExtension extension, JoinablePoolExtension joinExtension) WeightedPoolBase(extension, joinExtension) {}
 
   function _addCoverage(uint256 value)
     private
@@ -102,7 +99,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
     return payoutValue;
   }
- 
 
   function updateCoverageOnReconcile(
     address insured,
@@ -238,7 +234,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     address recepient,
     DemandedCoverage memory coverage
   ) internal returns (uint256 burntAmount) {
-    // NB! removed for performance reasons 
+    // NB! removed for performance reasons
     // Value.require(value <= _calcAvailableUserDrawdown(totalCovered + pendingCovered));
 
     burntAmount = _burnValue(account, value, coverage);
@@ -277,7 +273,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     return __calcAvailableDrawdown(totalCovered, _params.maxUserDrawdownPct);
   }
 
-  function internalCollectDrawdownPremium() internal override view returns (uint256) {
+  function internalCollectDrawdownPremium() internal view override returns (uint256) {
     return _calcAvailableUserDrawdown();
   }
 }
