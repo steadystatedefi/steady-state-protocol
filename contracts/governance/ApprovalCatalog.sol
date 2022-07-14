@@ -84,7 +84,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   }
 
   function hasApprovedApplication(address insured) public view returns (bool) {
-    return insured == address(0) ? false : _approvedPolicies[insured].insured == insured;
+    return insured != address(0) && _approvedPolicies[insured].insured == insured;
   }
 
   function getApprovedApplication(address insured) external view returns (ApprovedPolicy memory) {
@@ -117,14 +117,14 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     _approveApplication(msg.sender, data);
   }
 
-  // solhint-disable-next-line max-line-length
   bytes32 public constant APPROVE_APPL_TYPEHASH =
     keccak256(
+      // solhint-disable-next-line max-line-length
       'approveApplicationByPermit(address approver,T1 data,uint256 nonce,uint256 expiry)T1(bytes32 requestCid,bytes32 approvalCid,address insured,uint16 riskLevel,uint80 basePremiumRate,string policyName,string policySymbol,address premiumToken,uint96 minPrepayValue,uint32 rollingAdvanceWindow,uint32 expiresAt,bool applied)'
     );
-  // solhint-disable-next-line max-line-length
   bytes32 private constant APPROVE_APPL_DATA_TYPEHASH =
     keccak256(
+      // solhint-disable-next-line max-line-length
       'T1(bytes32 requestCid,bytes32 approvalCid,address insured,uint16 riskLevel,uint80 basePremiumRate,string policyName,string policySymbol,address premiumToken,uint96 minPrepayValue,uint32 rollingAdvanceWindow,uint32 expiresAt,bool applied)'
     );
 
@@ -263,9 +263,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     _approveClaim(msg.sender, insured, data);
   }
 
-  // solhint-disable-next-line max-line-length
   bytes32 public constant APPROVE_CLAIM_TYPEHASH =
     keccak256(
+      // solhint-disable-next-line max-line-length
       'approveClaimByPermit(address approver,address insured,T1 data,uint256 nonce,uint256 expiry)T1(bytes32 requestCid,bytes32 approvalCid,uint16 payoutRatio,uint32 since)'
     );
   bytes32 private constant APPROVE_CLAIM_DATA_TYPEHASH = keccak256('T1(bytes32 requestCid,bytes32 approvalCid,uint16 payoutRatio,uint32 since)');
