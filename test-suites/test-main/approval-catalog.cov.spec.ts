@@ -2,12 +2,14 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
-import { formatBytes32String } from 'ethers/lib/utils';
+import { BytesLike, formatBytes32String } from 'ethers/lib/utils';
 
 import { MAX_UINT } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
-import { currentTime } from '../../helpers/runtime-utils';
+import { chainId } from '../../helpers/dre';
+import { buildPermitMaker } from '../../helpers/eip712';
+import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import {
   AccessController,
   ProxyCatalog,
@@ -43,16 +45,23 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
 
   const proxyType = formatBytes32String('INSURED_POOL');
 
-  const submitApplication = async (cid: string) => {
+  const submitApplication = async (cid: BytesLike) => {
     let addr = '';
-    await Events.ApplicationSubmitted.waitOne(approvalCatalog['submitApplication(bytes32)'](cid), (ev) => {
+    await Events.ApplicationSubmitted.waitOne(approvalCatalog.submitApplication(cid), (ev) => {
       addr = ev.insured;
       expect(ev.requestCid).eq(cid);
     });
     return addr;
   };
 
+  const premitDomain = {
+    name: 'ApprovalCatalog',
+    chainId: 0, // chainId()
+  };
+
   before(async () => {
+    premitDomain.chainId = chainId();
+
     user1 = testEnv.users[1];
     controller = await Factories.AccessController.deploy(SINGLETS, ROLES, PROTECTED_SINGLETS);
     proxyCatalog = await Factories.ProxyCatalog.deploy(controller.address);
@@ -80,7 +89,7 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
     await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType);
     cid = formatBytes32String('policy2');
     await Events.ApplicationSubmitted.waitOne(
-      approvalCatalog['submitApplication(bytes32,address)'](cid, insuredV2.address),
+      approvalCatalog.submitApplicationWithImpl(cid, insuredV2.address),
       (ev) => {
         insuredAddr = ev.insured;
         expect(ev.requestCid).eq(cid);
@@ -202,7 +211,7 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
 
     await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType);
     await Events.ApplicationSubmitted.waitOne(
-      approvalCatalog['submitApplication(bytes32,address)'](cid, insuredV2.address),
+      approvalCatalog.submitApplicationWithImpl(cid, insuredV2.address),
       (ev) => {
         insuredAddr = ev.insured;
         expect(ev.requestCid).eq(cid);
@@ -250,5 +259,154 @@ makeSuite.only('Approval Catalog', (testEnv: TestEnv) => {
       await expect(user1Catalog.approveClaim(insuredAddr, claim)).to.be.reverted;
     }
     await approvalCatalog.applyApprovedClaim(insuredAddr);
+  });
+
+  it('Approve application by permit', async () => {
+    const tokenAddr = testEnv.users[2].address;
+
+    const user0 = testEnv.users[0];
+    const policy: IApprovalCatalog.ApprovedPolicyStruct = {
+      requestCid: formatBytes32String('1'),
+      approvalCid: formatBytes32String('2'),
+      insured: '',
+      riskLevel: 10,
+      basePremiumRate: 1,
+      policyName: 'Policy1',
+      policySymbol: 'PL1',
+      premiumToken: tokenAddr,
+      minPrepayValue: 0,
+      rollingAdvanceWindow: 0,
+      expiresAt: 0,
+      applied: false,
+    };
+
+    policy.insured = await submitApplication(policy.requestCid);
+    expect(await approvalCatalog.hasApprovedApplication(policy.insured)).eq(false);
+
+    {
+      const expiry = 1000 + (await currentTime());
+      const maker = buildPermitMaker(
+        premitDomain,
+        {
+          approver: user0.address,
+          expiry,
+          nonce: await approvalCatalog.nonces(policy.insured),
+        },
+        approvalCatalog,
+        'approveApplication',
+        [policy]
+      );
+
+      expect(await approvalCatalog.DOMAIN_SEPARATOR()).eq(maker.domainSeparator());
+      expect(await approvalCatalog.APPROVE_APPL_TYPEHASH()).eq(maker.encodeTypeHash());
+
+      {
+        const { v, r, s } = await maker.signBy(user0);
+        await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
+          testEnv.covReason('AccessDenied()')
+        );
+        await expect(approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s)).revertedWith(
+          testEnv.covReason('WrongPermitSignature()')
+        );
+      }
+
+      {
+        const { v, r, s } = await maker.signBy(user1);
+        await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
+          testEnv.covReason('WrongPermitSignature()')
+        );
+        await expect(approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s)).revertedWith(
+          testEnv.covReason('WrongPermitSignature()')
+        );
+      }
+
+      {
+        maker.value.approver = user1.address;
+        const { v, r, s } = await maker.signBy(user1);
+        await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
+          testEnv.covReason('WrongPermitSignature()')
+        );
+
+        await approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s);
+        expect(await approvalCatalog.hasApprovedApplication(policy.insured)).eq(true);
+      }
+
+      {
+        const actual = await approvalCatalog.getApprovedApplication(policy.insured);
+        Object.entries(policy).forEach((entry) => {
+          expect(actual[entry[0]], entry[0]).eq(entry[1]);
+        });
+      }
+    }
+  });
+
+  it('Approve claim by permit', async () => {
+    const insured = createRandomAddress();
+
+    const user0 = testEnv.users[0];
+    const policy: IApprovalCatalog.ApprovedClaimStruct = {
+      requestCid: formatBytes32String('1'),
+      approvalCid: formatBytes32String('2'),
+      payoutRatio: 1,
+      since: 0,
+    };
+
+    expect(await approvalCatalog.hasApprovedClaim(insured)).eq(false);
+
+    {
+      const expiry = 1000 + (await currentTime());
+      const maker = buildPermitMaker(
+        premitDomain,
+        {
+          approver: user0.address,
+          expiry,
+          nonce: await approvalCatalog.nonces(insured),
+        },
+        approvalCatalog,
+        'approveClaim',
+        [insured, policy]
+      );
+
+      expect(await approvalCatalog.DOMAIN_SEPARATOR()).eq(maker.domainSeparator());
+      expect(await approvalCatalog.APPROVE_CLAIM_TYPEHASH()).eq(maker.encodeTypeHash());
+
+      {
+        const { v, r, s } = await maker.signBy(user0);
+        await expect(
+          approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
+        ).revertedWith(testEnv.covReason('AccessDenied()'));
+        await expect(
+          approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s)
+        ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
+      }
+
+      {
+        const { v, r, s } = await maker.signBy(user1);
+        await expect(
+          approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
+        ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
+        await expect(
+          approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s)
+        ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
+      }
+
+      {
+        maker.value.approver = user1.address;
+        const { v, r, s } = await maker.signBy(user1);
+        await expect(
+          approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
+        ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
+
+        await approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s);
+        expect(await approvalCatalog.hasApprovedClaim(insured)).eq(true);
+      }
+
+      {
+        const actual = await approvalCatalog.getApprovedClaim(insured);
+        Object.entries(policy).forEach((entry) => {
+          expect(actual[entry[0]], entry[0]).eq(entry[1]);
+        });
+      }
+    }
   });
 });

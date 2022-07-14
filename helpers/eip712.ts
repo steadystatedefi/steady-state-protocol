@@ -3,26 +3,8 @@ import { _TypedDataEncoder } from '@ethersproject/hash';
 import { keccak256 } from '@ethersproject/keccak256';
 import { toUtf8Bytes } from '@ethersproject/strings';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { signTypedData_v4 } from 'eth-sig-util'; // eslint-disable-line camelcase
-import { fromRpcSig, ECDSASignature } from 'ethereumjs-util';
 import { BigNumberish, Contract, ContractFunction, Overrides, Signature } from 'ethers';
-import { splitSignature } from 'ethers/lib/utils';
-
-export const encodeTypeHash = (typeName: string, types: Record<string, Array<TypedDataField>>): string => {
-  const encoder = _TypedDataEncoder.from(types);
-  return keccak256(toUtf8Bytes(encoder.encodeType(typeName)));
-};
-
-const getSignatureFromTypedData = (
-  privateKey: string,
-  typedData: any // eslint-disable-line @typescript-eslint/explicit-module-boundary-types,@typescript-eslint/no-explicit-any
-  // ^^ should be TypedData, from eth-sig-utils, but TS doesn't accept it
-): ECDSASignature => {
-  const signature = signTypedData_v4(Buffer.from(privateKey.substring(2, 66), 'hex'), {
-    data: typedData, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-  });
-  return fromRpcSig(signature);
-};
+import { ParamType, splitSignature } from 'ethers/lib/utils';
 
 type Functions = { [name: string]: ContractFunction };
 
@@ -38,15 +20,45 @@ export interface PermitMaker {
   primaryType: string;
   value: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
+  domainSeparator(): string;
   encodeTypeHash(): string;
-  getSignatureFromTypedData(privateKey: string): ECDSASignature;
   signBy(signer: SignerWithAddress): Promise<Signature>;
 }
+
+const parseTuple = (
+  types: Record<string, Array<TypedDataField>>,
+  components: Array<ParamType>,
+  typeNames: Map<string, string>
+): Array<TypedDataField> => {
+  const args: Array<TypedDataField> = [];
+
+  components.forEach((param) => {
+    let typeName = param.format();
+
+    if (param.type === 'tuple') {
+      let altName = typeNames.get(typeName);
+      if (altName === undefined) {
+        altName = `T${typeNames.size + 1}`;
+        typeNames.set(typeName, altName);
+      }
+      typeName = altName;
+      types[typeName] = parseTuple(types, param.components, typeNames); // eslint-disable-line no-param-reassign
+    } else if (param.type === 'array') {
+      throw new Error('not implemented');
+    }
+    args.push({
+      name: param.name,
+      type: typeName,
+    });
+  });
+
+  return args;
+};
 
 export const buildPermitMaker = <F extends Functions, N extends keyof F & string>(
   domain: {
     name: string;
-    revision?: string;
+    version?: string;
     chainId: number;
   },
   params: {
@@ -56,20 +68,29 @@ export const buildPermitMaker = <F extends Functions, N extends keyof F & string
   },
   c: ContractFunctions<F>,
   name: N,
-  callArgs: DropOverrides<Parameters<F[N]>>
+  callArgs: DropOverrides<Parameters<F[N]>>,
+  typeNames?: Record<string, string>
 ): PermitMaker => {
   const fragment = c.interface.getFunction(name);
   const mName = `${name}ByPermit`;
+
+  const types: Record<string, Array<TypedDataField>> = {};
 
   const msgObj: Record<string, any> = { ...params }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const args: Array<TypedDataField> = [];
 
   args.push({ name: 'approver', type: 'address' });
-  fragment.inputs.forEach((param, index) => {
-    args.push({
-      name: param.name,
-      type: param.format(),
+
+  const typeMap = new Map<string, string>();
+
+  if (typeNames !== undefined) {
+    Object.entries(typeNames).forEach((entry) => {
+      typeMap.set(entry[0], entry[1]);
     });
+  }
+
+  parseTuple(types, fragment.inputs, typeMap).forEach((param, index) => {
+    args.push(param);
     msgObj[param.name] = callArgs[index]; // eslint-disable-line @typescript-eslint/no-unsafe-assignment
   });
 
@@ -77,9 +98,15 @@ export const buildPermitMaker = <F extends Functions, N extends keyof F & string
     const fragment2 = c.interface.getFunction(mName);
     args.forEach((param, index) => {
       const input = fragment2.inputs[index];
-      const expected = input.format();
-      if (param.type !== expected) {
-        throw new Error(`Incompatible by-permit function: args[${index}], ${expected}, ${param.type}`);
+      const inputType = input.format();
+      const expected = typeMap.get(inputType) ?? inputType;
+      const actual = param.type;
+      if (actual !== expected) {
+        throw new Error(
+          `Incompatible by-permit function: args[${index}], ${expected}, ${actual} ${
+            index === 0 ? '' : fragment.inputs[index - 1].format()
+          }`
+        );
       }
     });
   }
@@ -87,25 +114,25 @@ export const buildPermitMaker = <F extends Functions, N extends keyof F & string
   args.push({ name: 'nonce', type: 'uint256' });
   args.push({ name: 'expiry', type: 'uint256' });
 
+  types[mName] = args;
+
   return {
     domain: {
       name: domain.name,
-      version: domain.revision ?? '1',
+      version: domain.version ?? '1',
       chainId: domain.chainId,
       verifyingContract: c.address,
     },
-    types: {
-      [mName]: args,
-    },
+    types,
     primaryType: mName,
     value: msgObj,
 
-    encodeTypeHash(): string {
-      return encodeTypeHash(this.primaryType, this.types);
+    domainSeparator(): string {
+      return _TypedDataEncoder.hashDomain(this.domain);
     },
 
-    getSignatureFromTypedData(privateKey: string): ECDSASignature {
-      return getSignatureFromTypedData(privateKey, this);
+    encodeTypeHash(): string {
+      return keccak256(toUtf8Bytes(_TypedDataEncoder.from(this.types).encodeType(this.primaryType)));
     },
 
     async signBy(signer: SignerWithAddress): Promise<Signature> {

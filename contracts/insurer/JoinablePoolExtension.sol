@@ -21,7 +21,7 @@ contract JoinablePoolExtension is IJoinableBase, WeightedPoolStorage {
   }
 
   function requestJoin(address insured) external override {
-    require(msg.sender == insured); 
+    require(msg.sender == insured);
     internalRequestJoin(insured);
   }
 

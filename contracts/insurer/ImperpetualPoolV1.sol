@@ -8,10 +8,10 @@ contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase, IWeig
   uint256 private constant CONTRACT_REVISION = 1;
   uint8 internal constant DECIMALS = 18;
 
-  constructor(
-    ImperpetualPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) ERC20DetailsBase('', '', DECIMALS) ImperpetualPoolBase(extension, joinExtension) {}
+  constructor(ImperpetualPoolExtension extension, JoinablePoolExtension joinExtension)
+    ERC20DetailsBase('', '', DECIMALS)
+    ImperpetualPoolBase(extension, joinExtension)
+  {}
 
   function initializeWeighted(
     address governor,
