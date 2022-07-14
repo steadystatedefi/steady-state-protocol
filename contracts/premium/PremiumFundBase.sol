@@ -67,6 +67,8 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
   mapping(address => TokenState) private _tokens; // [token]
   mapping(address => EnumerableSet.AddressSet) private _tokenActuaries; // [token]
 
+  address[] private _knownTokens;
+
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
@@ -174,6 +176,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     uint8 flags = state.flags;
     if (flags & TS_PRESENT == 0) {
       state.flags = flags | TS_PRESENT;
+      _knownTokens.push(token);
       return true;
     }
     return false;
@@ -545,6 +548,8 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     }
   }
 
+  // TODO a function to get available token balance and the saturation point
+
   function swapAsset(
     address actuary,
     address account,
@@ -786,6 +791,10 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
       instruction.targetToken,
       instruction.minAmount
     );
+  }
+
+  function knownTokens() external view returns (address[] memory) {
+    return _knownTokens;
   }
 
   function actuariesOfToken(address token) public view returns (address[] memory) {
