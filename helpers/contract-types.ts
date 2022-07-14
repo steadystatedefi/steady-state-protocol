@@ -3,7 +3,6 @@ import * as types from '../types';
 import { addNamedDeployable, NamedDeployable, wrap, mock } from './factory-wrapper';
 
 export const Factories = {
-  PriceOracle: wrap(types.PriceOracle__factory),
   JoinablePoolExtension: wrap(types.JoinablePoolExtension__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
