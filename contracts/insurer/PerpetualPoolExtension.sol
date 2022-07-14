@@ -42,7 +42,7 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     }
 
     uint256 collateralAsPremium;
-    
+
     if (deficitValue > 0) {
       // toPay is zero
       toPay = transferAvailableCollateralFrom(insured, address(this), deficitValue);

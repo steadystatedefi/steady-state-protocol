@@ -14,10 +14,9 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
   address internal immutable _extension;
   address internal immutable _joinExtension;
 
-  constructor(
-    WeightedPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) WeightedPoolConfig(joinExtension.accessController(), extension.coverageUnitSize(), extension.collateral()) {
+  constructor(WeightedPoolExtension extension, JoinablePoolExtension joinExtension)
+    WeightedPoolConfig(joinExtension.accessController(), extension.coverageUnitSize(), extension.collateral())
+  {
     // require(extension.accessController() == joinExtension.accessController());
     // require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
     require(extension.collateral() == joinExtension.collateral());

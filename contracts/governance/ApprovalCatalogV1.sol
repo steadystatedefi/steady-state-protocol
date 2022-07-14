@@ -10,7 +10,9 @@ contract ApprovalCatalogV1 is VersionedInitializable, ApprovalCatalog {
 
   constructor(IAccessController acl) ApprovalCatalog(acl, ProxyTypes.INSURED_POOL) {}
 
-  function initializeApprovalCatalog() public initializer(CONTRACT_REVISION) {}
+  function initializeApprovalCatalog() public initializer(CONTRACT_REVISION) {
+    _initializeDomainSeparator();
+  }
 
   function getRevision() internal pure override returns (uint256) {
     return CONTRACT_REVISION;

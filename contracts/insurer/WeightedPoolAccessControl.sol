@@ -73,9 +73,11 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     return _governor;
   }
 
-  function internalVerifyPayoutRatio(address insured, uint256 payoutRatio, bool enforcedCancel) internal virtual 
-    returns (uint256 approvedPayoutRatio) 
-  {
+  function internalVerifyPayoutRatio(
+    address insured,
+    uint256 payoutRatio,
+    bool enforcedCancel
+  ) internal virtual returns (uint256 approvedPayoutRatio) {
     IInsurerGovernor jh = governorContract();
     if (address(jh) == address(0)) {
       IApprovalCatalog c = approvalCatalog();
@@ -88,7 +90,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
 
         require(enforcedCancel || info.since <= block.timestamp);
         approvedPayoutRatio = WadRayMath.RAY.percentMul(info.payoutRatio);
-      } 
+      }
       // else approvedPayoutRatio = 0 (for enfoced calls without an approved claim)
     } else if (!enforcedCancel || payoutRatio > 0) {
       approvedPayoutRatio = jh.verifyPayoutRatio(insured, payoutRatio);
