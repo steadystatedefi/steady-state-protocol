@@ -60,7 +60,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
   };
 
   before(async () => {
-    premitDomain.chainId = chainId();
+    premitDomain.chainId = testEnv.underCoverage ? 1 : chainId();
 
     user1 = testEnv.users[1];
     controller = await Factories.AccessController.deploy(SINGLETS, ROLES, PROTECTED_SINGLETS);
@@ -326,6 +326,16 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       expect(await approvalCatalog.DOMAIN_SEPARATOR()).eq(maker.domainSeparator());
       expect(await approvalCatalog.APPROVE_APPL_TYPEHASH()).eq(maker.encodeTypeHash());
 
+      if (testEnv.underCoverage) {
+        // NB! ganache which is ran by coverage, doesnt provide eth_signTypedData_v4 so the signature cant be generated
+        // so this call is just to provide some coverage
+        const r = formatBytes32String('2');
+        await expect(approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, 1, r, r)).revertedWith(
+          testEnv.covReason('WrongPermitSignature()')
+        );
+        return;
+      }
+
       {
         const { v, r, s } = await maker.signBy(user0);
         await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
@@ -401,6 +411,16 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       expect(await approvalCatalog.DOMAIN_SEPARATOR()).eq(maker.domainSeparator());
       expect(await approvalCatalog.APPROVE_CLAIM_TYPEHASH()).eq(maker.encodeTypeHash());
 
+      if (testEnv.underCoverage) {
+        // NB! ganache which is ran by coverage, doesnt provide eth_signTypedData_v4 so the signature cant be generated
+        // so this call is just to provide some coverage
+        const r = formatBytes32String('2');
+        await expect(
+          approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, 1, r, r)
+        ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
+        return;
+      }
+
       {
         const { v, r, s } = await maker.signBy(user0);
         await expect(
@@ -472,11 +492,14 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         [insured, policy]
       );
 
-      const { v, r, s } = await maker.signBy(user1);
-
       await approvalCatalog.connect(user1).cancelLastPermit(insured);
       expect(await approvalCatalog.nonces(insured)).eq(nonce.add(1));
 
+      if (testEnv.underCoverage) {
+        return;
+      }
+
+      const { v, r, s } = await maker.signBy(user1);
       await expect(approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s)).revertedWith(
         testEnv.covReason('WrongPermitSignature()')
       );

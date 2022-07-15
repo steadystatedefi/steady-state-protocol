@@ -7,14 +7,15 @@ library EIP712Lib {
   bytes internal constant EIP712_REVISION = '1';
   bytes32 internal constant EIP712_DOMAIN = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
 
-  function domainSeparator(bytes memory permitDomainName) internal view returns (bytes32) {
-    uint256 chainId;
+  function chainId() internal view returns (uint256 id) {
     // solhint-disable-next-line no-inline-assembly
     assembly {
-      chainId := chainid()
+      id := chainid()
     }
+  }
 
-    return keccak256(abi.encode(EIP712_DOMAIN, keccak256(permitDomainName), keccak256(EIP712_REVISION), chainId, address(this)));
+  function domainSeparator(bytes memory permitDomainName) internal view returns (bytes32) {
+    return keccak256(abi.encode(EIP712_DOMAIN, keccak256(permitDomainName), keccak256(EIP712_REVISION), chainId(), address(this)));
   }
 
   /**
