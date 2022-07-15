@@ -18,7 +18,7 @@ export interface PermitMaker {
   domain: TypedDataDomain;
   types: Record<string, Array<TypedDataField>>;
   primaryType: string;
-  value: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  value: Record<string, unknown>;
 
   domainSeparator(): string;
   encodeTypeHash(): string;
@@ -76,7 +76,7 @@ export const buildPermitMaker = <F extends Functions, N extends keyof F & string
 
   const types: Record<string, Array<TypedDataField>> = {};
 
-  const msgObj: Record<string, any> = { ...params }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const msgObj: Record<string, unknown> = { ...params };
   const args: Array<TypedDataField> = [];
 
   args.push({ name: 'approver', type: 'address' });
