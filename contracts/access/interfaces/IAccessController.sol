@@ -11,4 +11,6 @@ interface IAccessController is IRemoteAccessBitmask {
   function isAdmin(address) external view returns (bool);
 
   function owner() external view returns (address);
+
+  function roleHolders(uint256 id) external view returns (address[] memory addrList);
 }

@@ -43,4 +43,6 @@ library AccessFlags {
 
   // any other roles - use range [64..]
   // these roles can be assigned to multiple addresses
+  uint256 public constant COLLATERAL_FUND_LISTING = 1 << 64; // an ephemeral role - just to keep a list of collateral funds
+  uint256 public constant INSURER_POOL_LISTING = 1 << 65; // an ephemeral role - just to keep a list of insurer funds
 }
