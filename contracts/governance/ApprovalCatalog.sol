@@ -315,4 +315,12 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     data = getApprovedClaim(insured);
     emit ClaimApplied(insured, data.requestCid, data);
   }
+
+  function cancelLastPermit(address insured)
+    external
+    aclHasAny(AccessFlags.UNDERWRITER_CLAIM | AccessFlags.UNDERWRITER_POLICY | AccessFlags.INSURED_ADMIN)
+  {
+    Value.require(insured != address(0));
+    _nonces[insured]++;
+  }
 }
