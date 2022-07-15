@@ -7,9 +7,10 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../access/AccessHelper.sol';
+import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
-abstract contract CollateralFundBase is AccessHelper {
+abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -55,7 +56,7 @@ abstract contract CollateralFundBase is AccessHelper {
     address operator,
     uint256 access,
     bool approved
-  ) external {
+  ) external override {
     if (approved) {
       _approvals[msg.sender][operator] |= access;
     } else {
@@ -63,11 +64,15 @@ abstract contract CollateralFundBase is AccessHelper {
     }
   }
 
-  function setAllApprovalsFor(address operator, uint256 access) external {
+  function collateral() public view override returns (address) {
+    return address(_collateral);
+  }
+
+  function setAllApprovalsFor(address operator, uint256 access) external override {
     _approvals[msg.sender][operator] = access;
   }
 
-  function getAllApprovalsFor(address account, address operator) public view returns (uint256) {
+  function getAllApprovalsFor(address account, address operator) public view override returns (uint256) {
     return _approvals[account][operator];
   }
 
@@ -75,7 +80,7 @@ abstract contract CollateralFundBase is AccessHelper {
     address account,
     address operator,
     uint256 access
-  ) public view returns (bool) {
+  ) public view override returns (bool) {
     return _approvals[account][operator] & access == access;
   }
 
@@ -118,7 +123,7 @@ abstract contract CollateralFundBase is AccessHelper {
     address account,
     address token,
     uint256 tokenAmount
-  ) external onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
+  ) external override onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
     uint256 value = _deposit(_ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT), msg.sender, token, tokenAmount);
     _collateral.mint(account, value);
   }
@@ -128,7 +133,7 @@ abstract contract CollateralFundBase is AccessHelper {
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external {
+  ) external override {
     uint256 value = _deposit(
       _ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST),
       msg.sender,
@@ -144,7 +149,7 @@ abstract contract CollateralFundBase is AccessHelper {
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external {
+  ) external override {
     uint256 value = _deposit(
       _ensureApproved(
         account,
@@ -184,7 +189,7 @@ abstract contract CollateralFundBase is AccessHelper {
     address to,
     address token,
     uint256 amount
-  ) external {
+  ) external override {
     _withdraw(_ensureApproved(account, token, CollateralFundLib.APPROVED_WITHDRAW), account, to, token, amount);
   }
 
@@ -329,6 +334,10 @@ abstract contract CollateralFundBase is AccessHelper {
 
   function removeAsset(address token) external aclHas(AccessFlags.LP_DEPLOY) {
     internalRemoveAsset(token);
+  }
+
+  function assets() external view override returns (address[] memory) {
+    return _tokens.values();
   }
 }
 
