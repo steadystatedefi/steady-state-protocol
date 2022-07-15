@@ -151,24 +151,31 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   }
 
   function _encodeApplicationPermit(ApprovedPolicy calldata data) private pure returns (bytes32) {
+    // NB! There is no problem for usual compilation, BUT during coverage
+    // And this chunked encoding is a workaround for "stack too deep" during coverage.
+
+    bytes memory prefix = abi.encode(
+      APPROVE_APPL_DATA_TYPEHASH,
+      data.requestCid,
+      data.approvalCid,
+      data.insured,
+      data.riskLevel,
+      data.basePremiumRate
+    );
+
     return
       keccak256(
-        abi.encode(
-          APPROVE_APPL_DATA_TYPEHASH,
-          data.requestCid,
-          data.approvalCid,
-          data.insured,
-          data.riskLevel,
-          data.basePremiumRate,
-          keccak256(abi.encodePacked(data.policyName)),
-          keccak256(abi.encodePacked(data.policySymbol)),
-          data.premiumToken,
-          data.minPrepayValue,
-          data.rollingAdvanceWindow,
-          data.expiresAt,
-          data.applied
+        abi.encodePacked(
+          prefix,
+          _encodeString(data.policyName),
+          _encodeString(data.policySymbol),
+          abi.encode(data.premiumToken, data.minPrepayValue, data.rollingAdvanceWindow, data.expiresAt, data.applied)
         )
       );
+  }
+
+  function _encodeString(string calldata data) private pure returns (bytes32) {
+    return keccak256(abi.encodePacked(data));
   }
 
   function _approveApplication(address approver, ApprovedPolicy calldata data) private {
@@ -314,5 +321,13 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   function applyApprovedClaim(address insured) external returns (ApprovedClaim memory data) {
     data = getApprovedClaim(insured);
     emit ClaimApplied(insured, data.requestCid, data);
+  }
+
+  function cancelLastPermit(address insured)
+    external
+    aclHasAny(AccessFlags.UNDERWRITER_CLAIM | AccessFlags.UNDERWRITER_POLICY | AccessFlags.INSURED_ADMIN)
+  {
+    Value.require(insured != address(0));
+    _nonces[insured]++;
   }
 }
