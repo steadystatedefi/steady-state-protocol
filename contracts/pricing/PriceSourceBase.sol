@@ -4,56 +4,56 @@ pragma solidity ^0.8.4;
 import '../tools/Errors.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
-import './interfaces/IManagerPriceOracle.sol';
 
-abstract contract PriceOracle is IManagerPriceOracle {
+abstract contract PriceSourceBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 
-  // solhint-disable-next-line var-name-mixedcase
-  address private _fallback;
+  // struct ActiveSource {
+  //   uint8 flags;
+  //   uint2 crossPrice;
+  //   uint6 decimals;
+  //   uint8 maxValidity; // minutes
+  //   uint8 callType;
+  //   address source;
 
-  struct Source {
-    address source; // uint160
-    int8 decimalDiff;
-    PriceSourceType sourceType; // static / direct / rebase / expiry / tolerance+target
-    uint224 staticPrice;
-    uint16 flags;
-  }
+  //   uint56 target;
+  //   uint8 tolerance;
+  // }
 
-  struct ActiveSource {
-    uint8 flags;
-    // int6 decimalDiff;
-    // uint2 crossPrice;
-    uint8 maxValidity; // minutes
-    uint8 callType;
-    address source;
+  // struct StaticSource {
+  //   uint8 flags;
+  //   uint2 crossPrice;
+  //   uint6 decimals;
+  //   uint8 maxValidity; // minutes
+  //   uint32 updatedAt;
+  //   uint200 staticValue;
+  // }
 
-    // uint56 target;
-    // uint8 tolerance;
-  }
-
-  struct StaticSource {
-    uint8 flags;
-    // uint6 decimals;
-    // uint2 crossPrice;
-    uint8 maxValidity; // minutes
-    // uint32 updatedAt;
-    // uint200 static
+  struct CallHandler {
+    function(uint8, address, address) internal view returns (uint256, uint32) handler;
   }
 
   mapping(address => uint256) private _encodedSources;
   mapping(uint8 => address) private _crossTokens;
+  mapping(address => uint256) private _fuseMasks;
 
   uint8 private constant SRC_CONFIG_BITS = 24;
 
-  uint8 private constant SF_STATIC = 1 << 0;
-  uint8 private constant SF_CROSS_PRICED = 1 << 1;
+  uint8 private constant SF_STATIC = 1 << 7;
+  uint8 private constant SF_CROSS_PRICED = 1 << 6;
 
-  function _readSource(address token) private returns (uint256) {
+  uint8 internal constant RF_LIMIT_BREACHED = SF_CROSS_PRICED;
+  uint8 internal constant SOURCE_FLAGS_MASK = SF_STATIC | SF_CROSS_PRICED;
+
+  function internalReadSource(address token) internal view returns (uint256, uint8) {
+    return _readSource(token, true);
+  }
+
+  function _readSource(address token, bool notNested) private view returns (uint256, uint8 resultFlags) {
     uint256 encoded = _encodedSources[token];
     if (encoded == 0) {
-      return 0;
+      return (0, 0);
     }
 
     uint8 flags = uint8(encoded);
@@ -65,6 +65,7 @@ abstract contract PriceOracle is IManagerPriceOracle {
     uint8 maxValidity = uint8(encoded);
 
     encoded >>= 8;
+
     (uint256 v, uint32 t) = flags & SF_STATIC == 0
       ? _callSource(flags, uint8(encoded), address(uint160(encoded >> 8)), token)
       : (encoded >> 32, uint32(encoded));
@@ -72,8 +73,13 @@ abstract contract PriceOracle is IManagerPriceOracle {
     require(maxValidity == 0 || t == 0 || t + maxValidity * 1 minutes >= block.timestamp);
 
     if (flags & SF_CROSS_PRICED != 0) {
-      v *= _readSource(_crossTokens[uint8(decimals & 3)]);
+      State.require(notNested);
+      uint256 vc;
+      (vc, resultFlags) = _readSource(_crossTokens[uint8(decimals & 3)], false);
+      v *= vc;
+      resultFlags &= SOURCE_FLAGS_MASK;
     }
+    resultFlags |= flags & ~SOURCE_FLAGS_MASK;
 
     if ((decimals >>= 2) != 18) {
       if (decimals < 18) {
@@ -87,11 +93,11 @@ abstract contract PriceOracle is IManagerPriceOracle {
       v = v.divUp(WadRayMath.WAD);
     }
 
-    if (SF_STATIC != 0 && encoded > 0 && _checkTolerance(v, encoded)) {
-      handlePriceBeach(token, v);
+    if (flags & SF_STATIC != 0 && encoded > 0 && _checkTolerance(v, encoded)) {
+      resultFlags |= RF_LIMIT_BREACHED;
     }
 
-    return v;
+    return (v, resultFlags);
   }
 
   uint256 private constant TARGET_UNIT = 10**9;
@@ -111,15 +117,21 @@ abstract contract PriceOracle is IManagerPriceOracle {
     uint8 callType,
     address feed,
     address token
-  ) private returns (uint256 v, uint32 t) {}
+  ) private view returns (uint256 v, uint32 t) {
+    return internalGetHandler(callType)(flags, feed, token);
+  }
 
-  function handlePriceBeach(address token, uint256 price) internal virtual {}
+  function internalGetHandler(uint8 callType)
+    internal
+    view
+    virtual
+    returns (function(uint8, address, address) internal view returns (uint256, uint32));
 
   function internalSetStatic(
     address token,
     uint256 value,
     uint32 since
-  ) private {
+  ) internal {
     uint256 encoded = _encodedSources[token];
     require(value <= type(uint200).max);
 
@@ -138,13 +150,14 @@ abstract contract PriceOracle is IManagerPriceOracle {
     address token,
     uint8 callType,
     address feed
-  ) private {
+  ) internal {
     if (feed == address(0)) {
       Value.require(callType == 0);
       delete _encodedSources[token];
       return;
     }
-    // TODO check callType
+
+    internalGetHandler(callType);
 
     uint256 encoded = _encodedSources[token];
     if (encoded & SF_STATIC != 0) {
@@ -165,7 +178,7 @@ abstract contract PriceOracle is IManagerPriceOracle {
     address token,
     uint256 targetPrice,
     uint16 tolerancePct
-  ) private {
+  ) internal {
     uint256 encoded = _encodedSources[token];
     State.require(encoded & SF_STATIC == 0);
 
@@ -201,7 +214,7 @@ abstract contract PriceOracle is IManagerPriceOracle {
     uint8 decimals,
     address crossPrice,
     uint32 maxValidity
-  ) private {
+  ) internal {
     Value.require(decimals <= 63);
     decimals <<= 2;
 
@@ -222,7 +235,7 @@ abstract contract PriceOracle is IManagerPriceOracle {
   }
 
   function internalGetConfig(address token)
-    private
+    internal
     view
     returns (
       bool ok,
@@ -253,7 +266,7 @@ abstract contract PriceOracle is IManagerPriceOracle {
   }
 
   function internalGetSource(address token)
-    private
+    internal
     view
     returns (
       uint8 callType,
@@ -280,115 +293,11 @@ abstract contract PriceOracle is IManagerPriceOracle {
     }
   }
 
-  function internalGetStatic(address token) private view returns (uint256, uint32) {
+  function internalGetStatic(address token) internal view returns (uint256, uint32) {
     uint256 encoded = _encodedSources[token];
     State.require(encoded & SF_STATIC != 0);
     encoded >>= SRC_CONFIG_BITS;
 
     return (encoded >> 32, uint32(encoded));
-  }
-
-  // mapping(address => Source) private _sources;
-
-  // constructor(
-  //   address fallback_,
-  //   address[] memory assets,
-  //   PriceSource[] memory sources
-  // ) {
-  //   _fallback = fallback_;
-
-  //   for (uint256 i = assets.length; i > 0; ) {
-  //     i--;
-  //     _setPriceSource(assets[i], weth, Source(sources[i].source, sources[i].staticPrice, sources[i].sourceType, 0));
-  //   }
-  // }
-
-  modifier onlyOracleAdmin() {
-    _;
-  }
-
-  // function getAssetPrice(address asset) public view override returns (uint256 v) {
-  //   if ((v = _readSource(asset)) != 0) {
-  //     return v;
-  //   }
-  //   IFallbackPriceOracle fb = IFallbackPriceOracle(_fallback);
-  //   if (address(fb) != address(0) && (v = fb.getAssetPrice(asset)) != 0) {
-  //     return v;
-  //   }
-  //   revert('UNKNOWN_PRICE');
-  // }
-
-  // function _getAssetPriceChainlink(address source) private view returns (uint256) {
-  //   source;
-  //   this;
-  //   return 0;
-  // }
-
-  // function _getAssetPriceUniV2EthPair(address source, uint16 flags) private view returns (uint256) {
-  //   source;
-  //   flags;
-  //   this;
-  //   return 0;
-  // }
-
-  // function getAssetPrices(address[] calldata assets) external view override returns (uint256[] memory result) {
-  //   result = new uint256[](assets.length);
-  //   for (uint256 i = assets.length; i > 0; ) {
-  //     i--;
-  //     result[i] = getAssetPrice(assets[i]);
-  //   }
-  //   return result;
-  // }
-
-  // function getPriceSource(address asset) public view override returns (PriceSource memory) {
-  //   Source storage src = _sources[asset];
-  //   return PriceSource(src.source, src.staticPrice, src.sourceType);
-  // }
-
-  // function getPriceSources(address[] calldata assets) external view override returns (PriceSource[] memory result) {
-  //   result = new PriceSource[](assets.length);
-  //   for (uint256 i = assets.length; i > 0; ) {
-  //     i--;
-  //     result[i] = getPriceSource(assets[i]);
-  //   }
-  //   return result;
-  // }
-
-  // function setPriceSources(address[] calldata assets, PriceSource[] calldata sources) external override onlyOracleAdmin {
-  //   address weth = WETH;
-  //   for (uint256 i = assets.length; i > 0; ) {
-  //     i--;
-  //     _setPriceSource(assets[i], weth, Source(sources[i].source, sources[i].staticPrice, sources[i].sourceType, 0));
-  //   }
-  // }
-
-  // function _setPriceSource(
-  //   address asset,
-  //   address weth,
-  //   Source memory src
-  // ) private {
-  //   require(asset != weth);
-  //   if (src.sourceType != PriceSourceType.Chainlink) {
-  //     require(src.source != address(0));
-  //     // TODO src.flags =
-  //   }
-  //   _sources[asset] = src;
-  // }
-
-  // function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external override onlyOracleAdmin {
-  //   for (uint256 i = assets.length; i > 0; ) {
-  //     i--;
-  //     require(assets[i] != WETH);
-  //     require(prices[i] <= type(uint224).max);
-  //     _sources[assets[i]].staticPrice = uint224(prices[i]);
-  //   }
-  // }
-
-  function getFallback() external view override returns (address) {
-    return _fallback;
-  }
-
-  function setFallback(address fallback_) public override onlyOracleAdmin {
-    _fallback = fallback_;
   }
 }
