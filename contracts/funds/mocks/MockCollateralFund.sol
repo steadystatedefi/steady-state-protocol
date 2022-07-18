@@ -16,6 +16,8 @@ contract MockCollateralFund is CollateralFundBase {
     return _prices[token];
   }
 
+  function getPricer() internal view override returns (IManagedPriceRouter pricer) {}
+
   function setPriceOf(address token, uint256 price) external {
     _prices[token] = price;
   }

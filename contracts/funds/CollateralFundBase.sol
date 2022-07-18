@@ -6,24 +6,22 @@ import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
-import '../pricing/interfaces/IManagedPriceRouter.sol';
+import '../pricing/PricingHelper.sol';
 
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
-abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
+abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 
   IManagedCollateralCurrency private immutable _collateral;
-  IManagedPriceRouter private immutable _pricer;
 
-  constructor(IAccessController acl, address collateral_) AccessHelper(acl) {
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) PricingHelper(_getPricerByAcl(acl)) {
     _collateral = IManagedCollateralCurrency(collateral_);
-    _pricer = IManagedPriceRouter(address(acl) == address(0) ? address(0) : acl.getAddress(AccessFlags.PRICE_ROUTER));
   }
 
   struct CollateralAsset {
@@ -107,12 +105,21 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
     State.require(_tokens.add(token));
 
     _assets[token] = CollateralAsset({flags: type(uint8).max, trusted: trusted});
+    _attachSource(token, true);
   }
 
   function internalRemoveAsset(address token) internal {
     if (token != address(0) && _tokens.remove(token)) {
       CollateralAsset storage asset = _assets[token];
       asset.flags = AF_ADDED;
+      _attachSource(token, false);
+    }
+  }
+
+  function _attachSource(address token, bool set) private {
+    IManagedPriceRouter pricer = getPricer();
+    if (address(pricer) != address(0)) {
+      pricer.attachSource(token, set);
     }
   }
 
@@ -175,12 +182,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
   }
 
   function internalPriceOf(address token) internal virtual returns (uint256) {
-    IManagedPriceRouter pricer = _pricer;
-    if (address(pricer) == address(0)) {
-      pricer = IManagedPriceRouter(remoteAcl().getAddress(AccessFlags.PRICE_ROUTER));
-      State.require(address(pricer) != address(0));
-    }
-    return pricer.pullAssetPrice(token, 0);
+    return getPricer().pullAssetPrice(token, 0);
   }
 
   function withdraw(

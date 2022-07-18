@@ -17,7 +17,19 @@ abstract contract PricingHelper is AccessHelper {
     _pricer = IManagedPriceRouter(pricer_);
   }
 
-  // _pricer = IManagedPriceRouter(address(acl) == address(0) ? address(0) : acl.getAddress(AccessFlags.PRICE_ROUTER));
+  function priceOracle() external view returns (address) {
+    return address(getPricer());
+  }
 
-  function internalGetPriceOf(address asset) internal view virtual returns (uint256) {}
+  function getPricer() internal view virtual returns (IManagedPriceRouter pricer) {
+    pricer = _pricer;
+    if (address(pricer) == address(0)) {
+      pricer = IManagedPriceRouter(_getPricerByAcl(remoteAcl()));
+      State.require(address(pricer) != address(0));
+    }
+  }
+
+  function _getPricerByAcl(IAccessController acl) internal view returns (address) {
+    return address(acl) == address(0) ? address(0) : acl.getAddress(AccessFlags.PRICE_ROUTER);
+  }
 }
