@@ -19,9 +19,15 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
   using EnumerableSet for EnumerableSet.AddressSet;
 
   IManagedCollateralCurrency private immutable _collateral;
+  uint256 private immutable _sourceFuses;
 
-  constructor(IAccessController acl, address collateral_) AccessHelper(acl) PricingHelper(_getPricerByAcl(acl)) {
+  constructor(
+    IAccessController acl,
+    address collateral_,
+    uint256 sourceFuses
+  ) AccessHelper(acl) PricingHelper(_getPricerByAcl(acl)) {
     _collateral = IManagedCollateralCurrency(collateral_);
+    _sourceFuses = sourceFuses;
   }
 
   struct CollateralAsset {
@@ -182,7 +188,7 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
   }
 
   function internalPriceOf(address token) internal virtual returns (uint256) {
-    return getPricer().pullAssetPrice(token, 0);
+    return getPricer().pullAssetPrice(token, _sourceFuses);
   }
 
   function withdraw(
@@ -336,6 +342,10 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
 
   function assets() external view override returns (address[] memory) {
     return _tokens.values();
+  }
+
+  function resetPriceGuard() external aclHasAny(AccessFlags.LP_ADMIN) {
+    getPricer().resetSourceGroup();
   }
 }
 

@@ -6,7 +6,7 @@ import '../CollateralFundBase.sol';
 contract MockCollateralFund is CollateralFundBase {
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) CollateralFundBase(IAccessController(address(0)), collateral_) {}
+  constructor(address collateral_) CollateralFundBase(IAccessController(address(0)), collateral_, 0) {}
 
   function internalAddAsset(address token, address trusted) internal override {
     super.internalAddAsset(token, trusted);

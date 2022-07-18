@@ -230,8 +230,9 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
 
   function resetSourceGroup() external override {
     uint256 mask = internalGetOwnedFuses(msg.sender);
-    Access.require(mask != 0);
-    internalResetFuses(mask);
+    if (mask != 0) {
+      internalResetFuses(mask);
+    }
   }
 
   function resetSourceGroupByAdmin(uint256 mask) external override onlyOracleAdmin {
