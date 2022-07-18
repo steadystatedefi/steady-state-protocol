@@ -12,11 +12,13 @@ interface IManagedPriceRouter is IPriceRouter {
 
   function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external;
 
-  function guardPriceSource(
+  function setPriceSourceRange(
     address asset,
     uint256 targetPrice,
     uint16 tolerancePct
   ) external;
+
+  function getPriceSourceRange(address asset) external view returns (uint256 targetPrice, uint16 tolerancePct);
 
   function attachSource(address asset, bool attach) external;
 

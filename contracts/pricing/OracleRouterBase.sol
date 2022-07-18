@@ -205,7 +205,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     internalSetConfig(asset, source.decimals, source.crossPrice, 0);
   }
 
-  function guardPriceSource(
+  function setPriceSourceRange(
     address asset,
     uint256 targetPrice,
     uint16 tolerancePct
@@ -213,6 +213,10 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     Value.require(asset != address(0));
 
     internalSetPriceTolerance(asset, targetPrice, tolerancePct);
+  }
+
+  function getPriceSourceRange(address asset) external view override returns (uint256 targetPrice, uint16 tolerancePct) {
+    (, , , targetPrice, tolerancePct) = internalGetSource(asset);
   }
 
   function attachSource(address asset, bool attach) external override {
@@ -247,5 +251,9 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     Value.require(account != address(0));
 
     internalSetOwnedFuses(account, register ? mask : 0);
+  }
+
+  function groupsOf(address account) external view returns (uint256 memberOf, uint256 ownerOf) {
+    return (internalGetFuses(account), internalGetOwnedFuses(account));
   }
 }
