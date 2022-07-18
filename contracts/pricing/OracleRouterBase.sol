@@ -5,13 +5,13 @@ import '../tools/Errors.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
 import '../access/AccessHelper.sol';
-import './interfaces/IManagerPriceOracle.sol';
+import './interfaces/IManagedPriceRouter.sol';
 import './interfaces/IPriceFeedChainlinkV3.sol';
 import './interfaces/IPriceFeedUniswapV2.sol';
 import './PriceSourceBase.sol';
 import './FuseBox.sol';
 
-abstract contract OracleRouterBase is IManagerPriceOracle, AccessHelper, PriceSourceBase, FuseBox {
+abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSourceBase, FuseBox {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 

@@ -8,14 +8,8 @@ contract MockCollateralFund is CollateralFundBase {
 
   constructor(address collateral_) CollateralFundBase(IAccessController(address(0)), collateral_) {}
 
-  function internalAddAsset(
-    address token,
-    uint64 priceTarget,
-    uint16 priceTolerance,
-    address trusted
-  ) internal override {
-    super.internalAddAsset(token, priceTarget, priceTolerance, trusted);
-    _prices[token] = priceTarget;
+  function internalAddAsset(address token, address trusted) internal override {
+    super.internalAddAsset(token, trusted);
   }
 
   function internalPriceOf(address token) internal view override returns (uint256) {

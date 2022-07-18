@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import './IPriceOracle.sol';
+import './IPriceRouter.sol';
 
-interface IManagerPriceOracle is IPriceOracle {
+interface IManagedPriceRouter is IPriceRouter {
   function getPriceSource(address asset) external view returns (PriceSource memory result);
 
   function getPriceSources(address[] calldata assets) external view returns (PriceSource[] memory result);

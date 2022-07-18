@@ -15,8 +15,4 @@ contract CollateralFundV1 is VersionedInitializable, ICollateralFundInit, Collat
   function getRevision() internal pure override returns (uint256) {
     return CONTRACT_REVISION;
   }
-
-  function internalPriceOf(address) internal pure override returns (uint256) {
-    // revert Errors.NotImplemented(); // TODO
-  }
 }

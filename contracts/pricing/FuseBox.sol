@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import '../tools/Errors.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
-import './interfaces/IManagerPriceOracle.sol';
+import './interfaces/IManagedPriceRouter.sol';
 
 abstract contract FuseBox {
   using WadRayMath for uint256;

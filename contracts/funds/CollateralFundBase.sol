@@ -6,6 +6,8 @@ import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
+import '../pricing/interfaces/IManagedPriceRouter.sol';
+
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
@@ -17,15 +19,15 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
   using EnumerableSet for EnumerableSet.AddressSet;
 
   IManagedCollateralCurrency private immutable _collateral;
+  IManagedPriceRouter private immutable _pricer;
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) {
     _collateral = IManagedCollateralCurrency(collateral_);
+    _pricer = IManagedPriceRouter(address(acl) == address(0) ? address(0) : acl.getAddress(AccessFlags.PRICE_ROUTER));
   }
 
   struct CollateralAsset {
     uint8 flags; // TODO flags
-    uint16 priceTolerance;
-    uint64 priceTarget;
     address trusted;
   }
 
@@ -100,16 +102,11 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
     asset.flags = AF_ADDED | flags;
   }
 
-  function internalAddAsset(
-    address token,
-    uint64 priceTarget,
-    uint16 priceTolerance,
-    address trusted
-  ) internal virtual {
+  function internalAddAsset(address token, address trusted) internal virtual {
     Value.require(token != address(0));
     State.require(_tokens.add(token));
 
-    _assets[token] = CollateralAsset({flags: type(uint8).max, priceTarget: priceTarget, priceTolerance: priceTolerance, trusted: trusted});
+    _assets[token] = CollateralAsset({flags: type(uint8).max, trusted: trusted});
   }
 
   function internalRemoveAsset(address token) internal {
@@ -164,25 +161,27 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
   }
 
   function _deposit(
-    CollateralAsset storage asset,
+    CollateralAsset storage,
     address from,
     address token,
     uint256 amount
   ) private returns (uint256 value) {
     IERC20(token).safeTransferFrom(from, address(this), amount);
-    value = amount.wadMul(_safePriceOf(asset, token));
+    value = amount.wadMul(_safePriceOf(token));
   }
 
-  function _safePriceOf(CollateralAsset storage asset, address token) private view returns (uint256 price) {
-    price = internalPriceOf(token);
+  function _safePriceOf(address token) private returns (uint256 price) {
+    return internalPriceOf(token);
+  }
 
-    uint256 target = asset.priceTarget;
-    if ((target > price ? target - price : price - target) > target.percentMul(asset.priceTolerance)) {
-      revert Errors.ExcessiveVolatility();
+  function internalPriceOf(address token) internal virtual returns (uint256) {
+    IManagedPriceRouter pricer = _pricer;
+    if (address(pricer) == address(0)) {
+      pricer = IManagedPriceRouter(remoteAcl().getAddress(AccessFlags.PRICE_ROUTER));
+      State.require(address(pricer) != address(0));
     }
+    return pricer.pullAssetPrice(token, 0);
   }
-
-  function internalPriceOf(address token) internal view virtual returns (uint256);
 
   function withdraw(
     address account,
@@ -194,7 +193,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
   }
 
   function _withdraw(
-    CollateralAsset storage asset,
+    CollateralAsset storage,
     address from,
     address to,
     address token,
@@ -205,10 +204,10 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
       if (amount == type(uint256).max) {
         value = _collateral.balanceOf(from);
         if (value > 0) {
-          amount = value.wadDiv(_safePriceOf(asset, token));
+          amount = value.wadDiv(_safePriceOf(token));
         }
       } else {
-        value = amount.wadMul(_safePriceOf(asset, token));
+        value = amount.wadMul(_safePriceOf(token));
       }
 
       if (value > 0) {
@@ -323,17 +322,14 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
     internalSetSpecialApprovals(operator, accessFlags);
   }
 
-  function addAsset(
-    address token,
-    uint64 priceTarget,
-    uint16 priceTolerance,
-    address trusted
-  ) external aclHas(AccessFlags.LP_DEPLOY) {
-    internalAddAsset(token, priceTarget, priceTolerance, trusted);
+  function addAsset(address token, address trusted) external aclHas(AccessFlags.LP_DEPLOY) {
+    internalAddAsset(token, trusted);
+    // TODO set fuses
   }
 
   function removeAsset(address token) external aclHas(AccessFlags.LP_DEPLOY) {
     internalRemoveAsset(token);
+    // TODO set fuses
   }
 
   function assets() external view override returns (address[] memory) {

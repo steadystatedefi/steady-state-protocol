@@ -39,7 +39,7 @@ library AccessFlags {
   uint256 public constant PROXY_FACTORY = 1 << 26;
 
   uint256 public constant DATA_HELPER = 1 << 28;
-  uint256 public constant PRICE_ORACLE = 1 << 29;
+  uint256 public constant PRICE_ROUTER = 1 << 29;
 
   // any other roles - use range [64..]
   // these roles can be assigned to multiple addresses
