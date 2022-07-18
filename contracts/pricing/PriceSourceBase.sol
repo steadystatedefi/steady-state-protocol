@@ -9,23 +9,56 @@ abstract contract PriceSourceBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 
-  // struct ActiveSource {
-  //   uint8 flags;
-  //   uint2 crossPrice;
+  // struct Source {
+  //   uint4 sourceType;
   //   uint6 decimals;
+  //   uint6 internalFlags;
   //   uint8 maxValidity; // minutes
-  //   uint8 callType;
-  //   address source;
 
-  //   uint56 target;
+  //   address source;
+  //   uint8 callFlags;
+
   //   uint8 tolerance;
+  //   uint56 target;
   // }
 
+  uint8 private constant SOURCE_TYPE_OFS = 0;
+  uint8 private constant SOURCE_TYPE_BIT = 4;
+  uint256 private constant SOURCE_TYPE_MASK = (2**SOURCE_TYPE_BIT) - 1;
+
+  uint8 private constant DECIMALS_OFS = SOURCE_TYPE_OFS + SOURCE_TYPE_BIT;
+  uint8 private constant DECIMALS_BIT = 6;
+  uint256 private constant DECIMALS_MASK = (2**DECIMALS_BIT) - 1;
+
+  uint8 private constant FLAGS_OFS = DECIMALS_OFS + DECIMALS_BIT;
+  uint8 private constant FLAGS_BIT = 6;
+  uint256 private constant FLAGS_MASK = (2**FLAGS_BIT) - 1;
+
+  uint256 private constant FLAG_CROSS_PRICED = 1 << (FLAGS_OFS + FLAGS_BIT - 1);
+  uint8 internal constant EF_LIMIT_BREACHED = uint8(FLAG_CROSS_PRICED >> FLAGS_OFS);
+  uint8 private constant CUSTOM_FLAG_MASK = EF_LIMIT_BREACHED - 1;
+
+  uint8 private constant VALIDITY_OFS = FLAGS_OFS + FLAGS_BIT;
+  uint8 private constant VALIDITY_BIT = 8;
+  uint256 private constant VALIDITY_MASK = (2**VALIDITY_BIT) - 1;
+
+  uint8 private constant PAYLOAD_OFS = VALIDITY_OFS + VALIDITY_BIT;
+
+  uint8 private constant FEED_POST_PAYLOAD_OFS = PAYLOAD_OFS + 160 + 8;
+  uint256 private constant FEED_PAYLOAD_CONFIG_AND_SOURCE_TYPE_MASK = (uint256(1) << FEED_POST_PAYLOAD_OFS) - 1;
+
+  uint256 private constant MAX_STATIC_VALUE = (type(uint256).max << (PAYLOAD_OFS + 32)) >> (PAYLOAD_OFS + 32);
+
+  uint256 private constant CONFIG_AND_SOURCE_TYPE_MASK = (uint256(1) << PAYLOAD_OFS) - 1;
+  uint256 private constant CONFIG_MASK = CONFIG_AND_SOURCE_TYPE_MASK & ~SOURCE_TYPE_MASK;
+  uint256 private constant INVERSE_CONFIG_MASK = ~CONFIG_MASK;
+
   // struct StaticSource {
-  //   uint8 flags;
-  //   uint2 crossPrice;
+  //   uint8 sourceType == 0;
   //   uint6 decimals;
+  //   uint6 internalFlags;
   //   uint8 maxValidity; // minutes
+
   //   uint32 updatedAt;
   //   uint200 staticValue;
   // }
@@ -35,16 +68,8 @@ abstract contract PriceSourceBase {
   }
 
   mapping(address => uint256) private _encodedSources;
-  mapping(uint8 => address) private _crossTokens;
+  mapping(address => address) private _crossTokens;
   mapping(address => uint256) private _fuseMasks;
-
-  uint8 private constant SRC_CONFIG_BITS = 24;
-
-  uint8 private constant SF_STATIC = 1 << 7;
-  uint8 private constant SF_CROSS_PRICED = 1 << 6;
-
-  uint8 internal constant RF_LIMIT_BREACHED = SF_CROSS_PRICED;
-  uint8 internal constant SOURCE_FLAGS_MASK = SF_STATIC | SF_CROSS_PRICED;
 
   function internalReadSource(address token) internal view returns (uint256, uint8) {
     return _readSource(token, true);
@@ -56,32 +81,24 @@ abstract contract PriceSourceBase {
       return (0, 0);
     }
 
-    uint8 flags = uint8(encoded);
+    uint8 callType = uint8(encoded & SOURCE_TYPE_MASK);
 
-    encoded >>= 8;
-    uint8 decimals = uint8(encoded);
+    (uint256 v, uint32 t) = callType != 0 ? _callSource(callType, encoded, token) : _callStatic(encoded);
 
-    encoded >>= 8;
-    uint8 maxValidity = uint8(encoded);
-
-    encoded >>= 8;
-
-    (uint256 v, uint32 t) = flags & SF_STATIC == 0
-      ? _callSource(flags, uint8(encoded), address(uint160(encoded >> 8)), token)
-      : (encoded >> 32, uint32(encoded));
-
+    uint8 maxValidity = uint8(encoded >> VALIDITY_OFS);
     require(maxValidity == 0 || t == 0 || t + maxValidity * 1 minutes >= block.timestamp);
 
-    if (flags & SF_CROSS_PRICED != 0) {
+    if (encoded & FLAG_CROSS_PRICED != 0) {
       State.require(notNested);
       uint256 vc;
-      (vc, resultFlags) = _readSource(_crossTokens[uint8(decimals & 3)], false);
+      (vc, ) = _readSource(_crossTokens[token], false);
       v *= vc;
-      resultFlags &= SOURCE_FLAGS_MASK;
     }
-    resultFlags |= flags & ~SOURCE_FLAGS_MASK;
+    resultFlags = uint8((encoded >> FLAGS_OFS) & FLAGS_MASK);
 
-    if ((decimals >>= 2) != 18) {
+    uint8 decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
+    if (decimals != 0) {
+      decimals = uint8((decimals + 18) & DECIMALS_MASK);
       if (decimals < 18) {
         v *= 10**uint8(18 - decimals);
       } else {
@@ -89,12 +106,12 @@ abstract contract PriceSourceBase {
       }
     }
 
-    if (flags & SF_CROSS_PRICED != 0) {
+    if (encoded & FLAG_CROSS_PRICED != 0) {
       v = v.divUp(WadRayMath.WAD);
     }
 
-    if (flags & SF_STATIC != 0 && encoded > 0 && _checkTolerance(v, encoded)) {
-      resultFlags |= RF_LIMIT_BREACHED;
+    if (callType != 0 && _checkLimits(v, encoded)) {
+      resultFlags |= EF_LIMIT_BREACHED;
     }
 
     return (v, resultFlags);
@@ -103,22 +120,26 @@ abstract contract PriceSourceBase {
   uint256 private constant TARGET_UNIT = 10**9;
   uint256 private constant TOLERANCE_ONE = 800;
 
-  function _checkTolerance(uint256 v, uint256 target) private pure returns (bool) {
-    uint8 tolerance = uint8(target);
-    target >>= 8;
+  function _callSource(
+    uint8 callType,
+    uint256 encoded,
+    address token
+  ) private view returns (uint256 v, uint32 t) {
+    return internalGetHandler(callType)(uint8(encoded >> (PAYLOAD_OFS + 160)), address(uint160(encoded >> PAYLOAD_OFS)), token);
+  }
+
+  function _checkLimits(uint256 v, uint256 encoded) private pure returns (bool) {
+    encoded >>= FEED_POST_PAYLOAD_OFS;
+    uint8 tolerance = uint8(encoded);
+    uint256 target = encoded >> 8;
     target *= TARGET_UNIT;
 
     v = v > target ? v - target : target - v;
     return (v * TOLERANCE_ONE > target * tolerance);
   }
 
-  function _callSource(
-    uint8 flags,
-    uint8 callType,
-    address feed,
-    address token
-  ) private view returns (uint256 v, uint32 t) {
-    return internalGetHandler(callType)(flags, feed, token);
+  function _callStatic(uint256 encoded) private pure returns (uint256 v, uint32 t) {
+    return (encoded >> 32, uint32(encoded));
   }
 
   function internalGetHandler(uint8 callType)
@@ -133,46 +154,55 @@ abstract contract PriceSourceBase {
     uint32 since
   ) internal {
     uint256 encoded = _encodedSources[token];
-    require(value <= type(uint200).max);
+    require(value <= MAX_STATIC_VALUE);
 
-    if (since == 0 && value != 0) {
+    if (value == 0) {
+      since = 0;
+    } else if (since == 0) {
       since = uint32(block.timestamp);
     }
 
     value = (value << 32) | since;
-    _encodedSources[token] = (value << SRC_CONFIG_BITS) | uint24(encoded) | SF_STATIC;
+    _encodedSources[token] = (value << PAYLOAD_OFS) | (encoded & CONFIG_MASK);
   }
 
-  uint256 private constant SRC_SOURCE_BITS = 168;
-  uint256 private constant SF_SOURCE_INV_MASK = ~(uint256(type(uint168).max) << SRC_CONFIG_BITS);
+  function internalUnsetSource(address token) internal {
+    delete _encodedSources[token];
+  }
 
-  function internalSetSource(
+  function internalSetCustomFlags(
     address token,
-    uint8 callType,
-    address feed
+    uint8 unsetFlags,
+    uint8 setFlags
   ) internal {
-    if (feed == address(0)) {
-      Value.require(callType == 0);
-      delete _encodedSources[token];
-      return;
+    Value.require((unsetFlags | setFlags) <= CUSTOM_FLAG_MASK);
+
+    uint256 encoded = _encodedSources[token] & CONFIG_MASK;
+
+    if (unsetFlags != 0) {
+      encoded &= ~(uint256(unsetFlags) << FLAGS_OFS);
     }
-
-    internalGetHandler(callType);
-
-    uint256 encoded = _encodedSources[token];
-    if (encoded & SF_STATIC != 0) {
-      encoded = uint24(encoded) ^ SF_STATIC;
-    } else {
-      encoded &= SF_SOURCE_INV_MASK;
-    }
-
-    encoded |= ((uint256(callType) << 160) | uint160(feed)) << SRC_CONFIG_BITS;
+    encoded |= uint256(setFlags) << FLAGS_OFS;
 
     _encodedSources[token] = encoded;
   }
 
-  uint256 private constant SF_SOURCE_AND_CONFIG_BITS = SRC_CONFIG_BITS + SRC_SOURCE_BITS;
-  uint256 private constant SF_SOURCE_AND_CONFIG_INV_MASK = type(uint256).max >> (256 - SF_SOURCE_AND_CONFIG_BITS);
+  function internalSetSource(
+    address token,
+    uint8 callType,
+    address feed,
+    uint8 callFlags
+  ) internal {
+    Value.require(feed != address(0));
+    Value.require(callType > 0 && callType <= SOURCE_TYPE_MASK);
+
+    internalGetHandler(callType);
+
+    uint256 encoded = _encodedSources[token] & CONFIG_MASK;
+    encoded |= callType | (((uint256(callFlags) << 160) | uint160(feed)) << PAYLOAD_OFS);
+
+    _encodedSources[token] = encoded;
+  }
 
   function internalSetPriceTolerance(
     address token,
@@ -180,7 +210,7 @@ abstract contract PriceSourceBase {
     uint16 tolerancePct
   ) internal {
     uint256 encoded = _encodedSources[token];
-    State.require(encoded & SF_STATIC == 0);
+    State.require(encoded & SOURCE_TYPE_MASK != 0);
 
     uint256 v;
     if (targetPrice != 0) {
@@ -189,25 +219,21 @@ abstract contract PriceSourceBase {
 
       targetPrice = targetPrice.divUp(TARGET_UNIT);
       Value.require(targetPrice > 0);
-      v = (v << 56) | targetPrice;
+      v |= targetPrice << 8;
 
-      v <<= SF_SOURCE_AND_CONFIG_BITS;
+      v <<= FEED_POST_PAYLOAD_OFS;
     }
 
-    _encodedSources[token] = v | (encoded & SF_SOURCE_AND_CONFIG_INV_MASK);
+    _encodedSources[token] = v | (encoded & FEED_PAYLOAD_CONFIG_AND_SOURCE_TYPE_MASK);
   }
 
-  function _crossPriceIndex(address crossPrice) private view returns (uint8 index) {
+  function _ensureCrossPriceToken(address crossPrice) private view {
     uint256 encoded = _encodedSources[crossPrice];
 
     Value.require(encoded != 0);
-    State.require(encoded & SF_CROSS_PRICED == 0);
-    index = uint8(encoded >> 8) & 3;
-
-    State.require(_crossTokens[index] == crossPrice);
+    State.require(encoded & FLAG_CROSS_PRICED == 0);
+    State.require(_crossTokens[crossPrice] == crossPrice);
   }
-
-  uint256 private constant SRC_CONFIG_BITS_NO_FLAGS = SRC_CONFIG_BITS ^ type(uint8).max;
 
   function internalSetConfig(
     address token,
@@ -215,23 +241,25 @@ abstract contract PriceSourceBase {
     address crossPrice,
     uint32 maxValidity
   ) internal {
-    Value.require(decimals <= 63);
-    decimals <<= 2;
-
     uint256 encoded = _encodedSources[token];
     State.require(encoded != 0);
+
+    Value.require(decimals <= DECIMALS_MASK);
+    decimals = uint8(((DECIMALS_MASK - 17) + decimals) & DECIMALS_MASK);
 
     maxValidity = maxValidity == type(uint32).max ? 0 : (maxValidity + 1 minutes - 1) / 1 minutes;
     Value.require(maxValidity <= type(uint8).max);
 
     if (crossPrice != address(0)) {
-      decimals |= _crossPriceIndex(crossPrice);
-      encoded |= SF_CROSS_PRICED;
+      _ensureCrossPriceToken(crossPrice);
+      encoded |= FLAG_CROSS_PRICED;
     } else {
-      encoded &= ~uint256(SF_CROSS_PRICED);
+      encoded &= ~FLAG_CROSS_PRICED;
     }
 
-    _encodedSources[token] = (encoded & SRC_CONFIG_BITS_NO_FLAGS) | (uint256(maxValidity) << 16) | (uint256(decimals) << 8);
+    encoded &= ~(VALIDITY_MASK << VALIDITY_OFS) | (DECIMALS_MASK << DECIMALS_OFS);
+    _encodedSources[token] = encoded | (uint256(maxValidity) << VALIDITY_OFS) | (uint256(decimals) << DECIMALS_OFS);
+    _crossTokens[token] = crossPrice;
   }
 
   function internalGetConfig(address token)
@@ -242,26 +270,23 @@ abstract contract PriceSourceBase {
       uint8 decimals,
       address crossPrice,
       uint32 maxValidity,
+      uint8 flags,
       bool staticPrice
     )
   {
     uint256 encoded = _encodedSources[token];
     if (encoded != 0) {
       ok = true;
-      staticPrice = encoded & SF_STATIC != 0;
+      staticPrice = encoded & SOURCE_TYPE_MASK == 0;
 
-      uint8 flags = uint8(encoded);
-      encoded >>= 8;
-      decimals = uint8(encoded);
+      decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
+      maxValidity = uint8(encoded >> VALIDITY_OFS);
 
-      crossPrice = _crossTokens[decimals & 3];
-      if (crossPrice != address(0) && crossPrice != token && flags & SF_CROSS_PRICED == 0) {
-        crossPrice = address(0);
+      if (encoded & FLAG_CROSS_PRICED != 0) {
+        crossPrice = _crossTokens[token];
       }
 
-      decimals >>= 2;
-
-      maxValidity = uint8(encoded >> 8);
+      flags = uint8((encoded >> FLAGS_OFS) & CUSTOM_FLAG_MASK);
     }
   }
 
@@ -271,32 +296,29 @@ abstract contract PriceSourceBase {
     returns (
       uint8 callType,
       address feed,
+      uint8 callFlags,
       uint256 target,
       uint16 tolerance
     )
   {
     uint256 encoded = _encodedSources[token];
     if (encoded != 0) {
-      State.require(encoded & SF_STATIC == 0);
-      encoded >>= SRC_CONFIG_BITS;
-      callType = uint8(encoded);
+      State.require((callType = uint8(encoded & SOURCE_TYPE_MASK)) != 0);
+      encoded >>= PAYLOAD_OFS;
 
-      encoded >>= 8;
       feed = address(uint160(encoded));
+      callFlags = uint8(encoded >> 160);
+      encoded >>= 8;
 
-      encoded >>= 160;
-      target = uint56(encoded);
-      target *= TARGET_UNIT;
-
-      encoded >>= 56;
-      tolerance = uint16(encoded.percentDiv(TOLERANCE_ONE));
+      tolerance = uint16(uint256(uint8(encoded)).percentDiv(TOLERANCE_ONE));
+      target = (encoded >> 8) * TARGET_UNIT;
     }
   }
 
   function internalGetStatic(address token) internal view returns (uint256, uint32) {
     uint256 encoded = _encodedSources[token];
-    State.require(encoded & SF_STATIC != 0);
-    encoded >>= SRC_CONFIG_BITS;
+    State.require(encoded & SOURCE_TYPE_MASK == 0);
+    encoded >>= PAYLOAD_OFS;
 
     return (encoded >> 32, uint32(encoded));
   }

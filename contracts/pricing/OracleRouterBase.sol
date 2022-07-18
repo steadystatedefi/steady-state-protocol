@@ -11,9 +11,15 @@ import './interfaces/IPriceFeedUniswapV2.sol';
 import './PriceSourceBase.sol';
 import './FuseBox.sol';
 
-abstract contract PriceOracleBase is IManagerPriceOracle, AccessHelper, PriceSourceBase, FuseBox {
+abstract contract OracleRouterBase is IManagerPriceOracle, AccessHelper, PriceSourceBase, FuseBox {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
+
+  address private immutable _quote;
+
+  constructor(address quote) {
+    _quote = quote;
+  }
 
   function _onlyOracleAdmin() private view {
     if (!hasAnyAcl(msg.sender, AccessFlags.ORACLE_ADMIN)) {
@@ -27,9 +33,17 @@ abstract contract PriceOracleBase is IManagerPriceOracle, AccessHelper, PriceSou
   }
 
   uint8 private constant RF_FUSED = 1 << 0;
-  uint8 private constant RF_UNISWAP_V2_RESERVE = 1 << 1;
+  uint8 private constant CF_UNISWAP_V2_RESERVE = 1 << 0;
+
+  function getQuoteAsset() public view returns (address) {
+    return _quote;
+  }
 
   function pullAssetPrice(address asset, uint256 fuseMask) public returns (uint256) {
+    if (asset == _quote) {
+      return WadRayMath.WAD;
+    }
+
     (uint256 v, uint8 flags) = internalReadSource(asset);
 
     if (v == 0) {
@@ -40,7 +54,7 @@ abstract contract PriceOracleBase is IManagerPriceOracle, AccessHelper, PriceSou
       revert Errors.ExcessiveVolatilityLock(fuseMask);
     }
 
-    if (flags & RF_LIMIT_BREACHED != 0) {
+    if (flags & EF_LIMIT_BREACHED != 0) {
       if (flags & RF_FUSED != 0) {
         internalBlowFuses(asset);
       } else {
@@ -52,6 +66,10 @@ abstract contract PriceOracleBase is IManagerPriceOracle, AccessHelper, PriceSou
   }
 
   function getAssetPrice(address asset) public view override returns (uint256) {
+    if (asset == _quote) {
+      return WadRayMath.WAD;
+    }
+
     (uint256 v, ) = internalReadSource(asset);
 
     if (v == 0) {
@@ -96,77 +114,97 @@ abstract contract PriceOracleBase is IManagerPriceOracle, AccessHelper, PriceSou
   }
 
   function _readUniswapV2(
-    uint8 flags,
+    uint8 callFlags,
     address feed,
     address
   ) private view returns (uint256 v0, uint32 at) {
     uint256 v1;
     (v0, v1, at) = IPriceFeedUniswapV2(feed).getReserves();
     if (v0 != 0) {
-      if (flags & RF_UNISWAP_V2_RESERVE == 1) {
+      if (callFlags & CF_UNISWAP_V2_RESERVE != 0) {
         (v0, v1) = (v1, v0);
       }
       v0 = v1.wadDiv(v0);
     }
   }
 
-  // function getPriceSource(address asset) public view override returns (PriceSource memory) {
-  //   Source storage src = _sources[asset];
-  //   return PriceSource(src.source, src.staticPrice, src.sourceType);
-  // }
+  function _setupUniswapV2(address feed, address token) private view returns (uint8 callFlags) {
+    if (token == IPriceFeedUniswapV2(feed).token1()) {
+      return CF_UNISWAP_V2_RESERVE;
+    }
+    Value.require(token == IPriceFeedUniswapV2(feed).token0());
+  }
 
-  // function getPriceSources(address[] calldata assets) external view override returns (PriceSource[] memory result) {
-  //   result = new PriceSource[](assets.length);
-  //   for (uint256 i = assets.length; i > 0; ) {
-  //     i--;
-  //     result[i] = getPriceSource(assets[i]);
-  //   }
-  //   return result;
-  // }
+  function _getPriceSource(address asset, PriceSource memory result)
+    private
+    view
+    returns (
+      bool ok,
+      uint8 decimals,
+      address crossPrice,
+      uint32 maxValidity,
+      uint8 flags
+    )
+  {
+    bool staticPrice;
+    (ok, decimals, crossPrice, maxValidity, flags, staticPrice) = internalGetConfig(asset);
 
-  function setPriceSources(address[] calldata assets, PriceSource[] calldata sources) external onlyOracleAdmin {
-    for (uint256 i = assets.length; i > 0; ) {
-      i--;
-      PriceFeedType ft = sources[i].feedType;
-      if (ft == PriceFeedType.StaticValue) {
-        _setStaticValue(assets[i], sources[i].feedConstValue);
+    if (ok) {
+      result.decimals = decimals;
+      result.crossPrice = crossPrice;
+      // result.maxValidity = maxValidity;
+
+      if (staticPrice) {
+        result.feedType = PriceFeedType.StaticValue;
+        (result.feedConstValue, ) = internalGetStatic(asset);
       } else {
-        _setPriceSource(assets[i], uint8(ft), sources[i].feedContract);
+        uint8 callType;
+        (callType, result.feedContract, , , ) = internalGetSource(asset);
+        result.feedType = PriceFeedType(callType);
       }
     }
   }
 
-  // function _setPriceSource(
-  //   address asset,
-  //   address weth,
-  //   Source memory src
-  // ) private {
-  //   require(asset != weth);
-  //   if (src.sourceType != PriceSourceType.Chainlink) {
-  //     require(src.source != address(0));
-  //     // TODO src.flags =
-  //   }
-  //   _sources[asset] = src;
-  // }
+  function getPriceSource(address asset) external view returns (PriceSource memory result) {
+    _getPriceSource(asset, result);
+  }
 
-  // function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external override onlyOracleAdmin {
-  //   for (uint256 i = assets.length; i > 0; ) {
-  //     i--;
-  //     require(assets[i] != WETH);
-  //     require(prices[i] <= type(uint224).max);
-  //     _sources[assets[i]].staticPrice = uint224(prices[i]);
-  //   }
-  // }
+  function getPriceSources(address[] calldata assets) external view returns (PriceSource[] memory result) {
+    result = new PriceSource[](assets.length);
+    for (uint256 i = assets.length; i > 0; ) {
+      i--;
+      _getPriceSource(assets[i], result[i]);
+    }
+  }
+
+  function setPriceSources(address[] calldata assets, PriceSource[] calldata sources) external onlyOracleAdmin {
+    for (uint256 i = assets.length; i > 0; ) {
+      i--;
+      _setPriceSource(assets[i], sources[i]);
+    }
+  }
+
+  function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external onlyOracleAdmin {
+    for (uint256 i = assets.length; i > 0; ) {
+      i--;
+      _setStaticValue(assets[i], prices[i]);
+    }
+  }
 
   function _setStaticValue(address asset, uint256 value) private {
     internalSetStatic(asset, value, 0);
   }
 
-  function _setPriceSource(
-    address asset,
-    uint8 feedType,
-    address feedContract
-  ) private {
-    internalSetSource(asset, feedType, feedContract);
+  function _setPriceSource(address asset, PriceSource calldata source) private {
+    if (source.feedType == PriceFeedType.StaticValue) {
+      _setStaticValue(asset, source.feedConstValue);
+    } else {
+      uint8 callFlags;
+      if (source.feedType == PriceFeedType.UniSwapV2Pair) {
+        callFlags = _setupUniswapV2(source.feedContract, asset);
+      }
+      internalSetSource(asset, uint8(source.feedType), source.feedContract, callFlags);
+    }
+    internalSetConfig(asset, source.decimals, source.crossPrice, 0);
   }
 }

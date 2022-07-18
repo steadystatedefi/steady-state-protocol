@@ -20,4 +20,6 @@ struct PriceSource {
   PriceFeedType feedType;
   address feedContract;
   uint256 feedConstValue;
+  uint8 decimals;
+  address crossPrice;
 }
