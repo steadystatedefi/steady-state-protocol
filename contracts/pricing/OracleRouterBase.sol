@@ -22,7 +22,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
   }
 
   function _onlyOracleAdmin() private view {
-    if (!hasAnyAcl(msg.sender, AccessFlags.ORACLE_ADMIN)) {
+    if (!hasAnyAcl(msg.sender, AccessFlags.PRICE_ROUTER_ADMIN)) {
       revert Errors.CalllerNotOracleAdmin();
     }
   }

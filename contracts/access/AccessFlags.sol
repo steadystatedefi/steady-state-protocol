@@ -12,7 +12,7 @@ library AccessFlags {
   uint256 public constant PREMIUM_FUND_ADMIN = 1 << 5;
 
   uint256 public constant SWEEP_ADMIN = 1 << 6;
-  uint256 public constant ORACLE_ADMIN = 1 << 7;
+  uint256 public constant PRICE_ROUTER_ADMIN = 1 << 7;
 
   uint256 public constant UNDERWRITER_POLICY = 1 << 8;
   uint256 public constant UNDERWRITER_CLAIM = 1 << 9;
