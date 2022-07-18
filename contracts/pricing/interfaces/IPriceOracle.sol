@@ -6,13 +6,5 @@ import './IFallbackPriceOracle.sol';
 interface IPriceOracle is IFallbackPriceOracle {
   function getAssetPrices(address[] calldata asset) external view returns (uint256[] memory);
 
-  // struct PriceSource {
-  //   address source;
-  //   uint224 staticPrice;
-  //   PriceSourceType sourceType;
-  // }
-
-  // function getPriceSource(address asset) external view returns (PriceSource memory);
-
-  // function getPriceSources(address[] calldata asset) external view returns (PriceSource[] memory);
+  function pullAssetPrice(address asset, uint256 fuseMask) external returns (uint256);
 }

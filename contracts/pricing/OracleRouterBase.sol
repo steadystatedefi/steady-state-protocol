@@ -32,14 +32,13 @@ abstract contract OracleRouterBase is IManagerPriceOracle, AccessHelper, PriceSo
     _;
   }
 
-  uint8 private constant RF_FUSED = 1 << 0;
   uint8 private constant CF_UNISWAP_V2_RESERVE = 1 << 0;
 
   function getQuoteAsset() public view returns (address) {
     return _quote;
   }
 
-  function pullAssetPrice(address asset, uint256 fuseMask) public returns (uint256) {
+  function pullAssetPrice(address asset, uint256 fuseMask) external override returns (uint256) {
     if (asset == _quote) {
       return WadRayMath.WAD;
     }
@@ -55,9 +54,7 @@ abstract contract OracleRouterBase is IManagerPriceOracle, AccessHelper, PriceSo
     }
 
     if (flags & EF_LIMIT_BREACHED != 0) {
-      if (flags & RF_FUSED != 0) {
-        internalBlowFuses(asset);
-      } else {
+      if (!internalBlowFuses(asset)) {
         revert Errors.ExcessiveVolatility();
       }
     }
@@ -206,5 +203,48 @@ abstract contract OracleRouterBase is IManagerPriceOracle, AccessHelper, PriceSo
       internalSetSource(asset, uint8(source.feedType), source.feedContract, callFlags);
     }
     internalSetConfig(asset, source.decimals, source.crossPrice, 0);
+  }
+
+  function guardPriceSource(
+    address asset,
+    uint256 targetPrice,
+    uint16 tolerancePct
+  ) external override onlyOracleAdmin {
+    Value.require(asset != address(0));
+
+    internalSetPriceTolerance(asset, targetPrice, tolerancePct);
+  }
+
+  function attachSource(address asset, bool attach) external override {
+    Value.require(asset != address(0));
+
+    uint256 maskUnset = internalGetOwnedFuses(msg.sender);
+    uint256 maskSet;
+    Access.require(maskUnset != 0);
+
+    if (attach) {
+      (maskSet, maskUnset) = (maskUnset, 0);
+    }
+    internalSetFuses(asset, maskUnset, maskSet);
+  }
+
+  function resetSourceGroup() external override {
+    uint256 mask = internalGetOwnedFuses(msg.sender);
+    Access.require(mask != 0);
+    internalResetFuses(mask);
+  }
+
+  function resetSourceGroupByAdmin(uint256 mask) external override onlyOracleAdmin {
+    internalResetFuses(mask);
+  }
+
+  function registerSourceGroup(
+    address account,
+    uint256 mask,
+    bool register
+  ) external override onlyOracleAdmin {
+    Value.require(account != address(0));
+
+    internalSetOwnedFuses(account, register ? mask : 0);
   }
 }

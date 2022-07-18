@@ -14,33 +14,33 @@ abstract contract FuseBox {
   mapping(address => uint256) private _fuseMasks;
   uint256 private _fuseBox;
 
-  function internalBlowFuses(address addr) internal {
+  function internalBlowFuses(address addr) internal returns (bool blown) {
     uint256 mask = _fuseMasks[addr];
     if (mask != 0) {
       uint256 fuseBox = _fuseBox;
       if ((mask &= ~fuseBox) != 0) {
-        _fuseBox = fuseBox | mask;
+        _fuseBox = mask | fuseBox;
         internalFuseBlown(addr, fuseBox, mask);
       }
+      blown = true;
     }
   }
 
   function internalFuseBlown(
     address addr,
-    uint256 fuseBox,
-    uint256 blownMask
+    uint256 fuseBoxBefore,
+    uint256 blownFuses
   ) internal virtual {}
 
   function internalSetFuses(
     address addr,
-    uint256 mask,
-    bool attach
+    uint256 unsetMask,
+    uint256 setMask
   ) internal {
-    if (attach) {
-      _fuseMasks[addr] |= mask;
-    } else {
-      _fuseMasks[addr] &= ~mask;
+    if ((unsetMask = ~unsetMask) != 0) {
+      setMask |= _fuseMasks[addr] & unsetMask;
     }
+    _fuseMasks[addr] = setMask;
   }
 
   function internalGetFuses(address addr) internal view returns (uint256) {
@@ -68,32 +68,11 @@ abstract contract FuseBox {
     _fuseBox &= ~mask;
   }
 
-  function internalResetFuses(address owner) internal {
-    internalResetFuses(_fuseOwners[owner]);
-  }
-
   function internalIsOwnerOfAllFuses(address owner, uint256 mask) internal view returns (bool) {
     return mask & ~_fuseOwners[owner] == 0;
   }
 
-  function internalSetOwnedFuses(
-    address owner,
-    uint256 mask,
-    bool own
-  ) internal {
-    if (own) {
-      _fuseOwners[owner] |= mask;
-    } else {
-      _fuseOwners[owner] &= ~mask;
-    }
-  }
-
-  function _onlyFuseOwner(uint256 mask) private view {
-    Access.require(internalIsOwnerOfAllFuses(msg.sender, mask));
-  }
-
-  modifier onlyFuseOwner(uint256 mask) {
-    _onlyFuseOwner(mask);
-    _;
+  function internalSetOwnedFuses(address owner, uint256 mask) internal {
+    _fuseOwners[owner] = mask;
   }
 }
