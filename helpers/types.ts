@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers';
+
 import { getNetworkName } from './runtime-utils';
 
 export interface SymbolMap<T> {
@@ -139,6 +141,11 @@ export interface IMocksConfig {
 export interface IConfiguration {
   Owner: iParamsPerNetworkOpt<tEthereumAddress>;
   DepositTokens: iParamsPerNetworkOpt<SymbolMap<string>>;
+  AccessController: {
+    ROLES: BigNumber;
+    SINGLETS: BigNumber;
+    PROTECTED_SINGLETS: BigNumber;
+  };
 }
 
 export interface ITokenAddress {
@@ -169,6 +176,10 @@ export interface IPrices {
 
 export interface IDependencies {
   UniswapV2Router?: tEthereumAddress;
+}
+
+export enum EContractId {
+  AccessController = 'AccessController',
 }
 
 export const getParamPerNetwork = <T>(param: iParamsPerNetwork<T> | iParamsPerNetworkOpt<T>, network?: eNetwork): T =>
