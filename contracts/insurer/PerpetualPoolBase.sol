@@ -146,15 +146,13 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     (, premium) = interestOf(account);
   }
 
-  /// @notice The amount of coverage ($CC) that has been allocated to this pool
-  /// @return The $CC allocated to this pool
+  /// @return The $CC-equivalent value of this pool
   function totalSupplyValue() public view returns (uint256) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
-  /// @notice The amount of coverage ($CC) that has been allocated to this pool
-  /// @return The $CC allocated to this pool
+  /// @return The amount of tokens of this pool
   function totalSupply() public view override returns (uint256) {
     return totalSupplyValue().rayDiv(exchangeRate());
   }

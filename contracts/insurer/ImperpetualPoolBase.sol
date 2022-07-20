@@ -161,6 +161,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
     v += coverage.totalPremium - _burntPremium;
     v += _excessCoverage;
+    // TODO v += yieldValue
   }
 
   function totalSupplyValue() public view returns (uint256) {

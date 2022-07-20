@@ -58,7 +58,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
   struct ActuaryConfig {
     mapping(address => TokenInfo) tokens; // [token]
     mapping(address => address) sourceToken; // [source] => token
-    mapping(address => SourceBalance) sourceBalances; // [source] - only for sources with a shared token
+    mapping(address => SourceBalance) sourceBalances; // [source] - to support shared tokens among different sources
     BalancerLib2.AssetConfig defaultConfig;
     ActuaryState state;
   }
@@ -308,6 +308,18 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     Value.require(rate > 0);
 
     _premiumAllocationUpdated(config, msg.sender, source, address(0), increment, rate, false);
+  }
+
+  function yieldAllocationUpdated(
+    address actuary,
+    uint256 increment,
+    uint256 rate
+  ) external {
+    ActuaryConfig storage config = _ensureActuary(actuary);
+    address token = config.sourceToken[msg.sender];
+    Value.require(token != address(0));
+
+    _premiumAllocationUpdated(config, actuary, msg.sender, token, increment, rate, false);
   }
 
   function premiumAllocationFinished(
