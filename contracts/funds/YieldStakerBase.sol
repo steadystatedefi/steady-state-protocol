@@ -41,21 +41,22 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   struct UserBalance {
     uint256 yieldBalance;
-    mapping(ICollateralizedAsset => UserAssetBalance) balances;
   }
 
   struct UserAssetBalance {
     uint128 assetIntegral;
     uint112 balanceToken;
-    // uint16
+    uint16 assetIndex;
   }
 
   mapping(address => UserBalance) private _userBalances;
+  mapping(ICollateralizedAsset => mapping(address => UserAssetBalance)) private _userAssetBalances;
+  mapping(address => mapping(uint16 => ICollateralizedAsset)) private _userAssets;
 
   function registerAsset(address asset) external onlyCollateralCurrency {}
 
   function _ensureActiveAsset(address asset) private {
-    _ensureActiveAsset(_assetBalances[ICollateralizedAsset(asset)].flags, false);
+    // _ensureActiveAsset(_assetBalances[ICollateralizedAsset(asset)].flags, false);
   }
 
   function _ensureActiveAsset(uint16 assetFlags, bool ignorePause) private {}
@@ -84,7 +85,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     address to
   ) external {
     if (amount == type(uint256).max) {
-      amount = _userBalances[msg.sender].balances[ICollateralizedAsset(asset)].balanceToken;
+      amount = _userAssetBalances[ICollateralizedAsset(asset)][msg.sender].balanceToken;
     }
     if (amount == 0) {
       Value.require(to != address(0));
@@ -184,28 +185,34 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
     Value.require(account != address(0));
 
-    UserBalance storage userBalance = _userBalances[account];
-    UserAssetBalance memory balance = userBalance.balances[asset];
-    {
-      uint256 d = assetIntegral - balance.assetIntegral;
-      if (d != 0) {
-        balance.assetIntegral = assetIntegral;
-        if (balance.balanceToken != 0) {
-          userBalance.yieldBalance += d.rayMul(balance.balanceToken);
-        }
+    UserAssetBalance storage balance = _userAssetBalances[asset][account];
+
+    uint256 d = assetIntegral - balance.assetIntegral;
+    uint112 balanceToken = balance.balanceToken;
+
+    if (d != 0) {
+      balance.assetIntegral = assetIntegral;
+      if (balanceToken != 0) {
+        _userBalances[account].yieldBalance += d.rayMul(balanceToken);
       }
     }
 
-    balance.balanceToken = balance.balanceToken + incAmount - decAmount;
-    userBalance.balances[asset] = balance;
+    internalTrackUserAssets(asset, account, balanceToken, balance.balanceToken = (balanceToken - decAmount) + incAmount);
   }
+
+  function internalTrackUserAssets(
+    ICollateralizedAsset asset,
+    address account,
+    uint256 balanceBefore,
+    uint256 balanceAfter
+  ) internal virtual {}
 
   function balanceOf(address account) external view returns (uint256) {
     return _userBalances[account].yieldBalance;
   }
 
   function stakeOf(address asset, address account) external view returns (uint256) {
-    return _userBalances[account].balances[ICollateralizedAsset(asset)].balanceToken;
+    return _userAssetBalances[ICollateralizedAsset(asset)][account].balanceToken;
   }
 
   function claimYield(address account, address[] calldata assets) external view returns (uint256) {}
