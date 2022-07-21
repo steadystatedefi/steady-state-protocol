@@ -171,5 +171,9 @@ export interface IDependencies {
   UniswapV2Router?: tEthereumAddress;
 }
 
+export enum EContractId {
+  AccessController = 'AccessController',
+}
+
 export const getParamPerNetwork = <T>(param: iParamsPerNetwork<T> | iParamsPerNetworkOpt<T>, network?: eNetwork): T =>
   param[getNetworkName(network)] as T;
