@@ -14,6 +14,24 @@ library Math {
     }
   }
 
+  function addDelta(
+    uint256 x,
+    uint256 y,
+    uint256 z
+  ) internal pure returns (uint256) {
+    return y > z ? x + y - z : x + z - y;
+  }
+
+  function asUint128(uint256 x) internal pure returns (uint128) {
+    require(x <= type(uint128).max);
+    return uint128(x);
+  }
+
+  function asUint112(uint256 x) internal pure returns (uint112) {
+    require(x <= type(uint112).max);
+    return uint112(x);
+  }
+
   function sqrt(uint256 y) internal pure returns (uint256 z) {
     if (y > 3) {
       z = y;

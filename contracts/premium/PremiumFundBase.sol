@@ -310,18 +310,6 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     _premiumAllocationUpdated(config, msg.sender, source, address(0), increment, rate, false);
   }
 
-  function yieldAllocationUpdated(
-    address actuary,
-    uint256 increment,
-    uint256 rate
-  ) external {
-    ActuaryConfig storage config = _ensureActuary(actuary);
-    address token = config.sourceToken[msg.sender];
-    Value.require(token != address(0));
-
-    _premiumAllocationUpdated(config, actuary, msg.sender, token, increment, rate, false);
-  }
-
   function premiumAllocationFinished(
     address source,
     uint256,

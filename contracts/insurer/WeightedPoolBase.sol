@@ -89,6 +89,7 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
       transferCollateralFrom(donor, address(this), value);
       internalSubrogated(value);
       internalOnCoverageRecovered();
+      internalOnCoveredUpdated();
     }
   }
 
@@ -129,6 +130,7 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
     require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
 
     internalMintForCoverage(account, amount);
+    internalOnCoveredUpdated();
   }
 
   function internalMintForCoverage(address account, uint256 value) internal virtual;
@@ -140,4 +142,6 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
   function isPaused() public view returns (bool) {
     return _paused;
   }
+
+  function internalOnCoveredUpdated() internal {}
 }
