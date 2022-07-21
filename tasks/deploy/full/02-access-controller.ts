@@ -1,4 +1,4 @@
-import { loadRuntimeConfig, ConfigNames } from '../../../helpers/config-loader';
+import { MAX_UINT } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
 import { falsyOrZeroAddress, getSigners, waitForTx } from '../../../helpers/runtime-utils';
 import { EContractId } from '../../../helpers/types';
@@ -6,28 +6,29 @@ import { deployTask } from '../deploy-steps';
 
 const CONTRACT_NAME = 'AccessController';
 
-deployTask(`full:deploy-access-controller`, `Deploy ${CONTRACT_NAME}`, __dirname).setAction(
-  async ({ cfg }, localBRE) => {
-    await localBRE.run('set-DRE');
+const ROLES = MAX_UINT.mask(16);
+const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
+const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
 
-    const { AccessController } = loadRuntimeConfig(cfg as ConfigNames);
-    const [deployer] = await getSigners();
+deployTask(`full:deploy-access-controller`, `Deploy ${CONTRACT_NAME}`, __dirname).setAction(async (_, localBRE) => {
+  await localBRE.run('set-DRE');
 
-    const existedAccessControllerAddress = Factories.AccessController.findInstance(EContractId.AccessController);
+  const [deployer] = await getSigners();
 
-    if (!falsyOrZeroAddress(existedAccessControllerAddress)) {
-      console.log(`Already deployed ${CONTRACT_NAME}:`, existedAccessControllerAddress);
-      return;
-    }
+  const existedAccessControllerAddress = Factories.AccessController.findInstance(EContractId.AccessController);
 
-    const accessController = await Factories.AccessController.connectAndDeploy(deployer, EContractId.AccessController, [
-      AccessController.SINGLETS,
-      AccessController.ROLES,
-      AccessController.PROTECTED_SINGLETS,
-    ]);
-
-    await waitForTx(accessController.deployTransaction);
-
-    console.log(`${CONTRACT_NAME}:`, accessController.address);
+  if (!falsyOrZeroAddress(existedAccessControllerAddress)) {
+    console.log(`Already deployed ${CONTRACT_NAME}:`, existedAccessControllerAddress);
+    return;
   }
-);
+
+  const accessController = await Factories.AccessController.connectAndDeploy(deployer, EContractId.AccessController, [
+    SINGLETS,
+    ROLES,
+    PROTECTED_SINGLETS,
+  ]);
+
+  await waitForTx(accessController.deployTransaction);
+
+  console.log(`${CONTRACT_NAME}:`, accessController.address);
+});

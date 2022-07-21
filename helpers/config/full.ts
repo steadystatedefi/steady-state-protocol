@@ -1,4 +1,3 @@
-import { MAX_UINT } from '../constants';
 import { IConfiguration } from '../types';
 
 export enum EAccessRoles {
@@ -14,16 +13,7 @@ export enum EAccessRoles {
   UNDERWRITER_CLAIM = 2 ** 9,
 }
 
-const ROLES = MAX_UINT.mask(16);
-const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
-const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
-
 export const FullConfig: IConfiguration = {
   Owner: {},
   DepositTokens: {},
-  AccessController: {
-    ROLES,
-    SINGLETS,
-    PROTECTED_SINGLETS,
-  },
 };
