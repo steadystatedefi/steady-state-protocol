@@ -173,6 +173,7 @@ export interface IDependencies {
 
 export enum EContractId {
   AccessController = 'AccessController',
+  ApprovalCatalog = 'ApprovalCatalog',
   ApprovalCatalogV1 = 'ApprovalCatalogV1',
   ProxyCatalog = 'ProxyCatalog',
 }
