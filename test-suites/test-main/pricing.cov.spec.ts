@@ -54,12 +54,13 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
   });
 
   it('Static price', async () => {
+    const value = BigNumber.from(10).pow(17);
     const prices: PriceSourceStruct[] = [];
     prices.push({
       crossPrice: zeroAddress(),
       decimals: 18,
       feedType: PriceFeedType.StaticValue,
-      feedConstValue: BigNumber.from(10).pow(17),
+      feedConstValue: value,
       feedContract: zeroAddress(),
     });
 
@@ -68,6 +69,7 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
 
     await expect(oracle.setPriceSources(assets, prices)).to.be.reverted;
     await user1oracle.setPriceSources(assets, prices);
-    console.log(await oracle.getAssetPrice(token.address));
+    expect(await oracle.getAssetPrice(token.address)).eq(value);
+    // console.log(await oracle.getConfig(token.address));
   });
 });

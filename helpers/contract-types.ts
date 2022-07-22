@@ -12,6 +12,7 @@ export const Factories = {
   ApprovalCatalogV1: wrap(types.ApprovalCatalogV1__factory),
   InsuredPoolV1: wrap(types.InsuredPoolV1__factory),
   InsuredPoolV2: wrap(types.InsuredPoolV2__factory),
+  OracleRouterV1: wrap(types.OracleRouterV1__factory),
 
   MockCollateralCurrency: wrap(types.MockCollateralCurrency__factory),
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),

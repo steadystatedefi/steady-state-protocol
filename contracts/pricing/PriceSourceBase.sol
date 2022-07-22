@@ -5,6 +5,8 @@ import '../tools/Errors.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
 
+import 'hardhat/console.sol';
+
 abstract contract PriceSourceBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -97,14 +99,14 @@ abstract contract PriceSourceBase {
     resultFlags = uint8((encoded >> FLAGS_OFS) & FLAGS_MASK);
 
     uint8 decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
-    if (decimals != 0) {
-      decimals = uint8((decimals + 18) & DECIMALS_MASK);
-      if (decimals < 18) {
-        v *= 10**uint8(18 - decimals);
-      } else {
-        v /= 10**uint8(decimals - 18);
-      }
+    //if (decimals != 0) {
+    decimals = uint8((decimals + 18) & DECIMALS_MASK);
+    if (decimals < 18) {
+      v *= 10**uint8(18 - decimals);
+    } else {
+      v /= 10**uint8(decimals - 18);
     }
+    //}
 
     if (encoded & FLAG_CROSS_PRICED != 0) {
       v = v.divUp(WadRayMath.WAD);
@@ -139,6 +141,7 @@ abstract contract PriceSourceBase {
   }
 
   function _callStatic(uint256 encoded) private pure returns (uint256 v, uint32 t) {
+    encoded >>= PAYLOAD_OFS;
     return (encoded >> 32, uint32(encoded));
   }
 
@@ -279,7 +282,7 @@ abstract contract PriceSourceBase {
       ok = true;
       staticPrice = encoded & SOURCE_TYPE_MASK == 0;
 
-      decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
+      decimals = uint8((((encoded >> DECIMALS_OFS) & DECIMALS_MASK) + 18) & DECIMALS_MASK);
       maxValidity = uint8(encoded >> VALIDITY_OFS);
 
       if (encoded & FLAG_CROSS_PRICED != 0) {
