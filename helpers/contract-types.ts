@@ -30,6 +30,8 @@ export const Factories = {
   MockCaller: mock(types.MockCaller__factory),
   MockVersionedInitializable1: mock(types.MockVersionedInitializable1__factory),
   MockVersionedInitializable2: mock(types.MockVersionedInitializable2__factory),
+  MockChainlinkV3: mock(types.MockChainlinkV3__factory),
+  MockUniswapV2: mock(types.MockUniswapV2__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));

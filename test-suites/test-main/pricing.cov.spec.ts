@@ -1,10 +1,11 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
-import { BigNumber } from 'ethers';
+import { BigNumber, BigNumberish } from 'ethers';
 
 import { MAX_UINT, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
+import { currentTime } from '../../helpers/runtime-utils';
 import { AccessController, ApprovalCatalogV1, MockERC20, OracleRouterV1, ProxyCatalog } from '../../types';
 import { PriceSourceStruct } from '../../types/contracts/pricing/OracleRouterBase';
 
@@ -29,9 +30,30 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
   let approvalCatalog: ApprovalCatalogV1;
   let cc: MockERC20;
   let token: MockERC20;
+  let token2: MockERC20;
   let oracle: OracleRouterV1;
   let user1: SignerWithAddress;
   let user1oracle: OracleRouterV1;
+
+  const setChainlink = async (tokenAddr: string, value: BigNumberish, crossAddr: string) => {
+    const chainlinkOracle = await Factories.MockChainlinkV3.deploy();
+    await chainlinkOracle.setAnswer(value);
+    await chainlinkOracle.setUpdatedAt(await currentTime());
+
+    const prices: PriceSourceStruct[] = [];
+    prices.push({
+      crossPrice: crossAddr,
+      decimals: 18,
+      feedType: PriceFeedType.ChainLinkV3,
+      feedConstValue: 0,
+      feedContract: chainlinkOracle.address,
+    });
+    const assets: string[] = [];
+    assets.push(tokenAddr);
+
+    await user1oracle.setPriceSources(assets, prices);
+    return chainlinkOracle;
+  };
 
   before(async () => {
     user1 = testEnv.users[1];
@@ -39,7 +61,8 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
     proxyCatalog = await Factories.ProxyCatalog.deploy(controller.address);
     approvalCatalog = await Factories.ApprovalCatalogV1.deploy(controller.address);
     cc = await Factories.MockERC20.deploy('Collateral Currency', 'CC', 18);
-    token = await Factories.MockERC20.deploy('Token', 'TKN =---', 18);
+    token = await Factories.MockERC20.deploy('Token', 'TKN', 18);
+    token2 = await Factories.MockERC20.deploy('Token2', 'TKN2', 9);
 
     oracle = await Factories.OracleRouterV1.deploy(controller.address, cc.address);
     user1oracle = oracle.connect(user1);
@@ -71,5 +94,31 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
     await user1oracle.setPriceSources(assets, prices);
     expect(await oracle.getAssetPrice(token.address)).eq(value);
     // console.log(await oracle.getConfig(token.address));
+  });
+
+  it('Chainlink price', async () => {
+    const value = BigNumber.from(10).pow(10);
+    const chainlinkOracle = await setChainlink(token.address, value, zeroAddress());
+    expect(await oracle.getAssetPrice(token.address)).eq(value);
+  });
+
+  it('Uniswap price', async () => {
+    const uniswapOracle = await Factories.MockUniswapV2.deploy(token.address, cc.address);
+    const value = BigNumber.from(10).pow(19);
+    await uniswapOracle.setReserves(BigNumber.from(10).pow(18).mul(1000), value.mul(1000));
+
+    const prices: PriceSourceStruct[] = [];
+    prices.push({
+      crossPrice: zeroAddress(),
+      decimals: 18,
+      feedType: PriceFeedType.UniSwapV2Pair,
+      feedConstValue: 0,
+      feedContract: uniswapOracle.address,
+    });
+    const assets: string[] = [];
+    assets.push(token.address);
+
+    await user1oracle.setPriceSources(assets, prices);
+    expect(await oracle.getAssetPrice(token.address)).eq(value);
   });
 });
