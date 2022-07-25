@@ -6,6 +6,8 @@ import '../interfaces/IManagedCollateralCurrency.sol';
 import './TokenDelegateBase.sol';
 
 contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDelegateBase {
+  address private _borrowManager;
+
   constructor(
     IAccessController acl,
     string memory name_,
@@ -58,5 +60,14 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
 
   function burn(address account, uint256 amount) external override onlyWithFlags(FLAG_BURN) {
     _burn(account, amount);
+  }
+
+  function borrowManager() external view override returns (address) {
+    return _borrowManager;
+  }
+
+  function setBorrowManager(address borrowManager_) external onlyAdmin {
+    Value.require(borrowManager_ != address(0));
+    _borrowManager = borrowManager_;
   }
 }
