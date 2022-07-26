@@ -14,7 +14,7 @@ import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
-abstract contract YieldStakerBase is ICollateralBorrowManager, AccessHelper, Collateralized {
+abstract contract YieldStakerBase is AccessHelper, Collateralized {
   using SafeERC20 for IERC20;
   using Math for uint256;
   using WadRayMath for uint256;
@@ -53,7 +53,7 @@ abstract contract YieldStakerBase is ICollateralBorrowManager, AccessHelper, Col
   function registerAsset(address asset) external onlyCollateralCurrency {}
 
   function _ensureActiveAsset(address asset) private view {
-    _ensureActiveAsset(_assetBalances[ICollateralizedAsset(asset)].flags, false);
+    // _ensureActiveAsset(_assetBalances[ICollateralizedAsset(asset)].flags, false);
   }
 
   function _ensureActiveAsset(uint16 assetFlags, bool ignorePause) private view {
@@ -126,21 +126,27 @@ abstract contract YieldStakerBase is ICollateralBorrowManager, AccessHelper, Col
 
   function internalSetTimeIntegral(uint256 totalIntegral, uint32 lastUpdatedAt) internal virtual;
 
-  function internalGetRateIntegral(uint32 from, uint32 till) internal view virtual returns (uint256);
+  function internalGetRateIntegral(uint32 from, uint32 till) internal virtual returns (uint256);
 
-  function _syncTotal() private view returns (uint256 totalIntegral, uint256 totalStaked) {
+  function internalCalcRateIntegral(uint32 from, uint32 till) internal view virtual returns (uint256);
+
+  function _syncTotal() private view returns (uint256 totalIntegral) {
+    uint32 lastUpdatedAt;
+    (totalIntegral, lastUpdatedAt) = internalGetTimeIntegral();
+
+    uint32 at = uint32(block.timestamp);
+    if (at != lastUpdatedAt) {
+      totalIntegral = totalIntegral + internalCalcRateIntegral(lastUpdatedAt, at).rayDiv(_totalStakedCollateral);
+    }
+  }
+
+  function _updateTotal() private returns (uint256 totalIntegral, uint256 totalStaked) {
     uint32 lastUpdatedAt;
     (totalIntegral, lastUpdatedAt) = internalGetTimeIntegral();
 
     uint32 at = uint32(block.timestamp);
     if (at != lastUpdatedAt) {
       totalIntegral = totalIntegral + internalGetRateIntegral(lastUpdatedAt, at).rayDiv(totalStaked = _totalStakedCollateral);
-    }
-  }
-
-  function _updateTotal() private returns (uint256 totalIntegral, uint256 totalStaked) {
-    (totalIntegral, totalStaked) = _syncTotal();
-    if (totalStaked != 0) {
       internalSetTimeIntegral(totalIntegral, uint32(block.timestamp));
     }
   }
@@ -240,7 +246,7 @@ abstract contract YieldStakerBase is ICollateralBorrowManager, AccessHelper, Col
     }
 
     yieldBalance = _userBalances[account].yieldBalance;
-    (uint256 totalIntegral, ) = _syncTotal();
+    uint256 totalIntegral = _syncTotal();
 
     for (uint256 i = 0; ; i++) {
       address asset = internalGetUserAsset(i);
@@ -355,11 +361,7 @@ abstract contract YieldStakerBase is ICollateralBorrowManager, AccessHelper, Col
 
   function internalPullYield(uint256 availableYield, uint256 requestedYield) internal virtual returns (bool);
 
-  modifier onlyTrustedBorrower(address) {
-    _;
-  }
-
-  function totalStakedCollateral() external view returns (uint256) {
+  function totalStakedCollateral() public view returns (uint256) {
     return _totalStakedCollateral;
   }
 
@@ -367,22 +369,14 @@ abstract contract YieldStakerBase is ICollateralBorrowManager, AccessHelper, Col
     return _totalBorrowedCollateral;
   }
 
-  function verifyBorrowUnderlying(address account, uint256 value)
-    external
-    override
-    onlyLiquidityProvider
-    onlyTrustedBorrower(account)
-    returns (bool)
-  {
+  function internalApplyBorrow(uint256 value) internal {
     uint256 totalBorrowed = _totalBorrowedCollateral + value;
     State.require(totalBorrowed <= _totalStakedCollateral);
     _totalBorrowedCollateral = totalBorrowed.asUint128();
-    return true;
   }
 
-  function verifyRepayUnderlying(address account, uint256 value) external override onlyLiquidityProvider onlyTrustedBorrower(account) returns (bool) {
+  function internalApplyRepay(uint256 value) internal {
     _totalBorrowedCollateral = uint128(_totalBorrowedCollateral - value);
-    return true;
   }
 }
 

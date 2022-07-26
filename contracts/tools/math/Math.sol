@@ -22,6 +22,11 @@ library Math {
     return y > z ? x + y - z : x + z - y;
   }
 
+  function asUint224(uint256 x) internal pure returns (uint224) {
+    require(x <= type(uint224).max);
+    return uint224(x);
+  }
+
   function asUint128(uint256 x) internal pure returns (uint128) {
     require(x <= type(uint128).max);
     return uint128(x);
