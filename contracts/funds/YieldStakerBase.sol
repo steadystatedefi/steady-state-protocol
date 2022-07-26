@@ -37,7 +37,8 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   mapping(ICollateralizedAsset => AssetBalance) private _assetBalances;
 
   struct UserBalance {
-    uint256 yieldBalance;
+    uint128 yieldBalance;
+    uint16 assetCount;
   }
 
   struct UserAssetBalance {
@@ -48,9 +49,11 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   mapping(address => UserBalance) private _userBalances;
   mapping(ICollateralizedAsset => mapping(address => UserAssetBalance)) private _userAssetBalances;
-  mapping(address => mapping(uint16 => ICollateralizedAsset)) private _userAssets;
+  mapping(address => mapping(uint256 => ICollateralizedAsset)) private _userAssets;
 
-  function registerAsset(address asset) external onlyCollateralCurrency {}
+  function registerAsset(address asset) external onlyCollateralCurrency {
+    // TODO
+  }
 
   function _ensureActiveAsset(address asset) private view {
     // _ensureActiveAsset(_assetBalances[ICollateralizedAsset(asset)].flags, false);
@@ -225,37 +228,53 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
     if (d != 0 && balanceToken != 0) {
       balance.assetIntegral = assetIntegral;
-      _userBalances[account].yieldBalance += d.rayMul(balanceToken);
+      _userBalances[account].yieldBalance += d.rayMul(balanceToken).asUint128();
     }
 
-    internalTrackUserAssets(asset, account, balanceToken, balance.balanceToken = (balanceToken - decAmount) + incAmount);
+    mapping(uint256 => ICollateralizedAsset) storage listing = _userAssets[account];
+
+    uint256 balanceAfter = (balanceToken - decAmount) + incAmount;
+    if (balanceAfter == 0) {
+      if (balanceToken != 0) {
+        // remove asset
+        uint16 index = _userBalances[account].assetCount--;
+        uint16 assetIndex = balance.assetIndex;
+        if (assetIndex != index) {
+          State.require(assetIndex < index);
+          ICollateralizedAsset a = listing[assetIndex] = listing[index];
+          _userAssetBalances[a][account].assetIndex = assetIndex;
+        } else {
+          delete _userAssetBalances[asset][account];
+          delete listing[assetIndex];
+        }
+      }
+    } else if (balanceToken == 0) {
+      // add asset
+      uint16 index = ++_userBalances[account].assetCount;
+      balance.assetIndex = index;
+      _userAssets[account][index] = asset;
+    }
+    balance.balanceToken = balanceAfter.asUint112();
   }
-
-  function internalTrackUserAssets(
-    ICollateralizedAsset asset,
-    address account,
-    uint256 balanceBefore,
-    uint256 balanceAfter
-  ) internal virtual;
-
-  function internalGetUserAsset(uint256 index) internal view virtual returns (address);
 
   function balanceOf(address account) external view returns (uint256 yieldBalance) {
     if (account == address(0)) {
       return 0;
     }
 
-    yieldBalance = _userBalances[account].yieldBalance;
+    UserBalance storage ub = _userBalances[account];
+    mapping(uint256 => ICollateralizedAsset) storage listing = _userAssets[account];
+
+    yieldBalance = ub.yieldBalance;
     uint256 totalIntegral = _syncTotal();
 
-    for (uint256 i = 0; ; i++) {
-      address asset = internalGetUserAsset(i);
-      if (asset == address(0)) {
-        break;
-      }
-      AssetBalance memory assetBalance = _syncAsset(ICollateralizedAsset(asset), true, totalIntegral);
+    for (uint256 i = ub.assetCount; i > 0; i--) {
+      ICollateralizedAsset asset = listing[i];
+      State.require(address(asset) != address(0));
 
-      UserAssetBalance storage balance = _userAssetBalances[ICollateralizedAsset(asset)][account];
+      AssetBalance memory assetBalance = _syncAsset(asset, true, totalIntegral);
+
+      UserAssetBalance storage balance = _userAssetBalances[asset][account];
 
       uint256 d = assetBalance.assetIntegral - balance.assetIntegral;
       if (d != 0) {
@@ -273,16 +292,15 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   function claimYield(address to) external returns (uint256) {
     address account = msg.sender;
-    uint256 yieldBalance = _claimCollectedYield(account);
+    (uint256 yieldBalance, uint256 i) = _claimCollectedYield(account);
 
     (uint256 totalIntegral, ) = _updateTotal();
+    mapping(uint256 => ICollateralizedAsset) storage listing = _userAssets[account];
 
-    for (uint256 i = 0; ; i++) {
-      address asset = internalGetUserAsset(i);
-      if (asset == address(0)) {
-        break;
-      }
-      yieldBalance += _claimYield(ICollateralizedAsset(asset), account, totalIntegral);
+    for (; i > 0; i--) {
+      ICollateralizedAsset asset = listing[i];
+      State.require(address(asset) != address(0));
+      yieldBalance += _claimYield(asset, account, totalIntegral);
     }
 
     return _mintYield(account, yieldBalance, to);
@@ -290,7 +308,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   function claimYieldFrom(address to, address[] calldata assets) external returns (uint256) {
     address account = msg.sender;
-    uint256 yieldBalance = _claimCollectedYield(account);
+    (uint256 yieldBalance, ) = _claimCollectedYield(account);
 
     (uint256 totalIntegral, ) = _updateTotal();
 
@@ -304,13 +322,15 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     return _mintYield(account, yieldBalance, to);
   }
 
-  function _claimCollectedYield(address account) private returns (uint256 yieldBalance) {
+  function _claimCollectedYield(address account) private returns (uint256 yieldBalance, uint16) {
     Value.require(account != address(0));
 
-    yieldBalance = _userBalances[account].yieldBalance;
+    UserBalance storage ub = _userBalances[account];
+    yieldBalance = ub.yieldBalance;
     if (yieldBalance > 0) {
       _userBalances[account].yieldBalance = 0;
     }
+    return (yieldBalance, ub.assetCount);
   }
 
   function _claimYield(
@@ -347,7 +367,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
           availableYield = cc.balanceOf(address(this));
         }
         if (availableYield < amount) {
-          _userBalances[account].yieldBalance += amount - availableYield;
+          _userBalances[account].yieldBalance += (amount - availableYield).asUint128();
           amount = availableYield;
         }
         if (amount == 0) {
