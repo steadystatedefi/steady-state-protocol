@@ -7,13 +7,14 @@ import '../tools/math/Math.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
+import '../interfaces/ICollateralBorrowManager.sol';
 import '../access/AccessHelper.sol';
 
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
-abstract contract YieldStakerBase is AccessHelper, Collateralized {
+abstract contract YieldStakerBase is ICollateralBorrowManager, AccessHelper, Collateralized {
   using SafeERC20 for IERC20;
   using Math for uint256;
   using WadRayMath for uint256;
@@ -22,12 +23,8 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   EnumerableSet.AddressSet private _actuaries;
 
-  uint128 private _timeIntegral;
-  uint32 private _lastUpdatedAt;
-  uint96 private _totalYieldRate;
-
-  uint256 private _totalStakedCollateral;
-  // uint256 private _totalInvestedCollateral;
+  uint128 private _totalStakedCollateral;
+  uint128 private _totalBorrowedCollateral;
 
   struct AssetBalance {
     uint16 flags;
@@ -125,20 +122,26 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     _updateAsset(asset, collateralFactor, 0, 0, ignorePause);
   }
 
-  function _syncTotal() private view returns (uint256 totalIntegral, uint256 totalStakedCollateral) {
-    totalIntegral = _timeIntegral;
+  function internalGetTimeIntegral() internal view virtual returns (uint256 totalIntegral, uint32 lastUpdatedAt);
 
-    uint256 timeDelta = uint32(block.timestamp) - _lastUpdatedAt;
-    if (timeDelta != 0) {
-      totalIntegral = totalIntegral + (_totalYieldRate * timeDelta).rayDiv(totalStakedCollateral = _totalStakedCollateral);
+  function internalSetTimeIntegral(uint256 totalIntegral, uint32 lastUpdatedAt) internal virtual;
+
+  function internalGetRateIntegral(uint32 from, uint32 till) internal view virtual returns (uint256);
+
+  function _syncTotal() private view returns (uint256 totalIntegral, uint256 totalStaked) {
+    uint32 lastUpdatedAt;
+    (totalIntegral, lastUpdatedAt) = internalGetTimeIntegral();
+
+    uint32 at = uint32(block.timestamp);
+    if (at != lastUpdatedAt) {
+      totalIntegral = totalIntegral + internalGetRateIntegral(lastUpdatedAt, at).rayDiv(totalStaked = _totalStakedCollateral);
     }
   }
 
-  function _updateTotal() private returns (uint256 totalIntegral, uint256 totalStakedCollateral) {
-    (totalIntegral, totalStakedCollateral) = _syncTotal();
-    if (totalStakedCollateral != 0) {
-      _timeIntegral = totalIntegral.asUint128();
-      _lastUpdatedAt = uint32(block.timestamp);
+  function _updateTotal() private returns (uint256 totalIntegral, uint256 totalStaked) {
+    (totalIntegral, totalStaked) = _syncTotal();
+    if (totalStaked != 0) {
+      internalSetTimeIntegral(totalIntegral, uint32(block.timestamp));
     }
   }
 
@@ -174,7 +177,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   ) private returns (uint128) {
     AssetBalance memory assetBalance = _assetBalances[asset];
 
-    (uint256 totalIntegral, uint256 totalStakedCollateral) = _updateTotal();
+    (uint256 totalIntegral, uint256 totalStaked) = _updateTotal();
 
     uint256 prevCollateral = uint256(assetBalance.balanceToken).rayMul(assetBalance.collateralFactor);
 
@@ -187,13 +190,10 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     _assetBalances[asset] = assetBalance;
 
     if (newCollateral != prevCollateral) {
-      if (totalStakedCollateral == 0) {
-        totalStakedCollateral = _totalStakedCollateral;
+      if (totalStaked == 0) {
+        totalStaked = _totalStakedCollateral;
       }
-      internalOnStakedCollateralChanged(
-        totalStakedCollateral,
-        _totalStakedCollateral = totalStakedCollateral.addDelta(newCollateral, prevCollateral)
-      );
+      internalOnStakedCollateralChanged(totalStaked, _totalStakedCollateral = totalStaked.addDelta(newCollateral, prevCollateral).asUint128());
     }
 
     return assetBalance.assetIntegral;
@@ -355,49 +355,35 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   function internalPullYield(uint256 availableYield, uint256 requestedYield) internal virtual returns (bool);
 
-  // modifier onlyYieldAccountant() {
-  //   _;
-  // }
+  modifier onlyTrustedBorrower(address) {
+    _;
+  }
 
-  // function addYield(
-  //   address token,
-  //   uint256 amount,
-  //   uint256 anticipatedRate,
-  //   uint32 anticipatedTill
-  // ) external onlyYieldAccountant {
-  //   // Value.require(_delegates[token] == address(0));
-  //   // SafeERC20.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
-  //   // uint256 totalReportedBalance = _totalReportedBalance;
-  //   // if (totalReportedBalance > 0) {
-  //   //   CalcWeightedRateLib.TotalState memory totalRate = _totalRate;
-  //   //   for (uint256 i = _actuaries.length();i > 0;) {
-  //   //     i--;
-  //   //     _addAssetYield(_actuaries.at(i), totalRate, totalReportedBalance, token, amount, anticipatedRate);
-  //   //   }
-  //   // } else {
-  //   //   // remember yield
-  //   // }
-  // }
+  function totalStakedCollateral() external view returns (uint256) {
+    return _totalStakedCollateral;
+  }
 
-  // function reportCollateralBalance(uint256 balance) external override {
-  //   Access.require(_actuaries.contains(msg.sender));
-  //   _reportCollateralBalance(msg.sender, balance);
-  // }
+  function totalBorrowedCollateral() external view returns (uint256) {
+    return _totalBorrowedCollateral;
+  }
 
-  // function _reportCollateralBalance(address asset, uint256 balance) private {
-  //   uint256 prevBalance = _assetBalances[asset];
-  //   if (balance != prevBalance) {
-  //     _assetBalances[asset] = balance;
+  function verifyBorrowUnderlying(address account, uint256 value)
+    external
+    override
+    onlyLiquidityProvider
+    onlyTrustedBorrower(account)
+    returns (bool)
+  {
+    uint256 totalBorrowed = _totalBorrowedCollateral + value;
+    State.require(totalBorrowed <= _totalStakedCollateral);
+    _totalBorrowedCollateral = totalBorrowed.asUint128();
+    return true;
+  }
 
-  //     uint256 totalBalance = _totalReportedBalance;
-  //     _totalRate.syncTotalState(totalBalance, uint32(block.timestamp));
-  //     _totalReportedBalance = totalBalance.addDelta(balance, prevBalance);
-  //   }
-  // }
-
-  // function getYieldBalance() external view override returns (uint256 yieldBalance, uint256 yieldRate) {
-
-  // }
+  function verifyRepayUnderlying(address account, uint256 value) external override onlyLiquidityProvider onlyTrustedBorrower(account) returns (bool) {
+    _totalBorrowedCollateral = uint128(_totalBorrowedCollateral - value);
+    return true;
+  }
 }
 
 interface ICollateralizedAsset is ICollateralized, IERC20 {

@@ -361,7 +361,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
     ICollateralBorrowManager bm = ICollateralBorrowManager(IManagedCollateralCurrency(collateral()).borrowManager());
     uint256 value = amount.wadMul(internalPriceOf(token));
     State.require(value > 0);
-    State.require(bm.borrowUnderlying(msg.sender, value));
+    State.require(bm.verifyBorrowUnderlying(msg.sender, value));
 
     BorrowBalance storage balance = _borrowedBalances[token][msg.sender];
     require((balance.amount += uint128(amount)) >= amount);
@@ -385,7 +385,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
     balance.value = uint128(prevValue - value);
 
     ICollateralBorrowManager bm = ICollateralBorrowManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    State.require(bm.repayUnderlying(msg.sender, value));
+    State.require(bm.verifyRepayUnderlying(msg.sender, value));
   }
 }
 

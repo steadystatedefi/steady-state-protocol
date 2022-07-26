@@ -32,6 +32,11 @@ library Math {
     return uint112(x);
   }
 
+  function asUint96(uint256 x) internal pure returns (uint96) {
+    require(x <= type(uint96).max);
+    return uint96(x);
+  }
+
   function sqrt(uint256 y) internal pure returns (uint256 z) {
     if (y > 3) {
       z = y;
