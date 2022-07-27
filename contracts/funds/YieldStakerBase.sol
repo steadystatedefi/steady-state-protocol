@@ -133,23 +133,27 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   function internalCalcRateIntegral(uint32 from, uint32 till) internal view virtual returns (uint256);
 
+  function internalAddYieldExcess(uint256 value) internal virtual {
+    _updateTotal(value);
+  }
+
   function _syncTotal() private view returns (uint256 totalIntegral) {
     uint32 lastUpdatedAt;
     (totalIntegral, lastUpdatedAt) = internalGetTimeIntegral();
 
     uint32 at = uint32(block.timestamp);
     if (at != lastUpdatedAt) {
-      totalIntegral = totalIntegral + internalCalcRateIntegral(lastUpdatedAt, at).rayDiv(_totalStakedCollateral);
+      totalIntegral += internalCalcRateIntegral(lastUpdatedAt, at).rayDiv(_totalStakedCollateral);
     }
   }
 
-  function _updateTotal() private returns (uint256 totalIntegral, uint256 totalStaked) {
+  function _updateTotal(uint256 extra) private returns (uint256 totalIntegral, uint256 totalStaked) {
     uint32 lastUpdatedAt;
     (totalIntegral, lastUpdatedAt) = internalGetTimeIntegral();
 
     uint32 at = uint32(block.timestamp);
     if (at != lastUpdatedAt) {
-      totalIntegral = totalIntegral + internalGetRateIntegral(lastUpdatedAt, at).rayDiv(totalStaked = _totalStakedCollateral);
+      totalIntegral += (extra + internalGetRateIntegral(lastUpdatedAt, at)).rayDiv(totalStaked = _totalStakedCollateral);
       internalSetTimeIntegral(totalIntegral, uint32(block.timestamp));
     }
   }
@@ -186,7 +190,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   ) private returns (uint128) {
     AssetBalance memory assetBalance = _assetBalances[asset];
 
-    (uint256 totalIntegral, uint256 totalStaked) = _updateTotal();
+    (uint256 totalIntegral, uint256 totalStaked) = _updateTotal(0);
 
     uint256 prevCollateral = uint256(assetBalance.balanceToken).rayMul(assetBalance.collateralFactor);
 
@@ -294,7 +298,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     address account = msg.sender;
     (uint256 yieldBalance, uint256 i) = _claimCollectedYield(account);
 
-    (uint256 totalIntegral, ) = _updateTotal();
+    (uint256 totalIntegral, ) = _updateTotal(0);
     mapping(uint256 => ICollateralizedAsset) storage listing = _userAssets[account];
 
     for (; i > 0; i--) {
@@ -310,7 +314,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     address account = msg.sender;
     (uint256 yieldBalance, ) = _claimCollectedYield(account);
 
-    (uint256 totalIntegral, ) = _updateTotal();
+    (uint256 totalIntegral, ) = _updateTotal(0);
 
     for (uint256 i = assets.length; i > 0; ) {
       i--;

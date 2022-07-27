@@ -22,22 +22,13 @@ contract YieldDistributorBase is ICollateralBorrowManager, YieldStakerBase, Yiel
   using PercentageMath for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 
-  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
-
-  function internalGetUserAsset(uint256 index) internal view override returns (address) {}
-
-  function internalTrackUserAssets(
-    ICollateralizedAsset asset,
-    address account,
-    uint256 balanceBefore,
-    uint256 balanceAfter
-  ) internal override {}
-
   uint224 private _totalIntegral;
   uint32 private _lastUpdatedAt;
 
-  function internalAddYieldExcess(uint256 value) internal override {
-    _totalIntegral += value.rayDiv(totalStakedCollateral()).asUint224();
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
+
+  function internalAddYieldExcess(uint256 value) internal override(YieldStakerBase, YieldStreamerBase) {
+    YieldStakerBase.internalAddYieldExcess(value);
   }
 
   function internalGetTimeIntegral() internal view override returns (uint256 totalIntegral, uint32 lastUpdatedAt) {
@@ -49,18 +40,23 @@ contract YieldDistributorBase is ICollateralBorrowManager, YieldStakerBase, Yiel
   }
 
   function internalGetRateIntegral(uint32 from, uint32 till) internal override(YieldStakerBase, YieldStreamerBase) returns (uint256) {
-    return super.internalGetRateIntegral(from, till);
+    return YieldStreamerBase.internalGetRateIntegral(from, till);
   }
 
   function internalCalcRateIntegral(uint32 from, uint32 till) internal view override(YieldStakerBase, YieldStreamerBase) returns (uint256) {
-    return super.internalCalcRateIntegral(from, till);
+    return YieldStreamerBase.internalCalcRateIntegral(from, till);
   }
 
   function internalPullYield(uint256 availableYield, uint256 requestedYield) internal override returns (bool) {
     // return false
   }
 
-  modifier onlyTrustedBorrower(address) {
+  function _onlyTrustedBorrower(address addr) private view {
+    Access.require(hasAnyAcl(addr, AccessFlags.LIQUIDITY_BORROWER));
+  }
+
+  modifier onlyTrustedBorrower(address addr) {
+    _onlyTrustedBorrower(addr);
     _;
   }
 
