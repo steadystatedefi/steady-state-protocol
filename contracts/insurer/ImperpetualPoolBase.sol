@@ -44,6 +44,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   function internalSubrogated(uint256 value) internal override {
     internalSetExcess(_excessCoverage + value);
+    internalSyncStake();
   }
 
   function updateCoverageOnCancel(
@@ -58,6 +59,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
     delete _insuredBalances[insured];
     uint256 givenValue = givenOutValue + premiumDebt;
+    bool syncStake;
 
     if (givenValue != payoutValue) {
       if (givenValue > payoutValue) {
@@ -69,6 +71,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
         // only the outstanding premium debt should be deducted, an outstanding coverage debt is managed as reduction of coverage itself
         if (premiumDebt > recovered) {
           _decrementTotalValue(premiumDebt - recovered);
+          syncStake = true;
         }
 
         recoveredValue += recovered;
@@ -95,6 +98,10 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     if (recoveredValue > 0) {
       internalSetExcess(_excessCoverage + recoveredValue);
       internalOnCoverageRecovered();
+      syncStake = true;
+    }
+    if (syncStake) {
+      internalSyncStake();
     }
 
     return payoutValue;
@@ -128,17 +135,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     return receivedCoverage;
   }
 
-  function _toInt128(uint256 v) private pure returns (int128) {
-    require(v <= type(uint128).max);
-    return int128(uint128(v));
-  }
-
   function _decrementTotalValue(uint256 valueLoss) private {
-    _valueAdjustment -= _toInt128(valueLoss);
+    _valueAdjustment -= valueLoss.asInt128();
   }
 
   function _incrementTotalValue(uint256 valueGain) private {
-    _valueAdjustment += _toInt128(valueGain);
+    _valueAdjustment += valueGain.asInt128();
   }
 
   /// @dev Attempt to take the excess coverage and fill batches
@@ -225,7 +227,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   ) internal returns (uint256 burntAmount) {
     require(coverage.totalPremium >= _burntPremium + value);
     burntAmount = _burnValue(account, value, coverage);
-    _burntPremium += to128(value);
+    _burntPremium += value.asUint128();
   }
 
   function _burnCoverage(
@@ -234,12 +236,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     address recepient,
     DemandedCoverage memory coverage
   ) internal returns (uint256 burntAmount) {
-    // NB! removed for performance reasons
+    // NB! removed for performance reasons - use carefully
     // Value.require(value <= _calcAvailableUserDrawdown(totalCovered + pendingCovered));
 
     burntAmount = _burnValue(account, value, coverage);
 
-    _burntDrawdown += to128(value);
+    _burntDrawdown += value.asUint128();
     transferCollateral(recepient, value);
   }
 
@@ -260,13 +262,11 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   }
 
   function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256) {
-    (uint256 totalCovered, uint256 pendingCovered) = internalGetCoveredTotals();
-    return __calcAvailableDrawdown(totalCovered + pendingCovered + extra, PercentageMath.ONE - _params.coveragePrepayPct);
+    return __calcAvailableDrawdown(_coveredTotal() + extra, PercentageMath.ONE - _params.coveragePrepayPct);
   }
 
   function _calcAvailableUserDrawdown() internal view returns (uint256) {
-    (uint256 totalCovered, uint256 pendingCovered) = internalGetCoveredTotals();
-    return _calcAvailableUserDrawdown(totalCovered + pendingCovered);
+    return _calcAvailableUserDrawdown(_coveredTotal());
   }
 
   function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256) {

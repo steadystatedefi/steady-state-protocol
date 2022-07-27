@@ -69,16 +69,16 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   ) external onlySelf {
     internalAdjustCoverage(valueLoss, excess);
     if (collateralAsPremium > 0) {
-      internalCollateralAsPremium(collateralAsPremium);
+      internalAddCollateralAsPremium(collateralAsPremium);
     }
     if (excess > 0) {
       internalOnCoverageRecovered();
     }
   }
 
-  function internalCollateralAsPremium(uint256 amount) internal virtual {
+  function internalAddCollateralAsPremium(uint256 amount) internal virtual {
     amount;
-    // TODO internalCollateralAsPremium
+    // TODO internalAddCollateralAsPremium
     Errors.notImplemented();
   }
 

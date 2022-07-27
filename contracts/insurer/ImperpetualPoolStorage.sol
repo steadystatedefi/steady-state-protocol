@@ -7,6 +7,7 @@ import '../libraries/Balances.sol';
 import './WeightedPoolBase.sol';
 
 abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase {
+  using Math for uint256;
   using WadRayMath for uint256;
 
   mapping(address => uint256) internal _insuredBalances; // [insured]
@@ -19,13 +20,8 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
   /// @dev decreased on losses (e.g. premium underpaid or collateral loss), increased on external value streams, e.g. collateral yield
   int128 internal _valueAdjustment;
 
-  function totalSupply() public view override returns (uint256) {
+  function totalSupply() public view override(IERC20, WeightedPoolBase) returns (uint256) {
     return _totalSupply;
-  }
-
-  function to128(uint256 v) internal pure returns (uint128) {
-    require(v >> 128 == 0); // TODO overflow error
-    return uint128(v);
   }
 
   function _mint(
@@ -34,7 +30,7 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
     uint256 value
   ) internal {
     value;
-    uint128 amount = to128(amount256);
+    uint128 amount = amount256.asUint128();
 
     emit Transfer(address(0), account, amount);
     _totalSupply += amount;
@@ -46,7 +42,7 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
     uint256 amount256,
     uint256 value
   ) internal {
-    uint128 amount = to128(amount256);
+    uint128 amount = amount256.asUint128();
 
     emit Transfer(account, address(0), amount);
     _balances[account].balance -= amount;
