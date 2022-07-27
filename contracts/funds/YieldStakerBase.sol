@@ -104,13 +104,13 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     Value.require(to != address(0));
 
     if (amount == type(uint256).max) {
-      amount = IYieldStakeAsset(asset).balanceOf(msg.sender);
+      amount = IERC20(asset).balanceOf(msg.sender);
     }
     if (amount == 0) {
       return;
     }
 
-    SafeERC20.safeTransferFrom(IYieldStakeAsset(asset), msg.sender, address(this), amount);
+    SafeERC20.safeTransferFrom(IERC20(asset), msg.sender, address(this), amount);
 
     _updateAssetAndUser(IYieldStakeAsset(asset), amount.asUint112(), 0, to);
   }
@@ -130,7 +130,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
 
     _updateAssetAndUser(IYieldStakeAsset(asset), 0, amount.asUint112(), msg.sender);
-    SafeERC20.safeTransfer(IYieldStakeAsset(asset), to, amount);
+    SafeERC20.safeTransfer(IERC20(asset), to, amount);
   }
 
   function syncStakeAsset(address asset) external override onlyUnpausedAsset(asset, true) {

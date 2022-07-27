@@ -12,7 +12,15 @@ import './WeightedPoolExtension.sol';
 import './JoinablePoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
-abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumActuary, Delegator, ERC1363ReceiverBase, WeightedPoolStorage {
+abstract contract WeightedPoolBase is
+  IJoinableBase,
+  IInsurerPoolBase,
+  IPremiumActuary,
+  IYieldStakeAsset,
+  Delegator,
+  ERC1363ReceiverBase,
+  WeightedPoolStorage
+{
   address internal immutable _extension;
   address internal immutable _joinExtension;
 
@@ -159,9 +167,9 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
     return totalCovered + pendingCovered;
   }
 
-  function totalSupply() public view virtual returns (uint256);
+  function totalSupply() public view virtual override returns (uint256);
 
-  function collateralSupply() public view returns (uint256) {
+  function collateralSupply() public view override returns (uint256) {
     return _coveredTotal() + _excessCoverage;
   }
 }
