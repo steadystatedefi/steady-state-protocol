@@ -149,7 +149,7 @@ abstract contract YieldStreamerBase is Collateralized {
     }
   }
 
-  function internalPullYield(uint256 availableYield, uint256 requestedYield) internal returns (bool foundMore) {
+  function internalPullYield(uint256 availableYield, uint256 requestedYield) internal virtual returns (bool foundMore) {
     uint256 count = _pullableCount;
     if (count == 0) {
       return false;
