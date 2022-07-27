@@ -54,12 +54,12 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
     return YieldStreamerBase.internalCalcRateIntegral(from, till);
   }
 
-  function internalPullYield(uint256 availableYield, uint256 requestedYield) internal override returns (bool) {
-    // return false
+  function internalPullYield(uint256 availableYield, uint256 requestedYield) internal override(YieldStakerBase, YieldStreamerBase) returns (bool) {
+    return YieldStreamerBase.internalPullYield(availableYield, requestedYield);
   }
 
   function _onlyTrustedBorrower(address addr) private view {
-    Access.require(hasAnyAcl(addr, AccessFlags.LIQUIDITY_BORROWER));
+    Access.require(hasAnyAcl(addr, AccessFlags.LIQUIDITY_BORROWER) && internalIsYieldSource(addr));
   }
 
   modifier onlyTrustedBorrower(address addr) {
@@ -82,4 +82,6 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
     internalApplyRepay(value);
     return true;
   }
+
+  // TODO add yield source, add yield
 }
