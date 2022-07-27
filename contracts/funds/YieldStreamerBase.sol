@@ -7,7 +7,7 @@ import '../tools/math/Math.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
-import '../interfaces/ICollateralBorrowManager.sol';
+import '../interfaces/ICollateralStakeManager.sol';
 import '../access/AccessHelper.sol';
 
 import '../access/AccessHelper.sol';

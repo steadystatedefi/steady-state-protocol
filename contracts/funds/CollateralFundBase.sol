@@ -6,7 +6,7 @@ import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
-import '../interfaces/ICollateralBorrowManager.sol';
+import '../interfaces/ICollateralStakeManager.sol';
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
@@ -358,7 +358,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
     _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
     Value.require(amount > 0);
 
-    ICollateralBorrowManager bm = ICollateralBorrowManager(IManagedCollateralCurrency(collateral()).borrowManager());
+    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
     uint256 value = amount.wadMul(internalPriceOf(token));
     State.require(value > 0);
     State.require(bm.verifyBorrowUnderlying(msg.sender, value));
@@ -384,7 +384,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper {
     uint256 value = (prevValue * amount) / prevAmount;
     balance.value = uint128(prevValue - value);
 
-    ICollateralBorrowManager bm = ICollateralBorrowManager(IManagedCollateralCurrency(collateral()).borrowManager());
+    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
     State.require(bm.verifyRepayUnderlying(msg.sender, value));
   }
 }

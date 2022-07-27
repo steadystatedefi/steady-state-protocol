@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../access/AccessHelper.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
+import './interfaces/IManagedYieldDistributor.sol';
 import './TokenDelegateBase.sol';
 
 contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDelegateBase {
@@ -17,6 +18,14 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
 
   function registerLiquidityProvider(address account) external aclHas(AccessFlags.LP_DEPLOY) {
     internalSetFlags(account, FLAG_MINT | FLAG_BURN);
+    _registerStakeAsset(account, true);
+  }
+
+  function _registerStakeAsset(address account, bool register) private {
+    address bm = borrowManager();
+    if (bm != address(0)) {
+      IManagedYieldDistributor(bm).registerStakeAsset(account, register);
+    }
   }
 
   function isLiquidityProvider(address account) external view override returns (bool) {
@@ -33,6 +42,8 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
       Access.require(hasAnyAcl(msg.sender, internalGetFlags(account) == FLAG_TRANSFER_CALLBACK ? AccessFlags.INSURER_ADMIN : AccessFlags.LP_DEPLOY));
     }
     internalUnsetFlags(account);
+
+    _registerStakeAsset(account, false);
   }
 
   function mint(address account, uint256 amount) external override onlyWithFlags(FLAG_MINT) {
@@ -62,7 +73,7 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
     _burn(account, amount);
   }
 
-  function borrowManager() external view override returns (address) {
+  function borrowManager() public view override returns (address) {
     return _borrowManager;
   }
 

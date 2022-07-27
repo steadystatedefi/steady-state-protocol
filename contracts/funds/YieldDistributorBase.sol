@@ -7,15 +7,14 @@ import '../tools/math/Math.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
-import '../interfaces/ICollateralBorrowManager.sol';
 import '../access/AccessHelper.sol';
 
 import '../access/AccessHelper.sol';
-import './interfaces/ICollateralFund.sol';
+import './interfaces/IManagedYieldDistributor.sol';
 import './YieldStakerBase.sol';
 import './YieldStreamerBase.sol';
 
-contract YieldDistributorBase is ICollateralBorrowManager, YieldStakerBase, YieldStreamerBase {
+contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, YieldStreamerBase {
   using SafeERC20 for IERC20;
   using Math for uint256;
   using WadRayMath for uint256;
@@ -26,6 +25,14 @@ contract YieldDistributorBase is ICollateralBorrowManager, YieldStakerBase, Yiel
   uint32 private _lastUpdatedAt;
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
+
+  function registerStakeAsset(address asset, bool register) external override onlyCollateralCurrency {
+    if (register) {
+      internalAddAsset(asset);
+    } else {
+      internalRemoveAsset(asset);
+    }
+  }
 
   function internalAddYieldExcess(uint256 value) internal override(YieldStakerBase, YieldStreamerBase) {
     YieldStakerBase.internalAddYieldExcess(value);

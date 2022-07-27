@@ -7,14 +7,15 @@ import '../tools/math/Math.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
-import '../interfaces/ICollateralBorrowManager.sol';
+import '../interfaces/ICollateralStakeManager.sol';
+import '../interfaces/IYieldStakeAsset.sol';
 import '../access/AccessHelper.sol';
 
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
-abstract contract YieldStakerBase is AccessHelper, Collateralized {
+abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Collateralized {
   using SafeERC20 for IERC20;
   using Math for uint256;
   using WadRayMath for uint256;
@@ -26,15 +27,19 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   uint128 private _totalStakedCollateral;
   uint128 private _totalBorrowedCollateral;
 
+  uint16 private constant FLAG_ASSET_PRESENT = 1 << 0;
+  uint16 private constant FLAG_ASSET_REMOVED = 1 << 1;
+  uint16 private constant FLAG_ASSET_PAUSED = 1 << 2;
+
   struct AssetBalance {
     uint16 flags;
     uint112 collateralFactor;
-    uint128 balanceToken;
+    uint128 stakedTokenTotal;
     uint128 totalIntegral;
     uint128 assetIntegral;
   }
 
-  mapping(ICollateralizedAsset => AssetBalance) private _assetBalances;
+  mapping(IYieldStakeAsset => AssetBalance) private _assetBalances;
 
   struct UserBalance {
     uint128 yieldBalance;
@@ -43,76 +48,104 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
   struct UserAssetBalance {
     uint128 assetIntegral;
-    uint112 balanceToken;
+    uint112 stakedTokenAmount;
     uint16 assetIndex;
   }
 
   mapping(address => UserBalance) private _userBalances;
-  mapping(ICollateralizedAsset => mapping(address => UserAssetBalance)) private _userAssetBalances;
-  mapping(address => mapping(uint256 => ICollateralizedAsset)) private _userAssets;
+  mapping(IYieldStakeAsset => mapping(address => UserAssetBalance)) private _userAssetBalances;
+  mapping(address => mapping(uint256 => IYieldStakeAsset)) private _userAssets;
 
-  function registerAsset(address asset) external onlyCollateralCurrency {
-    // TODO
+  function internalAddAsset(address asset) internal {
+    Value.require(IYieldStakeAsset(asset).collateral() == collateral());
+
+    AssetBalance storage assetBalance = _assetBalances[IYieldStakeAsset(asset)];
+    State.require(assetBalance.flags == 0);
+
+    assetBalance.flags = FLAG_ASSET_PRESENT;
   }
 
-  function _ensureActiveAsset(address asset) private view {
-    // _ensureActiveAsset(_assetBalances[ICollateralizedAsset(asset)].flags, false);
+  function internalRemoveAsset(address asset) internal {
+    AssetBalance storage assetBalance = _assetBalances[IYieldStakeAsset(asset)];
+    uint16 flags = assetBalance.flags;
+    if (flags & (FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED) == FLAG_ASSET_PRESENT) {
+      _updateAsset(IYieldStakeAsset(asset), 1, 0, true);
+      assetBalance.flags = flags | FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED | FLAG_ASSET_PAUSED;
+    }
   }
 
-  function _ensureActiveAsset(uint16 assetFlags, bool ignorePause) private view {
-    // TODO State.require(assetFlags)
+  function _ensureActiveAsset(uint16 assetFlags, bool ignorePause) private pure {
+    State.require(
+      (assetFlags & (ignorePause ? FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED : FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED | FLAG_ASSET_PAUSED) ==
+        FLAG_ASSET_PRESENT)
+    );
+  }
+
+  function _ensureUnpausedAsset(address asset, bool mustBeActive) private view {
+    _ensureUnpausedAsset(_assetBalances[IYieldStakeAsset(asset)].flags, mustBeActive);
+  }
+
+  function _ensureUnpausedAsset(uint16 assetFlags, bool mustBeActive) private pure {
+    State.require(
+      (assetFlags & (mustBeActive ? FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED : FLAG_ASSET_PRESENT | FLAG_ASSET_PAUSED) == FLAG_ASSET_PRESENT)
+    );
+  }
+
+  modifier onlyUnpausedAsset(address asset, bool active) {
+    _ensureUnpausedAsset(asset, active);
+    _;
   }
 
   function stake(
     address asset,
     uint256 amount,
     address to
-  ) external {
+  ) external onlyUnpausedAsset(asset, true) {
     Value.require(to != address(0));
 
     if (amount == type(uint256).max) {
-      amount = ICollateralizedAsset(asset).balanceOf(msg.sender);
+      amount = IYieldStakeAsset(asset).balanceOf(msg.sender);
     }
     if (amount == 0) {
-      _ensureActiveAsset(asset);
       return;
     }
 
-    SafeERC20.safeTransferFrom(ICollateralizedAsset(asset), msg.sender, address(this), amount);
+    SafeERC20.safeTransferFrom(IYieldStakeAsset(asset), msg.sender, address(this), amount);
 
-    _updateAssetAndUser(ICollateralizedAsset(asset), amount.asUint112(), 0, to);
+    _updateAssetAndUser(IYieldStakeAsset(asset), amount.asUint112(), 0, to);
   }
 
   function unstake(
     address asset,
     uint256 amount,
     address to
-  ) external {
+  ) external onlyUnpausedAsset(asset, false) {
     Value.require(to != address(0));
 
     if (amount == type(uint256).max) {
-      amount = _userAssetBalances[ICollateralizedAsset(asset)][msg.sender].balanceToken;
+      amount = _userAssetBalances[IYieldStakeAsset(asset)][msg.sender].stakedTokenAmount;
     }
     if (amount == 0) {
-      _ensureActiveAsset(asset);
       return;
     }
 
-    _updateAssetAndUser(ICollateralizedAsset(asset), 0, amount.asUint112(), msg.sender);
-    SafeERC20.safeTransfer(ICollateralizedAsset(asset), to, amount);
+    _updateAssetAndUser(IYieldStakeAsset(asset), 0, amount.asUint112(), msg.sender);
+    SafeERC20.safeTransfer(IYieldStakeAsset(asset), to, amount);
   }
 
-  function syncAsset(address a) external {
-    ICollateralizedAsset asset = ICollateralizedAsset(a);
-    _updateAsset(asset, asset.totalSupply(), asset.collateralSupply(), false);
+  function syncStakeAsset(address asset) external override onlyUnpausedAsset(asset, true) {
+    IYieldStakeAsset a = IYieldStakeAsset(asset);
+    _updateAsset(a, a.totalSupply(), a.collateralSupply(), false);
   }
 
-  function syncByAsset(uint256 assetSupply, uint256 collateralSupply) external {
-    _updateAsset(ICollateralizedAsset(msg.sender), assetSupply, collateralSupply, true);
+  function syncByStakeAsset(uint256 assetSupply, uint256 collateralSupply) external override {
+    IYieldStakeAsset asset = IYieldStakeAsset(msg.sender);
+    _ensureActiveAsset(_assetBalances[asset].flags, true);
+    _updateAsset(asset, assetSupply, collateralSupply, true);
   }
 
   function _updateAsset(
-    ICollateralizedAsset asset,
+    IYieldStakeAsset asset,
     uint256 assetSupply,
     uint256 collateralSupply,
     bool ignorePause
@@ -162,7 +195,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     AssetBalance memory assetBalance,
     bool ignorePause,
     uint256 totalIntegral
-  ) private view {
+  ) private pure {
     _ensureActiveAsset(assetBalance.flags, ignorePause);
 
     uint256 d = totalIntegral - assetBalance.totalIntegral;
@@ -173,7 +206,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   }
 
   function _syncAsset(
-    ICollateralizedAsset asset,
+    IYieldStakeAsset asset,
     bool ignorePause,
     uint256 totalIntegral
   ) private view returns (AssetBalance memory assetBalance) {
@@ -182,7 +215,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   }
 
   function _updateAsset(
-    ICollateralizedAsset asset,
+    IYieldStakeAsset asset,
     uint256 collateralFactor,
     uint128 incAmount,
     uint128 decAmount,
@@ -192,13 +225,13 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
     (uint256 totalIntegral, uint256 totalStaked) = _updateTotal(0);
 
-    uint256 prevCollateral = uint256(assetBalance.balanceToken).rayMul(assetBalance.collateralFactor);
+    uint256 prevCollateral = uint256(assetBalance.stakedTokenTotal).rayMul(assetBalance.collateralFactor);
 
     _syncAsset(assetBalance, ignorePause, totalIntegral);
     assetBalance.collateralFactor = collateralFactor.asUint112();
-    assetBalance.balanceToken = (assetBalance.balanceToken - decAmount) + incAmount;
+    assetBalance.stakedTokenTotal = (assetBalance.stakedTokenTotal - decAmount) + incAmount;
 
-    uint256 newCollateral = uint256(assetBalance.balanceToken).rayMul(collateralFactor);
+    uint256 newCollateral = uint256(assetBalance.stakedTokenTotal).rayMul(collateralFactor);
 
     _assetBalances[asset] = assetBalance;
 
@@ -215,7 +248,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   function internalOnStakedCollateralChanged(uint256 prevStaked, uint256 newStaked) internal virtual {}
 
   function _updateAssetAndUser(
-    ICollateralizedAsset asset,
+    IYieldStakeAsset asset,
     uint112 incAmount,
     uint112 decAmount,
     address account
@@ -228,37 +261,37 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     UserAssetBalance storage balance = _userAssetBalances[asset][account];
 
     uint256 d = assetIntegral - balance.assetIntegral;
-    uint112 balanceToken = balance.balanceToken;
+    uint112 stakedTokenAmount = balance.stakedTokenAmount;
 
-    if (d != 0 && balanceToken != 0) {
+    if (d != 0 && stakedTokenAmount != 0) {
       balance.assetIntegral = assetIntegral;
-      _userBalances[account].yieldBalance += d.rayMul(balanceToken).asUint128();
+      _userBalances[account].yieldBalance += d.rayMul(stakedTokenAmount).asUint128();
     }
 
-    mapping(uint256 => ICollateralizedAsset) storage listing = _userAssets[account];
+    mapping(uint256 => IYieldStakeAsset) storage listing = _userAssets[account];
 
-    uint256 balanceAfter = (balanceToken - decAmount) + incAmount;
+    uint256 balanceAfter = (stakedTokenAmount - decAmount) + incAmount;
     if (balanceAfter == 0) {
-      if (balanceToken != 0) {
+      if (stakedTokenAmount != 0) {
         // remove asset
         uint16 index = _userBalances[account].assetCount--;
         uint16 assetIndex = balance.assetIndex;
         if (assetIndex != index) {
           State.require(assetIndex < index);
-          ICollateralizedAsset a = listing[assetIndex] = listing[index];
+          IYieldStakeAsset a = listing[assetIndex] = listing[index];
           _userAssetBalances[a][account].assetIndex = assetIndex;
         } else {
           delete _userAssetBalances[asset][account];
           delete listing[assetIndex];
         }
       }
-    } else if (balanceToken == 0) {
+    } else if (stakedTokenAmount == 0) {
       // add asset
       uint16 index = ++_userBalances[account].assetCount;
       balance.assetIndex = index;
       _userAssets[account][index] = asset;
     }
-    balance.balanceToken = balanceAfter.asUint112();
+    balance.stakedTokenAmount = balanceAfter.asUint112();
   }
 
   function balanceOf(address account) external view returns (uint256 yieldBalance) {
@@ -267,13 +300,13 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     }
 
     UserBalance storage ub = _userBalances[account];
-    mapping(uint256 => ICollateralizedAsset) storage listing = _userAssets[account];
+    mapping(uint256 => IYieldStakeAsset) storage listing = _userAssets[account];
 
     yieldBalance = ub.yieldBalance;
     uint256 totalIntegral = _syncTotal();
 
     for (uint256 i = ub.assetCount; i > 0; i--) {
-      ICollateralizedAsset asset = listing[i];
+      IYieldStakeAsset asset = listing[i];
       State.require(address(asset) != address(0));
 
       AssetBalance memory assetBalance = _syncAsset(asset, true, totalIntegral);
@@ -282,16 +315,16 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
 
       uint256 d = assetBalance.assetIntegral - balance.assetIntegral;
       if (d != 0) {
-        uint112 balanceToken = balance.balanceToken;
-        if (balanceToken != 0) {
-          yieldBalance += d.rayMul(balanceToken);
+        uint112 stakedTokenAmount = balance.stakedTokenAmount;
+        if (stakedTokenAmount != 0) {
+          yieldBalance += d.rayMul(stakedTokenAmount);
         }
       }
     }
   }
 
   function stakedBalanceOf(address account, address asset) external view returns (uint256) {
-    return _userAssetBalances[ICollateralizedAsset(asset)][account].balanceToken;
+    return _userAssetBalances[IYieldStakeAsset(asset)][account].stakedTokenAmount;
   }
 
   function claimYield(address to) external returns (uint256) {
@@ -299,10 +332,10 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     (uint256 yieldBalance, uint256 i) = _claimCollectedYield(account);
 
     (uint256 totalIntegral, ) = _updateTotal(0);
-    mapping(uint256 => ICollateralizedAsset) storage listing = _userAssets[account];
+    mapping(uint256 => IYieldStakeAsset) storage listing = _userAssets[account];
 
     for (; i > 0; i--) {
-      ICollateralizedAsset asset = listing[i];
+      IYieldStakeAsset asset = listing[i];
       State.require(address(asset) != address(0));
       yieldBalance += _claimYield(asset, account, totalIntegral);
     }
@@ -320,7 +353,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
       i--;
       address asset = assets[i];
       Value.require(asset != address(0));
-      yieldBalance += _claimYield(ICollateralizedAsset(asset), account, totalIntegral);
+      yieldBalance += _claimYield(IYieldStakeAsset(asset), account, totalIntegral);
     }
 
     return _mintYield(account, yieldBalance, to);
@@ -338,7 +371,7 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   }
 
   function _claimYield(
-    ICollateralizedAsset asset,
+    IYieldStakeAsset asset,
     address account,
     uint256 totalIntegral
   ) private returns (uint256 yieldBalance) {
@@ -348,12 +381,12 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
     uint256 d = assetBalance.assetIntegral - balance.assetIntegral;
 
     if (d != 0) {
-      uint112 balanceToken = balance.balanceToken;
-      if (balanceToken != 0) {
+      uint112 stakedTokenAmount = balance.stakedTokenAmount;
+      if (stakedTokenAmount != 0) {
         _assetBalances[asset] = assetBalance;
         balance.assetIntegral = assetBalance.assetIntegral;
 
-        yieldBalance = d.rayMul(balanceToken);
+        yieldBalance = d.rayMul(stakedTokenAmount);
       }
     }
   }
@@ -402,8 +435,4 @@ abstract contract YieldStakerBase is AccessHelper, Collateralized {
   function internalApplyRepay(uint256 value) internal {
     _totalBorrowedCollateral = uint128(_totalBorrowedCollateral - value);
   }
-}
-
-interface ICollateralizedAsset is ICollateralized, IERC20 {
-  function collateralSupply() external returns (uint256);
 }
