@@ -55,6 +55,23 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
     return chainlinkOracle;
   };
 
+  const setStatic = async (tokenAddr: string, value: BigNumberish, crossAddr: string) => {
+    const prices: PriceSourceStruct[] = [];
+    prices.push({
+      crossPrice: crossAddr,
+      decimals: 18,
+      feedType: PriceFeedType.StaticValue,
+      feedConstValue: value,
+      feedContract: zeroAddress(),
+    });
+
+    const assets: string[] = [];
+    assets.push(tokenAddr);
+
+    await expect(oracle.setPriceSources(assets, prices)).to.be.reverted;
+    await user1oracle.setPriceSources(assets, prices);
+  };
+
   before(async () => {
     user1 = testEnv.users[1];
     controller = await Factories.AccessController.deploy(SINGLETS, ROLES, PROTECTED_SINGLETS);
@@ -78,22 +95,8 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
 
   it('Static price', async () => {
     const value = BigNumber.from(10).pow(17);
-    const prices: PriceSourceStruct[] = [];
-    prices.push({
-      crossPrice: zeroAddress(),
-      decimals: 18,
-      feedType: PriceFeedType.StaticValue,
-      feedConstValue: value,
-      feedContract: zeroAddress(),
-    });
-
-    const assets: string[] = [];
-    assets.push(token.address);
-
-    await expect(oracle.setPriceSources(assets, prices)).to.be.reverted;
-    await user1oracle.setPriceSources(assets, prices);
+    await setStatic(token.address, value, zeroAddress());
     expect(await oracle.getAssetPrice(token.address)).eq(value);
-    // console.log(await oracle.getConfig(token.address));
   });
 
   it('Chainlink price', async () => {
@@ -121,4 +124,31 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
     await user1oracle.setPriceSources(assets, prices);
     expect(await oracle.getAssetPrice(token.address)).eq(value);
   });
+
+  it('Excessive volatility', async () => {
+    const value = BigNumber.from(10).pow(10);
+    const fuse = 2 ** 1;
+    const chainlinkOracle = await setChainlink(token.address, value, zeroAddress());
+    await user1oracle.registerSourceGroup(user1.address, fuse, true);
+    await user1oracle.attachSource(token.address, true);
+
+    await expect(oracle.setPriceSourceRange(token.address, value, 800)).to.be.reverted;
+    await expect(user1oracle.setPriceSourceRange(zeroAddress(), value, 800)).to.be.reverted;
+
+    await user1oracle.setPriceSourceRange(token.address, value, 2000); // 20%
+    await chainlinkOracle.setAnswer(value.mul(11).div(10)); // +10%
+    await oracle.pullAssetPrice(token.address, fuse);
+
+    await chainlinkOracle.setAnswer(value.mul(13).div(10)); // + 30%
+    await oracle.pullAssetPrice(token.address, fuse);
+    await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
+    await chainlinkOracle.setAnswer(value);
+    await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
+  });
+
+  /*
+  it('Cross price', async() => {
+
+  });
+  */
 });
