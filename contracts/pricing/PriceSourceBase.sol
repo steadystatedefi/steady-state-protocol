@@ -257,6 +257,7 @@ abstract contract PriceSourceBase {
       _ensureCrossPriceToken(crossPrice);
       encoded |= FLAG_CROSS_PRICED;
     } else {
+      crossPrice = token;
       encoded &= ~FLAG_CROSS_PRICED;
     }
 
