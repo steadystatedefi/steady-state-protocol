@@ -90,23 +90,21 @@ abstract contract PriceSourceBase {
     uint8 maxValidity = uint8(encoded >> VALIDITY_OFS);
     require(maxValidity == 0 || t == 0 || t + maxValidity * 1 minutes >= block.timestamp);
 
+    resultFlags = uint8((encoded >> FLAGS_OFS) & FLAGS_MASK);
     if (encoded & FLAG_CROSS_PRICED != 0) {
       State.require(notNested);
       uint256 vc;
       (vc, ) = _readSource(_crossTokens[token], false);
       v *= vc;
-    }
-    resultFlags = uint8((encoded >> FLAGS_OFS) & FLAGS_MASK);
-
-    uint8 decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
-    //if (decimals != 0) {
-    decimals = uint8((decimals + 18) & DECIMALS_MASK);
-    if (decimals < 18) {
-      v *= 10**uint8(18 - decimals);
     } else {
-      v /= 10**uint8(decimals - 18);
+      uint8 decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
+      decimals = uint8((decimals + 18) & DECIMALS_MASK);
+      if (decimals < 18) {
+        v *= 10**uint8(18 - decimals);
+      } else {
+        v /= 10**uint8(decimals - 18);
+      }
     }
-    //}
 
     if (encoded & FLAG_CROSS_PRICED != 0) {
       v = v.divUp(WadRayMath.WAD);
@@ -311,7 +309,8 @@ abstract contract PriceSourceBase {
       encoded >>= PAYLOAD_OFS;
 
       feed = address(uint160(encoded));
-      callFlags = uint8(encoded >> 160);
+      encoded >>= 160;
+      callFlags = uint8(encoded);
       encoded >>= 8;
 
       tolerance = uint16(uint256(uint8(encoded)).percentDiv(TOLERANCE_ONE));

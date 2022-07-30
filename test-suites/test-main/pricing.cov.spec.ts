@@ -26,8 +26,6 @@ enum PriceFeedType {
 
 makeSuite.only('Pricing', (testEnv: TestEnv) => {
   let controller: AccessController;
-  let proxyCatalog: ProxyCatalog;
-  let approvalCatalog: ApprovalCatalogV1;
   let cc: MockERC20;
   let token: MockERC20;
   let token2: MockERC20;
@@ -48,28 +46,35 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
       feedConstValue: 0,
       feedContract: chainlinkOracle.address,
     });
-    const assets: string[] = [];
-    assets.push(tokenAddr);
+    const assets: string[] = [tokenAddr];
 
     await user1oracle.setPriceSources(assets, prices);
     return chainlinkOracle;
   };
 
-  const setStatic = async (tokenAddr: string, value: BigNumberish, crossAddr: string) => {
+  const setStatic = async (tokenAddr: string, value: BigNumberish, crossAddr: string, d: number) => {
     const prices: PriceSourceStruct[] = [];
     prices.push({
       crossPrice: crossAddr,
-      decimals: 18,
+      decimals: d,
       feedType: PriceFeedType.StaticValue,
       feedConstValue: value,
       feedContract: zeroAddress(),
     });
 
-    const assets: string[] = [];
-    assets.push(tokenAddr);
+    const assets: string[] = [tokenAddr];
 
     await expect(oracle.setPriceSources(assets, prices)).to.be.reverted;
     await user1oracle.setPriceSources(assets, prices);
+  };
+
+  const checkPrice = async (tokenAddr: string, value: BigNumberish) => {
+    const tokens: string[] = [tokenAddr];
+    const prices = await oracle.getAssetPrices(tokens);
+    {
+      expect(await oracle.getAssetPrice(tokenAddr)).eq(value);
+      expect(prices[0]).eq(value);
+    }
   };
 
   function checkSource(
@@ -90,8 +95,6 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
   before(async () => {
     user1 = testEnv.users[1];
     controller = await Factories.AccessController.deploy(SINGLETS, ROLES, PROTECTED_SINGLETS);
-    proxyCatalog = await Factories.ProxyCatalog.deploy(controller.address);
-    approvalCatalog = await Factories.ApprovalCatalogV1.deploy(controller.address);
     cc = await Factories.MockERC20.deploy('Collateral Currency', 'CC', 18);
     token = await Factories.MockERC20.deploy('Token', 'TKN', 18);
     token2 = await Factories.MockERC20.deploy('Token2', 'TKN2', 9);
@@ -110,12 +113,48 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
 
   it('Static price', async () => {
     const value = BigNumber.from(10).pow(17);
-    await setStatic(token.address, value, zeroAddress());
+    await setStatic(token.address, value, zeroAddress(), 18);
     const source = await oracle.getPriceSource(token.address);
 
+    const value2 = BigNumber.from(10).pow(9).mul(5);
+    const assets = [token2.address];
+    const prices = [value2];
+    await user1oracle.setStaticPrices(assets, prices);
+    const source2 = await oracle.getPriceSource(token2.address);
+
+    const token3 = await Factories.MockERC20.deploy('Mock 3', 'MCK3', 9);
+    await setStatic(token3.address, WAD.div(BigNumber.from(10).pow(9)), zeroAddress(), 9);
+
+    const token4 = await Factories.MockERC20.deploy('Mock 4', 'MCK4', 27);
+    await setStatic(token4.address, WAD.mul(BigNumber.from(10).pow(9)), zeroAddress(), 27);
+
     {
-      expect(await oracle.getAssetPrice(token.address)).eq(value);
+      await checkPrice(token.address, value);
+      await checkPrice(token2.address, value2);
+      await checkPrice(token3.address, WAD);
+      await checkPrice(token4.address, WAD);
       checkSource(source, PriceFeedType.StaticValue, zeroAddress(), value, 18, zeroAddress());
+      checkSource(source2, PriceFeedType.StaticValue, zeroAddress(), value2, 18, zeroAddress());
+
+      const sources = await oracle.getPriceSources([token.address, token2.address, token3.address, token4.address]);
+      checkSource(sources[0], PriceFeedType.StaticValue, zeroAddress(), value, 18, zeroAddress());
+      checkSource(sources[1], PriceFeedType.StaticValue, zeroAddress(), value2, 18, zeroAddress());
+      checkSource(
+        sources[2],
+        PriceFeedType.StaticValue,
+        zeroAddress(),
+        WAD.div(BigNumber.from(10).pow(9)),
+        9,
+        zeroAddress()
+      );
+      checkSource(
+        sources[3],
+        PriceFeedType.StaticValue,
+        zeroAddress(),
+        WAD.mul(BigNumber.from(10).pow(9)),
+        27,
+        zeroAddress()
+      );
     }
   });
 
@@ -125,7 +164,7 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
     const source = await oracle.getPriceSource(token.address);
 
     {
-      expect(await oracle.getAssetPrice(token.address)).eq(value);
+      await checkPrice(token.address, value);
       checkSource(source, PriceFeedType.ChainLinkV3, chainlinkOracle.address, 0, 18, zeroAddress());
     }
   });
@@ -150,7 +189,7 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
     const source = await oracle.getPriceSource(token.address);
 
     {
-      expect(await oracle.getAssetPrice(token.address)).eq(value);
+      await checkPrice(token.address, value);
       checkSource(source, PriceFeedType.UniSwapV2Pair, uniswapOracle.address, 0, 18, zeroAddress());
     }
   });
@@ -162,34 +201,61 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
     await user1oracle.registerSourceGroup(user1.address, fuse, true);
     await user1oracle.attachSource(token.address, true);
 
-    await expect(oracle.setPriceSourceRange(token.address, value, 800)).to.be.reverted;
-    await expect(user1oracle.setPriceSourceRange(zeroAddress(), value, 800)).to.be.reverted;
+    await expect(oracle.setPriceSourceRange(token.address, value, 2000)).to.be.reverted;
+    await expect(user1oracle.setPriceSourceRange(zeroAddress(), value, 2000)).to.be.reverted;
 
     await user1oracle.setPriceSourceRange(token.address, value, 2000); // 20%
+    const vals = await oracle.getPriceSourceRange(token.address);
+    expect(vals.targetPrice).eq(value);
+    expect(vals.tolerancePct).eq(2000);
+
+    // Change within tolerance
     await chainlinkOracle.setAnswer(value.mul(11).div(10)); // +10%
     await oracle.pullAssetPrice(token.address, fuse);
 
+    // Trip the fuse
     await chainlinkOracle.setAnswer(value.mul(13).div(10)); // + 30%
     await oracle.pullAssetPrice(token.address, fuse);
     await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
     await chainlinkOracle.setAnswer(value);
     await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
+
+    // User1 reset the fuse
+    await user1oracle.resetSourceGroup();
+    await oracle.pullAssetPrice(token.address, fuse);
+    await oracle.pullAssetPrice(token.address, fuse);
+    await chainlinkOracle.setAnswer(value.mul(2));
+    await oracle.pullAssetPrice(token.address, fuse);
+    await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
+
+    // Admin reset the fuse
+    await user1oracle.resetSourceGroupByAdmin(fuse);
+    await oracle.pullAssetPrice(token.address, fuse);
+    await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
+
+    let groups = await oracle.groupsOf(user1.address);
+    expect(groups.memberOf).eq(0);
+    expect(groups.ownerOf).eq(fuse);
+
+    groups = await oracle.groupsOf(token.address);
+    expect(groups.memberOf).eq(fuse);
+    expect(groups.ownerOf).eq(0);
   });
 
   it('Cross price', async () => {
     const value = BigNumber.from(10).pow(17);
-    await setStatic(token.address, value, zeroAddress());
+    await setStatic(token.address, value, zeroAddress(), 18);
 
-    await setStatic(token2.address, WAD.div(2), token.address);
+    await setStatic(token2.address, WAD.div(2), token.address, 9);
     expect(await oracle.getAssetPrice(token2.address)).eq(value.div(2));
 
     let source = await oracle.getPriceSource(token2.address);
-    checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.div(2), 18, token.address);
+    checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.div(2), 9, token.address);
 
-    await setStatic(token2.address, WAD.mul(3), token.address);
+    await setStatic(token2.address, WAD.mul(3), token.address, 9);
     expect(await oracle.getAssetPrice(token2.address)).eq(value.mul(3));
 
     source = await oracle.getPriceSource(token2.address);
-    checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.mul(3), 18, token.address);
+    checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.mul(3), 9, token.address);
   });
 });

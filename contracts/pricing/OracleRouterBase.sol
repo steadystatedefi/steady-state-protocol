@@ -181,6 +181,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
+  /// @dev This call assumes the asset has 18 decimals
   function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external onlyOracleAdmin {
     for (uint256 i = assets.length; i > 0; ) {
       i--;
