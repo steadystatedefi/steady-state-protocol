@@ -258,5 +258,9 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
 
     source = await oracle.getPriceSource(token2.address);
     checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.mul(3), 9, token.address);
+
+    await setStatic(token.address, value, token.address, 14);
+    expect(await oracle.getAssetPrice(token.address)).eq(value.mul(1e4));
+    expect(await oracle.getAssetPrice(token2.address)).eq(value.mul(3e13));
   });
 });
