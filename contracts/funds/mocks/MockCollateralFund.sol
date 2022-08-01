@@ -6,21 +6,17 @@ import '../CollateralFundBase.sol';
 contract MockCollateralFund is CollateralFundBase {
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) CollateralFundBase(IAccessController(address(0)), collateral_) {}
+  constructor(address collateral_) CollateralFundBase(IAccessController(address(0)), collateral_, 0) {}
 
-  function internalAddAsset(
-    address token,
-    uint64 priceTarget,
-    uint16 priceTolerance,
-    address trusted
-  ) internal override {
-    super.internalAddAsset(token, priceTarget, priceTolerance, trusted);
-    _prices[token] = priceTarget;
+  function internalAddAsset(address token, address trusted) internal override {
+    super.internalAddAsset(token, trusted);
   }
 
   function internalPriceOf(address token) internal view override returns (uint256) {
     return _prices[token];
   }
+
+  function getPricer() internal view override returns (IManagedPriceRouter pricer) {}
 
   function setPriceOf(address token, uint256 price) external {
     _prices[token] = price;
