@@ -21,9 +21,9 @@ deployTask(`full:deploy-access-controller`, `Deploy ${EContractId.AccessControll
 
     const deployer = await getFirstSigner();
     const accessController = await Factories.AccessController.connectAndDeploy(deployer, EContractId.AccessController, [
-      SINGLETS,
-      ROLES,
-      PROTECTED_SINGLETS,
+      SINGLETS.toString(),
+      ROLES.toString(),
+      PROTECTED_SINGLETS.toString(),
     ]);
 
     await waitForTx(accessController.deployTransaction);

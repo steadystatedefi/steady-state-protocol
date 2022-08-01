@@ -38,11 +38,15 @@ export const addContractToJsonDb = (
   if (isForkNetwork() || (currentNetwork !== 'hardhat' && !currentNetwork.includes('coverage'))) {
     console.log(`*** ${contractId} ***\n`);
     console.log(`Network: ${currentNetwork}`);
-    console.log(`tx: ${contractInstance.deployTransaction.hash}`);
     console.log(`contract address: ${contractInstance.address}`);
-    console.log(`deployer address: ${contractInstance.deployTransaction.from}`);
-    console.log(`gas price: ${contractInstance.deployTransaction.gasPrice?.toString() ?? ''}`);
-    console.log(`gas used: ${contractInstance.deployTransaction.gasLimit?.toString()}`);
+
+    if (contractInstance.deployTransaction) {
+      console.log(`tx: ${contractInstance.deployTransaction.hash}`);
+      console.log(`deployer address: ${contractInstance.deployTransaction.from}`);
+      console.log(`gas price: ${contractInstance.deployTransaction.gasPrice?.toString() ?? ''}`);
+      console.log(`gas used: ${contractInstance.deployTransaction.gasLimit?.toString()}`);
+    }
+
     console.log(`\n******`);
     console.log();
   }
