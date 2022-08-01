@@ -6,7 +6,7 @@ import { BigNumber, BigNumberish } from 'ethers';
 import { MAX_UINT, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime } from '../../helpers/runtime-utils';
-import { AccessController, ApprovalCatalogV1, MockERC20, OracleRouterV1, ProxyCatalog } from '../../types';
+import { AccessController, MockERC20, OracleRouterV1 } from '../../types';
 import { PriceSourceStruct } from '../../types/contracts/pricing/OracleRouterBase';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
@@ -244,16 +244,17 @@ makeSuite.only('Pricing', (testEnv: TestEnv) => {
 
   it('Cross price', async () => {
     const value = BigNumber.from(10).pow(17);
-    await setStatic(token.address, value, zeroAddress(), 18);
+    await setStatic(token.address, value, token.address, 18);
+    expect(await oracle.getAssetPrice(token.address)).eq(value);
 
-    await setStatic(token2.address, WAD.div(2), token.address, 9);
+    await setStatic(token2.address, WAD.div(2), token.address, 18);
     expect(await oracle.getAssetPrice(token2.address)).eq(value.div(2));
 
     let source = await oracle.getPriceSource(token2.address);
-    checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.div(2), 9, token.address);
+    checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.div(2), 18, token.address);
 
     await setStatic(token2.address, WAD.mul(3), token.address, 9);
-    expect(await oracle.getAssetPrice(token2.address)).eq(value.mul(3));
+    expect(await oracle.getAssetPrice(token2.address)).eq(value.mul(3e9));
 
     source = await oracle.getPriceSource(token2.address);
     checkSource(source, PriceFeedType.StaticValue, zeroAddress(), WAD.mul(3), 9, token.address);
