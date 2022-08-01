@@ -3,12 +3,14 @@ import { formatBytes32String } from 'ethers/lib/utils';
 
 import { Events } from '../../../helpers/contract-events';
 import { Factories } from '../../../helpers/contract-types';
-import { addContractToJsonDb } from '../../../helpers/deploy-db';
+import { addProxyToJsonDb } from '../../../helpers/deploy-db';
 import { falsyOrZeroAddress, getFirstSigner, waitForTx } from '../../../helpers/runtime-utils';
 import { EContractId } from '../../../helpers/types';
 import { deployTask } from '../deploy-steps';
 
 const APPROVAL_CATALOG = BigNumber.from(1).shl(16);
+
+const PROXY_TYPE = formatBytes32String(EContractId.ApprovalCatalog);
 
 deployTask(`full:deploy-approval-catalog`, `Deploy ${EContractId.ApprovalCatalogV1}`, __dirname).setAction(
   async (_, localBRE) => {
@@ -37,6 +39,14 @@ deployTask(`full:deploy-approval-catalog`, `Deploy ${EContractId.ApprovalCatalog
       );
     }
 
+    const insuredPoolAddress = Factories.InsuredPoolV2.findInstance(EContractId.InsuredPoolV2);
+
+    if (falsyOrZeroAddress(insuredPoolAddress)) {
+      throw new Error(
+        `${EContractId.InsuredPoolV2} hasn't been deployed yet. Please, deploy ${EContractId.InsuredPoolV2} first.`
+      );
+    }
+
     const deployer = await getFirstSigner();
     const proxyCatalog = Factories.ProxyCatalog.get(deployer, EContractId.ProxyCatalog);
     const accessController = Factories.AccessController.get(deployer, EContractId.AccessController);
@@ -50,23 +60,14 @@ deployTask(`full:deploy-approval-catalog`, `Deploy ${EContractId.ApprovalCatalog
 
     console.log(`${EContractId.ApprovalCatalogV1}:`, approvalCatalogV1.address);
 
-    await waitForTx(
-      await proxyCatalog.addAuthenticImplementation(
-        approvalCatalogV1.address,
-        formatBytes32String(EContractId.ApprovalCatalog)
-      )
-    );
+    await waitForTx(await proxyCatalog.addAuthenticImplementation(approvalCatalogV1.address, PROXY_TYPE));
     await waitForTx(await proxyCatalog.setDefaultImplementation(approvalCatalogV1.address));
 
     let approvalCatalogProxyAddress = '';
+    const initFunctionData = approvalCatalogV1.interface.encodeFunctionData('initializeApprovalCatalog');
 
     await Events.ProxyCreated.waitOne(
-      proxyCatalog.createProxyWithImpl(
-        deployer.address,
-        formatBytes32String(EContractId.ApprovalCatalog),
-        approvalCatalogV1.address,
-        approvalCatalogV1.interface.encodeFunctionData('initializeApprovalCatalog')
-      ),
+      proxyCatalog.createProxy(deployer.address, PROXY_TYPE, initFunctionData),
       (event) => {
         approvalCatalogProxyAddress = event.proxy;
       }
@@ -75,7 +76,11 @@ deployTask(`full:deploy-approval-catalog`, `Deploy ${EContractId.ApprovalCatalog
     console.log(`${EContractId.ApprovalCatalog}:`, approvalCatalogProxyAddress);
 
     const approvalCatalogProxy = Factories.TransparentProxy.attach(approvalCatalogProxyAddress);
-    addContractToJsonDb(EContractId.ApprovalCatalog, approvalCatalogProxy, true, []);
+    addProxyToJsonDb(EContractId.ApprovalCatalog, approvalCatalogProxy.address, approvalCatalogV1.address, PROXY_TYPE, [
+      deployer.address,
+      approvalCatalogV1.address,
+      initFunctionData,
+    ]);
 
     await waitForTx(await accessController.setProtection(APPROVAL_CATALOG, false));
     await waitForTx(await accessController.setAddress(APPROVAL_CATALOG, approvalCatalogProxyAddress));

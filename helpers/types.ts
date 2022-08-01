@@ -8,6 +8,7 @@ export type eNetwork = eEthereumNetwork | ePolygonNetwork | eOtherNetwork;
 
 export enum eEthereumNetwork {
   kovan = 'kovan',
+  goerli = 'goerli',
   ropsten = 'ropsten',
   rinkeby = 'rinkeby',
   main = 'main',
@@ -42,6 +43,7 @@ export const isAutoGasNetwork = (name: string): boolean => isPolygonNetwork(name
 
 export enum NetworkNames {
   kovan = 'kovan',
+  goerli = 'goerli',
   ropsten = 'ropsten',
   rinkeby = 'rinkeby',
   main = 'main',
@@ -108,6 +110,7 @@ export type iParamsPerNetworkGroup<T> =
 export interface iEthereumParamsPerNetwork<T> {
   [eEthereumNetwork.coverage]: T;
   [eEthereumNetwork.kovan]: T;
+  [eEthereumNetwork.goerli]: T;
   [eEthereumNetwork.ropsten]: T;
   [eEthereumNetwork.rinkeby]: T;
   [eEthereumNetwork.main]: T;
@@ -176,6 +179,9 @@ export enum EContractId {
   ApprovalCatalog = 'ApprovalCatalog',
   ApprovalCatalogV1 = 'ApprovalCatalogV1',
   ProxyCatalog = 'ProxyCatalog',
+  InsuredPool = 'InsuredPool',
+  InsuredPoolV2 = 'InsuredPoolV2',
+  CollateralCurrency = 'CollateralCurrency',
 }
 
 export const getParamPerNetwork = <T>(param: iParamsPerNetwork<T> | iParamsPerNetworkOpt<T>, network?: eNetwork): T =>

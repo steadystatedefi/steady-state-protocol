@@ -77,6 +77,7 @@ const FORK_URLS: Record<eNetwork, string> = {
   [eOtherNetwork.fantom]: '',
   [eOtherNetwork.fantom_testnet]: '',
   [eEthereumNetwork.kovan]: '',
+  [eEthereumNetwork.goerli]: '',
   [eEthereumNetwork.ropsten]: '',
   [eEthereumNetwork.rinkeby]: '',
   [eEthereumNetwork.main]: '',
@@ -180,6 +181,7 @@ const buidlerConfig: HardhatUserConfig = {
     avalanche_testnet_fork: getForkConfig(eOtherNetwork.avalanche_testnet),
 
     kovan: getCommonNetworkConfig(eEthereumNetwork.kovan, 42),
+    goerli: getCommonNetworkConfig(eEthereumNetwork.goerli, 5),
     ropsten: getCommonNetworkConfig(eEthereumNetwork.ropsten, 3),
     rinkeby: getCommonNetworkConfig(eEthereumNetwork.rinkeby, 4),
     main: getCommonNetworkConfig(eEthereumNetwork.main, 1, MNEMONIC_MAIN),
