@@ -16,6 +16,7 @@ module.exports = {
     './premium/interfaces',
     './premium/mocks',
     './pricing/mocks',
+    './pricing/interfaces',
     './interfaces',
     './dependencies',
     './tools',

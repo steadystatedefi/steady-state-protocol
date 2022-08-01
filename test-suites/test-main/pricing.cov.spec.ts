@@ -24,7 +24,7 @@ enum PriceFeedType {
   UniSwapV2Pair,
 }
 
-makeSuite.only('Pricing', (testEnv: TestEnv) => {
+makeSuite('Pricing', (testEnv: TestEnv) => {
   let controller: AccessController;
   let cc: MockERC20;
   let token: MockERC20;
