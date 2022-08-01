@@ -41,11 +41,15 @@ library Errors {
   error WrongPermitSignature();
 
   error ExcessiveVolatility();
+  error ExcessiveVolatilityLock(uint256 mask);
 
   error CalllerNotEmergencyAdmin();
   error CalllerNotSweepAdmin();
+  error CalllerNotOracleAdmin();
 
   error CollateralTransferFailed();
+
+  error UnknownPriceAsset(address asset);
 }
 
 library State {

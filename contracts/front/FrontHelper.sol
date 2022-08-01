@@ -34,6 +34,7 @@ contract FrontHelper is AccessHelper {
       address accessController,
       address proxyCatalog,
       address approvalCatalog,
+      address priceRouter,
       CollateralFundInfo[] memory collateralFunds,
       InsurerInfo[] memory insurers
     )
@@ -41,8 +42,9 @@ contract FrontHelper is AccessHelper {
     IAccessController ac = remoteAcl();
     accessController = address(ac);
 
-    proxyCatalog = address(ac.getAddress(AccessFlags.PROXY_FACTORY));
-    approvalCatalog = address(ac.getAddress(AccessFlags.APPROVAL_CATALOG));
+    proxyCatalog = ac.getAddress(AccessFlags.PROXY_FACTORY);
+    approvalCatalog = ac.getAddress(AccessFlags.APPROVAL_CATALOG);
+    priceRouter = ac.getAddress(AccessFlags.PRICE_ROUTER);
 
     address[] memory list = ac.roleHolders(AccessFlags.COLLATERAL_FUND_LISTING);
 
