@@ -9,7 +9,7 @@ import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import '../libraries/AddressExt.sol';
 import '../tools/tokens/IERC20.sol';
-import '../access/AccessHelper.sol';
+import '../pricing/PricingHelper.sol';
 import '../funds/Collateralized.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import '../interfaces/IPremiumActuary.sol';
@@ -20,7 +20,7 @@ import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
-contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
+contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
   using BalancerLib2 for BalancerLib2.AssetBalancer;
@@ -69,7 +69,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
 
   address[] private _knownTokens;
 
-  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) PricingHelper(_getPricerByAcl(acl)) {}
 
   function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
     ActuaryConfig storage config = _configs[actuary];
@@ -381,7 +381,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
 
     if (requiredValue > 0) {
       uint256 missingValue;
-      uint256 price = priceOf(params.token);
+      uint256 price = internalPriceOf(params.token);
 
       (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
 
@@ -461,10 +461,12 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, Collateralized {
     return 0;
   }
 
-  function priceOf(address token) public view virtual returns (uint256) {
-    token;
-    return WadRayMath.WAD;
-    // TODO price oracle
+  function priceOf(address token) public view returns (uint256) {
+    return internalPriceOf(token);
+  }
+
+  function internalPriceOf(address token) internal view virtual returns (uint256) {
+    return getPricer().getAssetPrice(token);
   }
 
   function _ensureToken(address token) private view {

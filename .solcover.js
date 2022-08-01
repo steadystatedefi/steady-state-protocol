@@ -15,7 +15,7 @@ module.exports = {
     './insurer/mocks',
     './premium/interfaces',
     './premium/mocks',
-    './pricing',
+    './pricing/mocks',
     './interfaces',
     './dependencies',
     './tools',

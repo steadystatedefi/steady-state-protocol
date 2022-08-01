@@ -26,7 +26,8 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     fund = await Factories.MockCollateralFund.deploy(cc.address);
     await cc.registerLiquidityProvider(fund.address);
     await token0.registerLiquidityProvider(user0.address);
-    await fund.addAsset(token0.address, WAD, 100, zeroAddress());
+    await fund.addAsset(token0.address, zeroAddress());
+    await fund.setPriceOf(token0.address, WAD);
 
     await token0.mint(user1.address, WAD);
     await token0.mint(user2.address, WAD);
@@ -298,7 +299,8 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     await fund.connect(user1).invest(user1.address, token0.address, 1000, insurer);
   });
 
-  it('Price checks', async () => {
+  it.skip('Price checks', async () => {
+    // TODO this logic was moved to PriceRouter
     await token0.connect(user1).approve(fund.address, WAD);
 
     await fund.setPriceOf(token0.address, WAD.sub(WAD.div(200)));

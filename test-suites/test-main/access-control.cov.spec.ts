@@ -23,7 +23,7 @@ enum roles {
   INSURER_OPS = 2 ** 4,
   PREMIUM_FUND_ADMIN = 2 ** 5,
   SWEEP_ADMIN = 2 ** 6,
-  ORACLE_ADMIN = 2 ** 7,
+  PRICE_ROUTER_ADMIN = 2 ** 7,
   UNDERWRITER_POLICY = 2 ** 8,
   UNDERWRITER_CLAIM = 2 ** 9,
 }
@@ -294,7 +294,7 @@ makeSuite('Access Controller', (testEnv: TestEnv) => {
   });
 
   it('Grant any role', async () => {
-    await expect(controller.grantAnyRoles(user1.address, roles.ORACLE_ADMIN)).to.be.reverted;
+    await expect(controller.grantAnyRoles(user1.address, roles.PRICE_ROUTER_ADMIN)).to.be.reverted;
     await controller.setAnyRoleMode(true);
 
     // Usually setAddress must be used for singletons
