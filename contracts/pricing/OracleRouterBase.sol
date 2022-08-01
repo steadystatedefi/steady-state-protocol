@@ -11,6 +11,7 @@ import './interfaces/IPriceFeedUniswapV2.sol';
 import './PriceSourceBase.sol';
 import './FuseBox.sol';
 
+// @dev All prices given out have 18 decimals
 abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSourceBase, FuseBox {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -181,6 +182,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
+  /// @dev When an asset was configured before, then this call assumes the price to have same decimals, otherwise 18
   function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external onlyOracleAdmin {
     for (uint256 i = assets.length; i > 0; ) {
       i--;

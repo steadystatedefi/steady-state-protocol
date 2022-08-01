@@ -88,26 +88,21 @@ abstract contract PriceSourceBase {
     uint8 maxValidity = uint8(encoded >> VALIDITY_OFS);
     require(maxValidity == 0 || t == 0 || t + maxValidity * 1 minutes >= block.timestamp);
 
+    resultFlags = uint8((encoded >> FLAGS_OFS) & FLAGS_MASK);
+    uint8 decimals = uint8(((encoded >> DECIMALS_OFS) + 18) & DECIMALS_MASK);
+
     if (encoded & FLAG_CROSS_PRICED != 0) {
       State.require(notNested);
       uint256 vc;
       (vc, ) = _readSource(_crossTokens[token], false);
       v *= vc;
-    }
-    resultFlags = uint8((encoded >> FLAGS_OFS) & FLAGS_MASK);
-
-    uint8 decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
-    if (decimals != 0) {
-      decimals = uint8((decimals + 18) & DECIMALS_MASK);
-      if (decimals < 18) {
-        v *= 10**uint8(18 - decimals);
-      } else {
-        v /= 10**uint8(decimals - 18);
-      }
+      decimals += 18;
     }
 
-    if (encoded & FLAG_CROSS_PRICED != 0) {
-      v = v.divUp(WadRayMath.WAD);
+    if (decimals > 18) {
+      v = v.divUp(10**uint8(decimals - 18));
+    } else {
+      v *= 10**uint8(18 - decimals);
     }
 
     if (callType != 0 && _checkLimits(v, encoded)) {
@@ -139,6 +134,7 @@ abstract contract PriceSourceBase {
   }
 
   function _callStatic(uint256 encoded) private pure returns (uint256 v, uint32 t) {
+    encoded >>= PAYLOAD_OFS;
     return (encoded >> 32, uint32(encoded));
   }
 
@@ -250,7 +246,7 @@ abstract contract PriceSourceBase {
     maxValidity = maxValidity == type(uint32).max ? 0 : (maxValidity + 1 minutes - 1) / 1 minutes;
     Value.require(maxValidity <= type(uint8).max);
 
-    if (crossPrice != address(0)) {
+    if (crossPrice != address(0) && crossPrice != token) {
       _ensureCrossPriceToken(crossPrice);
       encoded |= FLAG_CROSS_PRICED;
     } else {
@@ -279,7 +275,7 @@ abstract contract PriceSourceBase {
       ok = true;
       staticPrice = encoded & SOURCE_TYPE_MASK == 0;
 
-      decimals = uint8((encoded >> DECIMALS_OFS) & DECIMALS_MASK);
+      decimals = uint8(((encoded >> DECIMALS_OFS) + 18) & DECIMALS_MASK);
       maxValidity = uint8(encoded >> VALIDITY_OFS);
 
       if (encoded & FLAG_CROSS_PRICED != 0) {
@@ -307,7 +303,8 @@ abstract contract PriceSourceBase {
       encoded >>= PAYLOAD_OFS;
 
       feed = address(uint160(encoded));
-      callFlags = uint8(encoded >> 160);
+      encoded >>= 160;
+      callFlags = uint8(encoded);
       encoded >>= 8;
 
       tolerance = uint16(uint256(uint8(encoded)).percentDiv(TOLERANCE_ONE));

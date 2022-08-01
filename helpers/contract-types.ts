@@ -12,6 +12,7 @@ export const Factories = {
   ApprovalCatalogV1: wrap(types.ApprovalCatalogV1__factory),
   InsuredPoolV1: wrap(types.InsuredPoolV1__factory),
   InsuredPoolV2: wrap(types.InsuredPoolV2__factory),
+  OracleRouterV1: wrap(types.OracleRouterV1__factory),
 
   MockCollateralCurrency: wrap(types.MockCollateralCurrency__factory),
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),
@@ -29,6 +30,8 @@ export const Factories = {
   MockCaller: mock(types.MockCaller__factory),
   MockVersionedInitializable1: mock(types.MockVersionedInitializable1__factory),
   MockVersionedInitializable2: mock(types.MockVersionedInitializable2__factory),
+  MockChainlinkV3: mock(types.MockChainlinkV3__factory),
+  MockUniswapV2: mock(types.MockUniswapV2__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));
