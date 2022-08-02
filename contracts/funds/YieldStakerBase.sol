@@ -188,7 +188,10 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
 
     uint32 at = uint32(block.timestamp);
     if (at != lastUpdatedAt) {
-      totalIntegral += internalCalcRateIntegral(lastUpdatedAt, at).rayDiv(_totalStakedCollateral);
+      uint256 totalStaked = _totalStakedCollateral;
+      if (totalStaked != 0) {
+        totalIntegral += internalCalcRateIntegral(lastUpdatedAt, at).rayDiv(totalStaked);
+      }
     }
   }
 
@@ -198,8 +201,10 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
 
     uint32 at = uint32(block.timestamp);
     if (at != lastUpdatedAt) {
-      totalIntegral += (extra + internalGetRateIntegral(lastUpdatedAt, at)).rayDiv(totalStaked = _totalStakedCollateral);
-      internalSetTimeIntegral(totalIntegral, uint32(block.timestamp));
+      if ((totalStaked = _totalStakedCollateral) != 0) {
+        totalIntegral += (extra + internalGetRateIntegral(lastUpdatedAt, at)).rayDiv(totalStaked);
+        internalSetTimeIntegral(totalIntegral, uint32(block.timestamp));
+      }
     }
   }
 

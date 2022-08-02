@@ -106,6 +106,7 @@
     "test-access": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/access-control.cov.spec.ts",
     "test-approval": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/approval-catalog.cov.spec.ts",
     "test-pricing": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/pricing.cov.spec.ts",
+    "test-yield": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/yield-distributor.cov.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/weighted-pool.bench.ts",
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 SKIP_LOAD=true hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 SKIP_LOAD=true hardhat coverage --network coverage --testfiles \"test-suites/test-main/*.cov.spec.ts\"",
     "prettier:check": "npm prettier -c 'helpers/**/*.ts' 'tasks/**/*.ts' 'contracts/**/*.sol' 'test-suites/**/*.ts'",

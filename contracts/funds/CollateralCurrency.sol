@@ -18,14 +18,6 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
 
   function registerLiquidityProvider(address account) external aclHas(AccessFlags.LP_DEPLOY) {
     internalSetFlags(account, FLAG_MINT | FLAG_BURN);
-    _registerStakeAsset(account, true);
-  }
-
-  function _registerStakeAsset(address account, bool register) private {
-    address bm = borrowManager();
-    if (bm != address(0)) {
-      IManagedYieldDistributor(bm).registerStakeAsset(account, register);
-    }
   }
 
   function isLiquidityProvider(address account) external view override returns (bool) {
@@ -35,6 +27,14 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
   function registerInsurer(address account) external aclHas(AccessFlags.INSURER_ADMIN) {
     // TODO protect insurer from withdraw
     internalSetFlags(account, FLAG_TRANSFER_CALLBACK);
+    _registerStakeAsset(account, true);
+  }
+
+  function _registerStakeAsset(address account, bool register) private {
+    address bm = borrowManager();
+    if (bm != address(0)) {
+      IManagedYieldDistributor(bm).registerStakeAsset(account, register);
+    }
   }
 
   function unregister(address account) external {
