@@ -27,6 +27,11 @@ library Math {
     return uint224(x);
   }
 
+  function asUint216(uint256 x) internal pure returns (uint216) {
+    require(x <= type(uint216).max);
+    return uint216(x);
+  }
+
   function asUint128(uint256 x) internal pure returns (uint128) {
     require(x <= type(uint128).max);
     return uint128(x);

@@ -21,8 +21,11 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
   using PercentageMath for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 
-  uint224 private _totalIntegral;
+  uint216 private _totalIntegral;
   uint32 private _lastUpdatedAt;
+  uint8 private flags;
+
+  uint8 private constant FLAG_PAUSED = 1 << 0;
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
@@ -43,7 +46,7 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
   }
 
   function internalSetTimeIntegral(uint256 totalIntegral, uint32 lastUpdatedAt) internal override {
-    (_totalIntegral, _lastUpdatedAt) = (totalIntegral.asUint224(), lastUpdatedAt);
+    (_totalIntegral, _lastUpdatedAt) = (totalIntegral.asUint216(), lastUpdatedAt);
   }
 
   function internalGetRateIntegral(uint32 from, uint32 till) internal override(YieldStakerBase, YieldStreamerBase) returns (uint256) {
@@ -83,5 +86,31 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
     return true;
   }
 
-  // TODO add yield source, add yield
+  function addYieldPayout(uint256 amount, uint256 expectedRate) external {
+    internalAddYieldPayout(msg.sender, amount, expectedRate);
+  }
+
+  function addYieldSource(address source, uint8 sourceType) external aclHas(AccessFlags.BORROWER_ADMIN) {
+    internalAddYieldSource(source, YieldSourceType(sourceType));
+  }
+
+  function removeYieldSource(address source) external aclHas(AccessFlags.BORROWER_ADMIN) {
+    internalRemoveYieldSource(source);
+  }
+
+  // TODO pause, pause_asset, pause_source_borrow
+
+  function getYieldSource(address source)
+    external
+    view
+    returns (
+      uint8 sourceType,
+      uint96 expectedRate,
+      uint32 since
+    )
+  {
+    YieldSourceType t;
+    (t, expectedRate, since) = internalGetYieldSource(source);
+    sourceType = uint8(t);
+  }
 }

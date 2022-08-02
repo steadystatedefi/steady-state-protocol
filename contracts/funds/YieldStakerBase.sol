@@ -74,6 +74,18 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
   }
 
+  function internalPauseAsset(address asset, bool paused) internal {
+    AssetBalance storage assetBalance = _assetBalances[IYieldStakeAsset(asset)];
+    uint16 flags = assetBalance.flags;
+    State.require(flags & FLAG_ASSET_PRESENT != 0);
+    assetBalance.flags = paused ? flags | FLAG_ASSET_PAUSED : flags & ~uint16(FLAG_ASSET_PAUSED);
+  }
+
+  function internalIsAssetPaused(address asset) internal view returns (bool) {
+    AssetBalance storage assetBalance = _assetBalances[IYieldStakeAsset(asset)];
+    return assetBalance.flags & FLAG_ASSET_PAUSED != 0;
+  }
+
   function _ensureActiveAsset(uint16 assetFlags, bool ignorePause) private pure {
     State.require(
       (assetFlags & (ignorePause ? FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED : FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED | FLAG_ASSET_PAUSED) ==

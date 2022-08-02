@@ -95,11 +95,9 @@ abstract contract YieldStreamerBase is Collateralized {
     }
   }
 
-  function isSourcePullable(YieldSourceType) private returns (bool) {}
-
   function internalAddYieldSource(address source, YieldSourceType sourceType) internal {
-    Value.require(uint8(sourceType) != 0);
     Value.require(source != address(0));
+    Value.require(sourceType != YieldSourceType.None);
 
     YieldSource storage s = _sources[source];
     State.require(s.appliedSince == 0);
