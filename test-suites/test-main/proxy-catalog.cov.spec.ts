@@ -3,16 +3,13 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { formatBytes32String } from 'ethers/lib/utils';
 
-import { MAX_UINT } from '../../helpers/constants';
+import { ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/access-control-constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { AccessController, MockVersionedInitializable1, MockVersionedInitializable2, ProxyCatalog } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-const ROLES = MAX_UINT.mask(16);
-const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
-const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
 const ZERO_BYTES = formatBytes32String('');
 
 const implStr = 'MockToken';
