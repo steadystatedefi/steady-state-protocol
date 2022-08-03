@@ -183,15 +183,15 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
 
     await dist.addYieldSource(user3.address, YieldSourceType.Passive, testEnv.covGas());
 
+    const startedAt = await currentTime();
     const rate = WAD.mul(3);
     await dist.connect(user3).addYieldPayout(0, rate);
-    const startedAt = await currentTime();
 
     await increaseTime(100);
 
     if (!testEnv.underCoverage) {
       const stageT0 = await currentTime();
-      const deltaT0 = stageT0 - startedAt;
+      const deltaT0 = stageT0 - startedAt + 1;
 
       const y1 = await dist.balanceOf(user1.address);
       const y2 = await dist.balanceOf(user2.address);
