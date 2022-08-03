@@ -6,7 +6,7 @@ import '../YieldDistributorBase.sol';
 contract MockYieldDistributor is YieldDistributorBase {
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) YieldDistributorBase(IAccessController(address(0)), collateral_) {}
+  constructor(address accesscontroller_, address collateral_) YieldDistributorBase(IAccessController(accesscontroller_), collateral_) {}
 
   function hasAnyAcl(address, uint256) internal pure override returns (bool) {
     return true;
