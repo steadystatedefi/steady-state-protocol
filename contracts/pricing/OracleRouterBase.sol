@@ -179,7 +179,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
   ///                 do not have the same as the quote asset decimals.
   ///                 If the quote asset has 18 decimals:
   ///                   If a token has 9 decimals, it must set the decimals value to (9 + 18) = 27
-  ///                   If a token has 27 decimals, it must set the decimals value to (18 - 9) = 9
+  ///                   If a token has 27 decimals, it must set the decimals value to (27 - 18) = 9
   function setPriceSources(address[] calldata assets, PriceSource[] calldata sources) external onlyOracleAdmin {
     for (uint256 i = assets.length; i > 0; ) {
       i--;
