@@ -6,13 +6,7 @@ import { BigNumber } from 'ethers';
 import { MAX_UINT, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, increaseTime } from '../../helpers/runtime-utils';
-import {
-  MockCollateralFund,
-  MockCollateralCurrency,
-  MockYieldDistributor,
-  MockInsurerForYield,
-  AccessController,
-} from '../../types';
+import { MockCollateralFund, MockCollateralCurrency, MockYieldDistributor, MockInsurerForYield } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
@@ -173,7 +167,7 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
     expect(await dist.balanceOf(user1.address)).eq(y1.add(rate.div(2)));
   });
 
-  it.only('Yield distribution for 2 insurers', async () => {
+  it('Yield distribution for 2 insurers', async () => {
     const insurer1 = await Factories.MockInsurerForYield.deploy(cc.address);
     await cc.registerInsurer(insurer1.address);
 
