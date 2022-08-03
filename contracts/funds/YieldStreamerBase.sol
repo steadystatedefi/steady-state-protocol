@@ -55,7 +55,7 @@ abstract contract YieldStreamerBase is Collateralized {
 
   function _getRateIntegral(uint32 from, uint32 till) private view returns (uint256 v, uint256 yieldDebt) {
     uint32 cutOff = _rateCutOffAt;
-    if (cutOff < till) {
+    if (cutOff < till && cutOff > 0) {
       if (from >= cutOff) {
         return (0, 0);
       }
@@ -80,7 +80,9 @@ abstract contract YieldStreamerBase is Collateralized {
     State.require(s.appliedSince != 0);
 
     uint32 at = uint32(block.timestamp);
-    uint256 expectedAmount = uint256(at - s.appliedSince) * s.expectedRate;
+    uint256 lastRate = s.expectedRate;
+
+    uint256 expectedAmount = uint256(at - s.appliedSince) * lastRate;
     s.appliedSince = at;
 
     if (expectedAmount > amount) {
@@ -89,9 +91,9 @@ abstract contract YieldStreamerBase is Collateralized {
       internalAddYieldExcess(amount - expectedAmount);
     }
 
-    uint256 lastRate = s.expectedRate;
     if (lastRate != expectedRate) {
-      _yieldRate = uint256(_yieldRate).addDelta(expectedRate, lastRate).asUint96();
+      s.expectedRate = expectedRate.asUint96();
+      _yieldRate = (uint256(_yieldRate) + expectedRate - lastRate).asUint96();
     }
   }
 
@@ -140,8 +142,8 @@ abstract contract YieldStreamerBase is Collateralized {
     )
   {
     YieldSource storage s = _sources[source];
-    if (s.appliedSince != 0) {
-      (expectedRate, since) = (s.expectedRate, s.appliedSince);
+    if ((since = s.appliedSince) != 0) {
+      expectedRate = s.expectedRate;
       uint16 index = s.pullableIndex;
       sourceType = index == 0 ? YieldSourceType.Passive : _pullableSources[index].sourceType;
     }

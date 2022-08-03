@@ -14,7 +14,7 @@ library Math {
     }
   }
 
-  function addDelta(
+  function addAbsDelta(
     uint256 x,
     uint256 y,
     uint256 z

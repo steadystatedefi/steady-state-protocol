@@ -50,6 +50,14 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
     _mint(account, amount);
   }
 
+  function transferOnBehalf(
+    address onBehalf,
+    address recipient,
+    uint256 amount
+  ) external override onlyBorrowManager {
+    _transferOnBehalf(msg.sender, recipient, amount, onBehalf);
+  }
+
   function mintAndTransfer(
     address onBehalf,
     address recipient,
@@ -71,6 +79,15 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
 
   function burn(address account, uint256 amount) external override onlyWithFlags(FLAG_BURN) {
     _burn(account, amount);
+  }
+
+  function _onlyBorrowManager() private view {
+    Access.require(msg.sender == borrowManager());
+  }
+
+  modifier onlyBorrowManager() {
+    _onlyBorrowManager();
+    _;
   }
 
   function borrowManager() public view override returns (address) {

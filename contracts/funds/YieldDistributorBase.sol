@@ -87,6 +87,9 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
   }
 
   function addYieldPayout(uint256 amount, uint256 expectedRate) external {
+    if (amount > 0) {
+      transferCollateralFrom(msg.sender, address(this), amount);
+    }
     internalAddYieldPayout(msg.sender, amount, expectedRate);
   }
 

@@ -116,7 +116,12 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     Value.require(to != address(0));
 
     if (amount == type(uint256).max) {
-      amount = IERC20(asset).balanceOf(msg.sender);
+      if ((amount = IERC20(asset).balanceOf(msg.sender)) > 0) {
+        uint256 max = IERC20(asset).allowance(msg.sender, address(this));
+        if (amount > max) {
+          amount = max;
+        }
+      }
     }
     if (amount == 0) {
       return;
@@ -256,7 +261,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
       if (totalStaked == 0) {
         totalStaked = _totalStakedCollateral;
       }
-      internalOnStakedCollateralChanged(totalStaked, _totalStakedCollateral = totalStaked.addDelta(newCollateral, prevCollateral).asUint128());
+      internalOnStakedCollateralChanged(totalStaked, _totalStakedCollateral = (totalStaked + newCollateral - prevCollateral).asUint128());
     }
 
     return assetBalance.assetIntegral;
@@ -287,6 +292,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
 
     mapping(uint256 => IYieldStakeAsset) storage listing = _userAssets[account];
 
+    //    console.log('stakedTokenAmount', stakedTokenAmount, decAmount, incAmount);
     uint256 balanceAfter = (stakedTokenAmount - decAmount) + incAmount;
     if (balanceAfter == 0) {
       if (stakedTokenAmount != 0) {
@@ -340,7 +346,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
   }
 
-  function stakedBalanceOf(address account, address asset) external view returns (uint256) {
+  function stakedBalanceOf(address asset, address account) external view returns (uint256) {
     return _userAssetBalances[IYieldStakeAsset(asset)][account].stakedTokenAmount;
   }
 
@@ -357,7 +363,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
       yieldBalance += _claimYield(asset, account, totalIntegral);
     }
 
-    return _mintYield(account, yieldBalance, to);
+    return _transferYield(account, yieldBalance, to);
   }
 
   function claimYieldFrom(address to, address[] calldata assets) external returns (uint256) {
@@ -373,7 +379,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
       yieldBalance += _claimYield(IYieldStakeAsset(asset), account, totalIntegral);
     }
 
-    return _mintYield(account, yieldBalance, to);
+    return _transferYield(account, yieldBalance, to);
   }
 
   function _claimCollectedYield(address account) private returns (uint256 yieldBalance, uint16) {
@@ -408,13 +414,13 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
   }
 
-  function _mintYield(
+  function _transferYield(
     address account,
     uint256 amount,
     address to
   ) private returns (uint256) {
     if (amount > 0) {
-      IERC20 cc = IERC20(collateral());
+      IManagedCollateralCurrency cc = IManagedCollateralCurrency(collateral());
       uint256 availableYield = cc.balanceOf(address(this));
       if (availableYield < amount) {
         if (internalPullYield(availableYield, amount)) {
@@ -428,7 +434,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
           return 0;
         }
       }
-      cc.safeTransfer(address(to), amount);
+      cc.transferOnBehalf(account, to, amount);
     }
     return amount;
   }

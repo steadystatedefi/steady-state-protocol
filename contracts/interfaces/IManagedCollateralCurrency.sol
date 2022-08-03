@@ -16,6 +16,12 @@ interface IManagedCollateralCurrency is IERC20 {
     uint256 balanceAmount
   ) external;
 
+  function transferOnBehalf(
+    address onBehalf,
+    address recipient,
+    uint256 amount
+  ) external;
+
   function burn(address account, uint256 amount) external;
 
   function isLiquidityProvider(address account) external view returns (bool);
