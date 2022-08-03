@@ -120,7 +120,7 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
     await dist.connect(user1).unstake(insurer.address, MAX_UINT, user1.address);
   });
 
-  it('Yield distribution', async () => {
+  it('Yield distribution for one insurer', async () => {
     await dist.connect(user1).stake(insurer.address, WAD, user1.address);
     await dist.connect(user2).stake(insurer.address, WAD.div(2), user2.address);
     expect(await dist.totalStakedCollateral()).eq(WAD.mul(3).div(2));
@@ -165,5 +165,90 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
       expect((await dist.balanceOf(user1.address)).sub(y1)).eq(rate.mul(deltaT1).div(2));
       expect((await dist.balanceOf(user2.address)).sub(y2)).eq(rate.mul(deltaT1).div(2));
     }
+
+    const y1 = await dist.balanceOf(user1.address);
+    // there are no tokens available to claim yet ...
+    await dist.connect(user1).claimYield(user1.address);
+    // TODO add an event and check it here
+    expect(await dist.balanceOf(user1.address)).eq(y1.add(rate.div(2)));
+  });
+
+  it.only('Yield distribution for 2 insurers', async () => {
+    const insurer1 = await Factories.MockInsurerForYield.deploy(cc.address);
+    await cc.registerInsurer(insurer1.address);
+
+    await insurer1.mint(user2.address, WAD);
+    await insurer1.connect(user2).approve(dist.address, WAD);
+
+    await dist.connect(user1).stake(insurer.address, WAD, user1.address);
+    await dist.connect(user2).stake(insurer1.address, WAD, user2.address);
+    await dist.connect(user2).stake(insurer.address, WAD, user2.address);
+
+    expect(await dist.totalStakedCollateral()).eq(WAD.mul(3));
+
+    await dist.addYieldSource(user3.address, YieldSourceType.Passive);
+
+    const startedAt = await currentTime();
+    const rate = WAD.mul(3);
+    await dist.connect(user3).addYieldPayout(0, rate);
+
+    await increaseTime(100);
+
+    {
+      const stageT0 = await currentTime();
+      const deltaT0 = stageT0 - startedAt + 1;
+
+      const y1 = await dist.balanceOf(user1.address);
+      const y2 = await dist.balanceOf(user2.address);
+
+      if (testEnv.underCoverage) {
+        return;
+      }
+
+      expect(y1).eq(rate.mul(deltaT0).div(3));
+      expect(y2).eq(rate.mul(deltaT0 * 2).div(3));
+    }
+
+    await insurer1.setCollateralSupplyFactor(WAD.div(2));
+    await dist.syncStakeAsset(insurer1.address);
+    expect(await dist.totalStakedCollateral()).eq(WAD.mul(5).div(2));
+    expect(await dist.stakedBalanceOf(insurer1.address, user2.address)).eq(WAD);
+
+    const checkBalances = async (rate1: BigNumber): Promise<void> => {
+      const y1 = await dist.balanceOf(user1.address);
+      const y2 = await dist.balanceOf(user2.address);
+      const stageT0 = await currentTime();
+
+      await increaseTime(100);
+      const stageT1 = await currentTime();
+      const deltaT1 = stageT1 - stageT0;
+
+      expect((await dist.balanceOf(user1.address)).sub(y1)).eq(rate1.mul(deltaT1));
+      expect((await dist.balanceOf(user2.address)).sub(y2)).eq(rate.sub(rate1).mul(deltaT1));
+    };
+
+    await checkBalances(rate.mul(2).div(5));
+
+    await dist.connect(user1).unstake(insurer.address, WAD.div(2), user1.address);
+    expect(await dist.totalStakedCollateral()).eq(WAD.mul(2));
+
+    await checkBalances(rate.div(4));
+
+    await dist.connect(user2).unstake(insurer.address, WAD.div(2), user2.address);
+    expect(await dist.totalStakedCollateral()).eq(WAD.mul(3).div(2));
+
+    await checkBalances(rate.div(3));
+
+    await dist.connect(user2).unstake(insurer1.address, WAD.div(2), user2.address);
+    expect(await dist.totalStakedCollateral()).eq(WAD.mul(5).div(4));
+    expect(await dist.stakedBalanceOf(insurer1.address, user2.address)).eq(WAD.div(2));
+
+    await checkBalances(rate.mul(2).div(5));
+
+    await cc.unregister(insurer1.address);
+    expect(await dist.totalStakedCollateral()).eq(WAD);
+    expect(await dist.stakedBalanceOf(insurer1.address, user2.address)).eq(WAD.div(2));
+
+    await checkBalances(rate.div(2));
   });
 });

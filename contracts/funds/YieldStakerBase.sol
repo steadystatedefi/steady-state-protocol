@@ -70,7 +70,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     uint16 flags = assetBalance.flags;
     if (flags & (FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED) == FLAG_ASSET_PRESENT) {
       _updateAsset(IYieldStakeAsset(asset), 1, 0, true);
-      assetBalance.flags = flags | FLAG_ASSET_PRESENT | FLAG_ASSET_REMOVED | FLAG_ASSET_PAUSED;
+      assetBalance.flags = flags | FLAG_ASSET_REMOVED | FLAG_ASSET_PAUSED;
     }
   }
 
@@ -213,27 +213,12 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
   }
 
-  function _syncAsset(
-    AssetBalance memory assetBalance,
-    bool ignorePause,
-    uint256 totalIntegral
-  ) private pure {
-    _ensureActiveAsset(assetBalance.flags, ignorePause);
-
+  function _syncAnyAsset(AssetBalance memory assetBalance, uint256 totalIntegral) private pure {
     uint256 d = totalIntegral - assetBalance.totalIntegral;
     if (d != 0) {
       assetBalance.totalIntegral = totalIntegral.asUint128();
       assetBalance.assetIntegral += d.rayMul(assetBalance.collateralFactor).asUint128();
     }
-  }
-
-  function _syncAsset(
-    IYieldStakeAsset asset,
-    bool ignorePause,
-    uint256 totalIntegral
-  ) private view returns (AssetBalance memory assetBalance) {
-    assetBalance = _assetBalances[asset];
-    _syncAsset(assetBalance, ignorePause, totalIntegral);
   }
 
   function _updateAsset(
@@ -244,12 +229,13 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     bool ignorePause
   ) private returns (uint128) {
     AssetBalance memory assetBalance = _assetBalances[asset];
+    _ensureActiveAsset(assetBalance.flags, ignorePause);
 
     (uint256 totalIntegral, uint256 totalStaked) = _updateTotal(0);
 
     uint256 prevCollateral = uint256(assetBalance.stakedTokenTotal).rayMul(assetBalance.collateralFactor);
 
-    _syncAsset(assetBalance, ignorePause, totalIntegral);
+    _syncAnyAsset(assetBalance, totalIntegral);
     assetBalance.collateralFactor = collateralFactor.asUint112();
     assetBalance.stakedTokenTotal = (assetBalance.stakedTokenTotal - decAmount) + incAmount;
 
@@ -317,6 +303,12 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     balance.stakedTokenAmount = balanceAfter.asUint112();
   }
 
+  function _syncPresentAsset(IYieldStakeAsset asset, uint256 totalIntegral) private view returns (AssetBalance memory assetBalance) {
+    assetBalance = _assetBalances[asset];
+    State.require(assetBalance.flags & FLAG_ASSET_PRESENT != 0);
+    _syncAnyAsset(assetBalance, totalIntegral);
+  }
+
   function balanceOf(address account) external view returns (uint256 yieldBalance) {
     if (account == address(0)) {
       return 0;
@@ -332,7 +324,7 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
       IYieldStakeAsset asset = listing[i];
       State.require(address(asset) != address(0));
 
-      AssetBalance memory assetBalance = _syncAsset(asset, true, totalIntegral);
+      AssetBalance memory assetBalance = _syncPresentAsset(asset, totalIntegral);
 
       UserAssetBalance storage balance = _userAssetBalances[asset][account];
 
@@ -398,7 +390,11 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     address account,
     uint256 totalIntegral
   ) private returns (uint256 yieldBalance) {
-    AssetBalance memory assetBalance = _syncAsset(asset, false, totalIntegral);
+    AssetBalance memory assetBalance = _syncPresentAsset(asset, totalIntegral);
+    if (assetBalance.flags & FLAG_ASSET_PAUSED != 0) {
+      return 0;
+    }
+
     UserAssetBalance storage balance = _userAssetBalances[asset][account];
 
     uint256 d = assetBalance.assetIntegral - balance.assetIntegral;
