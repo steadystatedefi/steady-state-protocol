@@ -149,6 +149,6 @@ task('deploy-full', 'Deploy full enviroment')
 
     if (verify) {
       console.log('N. Verify all contracts');
-      await DRE.run('verify-all-contracts', { cfg: CONFIG_NAME });
+      await DRE.run('verify:all-contracts', { cfg: CONFIG_NAME });
     }
   });

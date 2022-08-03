@@ -170,23 +170,50 @@ makeSuite('Pricing', (testEnv: TestEnv) => {
     const value = BigNumber.from(10).pow(19);
     await uniswapOracle.setReserves(BigNumber.from(10).pow(18).mul(1000), value.mul(1000));
 
-    const prices: PriceSourceStruct[] = [];
-    prices.push({
-      crossPrice: zeroAddress(),
-      decimals: 18,
-      feedType: PriceFeedType.UniSwapV2Pair,
-      feedConstValue: 0,
-      feedContract: uniswapOracle.address,
-    });
-    const assets: string[] = [];
-    assets.push(token.address);
+    const uniswapOracle2 = await Factories.MockUniswapV2.deploy(cc.address, token2.address);
+    const value2 = BigNumber.from(10).pow(18).div(2);
+    await uniswapOracle2.setReserves(BigNumber.from(10).pow(18).mul(200), BigNumber.from(10).pow(9).mul(400));
+
+    const token3 = await Factories.MockERC20.deploy('Mock 3', 'MCK3', 27);
+    const uniswapOracle3 = await Factories.MockUniswapV2.deploy(cc.address, token3.address);
+    const value3 = BigNumber.from(10).pow(18).div(4);
+    await uniswapOracle3.setReserves(BigNumber.from(10).pow(18).mul(100), BigNumber.from(10).pow(27).mul(400));
+
+    const prices: PriceSourceStruct[] = [
+      {
+        crossPrice: zeroAddress(),
+        decimals: 18,
+        feedType: PriceFeedType.UniSwapV2Pair,
+        feedConstValue: 0,
+        feedContract: uniswapOracle.address,
+      },
+      {
+        crossPrice: zeroAddress(),
+        decimals: 27,
+        feedType: PriceFeedType.UniSwapV2Pair,
+        feedConstValue: 0,
+        feedContract: uniswapOracle2.address,
+      },
+      {
+        crossPrice: zeroAddress(),
+        decimals: 9,
+        feedType: PriceFeedType.UniSwapV2Pair,
+        feedConstValue: 0,
+        feedContract: uniswapOracle3.address,
+      },
+    ];
+    const assets: string[] = [token.address, token2.address, token3.address];
 
     await user1oracle.setPriceSources(assets, prices);
-    const source = await oracle.getPriceSource(token.address);
+    const sources = await oracle.getPriceSources(assets);
 
     {
       await checkPrice(token.address, value);
-      checkSource(source, PriceFeedType.UniSwapV2Pair, uniswapOracle.address, 0, 18, zeroAddress());
+      await checkPrice(token2.address, value2);
+      await checkPrice(token3.address, value3);
+      checkSource(sources[0], PriceFeedType.UniSwapV2Pair, uniswapOracle.address, 0, 18, zeroAddress());
+      checkSource(sources[1], PriceFeedType.UniSwapV2Pair, uniswapOracle2.address, 0, 27, zeroAddress());
+      checkSource(sources[2], PriceFeedType.UniSwapV2Pair, uniswapOracle3.address, 0, 9, zeroAddress());
     }
   });
 
