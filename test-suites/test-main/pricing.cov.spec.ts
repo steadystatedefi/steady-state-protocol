@@ -3,16 +3,20 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber, BigNumberish } from 'ethers';
 
-import { MAX_UINT, WAD, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
+import {
+  ROLES,
+  SINGLETS,
+  PROTECTED_SINGLETS,
+  PRICE_ROUTER,
+  PRICE_ROUTER_ADMIN,
+} from '../../helpers/access-control-constants';
+import { WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime } from '../../helpers/runtime-utils';
 import { AccessController, MockERC20, OracleRouterV1 } from '../../types';
 import { PriceSourceStruct } from '../../types/contracts/pricing/OracleRouterBase';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
-
-const PRICE_ROUTER_ADMIN = BigNumber.from(1).shl(7);
-const PRICE_ROUTER = BigNumber.from(1).shl(29);
 
 enum PriceFeedType {
   StaticValue,
