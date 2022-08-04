@@ -39,11 +39,11 @@ deployTask(`full:deploy-approval-catalog`, `Deploy ${EContractId.ApprovalCatalog
       );
     }
 
-    const insuredPoolAddress = Factories.InsuredPoolV2.findInstance(EContractId.InsuredPoolV2);
+    const insuredPoolAddress = Factories.InsuredPoolV1.findInstance(EContractId.InsuredPoolV1);
 
     if (falsyOrZeroAddress(insuredPoolAddress)) {
       throw new Error(
-        `${EContractId.InsuredPoolV2} hasn't been deployed yet. Please, deploy ${EContractId.InsuredPoolV2} first.`
+        `${EContractId.InsuredPoolV1} hasn't been deployed yet. Please, deploy ${EContractId.InsuredPoolV1} first.`
       );
     }
 

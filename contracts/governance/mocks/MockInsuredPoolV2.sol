@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import '../../insured/InsuredPoolV1.sol';
 import '../interfaces/IClaimAccessValidator.sol';
 
-contract InsuredPoolV2 is InsuredPoolV1, IClaimAccessValidator {
+contract MockInsuredPoolV2 is InsuredPoolV1, IClaimAccessValidator {
   uint256 private constant CONTRACT_REVISION = 2;
   mapping(address => bool) public canClaimInsurance;
 
