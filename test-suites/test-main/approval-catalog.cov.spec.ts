@@ -4,7 +4,15 @@ import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
 import { BytesLike, formatBytes32String } from 'ethers/lib/utils';
 
-import { MAX_UINT } from '../../helpers/constants';
+import {
+  ROLES,
+  SINGLETS,
+  PROTECTED_SINGLETS,
+  UNDERWRITER_POLICY,
+  UNDERWRITER_CLAIM,
+  PROXY_FACTORY,
+  APPROVAL_CATALOG,
+} from '../../helpers/access-control-constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { chainId } from '../../helpers/dre';
@@ -21,15 +29,6 @@ import {
 } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
-
-const UNDERWRITER_POLICY = BigNumber.from(1).shl(8);
-const UNDERWRITER_CLAIM = BigNumber.from(1).shl(9);
-const PROXY_FACTORY = BigNumber.from(1).shl(26);
-const APPROVAL_CATALOG = BigNumber.from(1).shl(16);
-
-const ROLES = MAX_UINT.mask(16);
-const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
-const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES).xor(APPROVAL_CATALOG);
 
 const ZERO_BYTES = formatBytes32String('');
 
@@ -71,6 +70,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     insuredV1 = await Factories.InsuredPoolV1.deploy(controller.address, cc.address);
     insuredV2 = await Factories.InsuredPoolV2.deploy(controller.address, cc.address);
 
+    await controller.setProtection(APPROVAL_CATALOG, false);
     await controller.setAddress(PROXY_FACTORY, proxyCatalog.address);
     await controller.setAddress(APPROVAL_CATALOG, approvalCatalog.address);
     await controller.grantRoles(user1.address, UNDERWRITER_POLICY);
