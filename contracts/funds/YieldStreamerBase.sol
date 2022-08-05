@@ -26,7 +26,7 @@ abstract contract YieldStreamerBase is Collateralized {
   uint128 private _yieldDebt;
 
   uint16 private _pullableCount;
-  uint16 private _nextPullable;
+  uint16 private _lastPullable;
   mapping(uint256 => PullableSource) private _pullableSources;
   mapping(address => YieldSource) private _sources;
 
@@ -54,31 +54,34 @@ abstract contract YieldStreamerBase is Collateralized {
   }
 
   function internalCalcRateIntegral(uint32 from, uint32 till) internal view virtual returns (uint256 v) {
-    (v, ) = _getRateIntegral(from, till);
-  }
-
-  function internalGetRateIntegral(uint32 from, uint32 till) internal virtual returns (uint256) {
-    (uint256 v, uint256 yieldDebt) = _getRateIntegral(from, till);
-    if (v != 0) {
-      _yieldDebt = uint128(yieldDebt);
+    v = _calcDiff(from, till);
+    if (v > 0) {
+      v = v.boundedSub(_yieldDebt);
     }
-    return v;
   }
 
-  function _getRateIntegral(uint32 from, uint32 till) private view returns (uint256 v, uint256 yieldDebt) {
-    uint32 cutOff = _rateCutOffAt;
-    if (cutOff < till && cutOff > 0) {
-      if (from >= cutOff) {
-        return (0, 0);
+  function internalGetRateIntegral(uint32 from, uint32 till) internal virtual returns (uint256 v) {
+    v = _calcDiff(from, till);
+    if (v > 0) {
+      uint256 yieldDebt = _yieldDebt;
+      if (yieldDebt > 0) {
+        (v, yieldDebt) = v.boundedSub2(yieldDebt);
+        _yieldDebt = uint128(yieldDebt);
       }
-      till = cutOff;
     }
+  }
 
-    v = _yieldRate * (till - from);
-    yieldDebt = _yieldDebt;
-    if (yieldDebt > 0) {
-      (v, yieldDebt) = v.boundedSub2(yieldDebt);
+  function _calcDiff(uint32 from, uint32 till) private view returns (uint256) {
+    uint32 cutOff = _rateCutOffAt;
+    if (cutOff > 0) {
+      if (from >= cutOff) {
+        return 0;
+      }
+      if (till > cutOff) {
+        till = cutOff;
+      }
     }
+    return till == from ? 0 : uint256(_yieldRate) * (till - from);
   }
 
   function internalAddYieldExcess(uint256) internal virtual;
@@ -172,16 +175,14 @@ abstract contract YieldStreamerBase is Collateralized {
       return false;
     }
 
-    uint256 last = _nextPullable;
-    if (last != 0) {
-      last--;
+    uint256 i = _lastPullable;
+    if (i > count) {
+      i = 0;
     }
 
-    for (uint256 i = last + 1; i != last; i++) {
-      if (i > count) {
-        i = 0;
-        continue;
-      }
+    for (uint256 n = count; n > 0; n--) {
+      i = 1 + (i % count);
+
       PullableSource storage ps = _pullableSources[i];
       uint256 collectedYield = internalPullYieldFrom(ps.sourceType, ps.source);
       if (collectedYield > 0) {
@@ -192,7 +193,7 @@ abstract contract YieldStreamerBase is Collateralized {
         break;
       }
     }
-    _nextPullable = uint16(last);
+    _lastPullable = uint16(i);
   }
 
   function internalPullYieldFrom(uint8 sourceType, address source) internal virtual returns (uint256);

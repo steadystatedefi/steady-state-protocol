@@ -16,10 +16,14 @@ contract MockYieldDistributor is YieldDistributorBase {
     return true;
   }
 
-  function internalPullYieldFrom(uint8 sourceType, address) internal pure override returns (uint256) {
+  uint256 public pullCount;
+
+  function internalPullYieldFrom(uint8 sourceType, address addr) internal override returns (uint256) {
+    Value.require(addr != address(0));
     if (sourceType != 2) {
       revert Errors.NotImplemented();
     }
+    pullCount++;
     return 0;
   }
 }

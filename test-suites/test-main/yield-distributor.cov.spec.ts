@@ -114,7 +114,9 @@ makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
     await dist.connect(user1).unstake(insurer.address, MAX_UINT, user1.address, testEnv.covGas());
   });
 
-  it('Add/remove yield sources', async () => {
+  it('Add/remove yield pullable sources', async () => {
+    await dist.connect(user1).stake(insurer.address, WAD, user1.address);
+
     const checkSource = async (address: string, rate: BigNumberish, sourceType: number): Promise<void> => {
       const info = await dist.getYieldSource(address);
       expect(info.sourceType).eq(sourceType);
@@ -130,26 +132,49 @@ makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
     await checkSource(user2.address, 0, YieldSourceType.NullPull);
     await checkSource(user3.address, 0, 0);
 
+    await dist.connect(user2).addYieldPayout(0, WAD.mul(2));
+    // trigger pulling of sources
+    await dist.connect(user1).claimYield(user1.address);
+
+    const checkPullCount = async (n: number) => {
+      if (!testEnv.underCoverage) {
+        // for some reason it is not updated when under coverage
+        expect(await dist.pullCount()).eq(n);
+      }
+    };
+
+    await checkPullCount(1);
+
     await dist.addYieldSource(user3.address, YieldSourceType.NullPull, testEnv.covGas());
-    await checkSource(user2.address, 0, YieldSourceType.NullPull);
+
+    await checkSource(user2.address, WAD.mul(2), YieldSourceType.NullPull);
     await checkSource(user3.address, 0, YieldSourceType.NullPull);
 
-    await dist.connect(user2).addYieldPayout(0, WAD.mul(2));
     await dist.connect(user3).addYieldPayout(0, WAD.mul(3));
     await checkSource(user2.address, WAD.mul(2), YieldSourceType.NullPull);
     await checkSource(user3.address, WAD.mul(3), YieldSourceType.NullPull);
+
+    // trigger pulling of sources
+    await dist.connect(user1).claimYield(user1.address, testEnv.covGas());
+
+    await checkPullCount(3);
 
     await dist.removeYieldSource(user2.address, testEnv.covGas());
 
     await checkSource(user2.address, 0, 0);
     await checkSource(user3.address, WAD.mul(3), YieldSourceType.NullPull);
 
-    await dist.removeYieldSource(user2.address, testEnv.covGas()); // should not revert
+    await dist.connect(user1).claimYield(user1.address, testEnv.covGas());
+    await checkPullCount(4);
 
+    await dist.removeYieldSource(user2.address, testEnv.covGas()); // repeated removal should not revert
     await dist.removeYieldSource(user3.address, testEnv.covGas());
 
     await checkSource(user2.address, 0, 0);
     await checkSource(user3.address, 0, 0);
+
+    await dist.connect(user1).claimYield(user1.address, testEnv.covGas());
+    await checkPullCount(4);
   });
 
   it('Yield distribution for an insurer', async () => {
@@ -165,7 +190,7 @@ makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
 
     await increaseTime(100);
 
-    if (!testEnv.underCoverage) {
+    {
       const stageT0 = await currentTime();
       const deltaT0 = stageT0 - startedAt;
 
@@ -181,17 +206,19 @@ makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
     await dist.connect(user1).unstake(insurer.address, WAD.div(2), user1.address, testEnv.covGas());
     expect(await dist.totalStakedCollateral()).eq(WAD);
 
-    if (!testEnv.underCoverage) {
+    {
       const y1 = await dist.balanceOf(user1.address);
       const y2 = await dist.balanceOf(user2.address);
       const stageT0 = await currentTime();
 
-      await increaseTime(100);
-      const stageT1 = await currentTime();
-      const deltaT1 = stageT1 - stageT0;
+      if (!testEnv.underCoverage) {
+        await increaseTime(100);
+        const stageT1 = await currentTime();
+        const deltaT1 = stageT1 - stageT0;
 
-      expect((await dist.balanceOf(user1.address)).sub(y1)).eq(rate.mul(deltaT1).div(2));
-      expect((await dist.balanceOf(user2.address)).sub(y2)).eq(rate.mul(deltaT1).div(2));
+        expect((await dist.balanceOf(user1.address)).sub(y1)).eq(rate.mul(deltaT1).div(2));
+        expect((await dist.balanceOf(user2.address)).sub(y2)).eq(rate.mul(deltaT1).div(2));
+      }
     }
 
     const y1 = await dist.balanceOf(user1.address);
@@ -225,21 +252,28 @@ makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
 
     await increaseTime(100);
 
-    if (!testEnv.underCoverage) {
+    {
       const stageT0 = await currentTime();
       const deltaT0 = stageT0 - startedAt;
 
       const y1 = await dist.balanceOf(user1.address);
       const y2 = await dist.balanceOf(user2.address);
 
-      expect(y1).eq(rate.mul(deltaT0).div(3));
-      expect(y2).eq(rate.mul(deltaT0 * 2).div(3));
+      if (!testEnv.underCoverage) {
+        expect(y1).eq(rate.mul(deltaT0).div(3));
+        expect(y2).eq(rate.mul(deltaT0 * 2).div(3));
+      }
     }
 
     await insurer1.setCollateralSupplyFactor(WAD.div(2));
+
     await dist.syncStakeAsset(insurer1.address);
+
     expect(await dist.totalStakedCollateral()).eq(WAD.mul(5).div(2));
     expect(await dist.stakedBalanceOf(insurer1.address, user2.address)).eq(WAD);
+
+    await insurer1.callSyncByAsset();
+    expect(await dist.totalStakedCollateral()).eq(WAD.mul(5).div(2));
 
     const checkBalances = async (rate1: BigNumber): Promise<void> => {
       if (testEnv.underCoverage) {
@@ -306,7 +340,7 @@ makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
     }
 
     const startedAt = await currentTime();
-    increaseTime(10);
+    await increaseTime(10);
 
     const rate1 = WAD.mul(5);
     const paidOut0 = rate0.mul(3);
@@ -324,7 +358,7 @@ makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
     {
       const y1 = await dist.balanceOf(user1.address);
       expect(y1).gt(0);
-      increaseTime(1);
+      await increaseTime(1);
 
       // there is no new payouts until the yield debt is covered
       expect(await dist.balanceOf(user1.address)).eq(y1);
