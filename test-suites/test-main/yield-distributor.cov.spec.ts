@@ -1,16 +1,16 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
-import { BigNumber } from 'ethers';
+import { BigNumber, BigNumberish } from 'ethers';
 
-import { MAX_UINT, WAD } from '../../helpers/constants';
+import { MAX_UINT, RAY, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, increaseTime } from '../../helpers/runtime-utils';
 import { MockCollateralFund, MockCollateralCurrency, MockYieldDistributor, MockInsurerForYield } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-makeSuite('Yield distributor', (testEnv: TestEnv) => {
+makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
   let cc: MockCollateralCurrency;
   let token0: MockCollateralCurrency;
   let fund: MockCollateralFund;
@@ -51,10 +51,10 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
   enum YieldSourceType {
     None,
     Passive,
+    NullPull,
   }
 
   it('Stake and unstake', async () => {
-    //    await dist.addYieldSource(user3.address, YieldSourceType.Passive);
     expect(await dist.totalStakedCollateral()).eq(0);
     expect(await insurer.balanceOf(dist.address)).eq(0);
 
@@ -114,24 +114,60 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
     await dist.connect(user1).unstake(insurer.address, MAX_UINT, user1.address, testEnv.covGas());
   });
 
-  it('Yield distribution for one insurer', async () => {
+  it('Add/remove yield sources', async () => {
+    const checkSource = async (address: string, rate: BigNumberish, sourceType: number): Promise<void> => {
+      const info = await dist.getYieldSource(address);
+      expect(info.sourceType).eq(sourceType);
+      expect(info.expectedRate).eq(rate);
+    };
+
+    await checkSource(user2.address, 0, 0);
+    await checkSource(user3.address, 0, 0);
+
+    await expect(dist.addYieldPayout(0, WAD)).reverted;
+
+    await dist.addYieldSource(user2.address, YieldSourceType.NullPull, testEnv.covGas());
+    await checkSource(user2.address, 0, YieldSourceType.NullPull);
+    await checkSource(user3.address, 0, 0);
+
+    await dist.addYieldSource(user3.address, YieldSourceType.NullPull, testEnv.covGas());
+    await checkSource(user2.address, 0, YieldSourceType.NullPull);
+    await checkSource(user3.address, 0, YieldSourceType.NullPull);
+
+    await dist.connect(user2).addYieldPayout(0, WAD.mul(2));
+    await dist.connect(user3).addYieldPayout(0, WAD.mul(3));
+    await checkSource(user2.address, WAD.mul(2), YieldSourceType.NullPull);
+    await checkSource(user3.address, WAD.mul(3), YieldSourceType.NullPull);
+
+    await dist.removeYieldSource(user2.address, testEnv.covGas());
+
+    await checkSource(user2.address, 0, 0);
+    await checkSource(user3.address, WAD.mul(3), YieldSourceType.NullPull);
+
+    await dist.removeYieldSource(user2.address, testEnv.covGas()); // should not revert
+
+    await dist.removeYieldSource(user3.address, testEnv.covGas());
+
+    await checkSource(user2.address, 0, 0);
+    await checkSource(user3.address, 0, 0);
+  });
+
+  it('Yield distribution for an insurer', async () => {
     await dist.connect(user1).stake(insurer.address, WAD, user1.address);
     await dist.connect(user2).stake(insurer.address, WAD.div(2), user2.address);
     expect(await dist.totalStakedCollateral()).eq(WAD.mul(3).div(2));
 
     await dist.addYieldSource(user3.address, YieldSourceType.Passive, testEnv.covGas());
 
-    await expect(dist.addYieldPayout(0, WAD.mul(3))).reverted;
-
-    const startedAt = await currentTime();
     const rate = WAD.mul(3);
     await dist.connect(user3).addYieldPayout(0, rate);
+    const startedAt = await currentTime();
 
     await increaseTime(100);
 
     if (!testEnv.underCoverage) {
       const stageT0 = await currentTime();
-      const deltaT0 = stageT0 - startedAt + 1;
+      const deltaT0 = stageT0 - startedAt;
 
       const y1 = await dist.balanceOf(user1.address);
       const y2 = await dist.balanceOf(user2.address);
@@ -183,15 +219,15 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
 
     await dist.addYieldSource(user3.address, YieldSourceType.Passive, testEnv.covGas());
 
-    const startedAt = await currentTime();
     const rate = WAD.mul(3);
     await dist.connect(user3).addYieldPayout(0, rate);
+    const startedAt = await currentTime();
 
     await increaseTime(100);
 
     if (!testEnv.underCoverage) {
       const stageT0 = await currentTime();
-      const deltaT0 = stageT0 - startedAt + 1;
+      const deltaT0 = stageT0 - startedAt;
 
       const y1 = await dist.balanceOf(user1.address);
       const y2 = await dist.balanceOf(user2.address);
@@ -245,5 +281,74 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
     expect(await dist.stakedBalanceOf(insurer1.address, user2.address)).eq(WAD.div(2));
 
     await checkBalances(rate.div(2));
+  });
+
+  it('Yield payouts', async () => {
+    await dist.connect(user1).stake(insurer.address, WAD, user1.address);
+
+    await cc.registerLiquidityProvider(user0.address);
+    await cc.mint(user3.address, RAY);
+    await cc.connect(user3).approve(dist.address, MAX_UINT);
+
+    await dist.addYieldSource(user3.address, YieldSourceType.Passive, testEnv.covGas());
+    {
+      const info = await dist.getYieldInfo();
+      expect(info.rate).eq(0);
+      expect(info.debt).eq(0);
+    }
+
+    const rate0 = WAD.mul(3);
+    await dist.connect(user3).addYieldPayout(0, rate0);
+    {
+      const info = await dist.getYieldInfo();
+      expect(info.rate).eq(rate0);
+      expect(info.debt).eq(0);
+    }
+
+    const startedAt = await currentTime();
+    increaseTime(10);
+
+    const rate1 = WAD.mul(5);
+    const paidOut0 = rate0.mul(3);
+    await dist.connect(user3).addYieldPayout(paidOut0, rate1); // underpayment
+
+    expect(await cc.balanceOf(dist.address)).eq(paidOut0);
+    {
+      const deltaT = (await currentTime()) - startedAt;
+      const info = await dist.getYieldInfo();
+      expect(info.rate).eq(rate1);
+      if (!testEnv.underCoverage) {
+        expect(info.debt).eq(rate0.mul(deltaT).sub(paidOut0));
+      }
+    }
+    {
+      const y1 = await dist.balanceOf(user1.address);
+      expect(y1).gt(0);
+      increaseTime(1);
+
+      // there is no new payouts until the yield debt is covered
+      expect(await dist.balanceOf(user1.address)).eq(y1);
+    }
+
+    expect(await cc.balanceOf(user1.address)).eq(0);
+    await dist.connect(user1).claimYield(user1.address);
+
+    expect(await cc.balanceOf(user1.address)).eq(paidOut0);
+    expect(await dist.balanceOf(user1.address)).gt(0);
+    expect(await cc.balanceOf(dist.address)).eq(0);
+
+    const paidOut1 = rate0.mul(300);
+    await dist.connect(user3).addYieldPayout(paidOut1, rate1); // overpayment
+
+    expect(await cc.balanceOf(dist.address)).eq(paidOut1);
+    {
+      const info = await dist.getYieldInfo();
+      expect(info.rate).eq(rate1);
+      expect(info.debt).eq(0);
+    }
+
+    await dist.connect(user1).claimYieldFrom(user1.address, [insurer.address]);
+    expect(await cc.balanceOf(dist.address)).eq(0);
+    expect(await cc.balanceOf(user1.address)).eq(paidOut0.add(paidOut1));
   });
 });

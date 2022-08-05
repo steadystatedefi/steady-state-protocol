@@ -200,15 +200,22 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
   }
 
+  function internalSyncTotal() internal {
+    _updateTotal(0);
+  }
+
   function _updateTotal(uint256 extra) private returns (uint256 totalIntegral, uint256 totalStaked) {
     uint32 lastUpdatedAt;
     (totalIntegral, lastUpdatedAt) = internalGetTimeIntegral();
 
     uint32 at = uint32(block.timestamp);
     if (at != lastUpdatedAt) {
+      extra += internalGetRateIntegral(lastUpdatedAt, at);
+    }
+    if (extra != 0) {
       if ((totalStaked = _totalStakedCollateral) != 0) {
-        totalIntegral += (extra + internalGetRateIntegral(lastUpdatedAt, at)).rayDiv(totalStaked);
-        internalSetTimeIntegral(totalIntegral, uint32(block.timestamp));
+        totalIntegral += extra.rayDiv(totalStaked);
+        internalSetTimeIntegral(totalIntegral, at);
       }
     }
   }

@@ -37,8 +37,20 @@ abstract contract YieldStreamerBase is Collateralized {
   }
 
   struct PullableSource {
-    YieldSourceType sourceType;
+    uint8 sourceType;
     address source;
+  }
+
+  function internalGetYieldInfo()
+    internal
+    view
+    returns (
+      uint256 rate,
+      uint256 debt,
+      uint32 cutOff
+    )
+  {
+    return (_yieldRate, _yieldDebt, _rateCutOffAt);
   }
 
   function internalCalcRateIntegral(uint32 from, uint32 till) internal view virtual returns (uint256 v) {
@@ -71,6 +83,7 @@ abstract contract YieldStreamerBase is Collateralized {
 
   function internalAddYieldExcess(uint256) internal virtual;
 
+  // NB! Total integral must be synced before calling this method
   function internalAddYieldPayout(
     address source,
     uint256 amount,
@@ -82,13 +95,16 @@ abstract contract YieldStreamerBase is Collateralized {
     uint32 at = uint32(block.timestamp);
     uint256 lastRate = s.expectedRate;
 
-    uint256 expectedAmount = uint256(at - s.appliedSince) * lastRate;
+    uint256 expectedAmount = uint256(at - s.appliedSince) * lastRate + _yieldDebt;
     s.appliedSince = at;
 
     if (expectedAmount > amount) {
-      _yieldDebt += (expectedAmount - amount).asUint128();
-    } else if (expectedAmount < amount) {
-      internalAddYieldExcess(amount - expectedAmount);
+      _yieldDebt = (expectedAmount - amount).asUint128();
+    } else {
+      _yieldDebt = 0;
+      if (expectedAmount < amount) {
+        internalAddYieldExcess(amount - expectedAmount);
+      }
     }
 
     if (lastRate != expectedRate) {
@@ -97,21 +113,22 @@ abstract contract YieldStreamerBase is Collateralized {
     }
   }
 
-  function internalAddYieldSource(address source, YieldSourceType sourceType) internal {
+  function internalAddYieldSource(address source, uint8 sourceType) internal {
     Value.require(source != address(0));
-    Value.require(sourceType != YieldSourceType.None);
+    Value.require(sourceType != uint8(YieldSourceType.None));
 
     YieldSource storage s = _sources[source];
     State.require(s.appliedSince == 0);
     s.appliedSince = uint32(block.timestamp);
 
-    if (sourceType > YieldSourceType.Passive) {
+    if (sourceType > uint8(YieldSourceType.Passive)) {
       PullableSource storage ps = _pullableSources[s.pullableIndex = ++_pullableCount];
       ps.source = source;
       ps.sourceType = sourceType;
     }
   }
 
+  // NB! Total integral must be synced before calling this method
   function internalRemoveYieldSource(address source) internal returns (bool ok) {
     YieldSource storage s = _sources[source];
     if (ok = (s.appliedSince != 0)) {
@@ -136,7 +153,7 @@ abstract contract YieldStreamerBase is Collateralized {
     internal
     view
     returns (
-      YieldSourceType sourceType,
+      uint8 sourceType,
       uint96 expectedRate,
       uint32 since
     )
@@ -145,7 +162,7 @@ abstract contract YieldStreamerBase is Collateralized {
     if ((since = s.appliedSince) != 0) {
       expectedRate = s.expectedRate;
       uint16 index = s.pullableIndex;
-      sourceType = index == 0 ? YieldSourceType.Passive : _pullableSources[index].sourceType;
+      sourceType = index == 0 ? uint8(YieldSourceType.Passive) : _pullableSources[index].sourceType;
     }
   }
 
@@ -166,7 +183,7 @@ abstract contract YieldStreamerBase is Collateralized {
         continue;
       }
       PullableSource storage ps = _pullableSources[i];
-      uint256 collectedYield = _pullYield(ps.sourceType, ps.source);
+      uint256 collectedYield = internalPullYieldFrom(ps.sourceType, ps.source);
       if (collectedYield > 0) {
         foundMore = true;
       }
@@ -178,7 +195,7 @@ abstract contract YieldStreamerBase is Collateralized {
     _nextPullable = uint16(last);
   }
 
-  function _pullYield(YieldSourceType sourceType, address source) internal returns (uint256) {}
+  function internalPullYieldFrom(uint8 sourceType, address source) internal virtual returns (uint256);
 }
 
 enum YieldSourceType {

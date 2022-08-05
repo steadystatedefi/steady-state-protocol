@@ -15,4 +15,11 @@ contract MockYieldDistributor is YieldDistributorBase {
   function hasAllAcl(address, uint256) internal pure override returns (bool) {
     return true;
   }
+
+  function internalPullYieldFrom(uint8 sourceType, address) internal pure override returns (uint256) {
+    if (sourceType != 2) {
+      revert Errors.NotImplemented();
+    }
+    return 0;
+  }
 }

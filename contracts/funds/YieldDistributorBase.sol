@@ -90,14 +90,16 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
     if (amount > 0) {
       transferCollateralFrom(msg.sender, address(this), amount);
     }
+    internalSyncTotal();
     internalAddYieldPayout(msg.sender, amount, expectedRate);
   }
 
   function addYieldSource(address source, uint8 sourceType) external aclHas(AccessFlags.BORROWER_ADMIN) {
-    internalAddYieldSource(source, YieldSourceType(sourceType));
+    internalAddYieldSource(source, sourceType);
   }
 
   function removeYieldSource(address source) external aclHas(AccessFlags.BORROWER_ADMIN) {
+    internalSyncTotal();
     internalRemoveYieldSource(source);
   }
 
@@ -112,8 +114,23 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
       uint32 since
     )
   {
-    YieldSourceType t;
-    (t, expectedRate, since) = internalGetYieldSource(source);
-    sourceType = uint8(t);
+    return internalGetYieldSource(source);
+  }
+
+  function getYieldInfo()
+    external
+    view
+    returns (
+      uint256 rate,
+      uint256 debt,
+      uint32 cutOff
+    )
+  {
+    return internalGetYieldInfo();
+  }
+
+  function internalPullYieldFrom(uint8, address) internal virtual override returns (uint256) {
+    Errors.notImplemented();
+    return 0;
   }
 }
