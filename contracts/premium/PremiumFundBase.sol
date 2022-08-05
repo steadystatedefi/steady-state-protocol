@@ -58,7 +58,7 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
   struct ActuaryConfig {
     mapping(address => TokenInfo) tokens; // [token]
     mapping(address => address) sourceToken; // [source] => token
-    mapping(address => SourceBalance) sourceBalances; // [source] - only for sources with a shared token
+    mapping(address => SourceBalance) sourceBalances; // [source] - to support shared tokens among different sources
     BalancerLib2.AssetConfig defaultConfig;
     ActuaryState state;
   }

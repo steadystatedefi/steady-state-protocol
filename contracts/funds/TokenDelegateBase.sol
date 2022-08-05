@@ -21,13 +21,14 @@ abstract contract TokenDelegateBase is ERC20Base {
     _;
   }
 
-  function transferBalanceAndEmit(
+  function _transferAndEmit(
     address sender,
     address recipient,
-    uint256 amount
+    uint256 amount,
+    address onBehalf
   ) internal override {
-    super.transferBalanceAndEmit(sender, recipient, amount);
-    _notifyRecipient(sender, recipient, amount);
+    super._transferAndEmit(sender, recipient, amount, onBehalf);
+    _notifyRecipient(onBehalf, recipient, amount);
   }
 
   function _notifyRecipient(

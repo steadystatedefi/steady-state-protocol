@@ -16,7 +16,7 @@ abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase
 
   /// @notice The exchange rate from shares to $CC
   /// @return The exchange rate
-  function exchangeRate() public view virtual returns (uint256) {
+  function exchangeRate() public view virtual override returns (uint256) {
     return WadRayMath.RAY - _inverseExchangeRate;
   }
 
@@ -59,4 +59,6 @@ abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase
     _totalRate = totals.setRateAfterSync(rate.rayMul(exchangeRate()));
     return totals;
   }
+
+  function totalSupply() public view virtual override(IERC20, WeightedPoolBase) returns (uint256);
 }

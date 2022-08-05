@@ -43,4 +43,6 @@ contract MockCollateralCurrencyStub {
     ERC1363.callReceiver(to, msg.sender, msg.sender, value, data);
     return true;
   }
+
+  function borrowManager() public view returns (address) {}
 }

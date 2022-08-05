@@ -13,3 +13,13 @@ interface IPremiumSource {
     uint256 value
   ) external;
 }
+
+interface IPremiumSourceDelegate {
+  function collectPremium(
+    address actuary,
+    address token,
+    uint256 amount,
+    uint256 value,
+    address recipient
+  ) external;
+}

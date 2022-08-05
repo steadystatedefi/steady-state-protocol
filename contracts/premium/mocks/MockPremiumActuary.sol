@@ -7,8 +7,8 @@ import '../../interfaces/IPremiumDistributor.sol';
 import '../../tools/tokens/IERC20.sol';
 
 contract MockPremiumActuary is IPremiumActuary {
-  address public premiumDistributor;
-  address public collateral;
+  address public override premiumDistributor;
+  address public override collateral;
   uint256 public drawdown;
 
   mapping(address => uint256) public premiumBurnt;
@@ -38,7 +38,7 @@ contract MockPremiumActuary is IPremiumActuary {
     address account,
     uint256 value,
     address drawdownRecepient
-  ) external {
+  ) external override {
     premiumBurnt[account] += value;
     if (drawdownRecepient != address(0)) {
       drawdown -= value;

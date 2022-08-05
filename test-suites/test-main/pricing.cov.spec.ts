@@ -3,17 +3,13 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber, BigNumberish } from 'ethers';
 
-import { MAX_UINT, WAD } from '../../helpers/constants';
+import { MAX_UINT, WAD, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime } from '../../helpers/runtime-utils';
 import { AccessController, MockERC20, OracleRouterV1 } from '../../types';
 import { PriceSourceStruct } from '../../types/contracts/pricing/OracleRouterBase';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
-
-const ROLES = MAX_UINT.mask(16);
-const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
-const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
 
 const PRICE_ROUTER_ADMIN = BigNumber.from(1).shl(7);
 const PRICE_ROUTER = BigNumber.from(1).shl(29);
