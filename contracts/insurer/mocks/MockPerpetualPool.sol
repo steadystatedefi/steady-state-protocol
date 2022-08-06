@@ -5,10 +5,10 @@ import '../PerpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
 
 contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
-  constructor(
-    PerpetualPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) ERC20DetailsBase('PerpetualPoolToken', '$IC', 18) PerpetualPoolBase(extension, joinExtension) {
+  constructor(PerpetualPoolExtension extension, JoinablePoolExtension joinExtension)
+    ERC20DetailsBase('PerpetualPoolToken', '$IC', 18)
+    PerpetualPoolBase(extension, joinExtension)
+  {
     internalSetTypedGovernor(this);
     internalSetPoolParams(
       WeightedPoolParams({
@@ -30,7 +30,7 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     return InsuredStatus.Accepted;
   }
 
-  function governerQueryAccessControlMask(address, uint256 filterMask) external pure returns (uint256) {
+  function governerQueryAccessControlMask(address, uint256 filterMask) external pure override returns (uint256) {
     return filterMask;
   }
 
@@ -90,7 +90,7 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     return payoutRatio;
   }
 
-  function getApprovedPolicyForInsurer(address) external returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
+  function getApprovedPolicyForInsurer(address) external override returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
     data.riskLevel = _riskWeightValue;
     if (data.riskLevel > 0) {
       _riskWeightValue = 0;

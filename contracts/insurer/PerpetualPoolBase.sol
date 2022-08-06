@@ -12,10 +12,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  constructor(
-    PerpetualPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) WeightedPoolBase(extension, joinExtension) {}
+  constructor(PerpetualPoolExtension extension, JoinablePoolExtension joinExtension) WeightedPoolBase(extension, joinExtension) {}
 
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
@@ -65,19 +62,23 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
   /// @dev Call _afterBalanceUpdate to update the rate of the pool
-  function updateCoverageOnCancel(uint256 valueLoss, uint256 excess, uint256 collateralAsPremium) external onlySelf {
+  function updateCoverageOnCancel(
+    uint256 valueLoss,
+    uint256 excess,
+    uint256 collateralAsPremium
+  ) external onlySelf {
     internalAdjustCoverage(valueLoss, excess);
     if (collateralAsPremium > 0) {
-      internalCollateralAsPremium(collateralAsPremium);
+      internalAddCollateralAsPremium(collateralAsPremium);
     }
     if (excess > 0) {
       internalOnCoverageRecovered();
     }
   }
 
-  function internalCollateralAsPremium(uint256 amount) internal virtual {
+  function internalAddCollateralAsPremium(uint256 amount) internal virtual {
     amount;
-    // TODO internalCollateralAsPremium
+    // TODO internalAddCollateralAsPremium
     Errors.notImplemented();
   }
 
@@ -145,15 +146,13 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     (, premium) = interestOf(account);
   }
 
-  /// @notice The amount of coverage ($CC) that has been allocated to this pool
-  /// @return The $CC allocated to this pool
+  /// @return The $CC-equivalent value of this pool
   function totalSupplyValue() public view returns (uint256) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
-  /// @notice The amount of coverage ($CC) that has been allocated to this pool
-  /// @return The $CC allocated to this pool
+  /// @return The amount of tokens of this pool
   function totalSupply() public view override returns (uint256) {
     return totalSupplyValue().rayDiv(exchangeRate());
   }
@@ -209,7 +208,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     }
   }
 
-  function withdrawAll() external onlyUnpaused override returns (uint256) {
+  function withdrawAll() external override onlyUnpaused returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }
 
@@ -228,7 +227,8 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   }
 
   function _burnDrawdown(address account, uint256 value) private {
-    account; value;
+    account;
+    value;
     Errors.notImplemented();
   }
 

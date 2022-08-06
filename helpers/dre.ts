@@ -25,3 +25,5 @@ export const setDRE = (dre: DREWithPlugins): void => {
   DRE = dre;
   Object.freeze(DRE);
 };
+
+export const chainId = (): number => DRE.network.config.chainId ?? -1;

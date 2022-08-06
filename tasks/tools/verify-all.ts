@@ -19,7 +19,7 @@ interface IVerifyAllContractsArgs {
   force: boolean;
 }
 
-task('verify-all-contracts', 'Verify contracts listed in DeployDB')
+task('verify:all-contracts', 'Verify contracts listed in DeployDB')
   .addFlag('force', 'Ignore verified status')
   .addOptionalParam('n', 'Batch index, 0 <= n < total number of batches', 0, types.int)
   .addOptionalParam('of', 'Total number of batches, > 0', 1, types.int)

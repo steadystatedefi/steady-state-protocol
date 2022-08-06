@@ -2,7 +2,6 @@
 pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/Address.sol';
-import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/SafeERC20.sol';
 import '../tools/Errors.sol';
 import '../tools/tokens/IERC20.sol';
@@ -32,7 +31,7 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     uint160 minPrepayValue,
     uint32 rollingAdvanceWindow
   ) internal {
-    Value.require(token == address(0));
+    Value.require(token != address(0));
     State.require(address(_premiumToken) == address(0));
     _premiumToken = IERC20(token);
     internalSetPrepay(minPrepayValue, rollingAdvanceWindow);

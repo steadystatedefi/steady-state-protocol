@@ -261,7 +261,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
     require(id.isPowerOf2nz(), 'only one role is allowed');
   }
 
-  function roleHolders(uint256 id) external view returns (address[] memory addrList) {
+  function roleHolders(uint256 id) external view override returns (address[] memory addrList) {
     _onlyOneRole(id);
 
     address singleton = _singlets[id].addr;

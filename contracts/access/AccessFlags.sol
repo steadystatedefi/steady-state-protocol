@@ -12,7 +12,7 @@ library AccessFlags {
   uint256 public constant PREMIUM_FUND_ADMIN = 1 << 5;
 
   uint256 public constant SWEEP_ADMIN = 1 << 6;
-  uint256 public constant ORACLE_ADMIN = 1 << 7;
+  uint256 public constant PRICE_ROUTER_ADMIN = 1 << 7;
 
   uint256 public constant UNDERWRITER_POLICY = 1 << 8;
   uint256 public constant UNDERWRITER_CLAIM = 1 << 9;
@@ -22,6 +22,8 @@ library AccessFlags {
 
   uint256 public constant INSURED_ADMIN = 1 << 12;
   uint256 public constant INSURED_OPS = 1 << 13;
+  uint256 public constant BORROWER_ADMIN = 1 << 14;
+  uint256 public constant LIQUIDITY_BORROWER = 1 << 15;
 
   uint256 public constant ROLES = (uint256(1) << 16) - 1;
 
@@ -39,8 +41,10 @@ library AccessFlags {
   uint256 public constant PROXY_FACTORY = 1 << 26;
 
   uint256 public constant DATA_HELPER = 1 << 28;
-  uint256 public constant PRICE_ORACLE = 1 << 29;
+  uint256 public constant PRICE_ROUTER = 1 << 29;
 
   // any other roles - use range [64..]
   // these roles can be assigned to multiple addresses
+  uint256 public constant COLLATERAL_FUND_LISTING = 1 << 64; // an ephemeral role - just to keep a list of collateral funds
+  uint256 public constant INSURER_POOL_LISTING = 1 << 65; // an ephemeral role - just to keep a list of insurer funds
 }

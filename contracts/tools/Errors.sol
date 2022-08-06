@@ -43,16 +43,23 @@ library Errors {
   error NotImplemented();
   error AccessDenied();
 
+  error ExpiredPermit();
+  error WrongPermitSignature();
+
   error ExcessiveVolatility();
+  error ExcessiveVolatilityLock(uint256 mask);
 
   error CallerNotProxyOwner();
-  error CallerNotEmergencyAdmin();
-  error CallerNotSweepAdmin();
+  error CalllerNotEmergencyAdmin();
+  error CalllerNotSweepAdmin();
+  error CalllerNotOracleAdmin();
 
   error CollateralTransferFailed();
 
   error ContractRequired();
   error ImplementationRequired();
+
+  error UnknownPriceAsset(address asset);
 }
 
 library State {

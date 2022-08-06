@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
 
-import { MAX_UINT } from '../../helpers/constants';
+import { MAX_UINT, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
 import { AccessController, IManagedAccessController, MockCaller } from '../../types';
@@ -23,13 +23,10 @@ enum roles {
   INSURER_OPS = 2 ** 4,
   PREMIUM_FUND_ADMIN = 2 ** 5,
   SWEEP_ADMIN = 2 ** 6,
-  ORACLE_ADMIN = 2 ** 7,
+  PRICE_ROUTER_ADMIN = 2 ** 7,
   UNDERWRITER_POLICY = 2 ** 8,
   UNDERWRITER_CLAIM = 2 ** 9,
 }
-
-const ROLES = MAX_UINT.mask(16);
-const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
 
 const SINGLET_ONE = BigNumber.from(1).shl(30);
 const SINGLET_TWO = BigNumber.from(1).shl(31);
@@ -39,8 +36,6 @@ enum protectedSingletons {
   APPROVAL_CATALOG = 2 ** 16,
   TREASURY = 2 ** 17,
 }
-
-const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
 
 makeSuite('Access Controller', (testEnv: TestEnv) => {
   let controller: AccessController;
@@ -294,7 +289,7 @@ makeSuite('Access Controller', (testEnv: TestEnv) => {
   });
 
   it('Grant any role', async () => {
-    await expect(controller.grantAnyRoles(user1.address, roles.ORACLE_ADMIN)).to.be.reverted;
+    await expect(controller.grantAnyRoles(user1.address, roles.PRICE_ROUTER_ADMIN)).to.be.reverted;
     await controller.setAnyRoleMode(true);
 
     // Usually setAddress must be used for singletons

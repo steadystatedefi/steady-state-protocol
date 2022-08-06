@@ -3,6 +3,8 @@ pragma solidity ^0.8.4;
 
 import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
+import '../interfaces/ICollateralStakeManager.sol';
+import '../interfaces/IYieldStakeAsset.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinable.sol';
@@ -10,14 +12,21 @@ import './WeightedPoolExtension.sol';
 import './JoinablePoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
-abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumActuary, Delegator, ERC1363ReceiverBase, WeightedPoolStorage {
+abstract contract WeightedPoolBase is
+  IJoinableBase,
+  IInsurerPoolBase,
+  IPremiumActuary,
+  IYieldStakeAsset,
+  Delegator,
+  ERC1363ReceiverBase,
+  WeightedPoolStorage
+{
   address internal immutable _extension;
   address internal immutable _joinExtension;
 
-  constructor(
-    WeightedPoolExtension extension,
-    JoinablePoolExtension joinExtension
-  ) WeightedPoolConfig(joinExtension.accessController(), extension.coverageUnitSize(), extension.collateral()) {
+  constructor(WeightedPoolExtension extension, JoinablePoolExtension joinExtension)
+    WeightedPoolConfig(joinExtension.accessController(), extension.coverageUnitSize(), extension.collateral())
+  {
     // require(extension.accessController() == joinExtension.accessController());
     // require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
     require(extension.collateral() == joinExtension.collateral());
@@ -90,6 +99,7 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
       transferCollateralFrom(donor, address(this), value);
       internalSubrogated(value);
       internalOnCoverageRecovered();
+      internalOnCoveredUpdated();
     }
   }
 
@@ -130,6 +140,7 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
     require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
 
     internalMintForCoverage(account, amount);
+    internalOnCoveredUpdated();
   }
 
   function internalMintForCoverage(address account, uint256 value) internal virtual;
@@ -140,5 +151,25 @@ abstract contract WeightedPoolBase is IJoinableBase, IInsurerPoolBase, IPremiumA
 
   function isPaused() public view returns (bool) {
     return _paused;
+  }
+
+  function internalOnCoveredUpdated() internal {}
+
+  function internalSyncStake() internal {
+    ICollateralStakeManager m = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
+    if (address(m) != address(0)) {
+      m.syncByStakeAsset(totalSupply(), collateralSupply());
+    }
+  }
+
+  function _coveredTotal() internal view returns (uint256) {
+    (uint256 totalCovered, uint256 pendingCovered) = super.internalGetCoveredTotals();
+    return totalCovered + pendingCovered;
+  }
+
+  function totalSupply() public view virtual override returns (uint256);
+
+  function collateralSupply() public view override returns (uint256) {
+    return _coveredTotal() + _excessCoverage;
   }
 }

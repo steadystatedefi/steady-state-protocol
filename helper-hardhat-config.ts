@@ -20,6 +20,9 @@ export const NETWORKS_RPC_URL: iParamsPerNetwork<string> = {
   [eEthereumNetwork.kovan]: ALCHEMY_KEY
     ? `https://eth-kovan.alchemyapi.io/v2/${ALCHEMY_KEY}`
     : `https://kovan.infura.io/v3/${INFURA_KEY}`,
+  [eEthereumNetwork.goerli]: ALCHEMY_KEY
+    ? `https://eth-goerli.g.alchemy.com/v2/${ALCHEMY_KEY}`
+    : `https://goerli.infura.io/v3/${INFURA_KEY}`,
   [eEthereumNetwork.ropsten]: ALCHEMY_KEY
     ? `https://eth-ropsten.alchemyapi.io/v2/${ALCHEMY_KEY}`
     : `https://ropsten.infura.io/v3/${INFURA_KEY}`,
@@ -60,6 +63,7 @@ const gasPrice = (def: number) => (process.env.GAS_PRICE ? parseInt(process.env.
 
 export const NETWORKS_DEFAULT_GAS: iParamsPerNetwork<number | 'auto'> = {
   [eEthereumNetwork.kovan]: gasPrice(1),
+  [eEthereumNetwork.goerli]: gasPrice(1),
   [eEthereumNetwork.ropsten]: gasPrice(10),
   [eEthereumNetwork.rinkeby]: gasPrice(1),
   [eEthereumNetwork.main]: gasPrice(85),
