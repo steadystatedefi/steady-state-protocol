@@ -10,7 +10,7 @@ import { MockCollateralFund, MockCollateralCurrency, MockYieldDistributor, MockI
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-makeSuite.only('Yield distributor', (testEnv: TestEnv) => {
+makeSuite('Yield distributor', (testEnv: TestEnv) => {
   let cc: MockCollateralCurrency;
   let token0: MockCollateralCurrency;
   let fund: MockCollateralFund;

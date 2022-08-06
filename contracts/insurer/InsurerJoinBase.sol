@@ -5,7 +5,7 @@ import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/Errors.sol';
 import '../interfaces/IJoinable.sol';
 import '../interfaces/IInsuredPool.sol';
-import '../libraries/Rounds.sol';
+import '../insurer/Rounds.sol';
 
 import 'hardhat/console.sol';
 
