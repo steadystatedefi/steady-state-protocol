@@ -13,6 +13,10 @@ export const Factories = {
   InsuredPoolV1: wrap(types.InsuredPoolV1__factory),
   CollateralCurrency: wrap(types.CollateralCurrency__factory),
   OracleRouterV1: wrap(types.OracleRouterV1__factory),
+  CollateralFundV1: wrap(types.CollateralFundV1__factory),
+  PremiumFundV1: wrap(types.PremiumFundV1__factory),
+  YieldDistributorV1: wrap(types.YieldDistributorV1__factory),
+  ImperpetualPoolV1: wrap(types.ImperpetualPoolV1__factory),
 
   MockCollateralCurrency: wrap(types.MockCollateralCurrency__factory),
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),
