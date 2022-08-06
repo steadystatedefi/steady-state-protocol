@@ -3,9 +3,12 @@ pragma solidity ^0.8.4;
 
 import '../access/AccessHelper.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
+import './interfaces/IManagedYieldDistributor.sol';
 import './TokenDelegateBase.sol';
 
 contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDelegateBase {
+  address private _borrowManager;
+
   constructor(
     IAccessController acl,
     string memory name_,
@@ -24,6 +27,14 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
   function registerInsurer(address account) external aclHas(AccessFlags.INSURER_ADMIN) {
     // TODO protect insurer from withdraw
     internalSetFlags(account, FLAG_TRANSFER_CALLBACK);
+    _registerStakeAsset(account, true);
+  }
+
+  function _registerStakeAsset(address account, bool register) private {
+    address bm = borrowManager();
+    if (bm != address(0)) {
+      IManagedYieldDistributor(bm).registerStakeAsset(account, register);
+    }
   }
 
   function unregister(address account) external {
@@ -31,10 +42,20 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
       Access.require(hasAnyAcl(msg.sender, internalGetFlags(account) == FLAG_TRANSFER_CALLBACK ? AccessFlags.INSURER_ADMIN : AccessFlags.LP_DEPLOY));
     }
     internalUnsetFlags(account);
+
+    _registerStakeAsset(account, false);
   }
 
   function mint(address account, uint256 amount) external override onlyWithFlags(FLAG_MINT) {
     _mint(account, amount);
+  }
+
+  function transferOnBehalf(
+    address onBehalf,
+    address recipient,
+    uint256 amount
+  ) external override onlyBorrowManager {
+    _transferOnBehalf(msg.sender, recipient, amount, onBehalf);
   }
 
   function mintAndTransfer(
@@ -58,5 +79,23 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
 
   function burn(address account, uint256 amount) external override onlyWithFlags(FLAG_BURN) {
     _burn(account, amount);
+  }
+
+  function _onlyBorrowManager() private view {
+    Access.require(msg.sender == borrowManager());
+  }
+
+  modifier onlyBorrowManager() {
+    _onlyBorrowManager();
+    _;
+  }
+
+  function borrowManager() public view override returns (address) {
+    return _borrowManager;
+  }
+
+  function setBorrowManager(address borrowManager_) external onlyAdmin {
+    Value.require(borrowManager_ != address(0));
+    _borrowManager = borrowManager_;
   }
 }

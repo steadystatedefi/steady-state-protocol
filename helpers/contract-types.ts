@@ -33,6 +33,8 @@ export const Factories = {
   MockChainlinkV3: mock(types.MockChainlinkV3__factory),
   MockUniswapV2: mock(types.MockUniswapV2__factory),
   MockInsuredPoolV2: mock(types.MockInsuredPoolV2__factory),
+  MockYieldDistributor: mock(types.MockYieldDistributor__factory),
+  MockInsurerForYield: mock(types.MockInsurerForYield__factory),
 };
 
 Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));

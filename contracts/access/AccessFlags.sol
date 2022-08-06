@@ -22,6 +22,8 @@ library AccessFlags {
 
   uint256 public constant INSURED_ADMIN = 1 << 12;
   uint256 public constant INSURED_OPS = 1 << 13;
+  uint256 public constant BORROWER_ADMIN = 1 << 14;
+  uint256 public constant LIQUIDITY_BORROWER = 1 << 15;
 
   uint256 public constant ROLES = (uint256(1) << 16) - 1;
 

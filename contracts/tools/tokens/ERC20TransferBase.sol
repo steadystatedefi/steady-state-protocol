@@ -42,22 +42,43 @@ abstract contract ERC20TransferBase is IERC20 {
     address recipient,
     uint256 amount
   ) internal virtual {
-    require(sender != address(0), 'ERC20: transfer from the zero address');
-    require(recipient != address(0), 'ERC20: transfer to the zero address');
+    _ensure(sender, recipient);
 
     _beforeTokenTransfer(sender, recipient, amount);
-    transferBalanceAndEmit(sender, recipient, amount);
+    _transferAndEmit(sender, recipient, amount, sender);
   }
 
-  function transferBalanceAndEmit(
+  function _transferOnBehalf(
     address sender,
     address recipient,
-    uint256 amount
+    uint256 amount,
+    address onBehalf
+  ) internal virtual {
+    _ensure(sender, recipient);
+    require(onBehalf != address(0), 'ERC20: transfer on behalf of the zero address');
+
+    _beforeTokenTransfer(sender, recipient, amount);
+    _transferAndEmit(sender, recipient, amount, onBehalf);
+  }
+
+  function _ensure(address sender, address recipient) private pure {
+    require(sender != address(0), 'ERC20: transfer from the zero address');
+    require(recipient != address(0), 'ERC20: transfer to the zero address');
+  }
+
+  function _transferAndEmit(
+    address sender,
+    address recipient,
+    uint256 amount,
+    address onBehalf
   ) internal virtual {
     if (sender != recipient) {
       transferBalance(sender, recipient, amount);
     }
-    emit Transfer(sender, recipient, amount);
+    if (onBehalf != sender) {
+      emit Transfer(sender, onBehalf, amount);
+    }
+    emit Transfer(onBehalf, recipient, amount);
   }
 
   function transferBalance(

@@ -6,6 +6,7 @@ import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
+import '../interfaces/ICollateralStakeManager.sol';
 import '../pricing/PricingHelper.sol';
 
 import '../access/AccessHelper.sol';
@@ -35,10 +36,16 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
     address trusted;
   }
 
+  struct BorrowBalance {
+    uint128 amount;
+    uint128 value;
+  }
+
   uint8 private constant AF_ADDED = 1 << 7;
 
   EnumerableSet.AddressSet private _tokens;
   mapping(address => CollateralAsset) private _assets; // [token]
+  mapping(address => mapping(address => BorrowBalance)) private _borrowedBalances; // [token][borrower]
   mapping(address => mapping(address => uint256)) private _approvals; // [owner][delegate]
 
   function _onlyApproved(
@@ -240,7 +247,10 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
     uint8 accessFlags
   ) private view returns (CollateralAsset storage asset) {
     _onlyApproved(operator, account, accessFlags);
+    asset = _onlyActiveAsset(token, accessFlags);
+  }
 
+  function _onlyActiveAsset(address token, uint8 accessFlags) private view returns (CollateralAsset storage asset) {
     asset = _assets[token];
     uint8 flags = asset.flags;
     State.require(flags & AF_ADDED != 0);
@@ -344,6 +354,44 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
     return _tokens.values();
   }
 
+  function borrow(
+    address token,
+    uint256 amount,
+    address to
+  ) external {
+    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
+    Value.require(amount > 0);
+
+    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
+    uint256 value = amount.wadMul(internalPriceOf(token));
+    State.require(value > 0);
+    State.require(bm.verifyBorrowUnderlying(msg.sender, value));
+
+    BorrowBalance storage balance = _borrowedBalances[token][msg.sender];
+    require((balance.amount += uint128(amount)) >= amount);
+    require((balance.value += uint128(value)) >= value);
+
+    SafeERC20.safeTransfer(IERC20(token), to, amount);
+  }
+
+  function repay(address token, uint256 amount) external {
+    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
+    Value.require(amount > 0);
+
+    SafeERC20.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
+
+    BorrowBalance storage balance = _borrowedBalances[token][msg.sender];
+    uint256 prevAmount = balance.amount;
+    balance.amount = uint128(prevAmount - amount);
+
+    uint256 prevValue = balance.value;
+    uint256 value = (prevValue * amount) / prevAmount;
+    balance.value = uint128(prevValue - value);
+
+    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
+    State.require(bm.verifyRepayUnderlying(msg.sender, value));
+  }
+
   function resetPriceGuard() external aclHasAny(AccessFlags.LP_ADMIN) {
     getPricer().resetSourceGroup();
   }
@@ -353,4 +401,5 @@ library CollateralFundLib {
   uint8 internal constant APPROVED_DEPOSIT = 1 << 0;
   uint8 internal constant APPROVED_INVEST = 1 << 1;
   uint8 internal constant APPROVED_WITHDRAW = 1 << 2;
+  uint8 internal constant APPROVED_BORROW = 1 << 3;
 }
