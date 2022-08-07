@@ -10,6 +10,7 @@ import './WeightedPoolAccessControl.sol';
 abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessControl {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
+  using Rounds for Rounds.PackedInsuredParams;
 
   WeightedPoolParams internal _params;
 
@@ -145,7 +146,14 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return (uint16(x), minUnitsPerRound, maxUnitsPerRound, _params.overUnitsPerRound);
   }
 
-  /// TODO
+  function _requiredForMinimumCoverage(
+    uint64 demandedUnits,
+    uint64 minUnits,
+    uint256 remainingUnits
+  ) private pure returns (bool) {
+    return demandedUnits < minUnits && demandedUnits + remainingUnits >= minUnits;
+  }
+
   function internalBatchSplit(
     uint64 demandedUnits,
     uint64 minUnits,
@@ -154,12 +162,11 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   ) internal pure override returns (uint24 splitRounds) {
     // console.log('internalBatchSplit-0', demandedUnits, minUnits);
     // console.log('internalBatchSplit-1', batchRounds, remainingUnits);
-    if (demandedUnits >= minUnits || demandedUnits + remainingUnits < minUnits) {
-      if (remainingUnits <= batchRounds >> 2) {
-        return 0;
-      }
-    }
-    return remainingUnits;
+    return _requiredForMinimumCoverage(demandedUnits, minUnits, remainingUnits) || (remainingUnits > batchRounds >> 2) ? remainingUnits : 0;
+  }
+
+  function internalIsEnoughForMore(Rounds.InsuredEntry memory entry, uint256 unitCount) internal view override returns (bool) {
+    return _requiredForMinimumCoverage(entry.demandedUnits, entry.params.minUnits(), unitCount) || unitCount >= _params.minAdvanceUnits;
   }
 
   function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view returns (uint256) {

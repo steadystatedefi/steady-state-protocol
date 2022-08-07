@@ -219,7 +219,7 @@ abstract contract WeightedRoundsBase {
     }
     _openRounds = openRounds + _partial.roundNo;
 
-    _setPullBatch(params, unitCount > 0 || params.hasMore ? thisBatch : 0);
+    _setPullBatch(params, params.hasMore || internalIsEnoughForMore(entry, unitCount) ? thisBatch : 0);
     _insureds[params.insured] = entry;
 
     if (demand.unitPerRound != 0) {
@@ -232,6 +232,8 @@ abstract contract WeightedRoundsBase {
 
     return unitCount;
   }
+
+  function internalIsEnoughForMore(Rounds.InsuredEntry memory entry, uint256 unitCount) internal view virtual returns (bool);
 
   function _setPullBatch(AddCoverageDemandParams memory params, uint64 newPullBatch) private {
     if (params.prevPullBatch != newPullBatch) {
