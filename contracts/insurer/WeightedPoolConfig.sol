@@ -248,11 +248,12 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 }
 
 enum LoopLimitType {
-  // View
+  // View ops (255 iterations by default)
   ReceivableDemandedCoverage,
-  // Modify
+  // Modify ops (31 iterations by default)
   AddCoverageDemand,
   AddCoverage,
+  AddCoverageDemandByPull,
   CancelCoverageDemand,
   ReceiveDemandedCoverage
 }

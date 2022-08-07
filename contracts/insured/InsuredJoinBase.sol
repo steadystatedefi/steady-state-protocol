@@ -51,48 +51,49 @@ abstract contract InsuredJoinBase is IInsuredPool {
       require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
       internalSetServiceAccountStatus(insurer, uint16(index));
-      _addCoverageDemandTo(ICoverageDistributor(insurer), getDemandOnJoin());
+      _addCoverageDemandTo(ICoverageDistributor(insurer), getDemandOnJoin(), 0);
     } else {
       internalSetServiceAccountStatus(insurer, STATUS_NOT_JOINED);
     }
   }
 
   /// @inheritdoc IInsuredPool
-  function pullCoverageDemand() external override returns (bool) {
+  function pullCoverageDemand(uint256 amount, uint256 loopLimit) external override returns (bool) {
     uint16 status = getAccountStatus(msg.sender);
-    if (status > INDEX_MAX) {
-      return false;
+    if (status <= INDEX_MAX) {
+      require(status > 0);
+      return _addCoverageDemandTo(ICoverageDistributor(msg.sender), amount, loopLimit);
     }
-
-    require(status > 0);
-    return _addCoverageDemandTo(ICoverageDistributor(msg.sender), 0);
+    return false;
   }
 
   function internalPushCoverageDemandTo(ICoverageDistributor target, uint256 amount) internal {
     uint16 status = getAccountStatus(address(target));
     require(status > 0 && status <= INDEX_MAX);
-    _addCoverageDemandTo(target, amount);
+    _addCoverageDemandTo(target, amount, 0);
   }
 
   /// @dev Add coverage demand to the Insurer and
   /// @param target The insurer to add demand to
   /// @param amount The desired amount of demand to add
   /// @return True if there is more demand that can be added
-  function _addCoverageDemandTo(ICoverageDistributor target, uint256 amount) private returns (bool) {
+  function _addCoverageDemandTo(
+    ICoverageDistributor target,
+    uint256 amount,
+    uint256 loopLimit
+  ) private returns (bool) {
     uint256 unitSize = target.coverageUnitSize();
 
     (uint256 amountAdd, uint256 premiumRate) = internalAllocateCoverageDemand(address(target), amount, unitSize);
     require(amountAdd <= amount);
 
-    amountAdd = amountAdd < unitSize ? 0 : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0, 0);
+    amountAdd = amountAdd < unitSize ? 0 : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0, loopLimit);
     if (amountAdd == 0) {
       return false;
     }
 
-    amountAdd *= unitSize;
-    internalCoverageDemandAdded(address(target), amountAdd, premiumRate);
-
-    return amountAdd < amount;
+    internalCoverageDemandAdded(address(target), amountAdd * unitSize, premiumRate);
+    return true;
   }
 
   function internalAllocateCoverageDemand(

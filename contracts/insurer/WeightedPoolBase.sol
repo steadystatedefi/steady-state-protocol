@@ -173,4 +173,29 @@ abstract contract WeightedPoolBase is
   function collateralSupply() public view override returns (uint256) {
     return _coveredTotal() + _excessCoverage;
   }
+
+  function internalPullDemand(uint256 loopLimit) internal {
+    uint256 insuredLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemandByPull, 0);
+
+    for (; loopLimit > 0; ) {
+      address insured;
+      (insured, loopLimit) = super.internalPullDemandCandidate(loopLimit, false);
+      if (insured == address(0)) {
+        break;
+      }
+      if (IInsuredPool(insured).pullCoverageDemand(0, insuredLimit)) {
+        if (loopLimit <= insuredLimit) {
+          break;
+        }
+        loopLimit -= insuredLimit;
+      }
+    }
+  }
+
+  function internalTrim(AddCoverageParams memory params) internal {
+    if (params.openBatchNo == 0) {
+      // a dry-run, so lets do something useful
+      super.internalPullDemandCandidate(1, true);
+    }
+  }
 }
