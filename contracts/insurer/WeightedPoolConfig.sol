@@ -12,7 +12,8 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   using WadRayMath for uint256;
 
   WeightedPoolParams internal _params;
-  uint256 private _loopLimits;
+
+  // uint256 private _loopLimits;
 
   constructor(
     IAccessController acl,
@@ -20,14 +21,14 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     address collateral_
   ) WeightedRoundsBase(unitSize) GovernedHelper(acl, collateral_) {}
 
-  function internalDefaultLoopLimits(uint16[] memory limits) internal virtual {
-    uint256 v;
-    for (uint256 i = limits.length; i > 0; ) {
-      i--;
-      v = (v << 16) | uint16(limits[i]);
-    }
-    _loopLimits = v;
-  }
+  // function internalSetLoopLimits(uint16[] memory limits) internal virtual {
+  //   uint256 v;
+  //   for (uint256 i = limits.length; i > 0; ) {
+  //     i--;
+  //     v = (v << 16) | uint16(limits[i]);
+  //   }
+  //   _loopLimits = v;
+  // }
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal virtual {
     require(params.minUnitsPerRound > 0);
@@ -163,11 +164,12 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 
   function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view returns (uint256) {
     if (limit == 0) {
-      limit = uint16(_loopLimits >> (uint8(t) << 1));
-      if (limit == 0) {
-        limit = t > LoopLimitType.ReceivableDemandedCoverage ? 31 : 255;
-      }
+      // limit = uint16(_loopLimits >> (uint8(t) << 1));
+      // if (limit == 0) {
+      limit = t > LoopLimitType.ReceivableDemandedCoverage ? 31 : 255;
+      // }
     }
+    this;
     return limit;
   }
 
@@ -243,6 +245,7 @@ enum LoopLimitType {
   ReceivableDemandedCoverage,
   // Modify
   AddCoverageDemand,
+  AddCoverage,
   CancelCoverageDemand,
   ReceiveDemandedCoverage
 }

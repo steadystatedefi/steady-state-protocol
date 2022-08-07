@@ -9,7 +9,7 @@ import './Rounds.sol';
 import 'hardhat/console.sol';
 
 /// @title A calculator for allocating coverage
-/// @notice Coverage is demanded and provided through batches.
+/// @notice Coverage is demanded and provided through rounds and batches.
 // solhint-disable-next-line max-states-count
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;

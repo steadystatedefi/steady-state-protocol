@@ -23,7 +23,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     if (coverageValue > 0 || excessCoverage > 0) {
       (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
         coverageValue + excessCoverage,
-        type(uint256).max
+        defaultLoopLimit(LoopLimitType.AddCoverage, 0)
       );
 
       if (newExcess != excessCoverage) {
@@ -92,9 +92,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
     (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(excessCoverage, type(uint256).max);
 
-    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
-    internalSetExcess(newExcess);
-    _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
+    if (newExcess != excessCoverage) {
+      Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
+      internalSetExcess(newExcess);
+      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
+    }
   }
 
   /// @dev Burn a user's pool tokens and send them the underlying $CC in return

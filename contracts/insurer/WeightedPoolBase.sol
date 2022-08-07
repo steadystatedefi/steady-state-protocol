@@ -117,9 +117,10 @@ abstract contract WeightedPoolBase is
     internalSetPoolParams(params);
   }
 
-  function setDefaultLoopLimits(uint16[] calldata limits) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
-    internalDefaultLoopLimits(limits);
-  }
+  // TODO setLoopLimits
+  // function setLoopLimits(uint16[] calldata limits) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
+  //   internalSetLoopLimits(limits);
+  // }
 
   /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
   function statusOf(address account) external view returns (InsuredStatus status) {
