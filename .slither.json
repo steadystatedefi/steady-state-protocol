@@ -1,5 +1,5 @@
 {
-  "detectors_to_exclude": "solc-version,reentrancy-eth,reentrancy-no-eth,reentrancy-benign,reentrancy-events,reentrancy-unlimited-gas,divide-before-multiply,uninitialized-state-variables",
+  "detectors_to_exclude": "solc-version,reentrancy-eth,reentrancy-no-eth,reentrancy-benign,reentrancy-events,reentrancy-unlimited-gas,divide-before-multiply,dead-code",
   "exclude_informational": false,
   "exclude_low": false,
   "exclude_medium": false,
