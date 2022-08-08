@@ -1,11 +1,10 @@
 {
-  "detectors_to_exclude": "solc-version",
+  "detectors_to_exclude": "solc-version,reentrancy-eth,reentrancy-no-eth",
   "exclude_informational": false,
   "exclude_low": false,
   "exclude_medium": false,
   "exclude_high": false,
   "disable_color": false,
   "filter_paths": "node_modules|helpers|tasks|test-suites",
-  "legacy_ast": false,
-  "exclude": "reentrancy-eth"
+  "legacy_ast": false
 }
