@@ -116,3 +116,31 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
 
   return state;
 }
+
+export async function setInsurer(state: State, deployer: SignerWithAddress, governor: string): Promise<void> {
+  const params: WeightedPoolParamsStruct = {
+    maxAdvanceUnits: 10000,
+    minAdvanceUnits: 1000,
+    riskWeightTarget: 1000, // 10%
+    minInsuredShare: 100, // 1%
+    maxInsuredShare: 4000, // 25%
+    minUnitsPerRound: 20,
+    maxUnitsPerRound: 20,
+    overUnitsPerRound: 30,
+    coveragePrepayPct: 9000, // 90%
+    maxUserDrawdownPct: 1000,
+  };
+
+  await Events.ProxyCreated.waitOne(
+    state.proxyCatalog
+      .connect(deployer)
+      .createProxy(
+        deployer.address,
+        insurerImplName,
+        state.insurer.interface.encodeFunctionData('initializeWeighted', [governor, 'Test', 'TST', params])
+      ),
+    (ev) => {
+      state.insurer = Factories.ImperpetualPoolV1.attach(ev.proxy); // eslint-disable-line no-param-reassign
+    }
+  );
+}
