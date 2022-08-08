@@ -51,7 +51,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
       require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
       internalSetServiceAccountStatus(insurer, uint16(index));
-      _addCoverageDemandTo(ICoverageDistributor(insurer), getDemandOnJoin(), 0);
+      _addCoverageDemandTo(ICoverageDistributor(insurer), 0, getDemandOnJoin(), 0);
     } else {
       internalSetServiceAccountStatus(insurer, STATUS_NOT_JOINED);
     }
@@ -62,45 +62,48 @@ abstract contract InsuredJoinBase is IInsuredPool {
     uint16 status = getAccountStatus(msg.sender);
     if (status <= INDEX_MAX) {
       require(status > 0);
-      return _addCoverageDemandTo(ICoverageDistributor(msg.sender), amount, loopLimit);
+      return _addCoverageDemandTo(ICoverageDistributor(msg.sender), amount, type(uint256).max, loopLimit);
     }
     return false;
   }
 
-  function internalPushCoverageDemandTo(ICoverageDistributor target, uint256 amount) internal {
+  function internalPushCoverageDemandTo(ICoverageDistributor target, uint256 maxAmount) internal {
     uint16 status = getAccountStatus(address(target));
     require(status > 0 && status <= INDEX_MAX);
-    _addCoverageDemandTo(target, amount, 0);
+    _addCoverageDemandTo(target, 0, maxAmount, 0);
   }
 
   /// @dev Add coverage demand to the Insurer and
   /// @param target The insurer to add demand to
-  /// @param amount The desired amount of demand to add
+  /// @param minAmount The desired min amount of demand to add (soft limit)
+  /// @param maxAmount The max amount of demand to add (hard limit)
   /// @return True if there is more demand that can be added
   function _addCoverageDemandTo(
     ICoverageDistributor target,
-    uint256 amount,
+    uint256 minAmount,
+    uint256 maxAmount,
     uint256 loopLimit
   ) private returns (bool) {
     uint256 unitSize = target.coverageUnitSize();
 
-    (uint256 amountAdd, uint256 premiumRate) = internalAllocateCoverageDemand(address(target), amount, unitSize);
-    require(amountAdd <= amount);
+    (uint256 amount, uint256 premiumRate) = internalAllocateCoverageDemand(address(target), minAmount, maxAmount, unitSize);
+    require(amount <= maxAmount);
 
-    amountAdd = amountAdd < unitSize ? 0 : target.addCoverageDemand(amountAdd / unitSize, premiumRate, amountAdd % unitSize != 0, loopLimit);
-    if (amountAdd == 0) {
+    amount = amount < unitSize ? 0 : target.addCoverageDemand(amount / unitSize, premiumRate, amount % unitSize != 0, loopLimit);
+    if (amount == 0) {
       return false;
     }
 
-    internalCoverageDemandAdded(address(target), amountAdd * unitSize, premiumRate);
+    internalCoverageDemandAdded(address(target), amount * unitSize, premiumRate);
     return true;
   }
 
   function internalAllocateCoverageDemand(
     address target,
-    uint256 amount,
+    uint256 minAmount,
+    uint256 maxAmount,
     uint256 unitSize
-  ) internal virtual returns (uint256 amountToAdd, uint256 premiumRate);
+  ) internal virtual returns (uint256 amount, uint256 premiumRate);
 
   function internalCoverageDemandAdded(
     address target,

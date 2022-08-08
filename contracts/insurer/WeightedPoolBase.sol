@@ -183,7 +183,7 @@ abstract contract WeightedPoolBase is
       if (insured == address(0)) {
         break;
       }
-      if (IInsuredPool(insured).pullCoverageDemand(0, insuredLimit)) {
+      if (IInsuredPool(insured).pullCoverageDemand(internalOpenBatchRounds() * internalUnitSize(), insuredLimit)) {
         if (loopLimit <= insuredLimit) {
           break;
         }

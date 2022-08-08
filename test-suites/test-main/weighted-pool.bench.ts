@@ -29,9 +29,9 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     await pool.setPoolParams({
       maxAdvanceUnits: 100_000_000,
       minAdvanceUnits: 1_000,
-      riskWeightTarget: 1_000,
-      minInsuredSharePct: 100,
-      maxInsuredSharePct: 1_500,
+      riskWeightTarget: 10_00,
+      minInsuredSharePct: 1_00,
+      maxInsuredSharePct: 15_00,
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
       overUnitsPerRound: 30,

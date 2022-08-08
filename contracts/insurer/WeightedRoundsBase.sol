@@ -1560,4 +1560,8 @@ abstract contract WeightedRoundsBase {
 
     return (insured, loopLimit);
   }
+
+  function internalOpenBatchRounds() internal view returns (uint256) {
+    return _batches[_firstOpenBatchNo].rounds;
+  }
 }
