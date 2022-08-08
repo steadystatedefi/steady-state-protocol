@@ -17,7 +17,7 @@ import {
   InsuredPoolV1,
   MockERC20,
   IApprovalCatalog,
-  InsuredPoolV2,
+  MockInsuredPoolV2,
 } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
@@ -38,7 +38,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
   let proxyCatalog: ProxyCatalog;
   let approvalCatalog: ApprovalCatalogV1;
   let insuredV1: InsuredPoolV1;
-  let insuredV2: InsuredPoolV2;
+  let insuredV2: MockInsuredPoolV2;
   let cc: MockERC20;
   let premiumToken: MockERC20;
   let user1: SignerWithAddress;
@@ -69,7 +69,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     cc = await Factories.MockERC20.deploy('Collateral Currency', 'CC', 18);
     premiumToken = await Factories.MockERC20.deploy('Premium Token', 'PRM', 18);
     insuredV1 = await Factories.InsuredPoolV1.deploy(controller.address, cc.address);
-    insuredV2 = await Factories.InsuredPoolV2.deploy(controller.address, cc.address);
+    insuredV2 = await Factories.MockInsuredPoolV2.deploy(controller.address, cc.address);
 
     await controller.setAddress(PROXY_FACTORY, proxyCatalog.address);
     await controller.setAddress(APPROVAL_CATALOG, approvalCatalog.address);
@@ -230,7 +230,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       }
     );
 
-    const insured = Factories.InsuredPoolV2.attach(insuredAddr);
+    const insured = Factories.MockInsuredPoolV2.attach(insuredAddr);
     await insured.setClaimInsurance(user1.address);
 
     {
