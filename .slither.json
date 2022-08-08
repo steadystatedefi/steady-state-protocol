@@ -5,6 +5,6 @@
   "exclude_medium": false,
   "exclude_high": false,
   "disable_color": false,
-  "filter_paths": "contracts",
+  "filter_paths": "node_modules|helpers|tasks|test-suites",
   "legacy_ast": false
 }
