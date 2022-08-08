@@ -21,7 +21,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
     uint256 excessCoverage = _excessCoverage;
     if (coverageValue > 0 || excessCoverage > 0) {
-      (uint256 newExcess, , AddCoverageParams memory params, PartialState memory part) = super.internalAddCoverage(
+      (uint256 newExcess, uint256 loopLimit, AddCoverageParams memory params, PartialState memory part) = super.internalAddCoverage(
         coverageValue + excessCoverage,
         defaultLoopLimit(LoopLimitType.AddCoverage, 0)
       );
@@ -32,7 +32,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
       _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, params.premium));
 
-      internalTrim(params);
+      internalAutoPullDemand(params, loopLimit, newExcess > 0, coverageValue);
     }
 
     emit Transfer(address(0), account, coverageValue);

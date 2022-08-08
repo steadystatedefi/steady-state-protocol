@@ -15,7 +15,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   constructor(ImperpetualPoolExtension extension, JoinablePoolExtension joinExtension) WeightedPoolBase(extension, joinExtension) {}
 
-  function _addCoverage(uint256 value, uint256 loopLimit)
+  function _addCoverage(uint256 value)
     private
     returns (
       bool done,
@@ -26,11 +26,15 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 excessCoverage = _excessCoverage;
     if (excessCoverage > 0 || value > 0) {
       uint256 newExcess;
-      (newExcess, , params, part) = super.internalAddCoverage(value + excessCoverage, defaultLoopLimit(LoopLimitType.AddCoverage, loopLimit));
+      uint256 loopLimit;
+      (newExcess, loopLimit, params, part) = super.internalAddCoverage(value + excessCoverage, defaultLoopLimit(LoopLimitType.AddCoverage, 0));
 
       if (newExcess != excessCoverage) {
         internalSetExcess(newExcess);
       }
+
+      internalAutoPullDemand(params, loopLimit, newExcess > 0, value);
+
       done = true;
     }
   }
@@ -38,9 +42,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
   /// @dev Update the new amount of excess coverage
   function internalMintForCoverage(address account, uint256 value) internal override {
-    (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value, 0);
-
-    internalTrim(params);
+    (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
 
     // TODO test adding coverage to an empty pool
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
@@ -150,7 +152,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   /// @dev Attempt to take the excess coverage and fill batches
   /// @dev Occurs when there is excess and a new batch is ready (more demand added)
   function pushCoverageExcess() public override {
-    _addCoverage(0, type(uint256).max);
+    _addCoverage(0);
   }
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {

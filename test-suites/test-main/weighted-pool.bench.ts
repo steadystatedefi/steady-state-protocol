@@ -30,13 +30,14 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       maxAdvanceUnits: 100_000_000,
       minAdvanceUnits: 1_000,
       riskWeightTarget: 1_000,
-      minInsuredShare: 100,
-      maxInsuredShare: 1_500,
+      minInsuredSharePct: 100,
+      maxInsuredSharePct: 1_500,
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
       overUnitsPerRound: 30,
       coveragePrepayPct: 100_00,
       maxUserDrawdownPct: 0,
+      unitsPerAutoPull: 0,
     });
   });
 

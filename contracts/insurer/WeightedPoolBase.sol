@@ -192,10 +192,30 @@ abstract contract WeightedPoolBase is
     }
   }
 
-  function internalTrim(AddCoverageParams memory params) internal {
-    if (params.openBatchNo == 0) {
-      // a dry-run, so lets do something useful
-      super.internalPullDemandCandidate(1, true);
+  function internalAutoPullDemand(
+    AddCoverageParams memory params,
+    uint256 loopLimit,
+    bool hasExcess,
+    uint256 value
+  ) internal {
+    if (loopLimit > 0 && (hasExcess || params.openBatchNo == 0)) {
+      uint256 n = _params.unitsPerAutoPull;
+      if (n == 0) {
+        return;
+      }
+
+      if (value != 0) {
+        n = value / (n * internalUnitSize());
+        if (n < loopLimit) {
+          loopLimit = n;
+        }
+      }
+
+      if (!hasExcess) {
+        super.internalPullDemandCandidate(loopLimit == 0 ? 1 : loopLimit, true);
+      } else if (loopLimit > 0) {
+        internalPullDemand(loopLimit);
+      }
     }
   }
 }

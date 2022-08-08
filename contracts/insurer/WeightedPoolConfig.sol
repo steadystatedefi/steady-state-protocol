@@ -39,9 +39,9 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     require(params.maxAdvanceUnits >= params.minAdvanceUnits);
     require(params.minAdvanceUnits >= params.maxUnitsPerRound);
 
-    require(params.minInsuredShare > 0);
-    require(params.maxInsuredShare > params.minInsuredShare);
-    require(params.maxInsuredShare <= PercentageMath.ONE);
+    require(params.minInsuredSharePct > 0);
+    require(params.maxInsuredSharePct > params.minInsuredSharePct);
+    require(params.maxInsuredSharePct <= PercentageMath.ONE);
 
     require(params.riskWeightTarget > 0);
     require(params.riskWeightTarget < PercentageMath.ONE);
@@ -201,9 +201,9 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 
     uint256 maxShare = approvedParams.riskLevel == 0 ? PercentageMath.ONE : uint256(_params.riskWeightTarget).percentDiv(approvedParams.riskLevel);
     uint256 v;
-    if (maxShare >= (v = _params.maxInsuredShare)) {
+    if (maxShare >= (v = _params.maxInsuredSharePct)) {
       maxShare = v;
-    } else if (maxShare < (v = _params.minInsuredShare)) {
+    } else if (maxShare < (v = _params.minInsuredSharePct)) {
       maxShare = v;
     }
 
