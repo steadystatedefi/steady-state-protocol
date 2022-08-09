@@ -2,15 +2,10 @@
 pragma solidity ^0.8.4;
 
 import '../tools/Errors.sol';
-import '../tools/math/PercentageMath.sol';
-import '../tools/math/WadRayMath.sol';
 import '../access/AccessHelper.sol';
 import './interfaces/IManagedPriceRouter.sol';
 
-abstract contract PricingHelper is AccessHelper {
-  using WadRayMath for uint256;
-  using PercentageMath for uint256;
-
+abstract contract PricingHelper {
   IManagedPriceRouter private immutable _pricer;
 
   constructor(address pricer_) {
@@ -20,6 +15,8 @@ abstract contract PricingHelper is AccessHelper {
   function priceOracle() external view returns (address) {
     return address(getPricer());
   }
+
+  function remoteAcl() internal view virtual returns (IAccessController pricer);
 
   function getPricer() internal view virtual returns (IManagedPriceRouter pricer) {
     pricer = _pricer;

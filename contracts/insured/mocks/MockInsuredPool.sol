@@ -25,4 +25,8 @@ contract MockInsuredPool is InsuredPoolMonoRateBase {
   function testCancelCoverageDemand(address insurer, uint64 unitCount) external {
     ICoverageDistributor(insurer).cancelCoverageDemand(address(this), unitCount, 0);
   }
+
+  function internalPriceOf(address) internal pure override returns (uint256) {
+    return WadRayMath.WAD;
+  }
 }

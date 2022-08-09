@@ -31,7 +31,7 @@ abstract contract InsuredPoolBase is
 
   uint8 internal constant DECIMALS = 18;
 
-  constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) GovernedHelper(acl, collateral_) {}
+  constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) InsuredAccessControl(acl, collateral_) {}
 
   function applyApprovedApplication() external onlyGovernor {
     State.require(!internalHasAppliedApplication());
@@ -271,10 +271,8 @@ abstract contract InsuredPoolBase is
     }
   }
 
-  function priceOf(address) internal view override returns (uint256) {
-    this;
-    // TODO price oracle
-    return WadRayMath.WAD;
+  function internalPriceOf(address asset) internal view virtual override returns (uint256) {
+    return getPricer().getAssetPrice(asset);
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {

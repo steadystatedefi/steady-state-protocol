@@ -44,7 +44,7 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view virtual returns (uint256);
 
-  function priceOf(address) internal view virtual returns (uint256);
+  function internalPriceOf(address) internal view virtual returns (uint256);
 
   function expectedPrepay(uint256 atTimestamp) public view override returns (uint256) {
     uint256 required = internalExpectedPrepay(atTimestamp + _rollingAdvanceWindow);
@@ -54,7 +54,7 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     }
 
     uint256 collected = _collectedValue;
-    return collected >= required ? 0 : (required - collected).wadDiv(priceOf(address(_premiumToken)));
+    return collected >= required ? 0 : (required - collected).wadDiv(internalPriceOf(address(_premiumToken)));
   }
 
   function expectedPrepayAfter(uint32 timeDelta) external view override returns (uint256 amount) {
