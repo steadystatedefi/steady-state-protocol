@@ -231,13 +231,12 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     );
 
     const insured = Factories.MockInsuredPoolV2.attach(insuredAddr);
-    await insured.setClaimInsurance(user1.address);
 
-    {
-      await expect(user1Catalog.submitClaim(insuredAddr, ZERO_BYTES, 10)).to.be.reverted;
-      await expect(user1Catalog.submitClaim(zeroAddress(), claimcid, 10)).to.be.reverted;
-      await expect(approvalCatalog.submitClaim(insuredAddr, claimcid, 10)).to.be.reverted;
-    }
+    await expect(user1Catalog.submitClaim(insuredAddr, ZERO_BYTES, 10)).to.be.reverted;
+    await expect(user1Catalog.submitClaim(zeroAddress(), claimcid, 10)).to.be.reverted;
+    await expect(user1Catalog.submitClaim(insuredAddr, claimcid, 10)).to.be.reverted;
+
+    await insured.setClaimInsurance(user1.address);
 
     let res = await user1Catalog.callStatic.submitClaim(insuredAddr, claimcid, 10);
     await Events.ClaimSubmitted.waitOne(user1Catalog.submitClaim(insuredAddr, claimcid, 10), (ev) => {

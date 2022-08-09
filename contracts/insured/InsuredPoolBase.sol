@@ -3,10 +3,11 @@ pragma solidity ^0.8.4;
 
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/Math.sol';
+import '../governance/interfaces/IClaimAccessValidator.sol';
+import '../interfaces/IPremiumActuary.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 import './PremiumCollectorBase.sol';
-import '../interfaces/IPremiumActuary.sol';
 import './InsuredAccessControl.sol';
 
 import 'hardhat/console.sol';
@@ -14,7 +15,14 @@ import 'hardhat/console.sol';
 /// @title Insured Pool Base
 /// @notice The base pool that tracks how much coverage is requested, provided and paid
 /// @dev Reconcilation must be called for the most accurate information
-abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase, PremiumCollectorBase, InsuredAccessControl {
+abstract contract InsuredPoolBase is
+  IInsuredPool,
+  InsuredBalancesBase,
+  InsuredJoinBase,
+  PremiumCollectorBase,
+  IClaimAccessValidator,
+  InsuredAccessControl
+{
   using WadRayMath for uint256;
   using Math for uint256;
 
@@ -299,5 +307,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   function setGovernor(address addr) external onlyGovernorOr(AccessFlags.INSURED_ADMIN) {
     internalSetGovernor(addr);
+  }
+
+  function canClaimInsurance(address claimedBy) public view virtual override returns (bool) {
+    return claimedBy == governorAccount();
   }
 }
