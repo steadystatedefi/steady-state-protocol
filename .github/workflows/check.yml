@@ -67,9 +67,6 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: npm install
 
-      - name: Compile
-        run: npm run compile
-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.x'
@@ -78,13 +75,19 @@ jobs:
       - name: Install Slither
         run: pip3 install slither-analyzer
 
+      - name: LS
+        run: ls
+
+      - name: Compile
+        run: npm run compile
+
       - name: Run Slither
         run: slither . --config-file .slither.json
 
   check:
     runs-on: ubuntu-latest
-    name: Final Check
+    name: Check
     needs: [unit-tests, slither]
     steps:
-      - name: Fialize
+      - name: Finalize
         run: ls
