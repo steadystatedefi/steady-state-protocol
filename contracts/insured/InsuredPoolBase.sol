@@ -275,6 +275,10 @@ abstract contract InsuredPoolBase is
     return getPricer().getAssetPrice(asset);
   }
 
+  function internalPullPriceOf(address asset) internal virtual override returns (uint256) {
+    return getPricer().pullAssetPrice(asset, 0);
+  }
+
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
     // TODO use maxRate (demanded coverage)
     return internalExpectedTotals(uint32(atTimestamp)).accum;
