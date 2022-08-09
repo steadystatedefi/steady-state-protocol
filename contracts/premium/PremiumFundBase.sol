@@ -477,6 +477,7 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
     }
   }
 
+  // slither-disable-next-line calls-loop
   function _syncAsset(
     ActuaryConfig storage config,
     address actuary,
@@ -486,7 +487,6 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
     _ensureToken(token);
     Value.require(token != address(0));
     if (collateral() == token) {
-      // slither-ignore-next-line calls-loop
       IPremiumActuary(actuary).collectDrawdownPremium();
       return sourceLimit == 0 ? 0 : sourceLimit - 1;
     }

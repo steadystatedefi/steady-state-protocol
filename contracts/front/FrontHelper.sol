@@ -92,6 +92,7 @@ contract FrontHelper is AccessHelper {
     }
   }
 
+  // slither-disable-next-line calls-loop
   function _getDistributorInfo(IPremiumFund fund) private view returns (PremiumFundInfo memory info) {
     info.fund = address(fund);
 
@@ -124,12 +125,12 @@ contract FrontHelper is AccessHelper {
     }
   }
 
+  // slither-disable-next-line calls-loop
   function batchBalanceOf(address[] calldata users, address[] calldata tokens) external view returns (uint256[] memory balances) {
     balances = new uint256[](users.length * tokens.length);
 
     for (uint256 i = 0; i < users.length; i++) {
       for (uint256 j = 0; j < tokens.length; j++) {
-        // slither-ignore-next-line calls-loop
         balances[i * tokens.length + j] = IERC20(tokens[j]).balanceOf(users[i]);
       }
     }
