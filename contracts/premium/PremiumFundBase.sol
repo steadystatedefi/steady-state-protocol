@@ -477,6 +477,7 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
     }
   }
 
+  // slither-ignore-next-line calls-loop
   function _syncAsset(
     ActuaryConfig storage config,
     address actuary,

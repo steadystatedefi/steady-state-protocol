@@ -27,6 +27,7 @@ contract FrontHelper is AccessHelper {
     bool chartered;
   }
 
+  // slither-ignore-next-line calls-loop
   function getAddresses()
     external
     view
@@ -91,6 +92,7 @@ contract FrontHelper is AccessHelper {
     }
   }
 
+  // slither-ignore-next-line calls-loop
   function _getDistributorInfo(IPremiumFund fund) private view returns (PremiumFundInfo memory info) {
     info.fund = address(fund);
 
@@ -106,6 +108,7 @@ contract FrontHelper is AccessHelper {
     }
   }
 
+  // slither-ignore-next-line calls-loop
   function _getDistributorTokenInfo(IPremiumFund fund, address token) private view returns (PremiumTokenInfo memory info) {
     info.token = token;
 
@@ -121,6 +124,7 @@ contract FrontHelper is AccessHelper {
     }
   }
 
+  // slither-ignore-next-line calls-loop
   function batchBalanceOf(address[] calldata users, address[] calldata tokens) external view returns (uint256[] memory balances) {
     balances = new uint256[](users.length * tokens.length);
 
@@ -137,6 +141,7 @@ contract FrontHelper is AccessHelper {
     uint8 decimals;
   }
 
+  // slither-ignore-next-line calls-loop
   function batchTokenDetails(address[] calldata tokens) external view returns (TokenDetails[] memory details) {
     details = new TokenDetails[](tokens.length);
 
