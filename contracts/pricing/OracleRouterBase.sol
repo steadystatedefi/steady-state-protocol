@@ -126,12 +126,11 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
+  // slither-disable-next-line calls-loop
   function _setupUniswapV2(address feed, address token) private view returns (uint8 callFlags) {
-    // slither-ignore-next-line calls-loop
     if (token == IPriceFeedUniswapV2(feed).token1()) {
       return CF_UNISWAP_V2_RESERVE;
     }
-    // slither-ignore-next-line calls-loop
     Value.require(token == IPriceFeedUniswapV2(feed).token0());
   }
 

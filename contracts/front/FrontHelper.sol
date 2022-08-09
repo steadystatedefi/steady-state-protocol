@@ -27,6 +27,7 @@ contract FrontHelper is AccessHelper {
     bool chartered;
   }
 
+  // slither-disable-next-line calls-loop
   function getAddresses()
     external
     view
@@ -52,9 +53,7 @@ contract FrontHelper is AccessHelper {
     for (uint256 i = list.length; i > 0; ) {
       i--;
       ICollateralFund fund = ICollateralFund(collateralFunds[i].fund = list[i]);
-      // slither-ignore-next-line calls-loop
       collateralFunds[i].collateral = fund.collateral();
-      // slither-ignore-next-line calls-loop
       collateralFunds[i].assets = fund.assets();
     }
 
@@ -64,11 +63,8 @@ contract FrontHelper is AccessHelper {
     for (uint256 i = list.length; i > 0; ) {
       i--;
       IInsurerPool insurer = IInsurerPool(insurers[i].pool = list[i]);
-      // slither-ignore-next-line calls-loop
       insurers[i].collateral = insurer.collateral();
-      // slither-ignore-next-line calls-loop
       insurers[i].chartered = insurer.charteredDemand();
-      // slither-ignore-next-line calls-loop
       insurers[i].premiumFund = IPremiumActuary(address(insurer)).premiumDistributor();
     }
   }
@@ -96,6 +92,7 @@ contract FrontHelper is AccessHelper {
     }
   }
 
+  // slither-disable-next-line calls-loop
   function _getDistributorInfo(IPremiumFund fund) private view returns (PremiumFundInfo memory info) {
     info.fund = address(fund);
 
@@ -111,10 +108,10 @@ contract FrontHelper is AccessHelper {
     }
   }
 
+  // slither-disable-next-line calls-loop
   function _getDistributorTokenInfo(IPremiumFund fund, address token) private view returns (PremiumTokenInfo memory info) {
     info.token = token;
 
-    // slither-ignore-next-line calls-loop
     address[] memory actuaries = fund.actuariesOfToken(token);
 
     if (actuaries.length > 0) {
@@ -122,19 +119,18 @@ contract FrontHelper is AccessHelper {
 
       for (uint256 i = actuaries.length; i > 0; ) {
         i--;
-        // slither-ignore-next-line calls-loop
         address[] memory sources = fund.activeSourcesOf(actuaries[i], token);
         info.actuaries[i] = PremiumActuaryInfo({actuary: actuaries[i], activeSources: sources});
       }
     }
   }
 
+  // slither-disable-next-line calls-loop
   function batchBalanceOf(address[] calldata users, address[] calldata tokens) external view returns (uint256[] memory balances) {
     balances = new uint256[](users.length * tokens.length);
 
     for (uint256 i = 0; i < users.length; i++) {
       for (uint256 j = 0; j < tokens.length; j++) {
-        // slither-ignore-next-line calls-loop
         balances[i * tokens.length + j] = IERC20(tokens[j]).balanceOf(users[i]);
       }
     }
@@ -146,12 +142,12 @@ contract FrontHelper is AccessHelper {
     uint8 decimals;
   }
 
+  // slither-disable-next-line calls-loop
   function batchTokenDetails(address[] calldata tokens) external view returns (TokenDetails[] memory details) {
     details = new TokenDetails[](tokens.length);
 
     for (uint256 j = 0; j < tokens.length; j++) {
       IERC20Details token = IERC20Details(tokens[j]);
-      // slither-ignore-next-line calls-loop
       details[j] = TokenDetails({symbol: token.symbol(), name: token.name(), decimals: token.decimals()});
     }
   }

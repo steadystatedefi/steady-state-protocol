@@ -52,6 +52,7 @@ abstract contract VersionedInitializable is IVersioned {
   }
 
   /// @dev Modifier to use in the initializer function of a contract.
+  // slither-disable-next-line incorrect-modifier
   modifier initializer(uint256 localRevision) {
     (uint256 topRevision, bool initializing, bool skip) = _preInitializer(localRevision);
 
