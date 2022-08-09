@@ -50,9 +50,9 @@ library Errors {
   error ExcessiveVolatilityLock(uint256 mask);
 
   error CallerNotProxyOwner();
-  error CalllerNotEmergencyAdmin();
-  error CalllerNotSweepAdmin();
-  error CalllerNotOracleAdmin();
+  error CallerNotEmergencyAdmin();
+  error CallerNotSweepAdmin();
+  error CallerNotOracleAdmin();
 
   error CollateralTransferFailed();
 

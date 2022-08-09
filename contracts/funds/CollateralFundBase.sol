@@ -395,10 +395,6 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
   function resetPriceGuard() external aclHasAny(AccessFlags.LP_ADMIN) {
     getPricer().resetSourceGroup();
   }
-
-  function assets() external view returns (address[] memory) {
-    return _tokens.values();
-  }
 }
 
 library CollateralFundLib {
