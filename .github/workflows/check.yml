@@ -6,8 +6,8 @@ on:
       - 'main'
 
 jobs:
-  check:
-    name: Check
+  unit-tests:
+    name: Linters and Unit tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
@@ -32,7 +32,10 @@ jobs:
       - name: Compile
         run: npm run compile
 
-      - name: Lint
+      - name: Solhint
+        run: npm run solhint
+
+      - name: ESLint
         run: npm run eslint
 
       - name: Types
@@ -43,7 +46,7 @@ jobs:
 
   slither:
     runs-on: ubuntu-latest
-    name: Solidity static analysis (Slither)
+    name: Slither static analysis
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
@@ -77,3 +80,7 @@ jobs:
 
       - name: Run Slither
         run: slither . --config-file .slither.json
+
+  check:
+    name: Final Check
+    needs: [unit-tests, slither]
