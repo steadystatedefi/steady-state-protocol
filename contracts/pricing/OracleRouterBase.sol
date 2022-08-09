@@ -58,6 +58,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
       if (!internalBlowFuses(asset)) {
         revert Errors.ExcessiveVolatility();
       }
+      v = 0;
     }
 
     return v;

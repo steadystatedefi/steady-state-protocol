@@ -24,14 +24,14 @@ interface ICollateralFund is ICollateralized {
     address account,
     address token,
     uint256 tokenAmount
-  ) external;
+  ) external returns (uint256);
 
   function invest(
     address account,
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external;
+  ) external returns (uint256);
 
   function investIncludingDeposit(
     address account,
@@ -39,14 +39,14 @@ interface ICollateralFund is ICollateralized {
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external;
+  ) external returns (uint256);
 
   function withdraw(
     address account,
     address to,
     address token,
     uint256 amount
-  ) external;
+  ) external returns (uint256);
 
   function assets() external view returns (address[] memory);
 }
