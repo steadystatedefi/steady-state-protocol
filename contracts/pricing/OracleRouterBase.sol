@@ -33,7 +33,6 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
   }
 
   uint8 private constant CF_UNISWAP_V2_RESERVE = 1 << 0;
-  uint8 private constant EF_LIMIT_BREACHED_STICKY = 1 << 0;
 
   function getQuoteAsset() public view returns (address) {
     return _quote;

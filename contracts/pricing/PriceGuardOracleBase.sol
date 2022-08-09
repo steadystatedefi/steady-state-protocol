@@ -15,7 +15,6 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 
-  uint8 private constant CF_UNISWAP_V2_RESERVE = 1 << 0;
   uint8 private constant EF_LIMIT_BREACHED_STICKY = 1 << 0;
 
   constructor(IAccessController acl, address quote) AccessHelper(acl) OracleRouterBase(quote) {}
