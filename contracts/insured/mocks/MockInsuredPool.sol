@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../InsuredPoolBase.sol';
+import '../InsuredPoolMonoRateBase.sol';
 
-contract MockInsuredPool is InsuredPoolBase {
+contract MockInsuredPool is InsuredPoolMonoRateBase {
   constructor(
     address collateral_,
     uint256 totalDemand,
