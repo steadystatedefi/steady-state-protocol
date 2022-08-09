@@ -21,11 +21,8 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
   using PercentageMath for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 
-  uint216 private _totalIntegral;
+  uint128 private _totalIntegral;
   uint32 private _lastUpdatedAt;
-  uint8 private flags;
-
-  uint8 private constant FLAG_PAUSED = 1 << 0;
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
@@ -46,7 +43,7 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
   }
 
   function internalSetTimeIntegral(uint256 totalIntegral, uint32 lastUpdatedAt) internal override {
-    (_totalIntegral, _lastUpdatedAt) = (totalIntegral.asUint216(), lastUpdatedAt);
+    (_totalIntegral, _lastUpdatedAt) = (totalIntegral.asUint128(), lastUpdatedAt);
   }
 
   function internalGetRateIntegral(uint32 from, uint32 till) internal override(YieldStakerBase, YieldStreamerBase) returns (uint256) {

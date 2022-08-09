@@ -180,7 +180,7 @@ export enum EContractId {
   ApprovalCatalogV1 = 'ApprovalCatalogV1',
   ProxyCatalog = 'ProxyCatalog',
   InsuredPool = 'InsuredPool',
-  InsuredPoolV2 = 'InsuredPoolV2',
+  InsuredPoolV1 = 'InsuredPoolV1',
   CollateralCurrency = 'CollateralCurrency',
 }
 

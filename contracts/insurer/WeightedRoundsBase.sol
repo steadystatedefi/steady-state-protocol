@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/math/WadRayMath.sol';
 import '../interfaces/IInsurerPool.sol';
-import '../libraries/Rounds.sol';
+import './Rounds.sol';
 
 import 'hardhat/console.sol';
 
 /// @title A calculator for allocating coverage
-/// @notice Coverage is demanded and provided through batches.
+/// @notice Coverage is demanded and provided through rounds and batches.
+// solhint-disable-next-line max-states-count
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;
   using Rounds for Rounds.State;
+  using Rounds for Rounds.PackedInsuredParams;
+  using EnumerableSet for EnumerableSet.AddressSet;
   using WadRayMath for uint256;
 
   uint256 private immutable _unitSize;
@@ -69,10 +73,14 @@ abstract contract WeightedRoundsBase {
   }
   /// @dev segments of coverage integral NB! Each segment is independent, it does NOT include / cosider previous segments
   mapping(uint64 => TimeMark) private _marks;
-  // uint256 private _premiumOfCancelled;
 
   uint80 private _pendingCancelledCoverageUnits;
   uint80 private _pendingCancelledDemandUnits;
+
+  /// @dev a batch number to look for insureds with "hasMore" in _pullableDemands
+  uint64 private _pullableBatchNo;
+  /// @dev sets of insureds with "hasMore"
+  mapping(uint64 => EnumerableSet.AddressSet) private _pullableDemands;
 
   function internalSetInsuredStatus(address account, InsuredStatus status) internal {
     _insureds[account].status = status;
@@ -84,15 +92,12 @@ abstract contract WeightedRoundsBase {
 
   ///@dev Sets the minimum amount of units this insured pool will assign and the max share % of the pool it can take up
   function internalSetInsuredParams(address account, Rounds.InsuredParams memory params) internal {
-    Rounds.InsuredEntry storage entry = _insureds[account];
-    entry.minUnits = params.minUnits;
-    entry.maxShare = params.maxShare;
-    entry.minPremiumRate = params.minPremiumRate;
+    _insureds[account].params = Rounds.packInsuredParams(params.minUnits, params.maxShare, params.minPremiumRate);
   }
 
   function internalGetInsuredParams(address account) internal view returns (InsuredStatus, Rounds.InsuredParams memory) {
     Rounds.InsuredEntry storage entry = _insureds[account];
-    return (entry.status, Rounds.InsuredParams({minUnits: entry.minUnits, maxShare: entry.maxShare, minPremiumRate: entry.minPremiumRate}));
+    return (entry.status, entry.params.unpackInsuredParams());
   }
 
   function internalUnitSize() internal view returns (uint256) {
@@ -103,7 +108,9 @@ abstract contract WeightedRoundsBase {
     uint256 loopLimit;
     address insured;
     uint40 premiumRate;
+    bool hasMore;
     // temporary variables
+    uint64 prevPullBatch;
     bool takeNext;
   }
 
@@ -120,13 +127,14 @@ abstract contract WeightedRoundsBase {
     // console.log('\ninternalAddCoverageDemand', unitCount);
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
     require(entry.status == InsuredStatus.Accepted);
-    require(entry.minPremiumRate <= params.premiumRate);
+    require(entry.params.minPremiumRate() <= params.premiumRate);
 
     if (unitCount == 0 || params.loopLimit == 0) {
       return unitCount;
     }
 
     Rounds.Demand[] storage demands = _demands[params.insured];
+    params.prevPullBatch = entry.nextBatchNo;
 
     (Rounds.Batch memory b, uint64 thisBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.nextBatchNo);
 
@@ -210,6 +218,8 @@ abstract contract WeightedRoundsBase {
       _batches[thisBatch] = b;
     }
     _openRounds = openRounds + _partial.roundNo;
+
+    _setPullBatch(params, params.hasMore || internalIsEnoughForMore(entry, unitCount) ? thisBatch : 0);
     _insureds[params.insured] = entry;
 
     if (demand.unitPerRound != 0) {
@@ -221,6 +231,19 @@ abstract contract WeightedRoundsBase {
     }
 
     return unitCount;
+  }
+
+  function internalIsEnoughForMore(Rounds.InsuredEntry memory entry, uint256 unitCount) internal view virtual returns (bool);
+
+  function _setPullBatch(AddCoverageDemandParams memory params, uint64 newPullBatch) private {
+    if (params.prevPullBatch != newPullBatch) {
+      if (params.prevPullBatch != 0) {
+        _removeFromPullable(params.insured, params.prevPullBatch);
+      }
+      if (newPullBatch != 0) {
+        _addToPullable(params.insured, newPullBatch);
+      }
+    }
   }
 
   /// @dev Finds which batch to add coverage demand to.
@@ -332,7 +355,7 @@ abstract contract WeightedRoundsBase {
 
     if (unitCount < b.rounds) {
       // split the batch or return the non-allocated units
-      uint24 splitRounds = internalBatchSplit(entry.demandedUnits, entry.minUnits, b.rounds, uint24(unitCount));
+      uint24 splitRounds = internalBatchSplit(entry.demandedUnits, entry.params.minUnits(), b.rounds, uint24(unitCount));
       // console.log('addToBatch-internalBatchSplit', splitRounds);
       if (splitRounds == 0) {
         return (0, false);
@@ -348,7 +371,7 @@ abstract contract WeightedRoundsBase {
       b.rounds,
       b.unitPerRound,
       entry.demandedUnits,
-      entry.maxShare
+      entry.params.maxShare()
     );
 
     // console.log('addToBatch-checkLimits', b.unitPerRound, b.rounds);
@@ -715,7 +738,6 @@ abstract contract WeightedRoundsBase {
 
     coverage.totalCovered = _adjustedTotalUnits(b.totalUnitsBeforeBatch) + uint256(part.roundNo) * b.unitPerRound;
     coverage.pendingCovered = part.roundCoverage;
-    // coverage.totalPremium += _premiumOfCancelled;
 
     _finalizePremium(coverage, false);
     coverage.totalCovered *= _unitSize;
@@ -775,6 +797,7 @@ abstract contract WeightedRoundsBase {
 
   struct AddCoverageParams {
     Rounds.CoveragePremium premium;
+    /// @dev != 0 also indicates that at least one round was added
     uint64 openBatchNo;
     bool openBatchUpdated;
     bool batchUpdated;
@@ -787,7 +810,7 @@ abstract contract WeightedRoundsBase {
     internal
     returns (
       uint256 remainingAmount,
-      uint256 remainingLoopLimit,
+      uint256, /* remainingLoopLimit */
       AddCoverageParams memory params,
       PartialState memory part
     )
@@ -853,8 +876,8 @@ abstract contract WeightedRoundsBase {
     } else if (!b.isReady()) {
       return (amount, loopLimit - 1, b);
     }
-    // TODO optimize time-marking
 
+    /// @dev != 0 also indicates that at least one round was added
     params.openBatchNo = _firstOpenBatchNo;
     while (true) {
       loopLimit--;
@@ -1049,6 +1072,8 @@ abstract contract WeightedRoundsBase {
 
     Rounds.InsuredEntry storage entry = _insureds[params.insured];
     require(entry.status == InsuredStatus.Accepted);
+
+    _removeFromPullable(params.insured, entry.nextBatchNo);
 
     if (unitCount == 0 || params.loopLimit == 0 || entry.demandedUnits == _covered[params.insured].coveredUnits) {
       return 0;
@@ -1330,9 +1355,11 @@ abstract contract WeightedRoundsBase {
     )
   {
     Rounds.InsuredEntry storage entry = _insureds[insured];
+
     if (entry.demandedUnits == 0) {
       return (coverage, 0, 0, 0, 0);
     }
+    _removeFromPullable(insured, entry.nextBatchNo);
 
     Rounds.Coverage memory covered;
     Rounds.CoveragePremium memory premium;
@@ -1474,5 +1501,67 @@ abstract contract WeightedRoundsBase {
     _poolPremium = poolPremium;
 
     return Rounds.CoveragePremium({coveragePremiumRate: 0, coveragePremium: uint96(finalPremium), lastUpdatedAt: poolPremium.lastUpdatedAt});
+  }
+
+  function _addToPullable(address insured, uint64 batchNo) private {
+    _pullableDemands[batchNo].add(insured);
+  }
+
+  function _removeFromPullable(address insured, uint64 batchNo) private {
+    _pullableDemands[batchNo].remove(insured);
+  }
+
+  function internalPullDemandCandidate(uint256 loopLimit, bool trimOnly) internal returns (address insured, uint256) {
+    uint64 batchNo;
+    uint64 pullableBatchNo = batchNo = _pullableBatchNo;
+    if (batchNo == 0) {
+      batchNo = 1;
+    }
+
+    for (; loopLimit > 0; ) {
+      loopLimit--;
+
+      Rounds.Batch storage batch = _batches[batchNo];
+      if (!batch.state.isFull()) {
+        break;
+      }
+
+      EnumerableSet.AddressSet storage demands = _pullableDemands[batchNo];
+      for (uint256 n = demands.length(); n > 0; ) {
+        n--;
+        insured = demands.at(n);
+        if (_insureds[insured].status == InsuredStatus.Accepted) {
+          if (!trimOnly) {
+            demands.remove(insured);
+          }
+          break;
+        }
+        demands.remove(insured);
+        insured = address(0);
+        if (loopLimit == 0) {
+          break;
+        }
+        loopLimit--;
+      }
+      if (insured != address(0)) {
+        break;
+      }
+
+      uint64 nextBatchNo = batch.nextBatchNo;
+      if (nextBatchNo == 0) {
+        break;
+      }
+      batchNo = nextBatchNo;
+    }
+
+    if (pullableBatchNo != batchNo) {
+      _pullableBatchNo = batchNo;
+    }
+
+    return (insured, loopLimit);
+  }
+
+  function internalOpenBatchRounds() internal view returns (uint256) {
+    return _batches[_firstOpenBatchNo].rounds;
   }
 }

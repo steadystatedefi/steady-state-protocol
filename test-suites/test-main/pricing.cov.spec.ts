@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber, BigNumberish } from 'ethers';
 
-import { MAX_UINT, WAD, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
+import { WAD, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime } from '../../helpers/runtime-utils';
 import { AccessController, MockERC20, OracleRouterV1 } from '../../types';
@@ -234,25 +234,38 @@ makeSuite('Pricing', (testEnv: TestEnv) => {
 
     // Change within tolerance
     await chainlinkOracle.setAnswer(value.mul(11).div(10)); // +10%
+    expect(await oracle.getAssetPrice(token.address)).eq(value.mul(11).div(10));
+    expect(await oracle.callStatic.pullAssetPrice(token.address, 0)).eq(value.mul(11).div(10));
+    await oracle.pullAssetPrice(token.address, fuse);
     await oracle.pullAssetPrice(token.address, fuse);
 
     // Trip the fuse
     await chainlinkOracle.setAnswer(value.mul(13).div(10)); // + 30%
     await oracle.pullAssetPrice(token.address, fuse);
     await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
+
+    expect(await oracle.callStatic.pullAssetPrice(token.address, 0)).eq(0);
+    expect(await oracle.getAssetPrice(token.address)).eq(value.mul(13).div(10));
+
     await chainlinkOracle.setAnswer(value);
+    expect(await oracle.callStatic.pullAssetPrice(token.address, 0)).eq(0);
+    expect(await oracle.getAssetPrice(token.address)).eq(value);
     await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
 
     // User1 reset the fuse
     await user1oracle.resetSourceGroup();
     await oracle.pullAssetPrice(token.address, fuse);
     await oracle.pullAssetPrice(token.address, fuse);
+    expect(await oracle.getAssetPrice(token.address)).eq(value);
+
     await chainlinkOracle.setAnswer(value.mul(2));
     await oracle.pullAssetPrice(token.address, fuse);
     await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
+    expect(await oracle.getAssetPrice(token.address)).eq(value.mul(2));
 
     // Admin reset the fuse
     await user1oracle.resetSourceGroupByAdmin(fuse);
+    // trip the fuse again
     await oracle.pullAssetPrice(token.address, fuse);
     await expect(oracle.pullAssetPrice(token.address, fuse)).to.be.reverted;
 

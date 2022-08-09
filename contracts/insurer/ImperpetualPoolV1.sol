@@ -14,13 +14,13 @@ contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase, IWeig
   {}
 
   function initializeWeighted(
-    address governor,
+    address governor_,
     string calldata tokenName,
     string calldata tokenSymbol,
     WeightedPoolParams calldata params
   ) public override initializer(CONTRACT_REVISION) {
     _initializeERC20(tokenName, tokenSymbol, DECIMALS);
-    internalSetGovernor(governor);
+    internalSetGovernor(governor_);
     internalSetPoolParams(params);
   }
 

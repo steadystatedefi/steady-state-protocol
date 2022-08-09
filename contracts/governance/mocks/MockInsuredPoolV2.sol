@@ -2,11 +2,10 @@
 pragma solidity ^0.8.4;
 
 import '../../insured/InsuredPoolV1.sol';
-import '../interfaces/IClaimAccessValidator.sol';
 
-contract InsuredPoolV2 is InsuredPoolV1, IClaimAccessValidator {
+contract MockInsuredPoolV2 is InsuredPoolV1 {
   uint256 private constant CONTRACT_REVISION = 2;
-  mapping(address => bool) public canClaimInsurance;
+  mapping(address => bool) private _canClaimInsurance;
 
   constructor(IAccessController acl, address collateral_) InsuredPoolV1(acl, collateral_) {}
 
@@ -14,7 +13,11 @@ contract InsuredPoolV2 is InsuredPoolV1, IClaimAccessValidator {
     return CONTRACT_REVISION;
   }
 
+  function canClaimInsurance(address claimedBy) public view virtual override returns (bool) {
+    return super.canClaimInsurance(claimedBy) || _canClaimInsurance[claimedBy];
+  }
+
   function setClaimInsurance(address user) external {
-    canClaimInsurance[user] = true;
+    _canClaimInsurance[user] = true;
   }
 }

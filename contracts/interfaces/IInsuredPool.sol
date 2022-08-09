@@ -9,8 +9,9 @@ interface IInsuredPool is ICollateralized {
   function joinProcessed(bool accepted) external;
 
   /// @notice Invoked by chartered pools to request more coverage demand
-  /// @return True if more demand can be requested
-  function pullCoverageDemand() external returns (bool);
+  /// @param amount a hint on demand amount, 0 means default
+  /// @param loopLimit a max number of iterations
+  function pullCoverageDemand(uint256 amount, uint256 loopLimit) external returns (bool);
 
   /// @notice Get this insured params
   /// @return The insured params
@@ -21,8 +22,15 @@ interface IInsuredPool is ICollateralized {
   /// @return acceptedAmount The amount of coverage accepted by the insured
   /// @return rate The rate that the insured is paying for the coverage
   function offerCoverage(uint256 offeredAmount) external returns (uint256 acceptedAmount, uint256 rate);
+
+  function rateBands() external view returns (InsuredRateBand[] memory bands, uint256 maxBands);
 }
 
 struct InsuredParams {
   uint128 minPerInsurer;
+}
+
+struct InsuredRateBand {
+  uint64 premiumRate;
+  uint96 coverageDemand;
 }

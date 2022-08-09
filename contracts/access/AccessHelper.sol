@@ -16,7 +16,7 @@ abstract contract AccessHelper {
     _remoteAcl = acl;
   }
 
-  function remoteAcl() internal view returns (IAccessController) {
+  function remoteAcl() internal view virtual returns (IAccessController) {
     return _remoteAcl;
   }
 

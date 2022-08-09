@@ -44,9 +44,11 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view virtual returns (uint256);
 
-  function priceOf(address) internal view virtual returns (uint256);
+  function internalPriceOf(address) internal view virtual returns (uint256);
 
-  function expectedPrepay(uint256 atTimestamp) public view override returns (uint256) {
+  function internalPullPriceOf(address) internal virtual returns (uint256);
+
+  function _expectedPrepay(uint256 atTimestamp) internal view returns (uint256) {
     uint256 required = internalExpectedPrepay(atTimestamp + _rollingAdvanceWindow);
     uint256 minPrepayValue = _minPrepayValue;
     if (minPrepayValue > required) {
@@ -54,7 +56,12 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     }
 
     uint256 collected = _collectedValue;
-    return collected >= required ? 0 : (required - collected).wadDiv(priceOf(address(_premiumToken)));
+    return collected >= required ? 0 : required - collected;
+  }
+
+  function expectedPrepay(uint256 atTimestamp) public view override returns (uint256) {
+    uint256 value = _expectedPrepay(atTimestamp);
+    return value == 0 ? 0 : value.wadDiv(internalPriceOf(address(_premiumToken)));
   }
 
   function expectedPrepayAfter(uint32 timeDelta) external view override returns (uint256 amount) {
@@ -66,8 +73,16 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
 
     uint256 balance = token.balanceOf(address(this));
     if (balance > 0) {
-      uint256 expected = expectedPrepay(uint32(block.timestamp));
-      balance = expected >= balance ? 0 : balance - expected;
+      uint256 expected = _expectedPrepay(uint32(block.timestamp));
+      if (expected > 0) {
+        uint256 price = internalPullPriceOf(address(_premiumToken));
+        if (price != 0) {
+          expected = expected.wadDiv(price);
+          balance = expected >= balance ? 0 : balance - expected;
+        } else {
+          balance = 0;
+        }
+      }
     }
     if (amount == type(uint256).max) {
       amount = balance;

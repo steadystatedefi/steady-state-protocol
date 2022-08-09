@@ -6,12 +6,19 @@ import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
 import '../governance/interfaces/IInsuredGovernor.sol';
 import '../governance/GovernedHelper.sol';
+import '../pricing/PricingHelper.sol';
 
-abstract contract InsuredAccessControl is GovernedHelper {
+abstract contract InsuredAccessControl is GovernedHelper, PricingHelper {
   using PercentageMath for uint256;
 
   address private _governor;
   bool private _governorIsContract;
+
+  constructor(IAccessController acl, address collateral_) GovernedHelper(acl, collateral_) PricingHelper(_getPricerByAcl(acl)) {}
+
+  function remoteAcl() internal view override(AccessHelper, PricingHelper) returns (IAccessController pricer) {
+    return AccessHelper.remoteAcl();
+  }
 
   function internalSetTypedGovernor(IInsuredGovernor addr) internal {
     _governorIsContract = true;

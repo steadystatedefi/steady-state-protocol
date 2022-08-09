@@ -15,13 +15,14 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
         maxAdvanceUnits: 10000,
         minAdvanceUnits: 1000,
         riskWeightTarget: 1000, // 10%
-        minInsuredShare: 100, // 1%
-        maxInsuredShare: 4000, // 25%
+        minInsuredSharePct: 100, // 1%
+        maxInsuredSharePct: 4000, // 40%
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
         overUnitsPerRound: 30,
         coveragePrepayPct: 10000, // 100%
-        maxUserDrawdownPct: 0 // 0%
+        maxUserDrawdownPct: 0, // 0%
+        unitsPerAutoPull: 0
       })
     );
   }

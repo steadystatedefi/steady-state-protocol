@@ -20,6 +20,7 @@ abstract contract TransparentProxyBase is BaseUpgradeabilityProxy, IProxy {
     }
   }
 
+  // slither-disable-next-line incorrect-modifier
   modifier ifAdmin() {
     if (msg.sender == _admin()) {
       _;

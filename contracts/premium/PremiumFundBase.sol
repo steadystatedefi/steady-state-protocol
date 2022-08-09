@@ -9,6 +9,7 @@ import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import '../libraries/AddressExt.sol';
 import '../tools/tokens/IERC20.sol';
+import '../access/AccessHelper.sol';
 import '../pricing/PricingHelper.sol';
 import '../funds/Collateralized.sol';
 import '../interfaces/IPremiumDistributor.sol';
@@ -20,7 +21,7 @@ import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
-contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
+contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Collateralized {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
   using BalancerLib2 for BalancerLib2.AssetBalancer;
@@ -70,6 +71,10 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
   address[] private _knownTokens;
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) PricingHelper(_getPricerByAcl(acl)) {}
+
+  function remoteAcl() internal view override(AccessHelper, PricingHelper) returns (IAccessController pricer) {
+    return AccessHelper.remoteAcl();
+  }
 
   function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
     ActuaryConfig storage config = _configs[actuary];
@@ -477,6 +482,7 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
     }
   }
 
+  // slither-disable-next-line calls-loop
   function _syncAsset(
     ActuaryConfig storage config,
     address actuary,
@@ -626,7 +632,7 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
       uint256 fee = state.collectedFees;
       if (fee >= minAmount) {
         state.collectedFees = 0;
-        IERC20(tokens[i]).transfer(recipient, fees[i] = fee);
+        IERC20(tokens[i]).safeTransfer(recipient, fees[i] = fee);
       }
     }
   }

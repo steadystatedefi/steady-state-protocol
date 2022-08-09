@@ -63,6 +63,7 @@ library Errors {
 }
 
 library State {
+  // slither-disable-next-line shadowing-builtin
   function require(bool ok) internal pure {
     if (!ok) {
       revert Errors.IllegalState();
@@ -71,6 +72,7 @@ library State {
 }
 
 library Value {
+  // slither-disable-next-line shadowing-builtin
   function require(bool ok) internal pure {
     if (!ok) {
       revert Errors.IllegalValue();
@@ -79,6 +81,7 @@ library Value {
 }
 
 library Access {
+  // slither-disable-next-line shadowing-builtin
   function require(bool ok) internal pure {
     if (!ok) {
       revert Errors.AccessDenied();

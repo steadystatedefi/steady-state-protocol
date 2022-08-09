@@ -24,11 +24,11 @@ deployTask(`full:deploy-collateral-currency`, `Deploy ${EContractId.CollateralCu
 
     const deployer = await getFirstSigner();
     const accessController = Factories.AccessController.get(deployer, EContractId.AccessController);
-    const insuredPoolV2 = await Factories.CollateralCurrency.connectAndDeploy(
+    const collateralCurrency = await Factories.CollateralCurrency.connectAndDeploy(
       deployer,
       EContractId.CollateralCurrency,
       [accessController.address, 'Collateral Currency', 'CC', 18]
     );
-    await waitForTx(insuredPoolV2.deployTransaction);
+    await waitForTx(collateralCurrency.deployTransaction);
   }
 );
