@@ -41,8 +41,8 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   address private _tempAdmin;
   uint32 private _expiresAt;
 
-  uint8 private constant anyRoleBlocked = 1;
-  uint8 private constant anyRoleEnabled = 2;
+  uint8 private constant ANY_ROLE_BLOCKED = 1;
+  uint8 private constant ANY_ROLE_ENABLED = 2;
   uint8 private _anyRoleMode;
 
   constructor(
@@ -126,12 +126,12 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   }
 
   function setAnyRoleMode(bool blockOrEnable) external onlyOwnerOrAdmin {
-    require(_anyRoleMode != anyRoleBlocked);
+    require(_anyRoleMode != ANY_ROLE_BLOCKED);
     if (blockOrEnable) {
-      _anyRoleMode = anyRoleEnabled;
+      _anyRoleMode = ANY_ROLE_ENABLED;
       emit AnyRoleModeEnabled();
     } else {
-      _anyRoleMode = anyRoleBlocked;
+      _anyRoleMode = ANY_ROLE_BLOCKED;
       emit AnyRoleModeBlocked();
     }
   }
@@ -141,7 +141,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
   }
 
   function grantAnyRoles(address addr, uint256 flags) external onlyOwnerOrAdmin returns (uint256) {
-    State.require(_anyRoleMode == anyRoleEnabled);
+    State.require(_anyRoleMode == ANY_ROLE_ENABLED);
     return _grantMultiRoles(addr, flags, false);
   }
 
@@ -370,7 +370,7 @@ contract AccessController is SafeOwnable, IManagedAccessController {
 
   function _beforeCallWithRoles(uint256 flags, address addr) private returns (bool restoreMask, uint256 oldMask) {
     if (_singletons & flags != 0) {
-      require(_anyRoleMode == anyRoleEnabled, 'singleton should use setAddress');
+      require(_anyRoleMode == ANY_ROLE_ENABLED, 'singleton should use setAddress');
     }
 
     oldMask = _masks[addr];
