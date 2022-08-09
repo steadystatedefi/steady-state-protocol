@@ -12,6 +12,8 @@ import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
+// TODO tests for zero return on price lockup
+
 abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHelper {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
@@ -143,9 +145,9 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     address account,
     address token,
     uint256 tokenAmount
-  ) external override onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
-    uint256 value = _deposit(_ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT), msg.sender, token, tokenAmount);
-    _collateral.mint(account, value);
+  ) external override returns (uint256) {
+    _ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT);
+    return _depositAndMint(msg.sender, account, token, tokenAmount);
   }
 
   function invest(
@@ -153,14 +155,9 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external override {
-    uint256 value = _deposit(
-      _ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST),
-      msg.sender,
-      token,
-      tokenAmount
-    );
-    _collateral.mintAndTransfer(account, investTo, value, 0);
+  ) external override returns (uint256) {
+    _ensureApproved(account, token, CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST);
+    return _depositAndInvest(msg.sender, account, 0, token, tokenAmount, investTo);
   }
 
   function investIncludingDeposit(
@@ -169,32 +166,13 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external override {
-    uint256 value = _deposit(
-      _ensureApproved(
-        account,
-        token,
-        tokenAmount > 0 ? CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST : CollateralFundLib.APPROVED_INVEST
-      ),
-      msg.sender,
+  ) external override returns (uint256) {
+    _ensureApproved(
+      account,
       token,
-      tokenAmount
+      tokenAmount > 0 ? CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST : CollateralFundLib.APPROVED_INVEST
     );
-    _collateral.mintAndTransfer(account, investTo, value, depositValue);
-  }
-
-  function _deposit(
-    CollateralAsset storage,
-    address from,
-    address token,
-    uint256 amount
-  ) private returns (uint256 value) {
-    IERC20(token).safeTransferFrom(from, address(this), amount);
-    value = amount.wadMul(_safePriceOf(token));
-  }
-
-  function _safePriceOf(address token) private returns (uint256 price) {
-    return internalPriceOf(token);
+    return _depositAndInvest(msg.sender, account, depositValue, token, tokenAmount, investTo);
   }
 
   function internalPriceOf(address token) internal virtual returns (uint256) {
@@ -206,33 +184,41 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     address to,
     address token,
     uint256 amount
-  ) external override {
-    _withdraw(_ensureApproved(account, token, CollateralFundLib.APPROVED_WITHDRAW), account, to, token, amount);
+  ) external override returns (uint256) {
+    _ensureApproved(account, token, CollateralFundLib.APPROVED_WITHDRAW);
+    return _withdraw(account, to, token, amount);
   }
 
   function _withdraw(
-    CollateralAsset storage,
     address from,
     address to,
     address token,
     uint256 amount
-  ) private {
+  ) private returns (uint256) {
     if (amount > 0) {
       uint256 value;
       if (amount == type(uint256).max) {
         value = _collateral.balanceOf(from);
         if (value > 0) {
-          amount = value.wadDiv(_safePriceOf(token));
+          uint256 price = internalPriceOf(token);
+          if (price != 0) {
+            amount = value.wadDiv(price);
+          } else {
+            value = 0;
+          }
         }
       } else {
-        value = amount.wadMul(_safePriceOf(token));
+        value = amount.wadMul(internalPriceOf(token));
       }
 
       if (value > 0) {
         _collateral.burn(from, value);
         IERC20(token).safeTransfer(to, amount);
+        return amount;
       }
     }
+
+    return 0;
   }
 
   function _ensureApproved(
@@ -285,36 +271,75 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     Access.require(internalIsTrusted(asset, msg.sender, token));
   }
 
-  function trustedDeposit(
+  function __deposit(
     address from,
-    address account,
     address token,
     uint256 amount
-  ) external onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) {
-    uint256 value = _deposit(_ensureTrusted(from, account, token, CollateralFundLib.APPROVED_DEPOSIT), from, token, amount);
-    _collateral.mint(account, value);
+  ) private returns (uint256 value, bool ok) {
+    uint256 price = internalPriceOf(token);
+    if (price != 0) {
+      IERC20(token).safeTransferFrom(from, address(this), amount);
+      value = amount.wadMul(price);
+      ok = true;
+    }
   }
 
-  function trustedInvest(
-    address from,
+  function _depositAndMint(
+    address operator,
+    address account,
+    address token,
+    uint256 tokenAmount
+  ) private onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) returns (uint256) {
+    (uint256 value, bool ok) = __deposit(operator, token, tokenAmount);
+    if (ok) {
+      _collateral.mint(account, value);
+      return value;
+    }
+    return 0;
+  }
+
+  function _depositAndInvest(
+    address operator,
     address account,
     uint256 depositValue,
     address token,
     uint256 tokenAmount,
     address investTo
-  ) external {
-    uint256 value = _deposit(
-      _ensureTrusted(
-        from,
-        account,
-        token,
-        tokenAmount > 0 ? CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST : CollateralFundLib.APPROVED_INVEST
-      ),
-      from,
+  ) private returns (uint256) {
+    (uint256 value, bool ok) = __deposit(operator, token, tokenAmount);
+    if (ok) {
+      _collateral.mintAndTransfer(account, investTo, value, depositValue);
+      return value + depositValue;
+    }
+    return 0;
+  }
+
+  function trustedDeposit(
+    address operator,
+    address account,
+    address token,
+    uint256 amount
+  ) external returns (uint256) {
+    _ensureTrusted(operator, account, token, CollateralFundLib.APPROVED_DEPOSIT);
+    return _depositAndMint(operator, account, token, amount);
+  }
+
+  function trustedInvest(
+    address operator,
+    address account,
+    uint256 depositValue,
+    address token,
+    uint256 tokenAmount,
+    address investTo
+  ) external returns (uint256) {
+    _ensureTrusted(
+      operator,
+      account,
       token,
-      tokenAmount
+      tokenAmount > 0 ? CollateralFundLib.APPROVED_DEPOSIT | CollateralFundLib.APPROVED_INVEST : CollateralFundLib.APPROVED_INVEST
     );
-    _collateral.mintAndTransfer(account, investTo, value, depositValue);
+
+    return _depositAndInvest(operator, account, depositValue, token, tokenAmount, investTo);
   }
 
   function trustedWithdraw(
@@ -323,8 +348,9 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     address to,
     address token,
     uint256 amount
-  ) external {
-    _withdraw(_ensureTrusted(operator, account, token, CollateralFundLib.APPROVED_WITHDRAW), account, to, token, amount);
+  ) external returns (uint256) {
+    _ensureTrusted(operator, account, token, CollateralFundLib.APPROVED_WITHDRAW);
+    return _withdraw(account, to, token, amount);
   }
 
   function setPaused(address token, bool paused) external onlyEmergencyAdmin {

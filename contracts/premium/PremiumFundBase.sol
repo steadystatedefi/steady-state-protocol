@@ -482,6 +482,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
+  // slither-disable-next-line calls-loop
   function _syncAsset(
     ActuaryConfig storage config,
     address actuary,
@@ -631,7 +632,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       uint256 fee = state.collectedFees;
       if (fee >= minAmount) {
         state.collectedFees = 0;
-        IERC20(tokens[i]).transfer(recipient, fees[i] = fee);
+        IERC20(tokens[i]).safeTransfer(recipient, fees[i] = fee);
       }
     }
   }

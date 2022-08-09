@@ -10,8 +10,8 @@ contract InsuredPoolV1 is VersionedInitializable, IInsuredPoolInit, InsuredPoolM
 
   constructor(IAccessController acl, address collateral_) InsuredPoolMonoRateBase(acl, collateral_) {}
 
-  function initializeInsured(address governor) public override initializer(CONTRACT_REVISION) {
-    internalSetGovernor(governor);
+  function initializeInsured(address governor_) public override initializer(CONTRACT_REVISION) {
+    internalSetGovernor(governor_);
   }
 
   function getRevision() internal pure virtual override returns (uint256) {
