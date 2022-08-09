@@ -8,7 +8,7 @@ import './InsuredPoolMonoRateBase.sol';
 contract InsuredPoolV1 is VersionedInitializable, IInsuredPoolInit, InsuredPoolMonoRateBase {
   uint256 private constant CONTRACT_REVISION = 1;
 
-  constructor(IAccessController acl, address collateral_) InsuredPoolBase(acl, collateral_) {}
+  constructor(IAccessController acl, address collateral_) InsuredPoolMonoRateBase(acl, collateral_) {}
 
   function initializeInsured(address governor) public override initializer(CONTRACT_REVISION) {
     internalSetGovernor(governor);

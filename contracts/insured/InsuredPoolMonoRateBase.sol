@@ -5,13 +5,15 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/math/Math.sol';
 import './InsuredPoolBase.sol';
 
-abstract contract InsuredPoolMonoRateBase is InsuredPoolBase {
+contract InsuredPoolMonoRateBase is InsuredPoolBase {
   using WadRayMath for uint256;
   using Math for uint256;
 
   uint96 private _requiredCoverage;
   uint96 private _demandedCoverage;
   uint64 private _premiumRate;
+
+  constructor(IAccessController acl, address collateral_) InsuredPoolBase(acl, collateral_) {}
 
   function _initializeCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) internal {
     State.require(_premiumRate == 0);
@@ -85,5 +87,14 @@ abstract contract InsuredPoolMonoRateBase is InsuredPoolBase {
     }
     rate = _premiumRate;
     InsuredBalancesBase.internalMintForCoverage(account, acceptedAmount, rate);
+  }
+
+  function rateBands() external view override returns (InsuredRateBand[] memory bands, uint256) {
+    if (_premiumRate > 0) {
+      bands = new InsuredRateBand[](1);
+      bands[0].premiumRate = _premiumRate;
+      bands[0].coverageDemand = _requiredCoverage + _demandedCoverage;
+    }
+    return (bands, 1);
   }
 }

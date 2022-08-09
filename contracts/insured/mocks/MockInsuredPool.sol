@@ -10,7 +10,7 @@ contract MockInsuredPool is InsuredPoolMonoRateBase {
     uint64 premiumRate,
     uint128 minPerInsurer,
     address premiumToken_
-  ) InsuredPoolBase(IAccessController(address(0)), collateral_) {
+  ) InsuredPoolMonoRateBase(IAccessController(address(0)), collateral_) {
     _initializeERC20('InsuredPoolToken', '$DC', DECIMALS);
     _initializeCoverageDemand(totalDemand, premiumRate);
     _initializePremiumCollector(premiumToken_, 0, 0);
