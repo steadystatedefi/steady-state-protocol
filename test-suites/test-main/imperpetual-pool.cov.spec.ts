@@ -52,7 +52,14 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const riskWeight = 1000; // 10%
 
     const joinPool = async (riskWeightValue: number) => {
-      const insured = await Factories.MockInsuredPool.deploy(cc.address, poolDemand, RATE, minUnits * unitSize);
+      const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+      const insured = await Factories.MockInsuredPool.deploy(
+        cc.address,
+        poolDemand,
+        RATE,
+        minUnits * unitSize,
+        premiumToken.address
+      );
       await pool.approveNextJoin(riskWeightValue);
       await insured.joinPool(pool.address, { gasLimit: 1000000 });
       insuredTS.push(await currentTime());

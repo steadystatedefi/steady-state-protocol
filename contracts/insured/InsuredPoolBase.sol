@@ -2,10 +2,12 @@
 pragma solidity ^0.8.4;
 
 import '../tools/math/WadRayMath.sol';
+import '../tools/math/Math.sol';
+import '../governance/interfaces/IClaimAccessValidator.sol';
+import '../interfaces/IPremiumActuary.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 import './PremiumCollectorBase.sol';
-import '../interfaces/IPremiumActuary.sol';
 import './InsuredAccessControl.sol';
 
 import 'hardhat/console.sol';
@@ -13,54 +15,49 @@ import 'hardhat/console.sol';
 /// @title Insured Pool Base
 /// @notice The base pool that tracks how much coverage is requested, provided and paid
 /// @dev Reconcilation must be called for the most accurate information
-abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase, PremiumCollectorBase, InsuredAccessControl {
+abstract contract InsuredPoolBase is
+  IInsuredPool,
+  InsuredBalancesBase,
+  InsuredJoinBase,
+  PremiumCollectorBase,
+  IClaimAccessValidator,
+  InsuredAccessControl
+{
   using WadRayMath for uint256;
-
-  uint128 private _requiredCoverage;
-  uint128 private _demandedCoverage;
-
-  // TODO support for rate bands
-  uint64 private _premiumRate;
+  using Math for uint256;
 
   InsuredParams private _params;
+  mapping(address => uint256) private _receivedCollaterals; // [insurer]
 
   uint8 internal constant DECIMALS = 18;
 
-  constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) GovernedHelper(acl, collateral_) {}
-
-  function _initialize(uint256 requiredCoverage, uint64 premiumRate) internal {
-    require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
-    _premiumRate = premiumRate;
-  }
+  constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) InsuredAccessControl(acl, collateral_) {}
 
   function applyApprovedApplication() external onlyGovernor {
     State.require(!internalHasAppliedApplication());
     _applyApprovedApplication();
   }
 
-  function internalHasAppliedApplication() internal view virtual returns (bool) {
+  function internalHasAppliedApplication() internal view returns (bool) {
     return premiumToken() != address(0);
   }
 
+  function internalGetApprovedPolicy() internal returns (IApprovalCatalog.ApprovedPolicy memory) {
+    return approvalCatalog().applyApprovedApplication();
+  }
+
   function _applyApprovedApplication() private {
-    IApprovalCatalog ac = approvalCatalog();
-    if (address(ac) != address(0)) {
-      IApprovalCatalog.ApprovedPolicy memory ap = ac.applyApprovedApplication();
+    IApprovalCatalog.ApprovedPolicy memory ap = internalGetApprovedPolicy();
 
-      State.require(ap.insured == address(this));
-      State.require(ap.expiresAt > block.timestamp);
+    State.require(ap.insured == address(this));
+    State.require(ap.expiresAt > block.timestamp);
 
-      _initializeERC20(ap.policyName, ap.policySymbol, DECIMALS);
-      _initializePremiumCollector(ap.premiumToken, ap.minPrepayValue, ap.rollingAdvanceWindow);
-    }
+    _initializeERC20(ap.policyName, ap.policySymbol, DECIMALS);
+    _initializePremiumCollector(ap.premiumToken, ap.minPrepayValue, ap.rollingAdvanceWindow);
   }
 
   function collateral() public view override(ICollateralized, Collateralized, PremiumCollectorBase) returns (address) {
     return Collateralized.collateral();
-  }
-
-  function _increaseRequiredCoverage(uint256 amount) internal {
-    _requiredCoverage += uint128(amount);
   }
 
   function internalSetInsuredParams(InsuredParams memory params) internal {
@@ -84,49 +81,15 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return InsuredJoinBase.internalIsAllowedAsHolder(status);
   }
 
-  /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
-  /// @dev Mints to the appropriate insurer
-  function internalCoverageDemandAdded(
-    address target,
-    uint256 amount,
-    uint256 premiumRate
-  ) internal override {
-    _requiredCoverage = uint128(_requiredCoverage - amount);
-    _demandedCoverage += uint128(amount);
-    // console.log('internalCoverageDemandAdded', amount, _demandedCoverage);
-    InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
-  }
-
-  /// @dev Calculate how much coverage demand to add
-  /// @param target The insurer demand is being added to
-  /// @param minAmount The desired min amount of demand to add (soft limit)
-  /// @param maxAmount The max amount of demand to add (hard limit)
-  /// @param unitSize The unit size of the insurer
-  /// @return amountToAdd Amount of coverage demand to add
-  /// @return premiumRate The rate to pay for the coverage to add
-  function internalAllocateCoverageDemand(
-    address target,
-    uint256 minAmount,
-    uint256 maxAmount,
-    uint256 unitSize
-  ) internal view override returns (uint256 amountToAdd, uint256 premiumRate) {
-    target;
-    unitSize;
-    minAmount;
-
-    amountToAdd = _requiredCoverage;
-    if (amountToAdd > maxAmount) {
-      amountToAdd = maxAmount;
-    }
-    premiumRate = _premiumRate;
-    // console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
-  }
-
   /// @notice Attempt to join an insurer
   function joinPool(IJoinable pool) external onlyGovernor {
+    Value.require(address(pool) != address(0));
     if (!internalHasAppliedApplication()) {
       _applyApprovedApplication();
     }
+
+    State.require(IERC20(premiumToken()).balanceOf(address(this)) >= expectedPrepay(uint32(block.timestamp)));
+
     internalJoinPool(pool);
   }
 
@@ -280,8 +243,6 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
-  mapping(address => uint256) private _receivedCollaterals; // [insurer]
-
   function internalCollateralReceived(address insurer, uint256 amount) internal override {
     super.internalCollateralReceived(insurer, amount);
     _receivedCollaterals[insurer] += amount;
@@ -310,30 +271,12 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     }
   }
 
-  /// @inheritdoc IInsuredPool
-  function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
-    return internalOfferCoverage(msg.sender, offeredAmount);
+  function internalPriceOf(address asset) internal view virtual override returns (uint256) {
+    return getPricer().getAssetPrice(asset);
   }
 
-  /// @dev Must be whitelisted to do this
-  /// @dev Maximum is _requiredCoverage
-  function internalOfferCoverage(address account, uint256 offeredAmount) private returns (uint256 acceptedAmount, uint256 rate) {
-    _ensureHolder(account);
-    acceptedAmount = _requiredCoverage;
-    if (acceptedAmount <= offeredAmount) {
-      _requiredCoverage = 0;
-    } else {
-      _requiredCoverage = uint128(acceptedAmount - offeredAmount);
-      acceptedAmount = offeredAmount;
-    }
-    rate = _premiumRate;
-    InsuredBalancesBase.internalMintForCoverage(account, acceptedAmount, rate);
-  }
-
-  function priceOf(address) internal view override returns (uint256) {
-    this;
-    // TODO price oracle
-    return WadRayMath.WAD;
+  function internalPullPriceOf(address asset) internal virtual override returns (uint256) {
+    return getPricer().pullAssetPrice(asset, 0);
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
@@ -366,5 +309,9 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   function setGovernor(address addr) external onlyGovernorOr(AccessFlags.INSURED_ADMIN) {
     internalSetGovernor(addr);
+  }
+
+  function canClaimInsurance(address claimedBy) public view virtual override returns (bool) {
+    return claimedBy == governorAccount();
   }
 }

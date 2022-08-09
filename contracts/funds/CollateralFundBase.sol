@@ -8,14 +8,13 @@ import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../interfaces/ICollateralStakeManager.sol';
 import '../pricing/PricingHelper.sol';
-
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
 // TODO tests for zero return on price lockup
 
-abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
+abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHelper {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -65,6 +64,10 @@ abstract contract CollateralFundBase is ICollateralFund, PricingHelper {
   modifier onlySpecial(address account, uint256 access) {
     _onlySpecial(account, access);
     _;
+  }
+
+  function remoteAcl() internal view override(AccessHelper, PricingHelper) returns (IAccessController pricer) {
+    return AccessHelper.remoteAcl();
   }
 
   function setApprovalsFor(

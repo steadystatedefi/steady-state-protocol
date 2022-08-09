@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../InsuredPoolBase.sol';
+import '../InsuredPoolMonoRateBase.sol';
 
-contract MockInsuredPool is InsuredPoolBase {
+contract MockInsuredPool is InsuredPoolMonoRateBase {
   constructor(
     address collateral_,
     uint256 totalDemand,
     uint64 premiumRate,
-    uint128 minPerInsurer
-  ) InsuredPoolBase(IAccessController(address(0)), collateral_) {
+    uint128 minPerInsurer,
+    address premiumToken_
+  ) InsuredPoolMonoRateBase(IAccessController(address(0)), collateral_) {
     _initializeERC20('InsuredPoolToken', '$DC', DECIMALS);
-    _initialize(totalDemand, premiumRate);
+    _initializeCoverageDemand(totalDemand, premiumRate);
+    _initializePremiumCollector(premiumToken_, 0, 0);
     internalSetInsuredParams(InsuredParams({minPerInsurer: minPerInsurer}));
     internalSetGovernor(msg.sender);
   }
@@ -24,7 +26,7 @@ contract MockInsuredPool is InsuredPoolBase {
     ICoverageDistributor(insurer).cancelCoverageDemand(address(this), unitCount, 0);
   }
 
-  function internalHasAppliedApplication() internal pure override returns (bool) {
-    return true;
+  function internalPriceOf(address) internal pure override returns (uint256) {
+    return WadRayMath.WAD;
   }
 }

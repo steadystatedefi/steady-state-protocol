@@ -22,8 +22,15 @@ interface IInsuredPool is ICollateralized {
   /// @return acceptedAmount The amount of coverage accepted by the insured
   /// @return rate The rate that the insured is paying for the coverage
   function offerCoverage(uint256 offeredAmount) external returns (uint256 acceptedAmount, uint256 rate);
+
+  function rateBands() external view returns (InsuredRateBand[] memory bands, uint256 maxBands);
 }
 
 struct InsuredParams {
   uint128 minPerInsurer;
+}
+
+struct InsuredRateBand {
+  uint64 premiumRate;
+  uint96 coverageDemand;
 }

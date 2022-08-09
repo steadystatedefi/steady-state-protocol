@@ -58,11 +58,13 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     const riskWeight = 1000; // 10%
 
     const joinPool = async (poolDemand: number, riskWeightValue: number) => {
+      const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
       const insured = await Factories.MockInsuredPool.deploy(
         fund.address,
         BigNumber.from(unitSize).mul(poolDemand),
         RATE,
-        minUnits * unitSize
+        minUnits * unitSize,
+        premiumToken.address
       );
       await pool.approveNextJoin(riskWeightValue);
       const tx = await mustWaitTx(insured.joinPool(pool.address, { gasLimit: 1000000 }));

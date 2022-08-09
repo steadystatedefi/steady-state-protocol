@@ -98,6 +98,13 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return true;
   }
 
+  /// @dev Calculate how much coverage demand to add
+  /// @param target The insurer demand is being added to
+  /// @param minAmount The desired min amount of demand to add (soft limit)
+  /// @param maxAmount The max amount of demand to add (hard limit)
+  /// @param unitSize The unit size of the insurer
+  /// @return amount Amount of coverage demand to add
+  /// @return premiumRate The rate to pay for the coverage to add
   function internalAllocateCoverageDemand(
     address target,
     uint256 minAmount,
