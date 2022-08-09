@@ -173,7 +173,7 @@ abstract contract PriceSourceBase {
   ) internal {
     Value.require((unsetFlags | setFlags) <= CUSTOM_FLAG_MASK);
 
-    uint256 encoded = _encodedSources[token] & CONFIG_MASK;
+    uint256 encoded = _encodedSources[token];
 
     if (unsetFlags != 0) {
       encoded &= ~(uint256(unsetFlags) << FLAGS_OFS);
