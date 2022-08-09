@@ -82,5 +82,6 @@ jobs:
         run: slither . --config-file .slither.json
 
   check:
+    runs-on: ubuntu-latest
     name: Final Check
     needs: [unit-tests, slither]
