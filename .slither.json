@@ -1,5 +1,6 @@
 {
-  "detectors_to_exclude": "solc-version,reentrancy-eth,reentrancy-no-eth,reentrancy-benign,reentrancy-events,reentrancy-unlimited-gas,divide-before-multiply,dead-code",
+  "detectors_to_exclude": "reentrancy-eth,reentrancy-no-eth,reentrancy-benign,reentrancy-events,reentrancy-unlimited-gas,divide-before-multiply,dead-code,solc-version,external-functions,unimplemented-functions,unused-state,similar-names,redundant-statements,naming-convention,low-level-calls,assembly,timestamp,variable-scope,incorrect-equality,uninitialized-state",
+  "exclude_optimization": false,
   "exclude_informational": false,
   "exclude_low": false,
   "exclude_medium": false,
