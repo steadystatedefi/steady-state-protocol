@@ -76,6 +76,7 @@ abstract contract DirectPoolBase is
 
     if (payoutRatio > 0) {
       payoutValue = total.rayMul(payoutRatio);
+      // slither-disable-next-line events-maths
       _inverseExchangeRate = uint96(WadRayMath.RAY - (total - payoutValue).rayDiv(total).rayMul(exchangeRate()));
       total -= payoutValue;
     }
