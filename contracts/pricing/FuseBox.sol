@@ -19,10 +19,12 @@ abstract contract FuseBox {
     if (mask != 0) {
       uint256 fuseBox = _fuseBox;
       if ((mask &= ~fuseBox) != 0) {
-        _fuseBox = mask | fuseBox;
+        _fuseBox = fuseBox | mask;
         internalFuseBlown(addr, fuseBox, mask);
+        blown = true;
+      } else {
+        blown = fuseBox & mask != 0;
       }
-      blown = true;
     }
   }
 
@@ -51,13 +53,12 @@ abstract contract FuseBox {
     return mask != 0 && (mask & _fuseBox != 0);
   }
 
+  function internalHasAnyBlownFuse(address addr) internal view returns (bool) {
+    return internalHasAnyBlownFuse(_fuseMasks[addr]);
+  }
+
   function internalHasAnyBlownFuse(address addr, uint256 mask) internal view returns (bool) {
-    if (mask != 0) {
-      if ((mask &= _fuseMasks[addr]) != 0) {
-        return internalHasAnyBlownFuse(mask);
-      }
-    }
-    return false;
+    return mask != 0 && internalHasAnyBlownFuse(mask & _fuseMasks[addr]);
   }
 
   function internalGetOwnedFuses(address owner) internal view returns (uint256) {

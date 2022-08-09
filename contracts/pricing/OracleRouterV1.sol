@@ -2,12 +2,12 @@
 pragma solidity ^0.8.4;
 
 import '../tools/upgradeability/VersionedInitializable.sol';
-import './OracleRouterBase.sol';
+import './PriceGuardOracleBase.sol';
 
-contract OracleRouterV1 is VersionedInitializable, OracleRouterBase {
+contract OracleRouterV1 is VersionedInitializable, PriceGuardOracleBase {
   uint256 private constant CONTRACT_REVISION = 1;
 
-  constructor(IAccessController acl, address quote) AccessHelper(acl) OracleRouterBase(quote) {}
+  constructor(IAccessController acl, address quote) PriceGuardOracleBase(acl, quote) {}
 
   function initializePriceOracle() public initializer(CONTRACT_REVISION) {
     // _initializeDomainSeparator();

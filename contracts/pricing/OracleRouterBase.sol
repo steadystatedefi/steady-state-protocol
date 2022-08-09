@@ -9,10 +9,9 @@ import './interfaces/IManagedPriceRouter.sol';
 import './interfaces/IPriceFeedChainlinkV3.sol';
 import './interfaces/IPriceFeedUniswapV2.sol';
 import './PriceSourceBase.sol';
-import './FuseBox.sol';
 
 // @dev All prices given out have 18 decimals
-abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSourceBase, FuseBox {
+abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSourceBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 
@@ -37,30 +36,6 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
 
   function getQuoteAsset() public view returns (address) {
     return _quote;
-  }
-
-  function pullAssetPrice(address asset, uint256 fuseMask) external override returns (uint256) {
-    if (asset == _quote) {
-      return WadRayMath.WAD;
-    }
-
-    (uint256 v, uint8 flags) = internalReadSource(asset);
-
-    if (v == 0) {
-      revert Errors.UnknownPriceAsset(asset);
-    }
-
-    if (internalHasAnyBlownFuse(fuseMask)) {
-      revert Errors.ExcessiveVolatilityLock(fuseMask);
-    }
-
-    if (flags & EF_LIMIT_BREACHED != 0) {
-      if (!internalBlowFuses(asset)) {
-        revert Errors.ExcessiveVolatility();
-      }
-    }
-
-    return v;
   }
 
   function getAssetPrice(address asset) public view override returns (uint256) {
@@ -227,29 +202,13 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     (, , , targetPrice, tolerancePct) = internalGetSource(asset);
   }
 
-  function attachSource(address asset, bool attach) external override {
-    Value.require(asset != address(0));
-
-    uint256 maskUnset = internalGetOwnedFuses(msg.sender);
-    uint256 maskSet;
-    Access.require(maskUnset != 0);
-
-    if (attach) {
-      (maskSet, maskUnset) = (maskUnset, 0);
-    }
-    internalSetFuses(asset, maskUnset, maskSet);
-  }
-
-  function resetSourceGroup() external override {
-    uint256 mask = internalGetOwnedFuses(msg.sender);
-    if (mask != 0) {
-      internalResetFuses(mask);
-    }
-  }
-
   function resetSourceGroupByAdmin(uint256 mask) external override onlyOracleAdmin {
-    internalResetFuses(mask);
+    internalResetGroup(mask);
   }
+
+  function internalResetGroup(uint256 mask) internal virtual;
+
+  function internalRegisterGroup(address account, uint256 mask) internal virtual;
 
   function registerSourceGroup(
     address account,
@@ -257,11 +216,8 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     bool register
   ) external override onlyOracleAdmin {
     Value.require(account != address(0));
-
-    internalSetOwnedFuses(account, register ? mask : 0);
+    internalRegisterGroup(account, register ? mask : 0);
   }
 
-  function groupsOf(address account) external view returns (uint256 memberOf, uint256 ownerOf) {
-    return (internalGetFuses(account), internalGetOwnedFuses(account));
-  }
+  function groupsOf(address) external view virtual returns (uint256 memberOf, uint256 ownerOf);
 }
