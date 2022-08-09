@@ -161,7 +161,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
     UserBalance memory b = _balances[account];
 
-    accumulated = _premiums[account];
+    accumulated = _userPremiums[account];
 
     if (b.balance > 0) {
       uint256 premiumDiff = totals.accum - b.extra;

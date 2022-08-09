@@ -626,7 +626,7 @@ contract PremiumFundBase is IPremiumDistributor, PricingHelper, Collateralized {
       uint256 fee = state.collectedFees;
       if (fee >= minAmount) {
         state.collectedFees = 0;
-        IERC20(tokens[i]).transfer(recipient, fees[i] = fee);
+        IERC20(tokens[i]).safeTransfer(recipient, fees[i] = fee);
       }
     }
   }

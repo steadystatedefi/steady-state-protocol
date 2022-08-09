@@ -22,8 +22,6 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
   using PercentageMath for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 
-  EnumerableSet.AddressSet private _actuaries;
-
   uint128 private _totalStakedCollateral;
   uint128 private _totalBorrowedCollateral;
 
