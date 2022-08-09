@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import '../tools/math/WadRayMath.sol';
+import '../tools/math/Math.sol';
 import './InsuredBalancesBase.sol';
 import './InsuredJoinBase.sol';
 import './PremiumCollectorBase.sol';
@@ -15,11 +16,12 @@ import 'hardhat/console.sol';
 /// @dev Reconcilation must be called for the most accurate information
 abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJoinBase, PremiumCollectorBase, InsuredAccessControl {
   using WadRayMath for uint256;
-
-  uint128 private _requiredCoverage;
-  uint128 private _demandedCoverage;
+  using Math for uint256;
 
   // TODO support for rate bands
+
+  uint96 private _requiredCoverage;
+  uint96 private _demandedCoverage;
   uint64 private _premiumRate;
 
   InsuredParams private _params;
@@ -28,9 +30,11 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) GovernedHelper(acl, collateral_) {}
 
-  function _initialize(uint256 requiredCoverage, uint64 premiumRate) internal {
-    require((_requiredCoverage = uint128(requiredCoverage)) == requiredCoverage);
-    _premiumRate = premiumRate;
+  function _initializeCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) internal {
+    State.require(_premiumRate == 0);
+    Value.require(premiumRate != 0);
+    Value.require((_requiredCoverage = uint96(requiredCoverage)) == requiredCoverage);
+    Value.require((_premiumRate = uint64(premiumRate)) == premiumRate);
   }
 
   function applyApprovedApplication() external onlyGovernor {
@@ -60,8 +64,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     return Collateralized.collateral();
   }
 
-  function _increaseRequiredCoverage(uint256 amount) internal {
-    _requiredCoverage += uint128(amount);
+  function internalAddRequiredCoverage(uint256 amount) internal {
+    _requiredCoverage += amount.asUint96();
   }
 
   function internalSetInsuredParams(InsuredParams memory params) internal {
@@ -92,8 +96,8 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     uint256 amount,
     uint256 premiumRate
   ) internal override {
-    _requiredCoverage = uint128(_requiredCoverage - amount);
-    _demandedCoverage += uint128(amount);
+    _requiredCoverage = uint96(_requiredCoverage - amount);
+    _demandedCoverage += uint96(amount);
     // console.log('internalCoverageDemandAdded', amount, _demandedCoverage);
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
   }
@@ -130,6 +134,14 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     State.require(IERC20(premiumToken()).balanceOf(address(this)) >= expectedPrepay(uint32(block.timestamp)));
 
     internalJoinPool(pool);
+  }
+
+  function setCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) external onlyGovernor {
+    if (internalHasAppliedApplication()) {
+      IApprovalCatalog.ApprovedPolicy memory ap = internalGetApprovedPolicy();
+      Value.require(premiumRate >= ap.basePremiumRate);
+    }
+    _initializeCoverageDemand(requiredCoverage, premiumRate);
   }
 
   /// @notice Add coverage demand to the desired insurer
@@ -325,7 +337,7 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     if (acceptedAmount <= offeredAmount) {
       _requiredCoverage = 0;
     } else {
-      _requiredCoverage = uint128(acceptedAmount - offeredAmount);
+      _requiredCoverage = uint96(acceptedAmount - offeredAmount);
       acceptedAmount = offeredAmount;
     }
     rate = _premiumRate;
