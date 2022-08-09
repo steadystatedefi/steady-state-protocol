@@ -21,16 +21,18 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
     uint256 excessCoverage = _excessCoverage;
     if (coverageValue > 0 || excessCoverage > 0) {
-      (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(
+      (uint256 newExcess, uint256 loopLimit, AddCoverageParams memory params, PartialState memory part) = super.internalAddCoverage(
         coverageValue + excessCoverage,
-        type(uint256).max
+        defaultLoopLimit(LoopLimitType.AddCoverage, 0)
       );
 
       if (newExcess != excessCoverage) {
         internalSetExcess(newExcess);
       }
 
-      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
+      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, params.premium));
+
+      internalAutoPullDemand(params, loopLimit, newExcess > 0, coverageValue);
     }
 
     emit Transfer(address(0), account, coverageValue);
@@ -92,9 +94,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
     (uint256 newExcess, , AddCoverageParams memory p, PartialState memory part) = super.internalAddCoverage(excessCoverage, type(uint256).max);
 
-    Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
-    internalSetExcess(newExcess);
-    _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
+    if (newExcess != excessCoverage) {
+      Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
+      internalSetExcess(newExcess);
+      _afterBalanceUpdate(newExcess, totals, super.internalGetPremiumTotals(part, p.premium));
+    }
   }
 
   /// @dev Burn a user's pool tokens and send them the underlying $CC in return

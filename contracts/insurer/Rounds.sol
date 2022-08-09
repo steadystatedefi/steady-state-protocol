@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.10;
 
 /*
 
@@ -45,15 +45,9 @@ library Rounds {
     /// @dev total number of units demanded by this insured pool
     uint64 demandedUnits;
     /// @dev see InsuredParams
-    uint24 minUnits;
-    /// @dev see InsuredParams
-    uint16 maxShare;
-    /// @dev see InsuredParams
-    uint40 minPremiumRate;
+    PackedInsuredParams params;
     /// @dev status of the insured pool
     InsuredStatus status;
-
-    // TODO bool fullyCovered;
   }
 
   struct Coverage {
@@ -131,6 +125,34 @@ library Rounds {
 
   function isReady(State state) internal pure returns (bool) {
     return state >= State.ReadyMin && state <= State.Ready;
+  }
+
+  type PackedInsuredParams is uint80;
+
+  function packInsuredParams(
+    uint24 minUnits_,
+    uint16 maxShare_,
+    uint40 minPremiumRate_
+  ) internal pure returns (PackedInsuredParams) {
+    return PackedInsuredParams.wrap(uint80((uint256(minPremiumRate_) << 40) | (uint256(maxShare_) << 24) | minUnits_));
+  }
+
+  function unpackInsuredParams(PackedInsuredParams v) internal pure returns (InsuredParams memory p) {
+    p.minUnits = minUnits(v);
+    p.maxShare = maxShare(v);
+    p.minPremiumRate = minPremiumRate(v);
+  }
+
+  function minUnits(PackedInsuredParams v) internal pure returns (uint24) {
+    return uint24(PackedInsuredParams.unwrap(v));
+  }
+
+  function maxShare(PackedInsuredParams v) internal pure returns (uint16) {
+    return uint16(PackedInsuredParams.unwrap(v) >> 24);
+  }
+
+  function minPremiumRate(PackedInsuredParams v) internal pure returns (uint40) {
+    return uint40(PackedInsuredParams.unwrap(v) >> 40);
   }
 }
 

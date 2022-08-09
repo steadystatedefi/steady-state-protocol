@@ -9,8 +9,9 @@ interface IInsuredPool is ICollateralized {
   function joinProcessed(bool accepted) external;
 
   /// @notice Invoked by chartered pools to request more coverage demand
-  /// @return True if more demand can be requested
-  function pullCoverageDemand() external returns (bool);
+  /// @param amount a hint on demand amount, 0 means default
+  /// @param loopLimit a max number of iterations
+  function pullCoverageDemand(uint256 amount, uint256 loopLimit) external returns (bool);
 
   /// @notice Get this insured params
   /// @return The insured params

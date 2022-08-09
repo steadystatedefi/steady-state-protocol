@@ -116,4 +116,6 @@ contract MockWeightedRounds is WeightedRoundsBase {
     coverage = internalUpdateCoveredDemand(params);
     receivedCoverage += params.receivedCoverage;
   }
+
+  function internalIsEnoughForMore(Rounds.InsuredEntry memory entry, uint256 unitCount) internal view override returns (bool) {}
 }

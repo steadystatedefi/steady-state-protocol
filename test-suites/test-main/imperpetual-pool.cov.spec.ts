@@ -61,7 +61,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
         premiumToken.address
       );
       await pool.approveNextJoin(riskWeightValue);
-      await insured.joinPool(pool.address);
+      await insured.joinPool(pool.address, { gasLimit: 1000000 });
       insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();

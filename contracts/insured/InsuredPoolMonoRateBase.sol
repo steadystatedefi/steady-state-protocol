@@ -39,23 +39,15 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
   }
 
-  /// @dev Calculate how much coverage demand to add
-  /// @param target The insurer demand is being added to
-  /// @param amount The amount of coverage demand to add
-  /// @param unitSize The unit size of the insurer
-  /// @return amountToAdd Amount of coverage demand to add
-  /// @return premiumRate The rate to pay for the coverage to add
   function internalAllocateCoverageDemand(
-    address target,
-    uint256 amount,
-    uint256 unitSize
+    address,
+    uint256,
+    uint256 maxAmount,
+    uint256
   ) internal view override returns (uint256 amountToAdd, uint256 premiumRate) {
-    target;
-    unitSize;
-
     amountToAdd = _requiredCoverage;
-    if (amountToAdd > amount) {
-      amountToAdd = amount;
+    if (amountToAdd > maxAmount) {
+      amountToAdd = maxAmount;
     }
     premiumRate = _premiumRate;
     // console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
