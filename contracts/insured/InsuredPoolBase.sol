@@ -38,21 +38,22 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
     _applyApprovedApplication();
   }
 
-  function internalHasAppliedApplication() internal view virtual returns (bool) {
+  function internalHasAppliedApplication() internal view returns (bool) {
     return premiumToken() != address(0);
   }
 
+  function internalGetApprovedPolicy() internal returns (IApprovalCatalog.ApprovedPolicy memory) {
+    return approvalCatalog().applyApprovedApplication();
+  }
+
   function _applyApprovedApplication() private {
-    IApprovalCatalog ac = approvalCatalog();
-    if (address(ac) != address(0)) {
-      IApprovalCatalog.ApprovedPolicy memory ap = ac.applyApprovedApplication();
+    IApprovalCatalog.ApprovedPolicy memory ap = internalGetApprovedPolicy();
 
-      State.require(ap.insured == address(this));
-      State.require(ap.expiresAt > block.timestamp);
+    State.require(ap.insured == address(this));
+    State.require(ap.expiresAt > block.timestamp);
 
-      _initializeERC20(ap.policyName, ap.policySymbol, DECIMALS);
-      _initializePremiumCollector(ap.premiumToken, ap.minPrepayValue, ap.rollingAdvanceWindow);
-    }
+    _initializeERC20(ap.policyName, ap.policySymbol, DECIMALS);
+    _initializePremiumCollector(ap.premiumToken, ap.minPrepayValue, ap.rollingAdvanceWindow);
   }
 
   function collateral() public view override(ICollateralized, Collateralized, PremiumCollectorBase) returns (address) {
@@ -121,9 +122,13 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   /// @notice Attempt to join an insurer
   function joinPool(IJoinable pool) external onlyGovernor {
+    Value.require(address(pool) != address(0));
     if (!internalHasAppliedApplication()) {
       _applyApprovedApplication();
     }
+
+    State.require(IERC20(premiumToken()).balanceOf(address(this)) >= expectedPrepay(uint32(block.timestamp)));
+
     internalJoinPool(pool);
   }
 
