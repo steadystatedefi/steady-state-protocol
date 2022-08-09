@@ -85,3 +85,6 @@ jobs:
     runs-on: ubuntu-latest
     name: Final Check
     needs: [unit-tests, slither]
+    steps:
+      - name: Fialize
+        run: ls
