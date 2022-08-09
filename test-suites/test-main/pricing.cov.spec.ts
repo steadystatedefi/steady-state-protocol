@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber, BigNumberish } from 'ethers';
 
-import { MAX_UINT, WAD, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
+import { WAD, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime } from '../../helpers/runtime-utils';
 import { AccessController, MockERC20, OracleRouterV1 } from '../../types';

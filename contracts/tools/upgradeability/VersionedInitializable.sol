@@ -156,5 +156,6 @@ abstract contract VersionedInitializable is IVersioned {
   }
 
   // Reserved storage space to allow for layout changes in the future.
-  uint256[4] private ______gap;
+  // slither-disable-next-line unused-state
+  uint256[16] private ______gap;
 }
