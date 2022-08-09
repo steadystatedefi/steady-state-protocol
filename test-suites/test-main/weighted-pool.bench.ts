@@ -29,14 +29,15 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     await pool.setPoolParams({
       maxAdvanceUnits: 100_000_000,
       minAdvanceUnits: 1_000,
-      riskWeightTarget: 1_000,
-      minInsuredShare: 100,
-      maxInsuredShare: 1_500,
+      riskWeightTarget: 10_00,
+      minInsuredSharePct: 1_00,
+      maxInsuredSharePct: 15_00,
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
       overUnitsPerRound: 30,
       coveragePrepayPct: 100_00,
       maxUserDrawdownPct: 0,
+      unitsPerAutoPull: 0,
     });
   });
 
@@ -64,7 +65,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
         minUnits * unitSize
       );
       await pool.approveNextJoin(riskWeightValue);
-      const tx = await mustWaitTx(insured.joinPool(pool.address));
+      const tx = await mustWaitTx(insured.joinPool(pool.address, { gasLimit: 1000000 }));
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
       expect(generic).eql([]);

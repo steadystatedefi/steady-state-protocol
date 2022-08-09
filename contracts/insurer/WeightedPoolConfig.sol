@@ -10,9 +10,11 @@ import './WeightedPoolAccessControl.sol';
 abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessControl {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
+  using Rounds for Rounds.PackedInsuredParams;
 
   WeightedPoolParams internal _params;
-  uint256 private _loopLimits;
+
+  // uint256 private _loopLimits;
 
   constructor(
     IAccessController acl,
@@ -20,14 +22,14 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     address collateral_
   ) WeightedRoundsBase(unitSize) GovernedHelper(acl, collateral_) {}
 
-  function internalDefaultLoopLimits(uint16[] memory limits) internal virtual {
-    uint256 v;
-    for (uint256 i = limits.length; i > 0; ) {
-      i--;
-      v = (v << 16) | uint16(limits[i]);
-    }
-    _loopLimits = v;
-  }
+  // function internalSetLoopLimits(uint16[] memory limits) internal virtual {
+  //   uint256 v;
+  //   for (uint256 i = limits.length; i > 0; ) {
+  //     i--;
+  //     v = (v << 16) | uint16(limits[i]);
+  //   }
+  //   _loopLimits = v;
+  // }
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal virtual {
     require(params.minUnitsPerRound > 0);
@@ -37,9 +39,9 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     require(params.maxAdvanceUnits >= params.minAdvanceUnits);
     require(params.minAdvanceUnits >= params.maxUnitsPerRound);
 
-    require(params.minInsuredShare > 0);
-    require(params.maxInsuredShare > params.minInsuredShare);
-    require(params.maxInsuredShare <= PercentageMath.ONE);
+    require(params.minInsuredSharePct > 0);
+    require(params.maxInsuredSharePct > params.minInsuredSharePct);
+    require(params.maxInsuredSharePct <= PercentageMath.ONE);
 
     require(params.riskWeightTarget > 0);
     require(params.riskWeightTarget < PercentageMath.ONE);
@@ -144,7 +146,14 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return (uint16(x), minUnitsPerRound, maxUnitsPerRound, _params.overUnitsPerRound);
   }
 
-  /// TODO
+  function _requiredForMinimumCoverage(
+    uint64 demandedUnits,
+    uint64 minUnits,
+    uint256 remainingUnits
+  ) private pure returns (bool) {
+    return demandedUnits < minUnits && demandedUnits + remainingUnits >= minUnits;
+  }
+
   function internalBatchSplit(
     uint64 demandedUnits,
     uint64 minUnits,
@@ -153,21 +162,21 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   ) internal pure override returns (uint24 splitRounds) {
     // console.log('internalBatchSplit-0', demandedUnits, minUnits);
     // console.log('internalBatchSplit-1', batchRounds, remainingUnits);
-    if (demandedUnits >= minUnits || demandedUnits + remainingUnits < minUnits) {
-      if (remainingUnits <= batchRounds >> 2) {
-        return 0;
-      }
-    }
-    return remainingUnits;
+    return _requiredForMinimumCoverage(demandedUnits, minUnits, remainingUnits) || (remainingUnits > batchRounds >> 2) ? remainingUnits : 0;
+  }
+
+  function internalIsEnoughForMore(Rounds.InsuredEntry memory entry, uint256 unitCount) internal view override returns (bool) {
+    return _requiredForMinimumCoverage(entry.demandedUnits, entry.params.minUnits(), unitCount) || unitCount >= _params.minAdvanceUnits;
   }
 
   function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view returns (uint256) {
     if (limit == 0) {
-      limit = uint16(_loopLimits >> (uint8(t) << 1));
-      if (limit == 0) {
-        limit = t > LoopLimitType.ReceivableDemandedCoverage ? 31 : 255;
-      }
+      // limit = uint16(_loopLimits >> (uint8(t) << 1));
+      // if (limit == 0) {
+      limit = t > LoopLimitType.ReceivableDemandedCoverage ? 31 : 255;
+      // }
     }
+    this;
     return limit;
   }
 
@@ -192,9 +201,9 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 
     uint256 maxShare = approvedParams.riskLevel == 0 ? PercentageMath.ONE : uint256(_params.riskWeightTarget).percentDiv(approvedParams.riskLevel);
     uint256 v;
-    if (maxShare >= (v = _params.maxInsuredShare)) {
+    if (maxShare >= (v = _params.maxInsuredSharePct)) {
       maxShare = v;
-    } else if (maxShare < (v = _params.minInsuredShare)) {
+    } else if (maxShare < (v = _params.minInsuredSharePct)) {
       maxShare = v;
     }
 
@@ -239,10 +248,12 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 }
 
 enum LoopLimitType {
-  // View
+  // View ops (255 iterations by default)
   ReceivableDemandedCoverage,
-  // Modify
+  // Modify ops (31 iterations by default)
   AddCoverageDemand,
+  AddCoverage,
+  AddCoverageDemandByPull,
   CancelCoverageDemand,
   ReceiveDemandedCoverage
 }

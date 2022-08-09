@@ -99,21 +99,24 @@ abstract contract InsuredPoolBase is IInsuredPool, InsuredBalancesBase, InsuredJ
 
   /// @dev Calculate how much coverage demand to add
   /// @param target The insurer demand is being added to
-  /// @param amount The amount of coverage demand to add
+  /// @param minAmount The desired min amount of demand to add (soft limit)
+  /// @param maxAmount The max amount of demand to add (hard limit)
   /// @param unitSize The unit size of the insurer
   /// @return amountToAdd Amount of coverage demand to add
   /// @return premiumRate The rate to pay for the coverage to add
   function internalAllocateCoverageDemand(
     address target,
-    uint256 amount,
+    uint256 minAmount,
+    uint256 maxAmount,
     uint256 unitSize
   ) internal view override returns (uint256 amountToAdd, uint256 premiumRate) {
     target;
     unitSize;
+    minAmount;
 
     amountToAdd = _requiredCoverage;
-    if (amountToAdd > amount) {
-      amountToAdd = amount;
+    if (amountToAdd > maxAmount) {
+      amountToAdd = maxAmount;
     }
     premiumRate = _premiumRate;
     // console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
