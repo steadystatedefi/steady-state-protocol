@@ -42,11 +42,7 @@ export type State = {
 export async function deployAccessControlState(deployer: SignerWithAddress): Promise<State> {
   const state: State = {} as State;
   state.fundFuses = 2;
-  state.controller = await Factories.AccessController.connectAndDeploy(deployer, 'controller', [
-    SINGLETS,
-    ROLES,
-    PROTECTED_SINGLETS,
-  ]);
+  state.controller = await Factories.AccessController.connectAndDeploy(deployer, 'controller', [SINGLETS, ROLES, 0]);
   state.proxyCatalog = await Factories.ProxyCatalog.connectAndDeploy(deployer, 'proxyCatalog', [
     state.controller.address,
   ]);
@@ -96,6 +92,7 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
     state.cc.address,
   ]);
 
+  await state.controller.setAnyRoleMode(true);
   await state.proxyCatalog.addAuthenticImplementation(insurerV1ref.address, insurerImplName);
   await state.proxyCatalog.addAuthenticImplementation(insuredV1ref.address, insuredImplName);
   await state.proxyCatalog.setDefaultImplementation(insurerV1ref.address);
