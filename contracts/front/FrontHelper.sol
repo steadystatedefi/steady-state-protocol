@@ -49,12 +49,11 @@ contract FrontHelper is AccessHelper {
     address[] memory list = ac.roleHolders(AccessFlags.COLLATERAL_FUND_LISTING);
 
     collateralFunds = new CollateralFundInfo[](list.length);
+    // slither-ignore-next-line calls-loop
     for (uint256 i = list.length; i > 0; ) {
       i--;
       ICollateralFund fund = ICollateralFund(collateralFunds[i].fund = list[i]);
-      // slither-ignore-next-line calls-loop
       collateralFunds[i].collateral = fund.collateral();
-      // slither-ignore-next-line calls-loop
       collateralFunds[i].assets = fund.assets();
     }
 
@@ -106,6 +105,7 @@ contract FrontHelper is AccessHelper {
 
       for (uint256 i = knownTokens.length; i > 0; ) {
         i--;
+        // slither-ignore-next-line calls-loop
         info.knownTokens[i] = _getDistributorTokenInfo(fund, knownTokens[i]);
       }
     }
