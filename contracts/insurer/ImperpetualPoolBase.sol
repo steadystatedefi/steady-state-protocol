@@ -26,10 +26,15 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 excessCoverage = _excessCoverage;
     if (excessCoverage > 0 || value > 0) {
       uint256 newExcess;
-      (newExcess, , params, part) = super.internalAddCoverage(value + excessCoverage, type(uint256).max);
+      uint256 loopLimit;
+      (newExcess, loopLimit, params, part) = super.internalAddCoverage(value + excessCoverage, defaultLoopLimit(LoopLimitType.AddCoverage, 0));
+
       if (newExcess != excessCoverage) {
         internalSetExcess(newExcess);
       }
+
+      internalAutoPullDemand(params, loopLimit, newExcess > 0, value);
+
       done = true;
     }
   }
@@ -38,6 +43,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   /// @dev Update the new amount of excess coverage
   function internalMintForCoverage(address account, uint256 value) internal override {
     (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
+
     // TODO test adding coverage to an empty pool
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
   }

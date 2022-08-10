@@ -1,3 +1,4 @@
+import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
 import { formatBytes32String } from 'ethers/lib/utils';
 
@@ -60,14 +61,16 @@ deployTask(`full:deploy-approval-catalog`, `Deploy ${EContractId.ApprovalCatalog
 
     console.log(`${EContractId.ApprovalCatalogV1}:`, approvalCatalogV1.address);
 
-    await waitForTx(await proxyCatalog.addAuthenticImplementation(approvalCatalogV1.address, PROXY_TYPE));
+    await waitForTx(
+      await proxyCatalog.addAuthenticImplementation(approvalCatalogV1.address, PROXY_TYPE, zeroAddress())
+    );
     await waitForTx(await proxyCatalog.setDefaultImplementation(approvalCatalogV1.address));
 
     let approvalCatalogProxyAddress = '';
     const initFunctionData = approvalCatalogV1.interface.encodeFunctionData('initializeApprovalCatalog');
 
     await Events.ProxyCreated.waitOne(
-      proxyCatalog.createProxy(deployer.address, PROXY_TYPE, initFunctionData),
+      proxyCatalog.createProxy(deployer.address, PROXY_TYPE, zeroAddress(), initFunctionData),
       (event) => {
         approvalCatalogProxyAddress = event.proxy;
       }

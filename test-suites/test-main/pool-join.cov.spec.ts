@@ -45,9 +45,16 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     const riskWeight = 1000; // 10%
 
     const joinPool = async (riskWeightValue: number) => {
-      const insured = await Factories.MockInsuredPool.deploy(fund.address, poolDemand, RATE, minUnits * unitSize);
+      const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+      const insured = await Factories.MockInsuredPool.deploy(
+        fund.address,
+        poolDemand,
+        RATE,
+        minUnits * unitSize,
+        premiumToken.address
+      );
       await pool.approveNextJoin(riskWeightValue);
-      await insured.joinPool(pool.address);
+      await insured.joinPool(pool.address, { gasLimit: 1000000 });
       insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();

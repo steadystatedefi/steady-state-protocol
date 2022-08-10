@@ -49,7 +49,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
   }
 
   function isAllowedByGovernor(address account, uint256 flags) internal view override returns (bool) {
-    return IInsurerGovernor(governorAccount()).governerQueryAccessControlMask(account, flags) & flags != 0;
+    return _governorIsContract && IInsurerGovernor(governorAccount()).governerQueryAccessControlMask(account, flags) & flags != 0;
   }
 
   function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {

@@ -96,6 +96,8 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
 
   function setBorrowManager(address borrowManager_) external onlyAdmin {
     Value.require(borrowManager_ != address(0));
+    // Slither is not very smart
+    // slither-disable-next-line missing-zero-check
     _borrowManager = borrowManager_;
   }
 }

@@ -71,6 +71,10 @@ abstract contract YieldStreamerBase is Collateralized {
     }
   }
 
+  function internalSetRateCutOff(uint32 at) internal {
+    _rateCutOffAt = at;
+  }
+
   function _calcDiff(uint32 from, uint32 till) private view returns (uint256) {
     uint32 cutOff = _rateCutOffAt;
     if (cutOff > 0) {

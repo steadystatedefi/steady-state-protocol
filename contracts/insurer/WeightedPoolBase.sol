@@ -117,9 +117,10 @@ abstract contract WeightedPoolBase is
     internalSetPoolParams(params);
   }
 
-  function setDefaultLoopLimits(uint16[] calldata limits) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
-    internalDefaultLoopLimits(limits);
-  }
+  // TODO setLoopLimits
+  // function setLoopLimits(uint16[] calldata limits) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
+  //   internalSetLoopLimits(limits);
+  // }
 
   /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
   function statusOf(address account) external view returns (InsuredStatus status) {
@@ -171,5 +172,50 @@ abstract contract WeightedPoolBase is
 
   function collateralSupply() public view override returns (uint256) {
     return _coveredTotal() + _excessCoverage;
+  }
+
+  function internalPullDemand(uint256 loopLimit) internal {
+    uint256 insuredLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemandByPull, 0);
+
+    for (; loopLimit > 0; ) {
+      address insured;
+      (insured, loopLimit) = super.internalPullDemandCandidate(loopLimit, false);
+      if (insured == address(0)) {
+        break;
+      }
+      if (IInsuredPool(insured).pullCoverageDemand(internalOpenBatchRounds() * internalUnitSize(), insuredLimit)) {
+        if (loopLimit <= insuredLimit) {
+          break;
+        }
+        loopLimit -= insuredLimit;
+      }
+    }
+  }
+
+  function internalAutoPullDemand(
+    AddCoverageParams memory params,
+    uint256 loopLimit,
+    bool hasExcess,
+    uint256 value
+  ) internal {
+    if (loopLimit > 0 && (hasExcess || params.openBatchNo == 0)) {
+      uint256 n = _params.unitsPerAutoPull;
+      if (n == 0) {
+        return;
+      }
+
+      if (value != 0) {
+        n = value / (n * internalUnitSize());
+        if (n < loopLimit) {
+          loopLimit = n;
+        }
+      }
+
+      if (!hasExcess) {
+        super.internalPullDemandCandidate(loopLimit == 0 ? 1 : loopLimit, true);
+      } else if (loopLimit > 0) {
+        internalPullDemand(loopLimit);
+      }
+    }
   }
 }

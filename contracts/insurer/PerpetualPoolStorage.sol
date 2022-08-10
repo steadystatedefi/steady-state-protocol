@@ -9,7 +9,7 @@ abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
 
-  mapping(address => uint256) internal _premiums;
+  mapping(address => uint256) internal _userPremiums;
   Balances.RateAcc private _totalRate;
 
   uint256 internal _inverseExchangeRate;
@@ -40,7 +40,7 @@ abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase
     if (b.balance > 0) {
       uint256 premiumDiff = totals.accum - b.extra;
       if (premiumDiff > 0) {
-        _premiums[account] += premiumDiff.rayMul(b.balance);
+        _userPremiums[account] += premiumDiff.rayMul(b.balance);
       }
     }
     b.extra = totals.accum;
