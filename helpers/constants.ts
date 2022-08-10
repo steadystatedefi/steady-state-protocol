@@ -18,8 +18,3 @@ export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 export const ONE_ADDRESS = '0x0000000000000000000000000000000000000001';
 export const ETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 export const USD_ADDRESS = '0x10F7Fc1F91Ba351f9C629c5947AD69bD03C05b96';
-
-// Roles for access control
-export const ROLES = MAX_UINT.mask(16);
-export const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
-export const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);

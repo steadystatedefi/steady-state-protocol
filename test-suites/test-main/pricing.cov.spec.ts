@@ -3,16 +3,14 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber, BigNumberish } from 'ethers';
 
-import { WAD, ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../helpers/constants';
+import { AccessFlags } from '../../helpers/access-flags';
+import { WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime } from '../../helpers/runtime-utils';
 import { AccessController, MockERC20, OracleRouterV1 } from '../../types';
 import { PriceSourceStruct } from '../../types/contracts/pricing/OracleRouterBase';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
-
-const PRICE_ROUTER_ADMIN = BigNumber.from(1).shl(7);
-const PRICE_ROUTER = BigNumber.from(1).shl(29);
 
 enum PriceFeedType {
   StaticValue,
@@ -90,7 +88,7 @@ makeSuite('Pricing', (testEnv: TestEnv) => {
 
   before(async () => {
     user1 = testEnv.users[1];
-    controller = await Factories.AccessController.deploy(SINGLETS, ROLES, PROTECTED_SINGLETS);
+    controller = await Factories.AccessController.deploy(0);
     cc = await Factories.MockERC20.deploy('Collateral Currency', 'CC', 18);
     token = await Factories.MockERC20.deploy('Token', 'TKN', 18);
     token2 = await Factories.MockERC20.deploy('Token2', 'TKN2', 9);
@@ -98,8 +96,8 @@ makeSuite('Pricing', (testEnv: TestEnv) => {
     oracle = await Factories.OracleRouterV1.deploy(controller.address, cc.address);
     user1oracle = oracle.connect(user1);
 
-    await controller.setAddress(PRICE_ROUTER, oracle.address);
-    await controller.grantRoles(user1.address, PRICE_ROUTER_ADMIN);
+    await controller.setAddress(AccessFlags.PRICE_ROUTER, oracle.address);
+    await controller.grantRoles(user1.address, AccessFlags.PRICE_ROUTER_ADMIN);
   });
 
   it('Create oracle', async () => {
