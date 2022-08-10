@@ -3,7 +3,6 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { formatBytes32String } from 'ethers/lib/utils';
 
-import { MAX_UINT } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress } from '../../helpers/runtime-utils';
@@ -11,9 +10,6 @@ import { AccessController, MockVersionedInitializable1, MockVersionedInitializab
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-const ROLES = MAX_UINT.mask(16);
-const SINGLETS = MAX_UINT.mask(64).xor(ROLES);
-const PROTECTED_SINGLETS = MAX_UINT.mask(26).xor(ROLES);
 const ZERO_BYTES = formatBytes32String('');
 
 const implStr = 'MockToken';
@@ -77,7 +73,7 @@ makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
 
   before(async () => {
     user1 = testEnv.users[1];
-    controller = await Factories.AccessController.deploy(SINGLETS, ROLES, PROTECTED_SINGLETS);
+    controller = await Factories.AccessController.deploy(0);
     proxyCatalog = await Factories.ProxyCatalog.deploy(controller.address);
     rev1 = await Factories.MockVersionedInitializable1.deploy();
     rev2 = await Factories.MockVersionedInitializable2.deploy();
