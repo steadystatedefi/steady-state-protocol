@@ -1,8 +1,8 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { zeroAddress } from 'ethereumjs-util';
 import { BigNumberish } from 'ethers';
 import { formatBytes32String } from 'ethers/lib/utils';
 
-import { ROLES, SINGLETS, PROTECTED_SINGLETS } from '../../../helpers/access-control-constants';
 import { Events } from '../../../helpers/contract-events';
 import { Factories } from '../../../helpers/contract-types';
 import {
@@ -42,7 +42,7 @@ export type State = {
 export async function deployAccessControlState(deployer: SignerWithAddress): Promise<State> {
   const state: State = {} as State;
   state.fundFuses = 2;
-  state.controller = await Factories.AccessController.connectAndDeploy(deployer, 'controller', [SINGLETS, ROLES, 0]);
+  state.controller = await Factories.AccessController.connectAndDeploy(deployer, 'controller', [0]);
   state.proxyCatalog = await Factories.ProxyCatalog.connectAndDeploy(deployer, 'proxyCatalog', [
     state.controller.address,
   ]);
@@ -93,8 +93,8 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
   ]);
 
   await state.controller.setAnyRoleMode(true);
-  await state.proxyCatalog.addAuthenticImplementation(insurerV1ref.address, insurerImplName);
-  await state.proxyCatalog.addAuthenticImplementation(insuredV1ref.address, insuredImplName);
+  await state.proxyCatalog.addAuthenticImplementation(insurerV1ref.address, insurerImplName, zeroAddress());
+  await state.proxyCatalog.addAuthenticImplementation(insuredV1ref.address, insuredImplName, zeroAddress());
   await state.proxyCatalog.setDefaultImplementation(insurerV1ref.address);
   await state.proxyCatalog.setDefaultImplementation(insuredV1ref.address);
 
@@ -102,6 +102,7 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
     state.proxyCatalog.createProxy(
       deployer.address,
       insuredImplName,
+      zeroAddress(),
       insuredV1ref.interface.encodeFunctionData('initializeInsured', [deployer.address])
     ),
     (ev) => {
@@ -116,16 +117,17 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
 
 export async function setInsurer(state: State, deployer: SignerWithAddress, governor: string): Promise<void> {
   const params: WeightedPoolParamsStruct = {
-    maxAdvanceUnits: 10000,
-    minAdvanceUnits: 1000,
-    riskWeightTarget: 1000, // 10%
-    minInsuredShare: 100, // 1%
-    maxInsuredShare: 4000, // 25%
-    minUnitsPerRound: 20,
+    maxAdvanceUnits: 100_000_000,
+    minAdvanceUnits: 1_000,
+    riskWeightTarget: 10_00,
+    minInsuredSharePct: 1_00,
+    maxInsuredSharePct: 15_00,
+    minUnitsPerRound: 10,
     maxUnitsPerRound: 20,
     overUnitsPerRound: 30,
-    coveragePrepayPct: 9000, // 90%
-    maxUserDrawdownPct: 1000,
+    coveragePrepayPct: 100_00,
+    maxUserDrawdownPct: 0,
+    unitsPerAutoPull: 0,
   };
 
   await Events.ProxyCreated.waitOne(
@@ -134,6 +136,7 @@ export async function setInsurer(state: State, deployer: SignerWithAddress, gove
       .createProxy(
         deployer.address,
         insurerImplName,
+        zeroAddress(),
         state.insurer.interface.encodeFunctionData('initializeWeighted', [governor, 'Test', 'TST', params])
       ),
     (ev) => {
