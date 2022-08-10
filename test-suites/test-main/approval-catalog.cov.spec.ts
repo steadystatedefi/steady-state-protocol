@@ -4,6 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 import { BytesLike, formatBytes32String } from 'ethers/lib/utils';
 
 import { AccessFlags } from '../../helpers/access-flags';
+import { MAX_UINT } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { chainId } from '../../helpers/dre';

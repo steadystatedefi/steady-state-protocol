@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { formatBytes32String } from 'ethers/lib/utils';
 
+import { MAX_UINT } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress } from '../../helpers/runtime-utils';
