@@ -77,6 +77,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     await controller.grantRoles(user1.address, UNDERWRITER_CLAIM);
     await proxyCatalog.addAuthenticImplementation(insuredV1.address, proxyType, cc.address);
     await proxyCatalog.setDefaultImplementation(insuredV1.address);
+    await proxyCatalog.setAccess([proxyType], [MAX_UINT]);
   });
 
   it('Submit an application', async () => {

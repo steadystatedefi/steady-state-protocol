@@ -91,7 +91,8 @@ export const buildPermitMaker = <F extends Functions, N extends keyof F & string
 
   parseTuple(types, fragment.inputs, typeMap).forEach((param, index) => {
     args.push(param);
-    msgObj[param.name] = callArgs[index]; // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+    // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+    msgObj[param.name] = callArgs[index];
   });
 
   {

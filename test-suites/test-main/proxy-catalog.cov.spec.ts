@@ -232,6 +232,31 @@ makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
     expect(await proxyCatalog.getProxyImplementation(proxyAddr)).eq(rev2.address);
   });
 
+  it('Access restrictions on create proxy', async () => {
+    const name = 'test name 1';
+    const ctx = createRandomAddress();
+    const params = rev1.interface.encodeFunctionData('initialize', [name]);
+
+    await proxyCatalog.addAuthenticImplementation(rev1.address, implName, ctx);
+    await proxyCatalog.setDefaultImplementation(rev1.address);
+
+    await expect(proxyCatalog.connect(user1).createProxyWithImpl(user1.address, implName, rev1.address, params))
+      .reverted;
+    await expect(proxyCatalog.connect(user1).createProxy(user1.address, implName, ctx, params)).reverted;
+    await proxyCatalog.setAccess([implName], [MAX_UINT]);
+    await proxyCatalog.connect(user1).createProxyWithImpl(user1.address, implName, rev1.address, params);
+    await proxyCatalog.connect(user1).createProxy(user1.address, implName, ctx, params);
+
+    await proxyCatalog.setAccess([implName], [1]);
+    await expect(proxyCatalog.connect(user1).createProxyWithImpl(user1.address, implName, rev1.address, params))
+      .reverted;
+    await expect(proxyCatalog.connect(user1).createProxy(user1.address, implName, ctx, params)).reverted;
+
+    await controller.grantRoles(user1.address, 1);
+    await proxyCatalog.connect(user1).createProxyWithImpl(user1.address, implName, rev1.address, params);
+    await proxyCatalog.connect(user1).createProxy(user1.address, implName, ctx, params);
+  });
+
   it('Create custom proxy', async () => {
     let proxyAddr = '';
     const name = 'test name 2';

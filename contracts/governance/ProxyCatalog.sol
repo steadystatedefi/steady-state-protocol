@@ -15,10 +15,11 @@ import './interfaces/IProxyCatalog.sol';
 contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   mapping(address => address) private _proxyOwners; // [proxy]
 
-  mapping(address => mapping(bytes32 => address)) private _defaultImpls;
+  mapping(address => mapping(bytes32 => address)) private _defaultImpls; // [ctx][name]
   mapping(address => bytes32) private _authImpls; // [impl]
   mapping(address => bytes32) private _revokedImpls; // [impl]
   mapping(address => address) private _contexts; // [impl]
+  mapping(bytes32 => uint256) private _accessRoles;
 
   constructor(IAccessController acl) AccessHelper(acl) {}
 
@@ -161,8 +162,32 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     return proxy;
   }
 
+  function getAccess(bytes32[] calldata implNames) external view returns (uint256[] memory results) {
+    results = new uint256[](implNames.length);
+    for (uint256 i = implNames.length; i > 0; ) {
+      i--;
+      results[i] = _accessRoles[implNames[i]];
+    }
+  }
+
+  function setAccess(bytes32[] calldata implNames, uint256[] calldata accessFlags) external {
+    Value.require(implNames.length == accessFlags.length || accessFlags.length == 1);
+    for (uint256 i = implNames.length; i > 0; ) {
+      i--;
+      _accessRoles[implNames[i]] = i < accessFlags.length ? accessFlags[i] : accessFlags[0];
+    }
+  }
+
+  function _onlyAccessibleImpl(bytes32 implName) private view {
+    uint256 flags = _accessRoles[implName];
+    if (flags != type(uint256).max) {
+      // restricted access
+      Access.require(flags == 0 ? isAdmin(msg.sender) : hasAnyAcl(msg.sender, flags));
+    }
+  }
+
   modifier onlyAccessibleImpl(bytes32 implName) {
-    // TODO access ???
+    _onlyAccessibleImpl(implName);
     _;
   }
 

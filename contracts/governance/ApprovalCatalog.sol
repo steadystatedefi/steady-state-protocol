@@ -213,24 +213,6 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     emit ApplicationDeclined(insured, cid, reason);
   }
 
-  // struct RequestedPolicyExtension {
-  //   address requestedBy;
-  // }
-
-  // struct ApprovedPolicyExtension {
-  //   address insured;
-  // }
-
-  // function submitExtension(address insured) external {
-  // }
-
-  // function hasApprovedExtension(address insured) external view returns(bool) {
-  //   return _approvedPolicies[insured].insured == insured;
-  // }
-
-  // function getApprovedExtension(address insured) external view returns(ApprovedPolicyExtension memory) {
-  // }
-
   struct RequestedClaim {
     bytes32 cid; // supporting documents
     address requestedBy;
