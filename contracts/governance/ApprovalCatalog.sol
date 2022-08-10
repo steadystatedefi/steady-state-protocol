@@ -51,14 +51,15 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ApplicationSubmitted(address indexed insured, bytes32 indexed requestCid);
 
-  function submitApplication(bytes32 cid) external returns (address insured) {
-    insured = _createInsured(msg.sender, address(0));
+  function submitApplication(bytes32 cid, address collateral) external returns (address insured) {
+    Value.require(collateral != address(0));
+    insured = _createInsured(msg.sender, address(0), collateral);
     _submitApplication(insured, cid);
   }
 
   function submitApplicationWithImpl(bytes32 cid, address impl) external returns (address insured) {
     Value.require(impl != address(0));
-    insured = _createInsured(msg.sender, impl);
+    insured = _createInsured(msg.sender, impl, address(0));
     _submitApplication(insured, cid);
   }
 
@@ -68,11 +69,15 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     emit ApplicationSubmitted(insured, cid);
   }
 
-  function _createInsured(address requestedBy, address impl) private returns (address) {
+  function _createInsured(
+    address requestedBy,
+    address impl,
+    address collateral
+  ) private returns (address) {
     IProxyFactory pf = getProxyFactory();
     bytes memory callData = ProxyTypes.insuredInit(requestedBy);
     if (impl == address(0)) {
-      return pf.createProxy(requestedBy, _insuredProxyType, callData);
+      return pf.createProxy(requestedBy, _insuredProxyType, collateral, callData);
     }
     return pf.createProxyWithImpl(requestedBy, _insuredProxyType, impl, callData);
   }

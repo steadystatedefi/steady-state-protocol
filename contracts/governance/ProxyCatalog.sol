@@ -13,42 +13,50 @@ import '../libraries/Strings.sol';
 import './interfaces/IProxyCatalog.sol';
 
 contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
-  mapping(address => address) private _proxies;
+  mapping(address => address) private _proxyOwners; // [proxy]
 
-  mapping(bytes32 => address) private _defaultImpls;
-  mapping(address => bytes32) private _authImpls;
-  mapping(address => bytes32) private _revokedImpls;
+  mapping(address => mapping(bytes32 => address)) private _defaultImpls;
+  mapping(address => bytes32) private _authImpls; // [impl]
+  mapping(address => bytes32) private _revokedImpls; // [impl]
+  mapping(address => address) private _contexts; // [impl]
 
   constructor(IAccessController acl) AccessHelper(acl) {}
 
-  function getImplementationType(address impl) public view returns (bytes32 n) {
-    n = _authImpls[impl];
-    if (n == 0) {
-      n = _revokedImpls[impl];
+  function getImplementationType(address impl) public view override returns (bytes32 name, address ctx) {
+    name = _authImpls[impl];
+    if (name == 0) {
+      name = _revokedImpls[impl];
     }
+    ctx = _contexts[impl];
   }
 
-  function isAuthenticImplementation(address impl) public view returns (bool) {
+  function isAuthenticImplementation(address impl) public view override returns (bool) {
     return impl != address(0) && _authImpls[impl] != 0;
   }
 
-  function isAuthenticProxy(address proxy) public view returns (bool) {
+  function isAuthenticProxy(address proxy) public view override returns (bool) {
     return getProxyOwner(proxy) != address(0) && isAuthenticImplementation(getProxyImplementation(proxy));
   }
 
-  function getDefaultImplementation(bytes32 name) public view returns (address addr) {
-    State.require((addr = _defaultImpls[name]) != address(0));
-    return addr;
+  function getDefaultImplementation(bytes32 name, address ctx) public view override returns (address addr) {
+    State.require((addr = _defaultImpls[ctx][name]) != address(0));
   }
 
-  function addAuthenticImplementation(address impl, bytes32 name) public onlyAdmin {
+  function addAuthenticImplementation(
+    address impl,
+    bytes32 name,
+    address ctx
+  ) public onlyAdmin {
     Value.require(name != 0);
     Value.require(impl != address(0));
     bytes32 implName = _authImpls[impl];
     if (implName != name) {
       State.require(implName == 0);
       _authImpls[impl] = name;
-      emit ImplementationAdded(name, impl);
+      _contexts[impl] = ctx;
+      emit ImplementationAdded(name, ctx, impl);
+    } else {
+      State.require(ctx == _contexts[impl]);
     }
   }
 
@@ -57,15 +65,16 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     if (name != 0) {
       delete _authImpls[impl];
       _revokedImpls[impl] = name;
-      emit ImplementationRemoved(name, impl);
+      address ctx = _contexts[impl];
+      emit ImplementationRemoved(name, ctx, impl);
 
-      if (_defaultImpls[name] == impl) {
+      if (_defaultImpls[ctx][name] == impl) {
         if (defReplacement == address(0)) {
-          delete _defaultImpls[name];
-          emit DefaultImplementationUpdated(name, address(0));
+          delete _defaultImpls[ctx][name];
+          emit DefaultImplementationUpdated(name, ctx, address(0));
         } else {
-          Value.require(_authImpls[defReplacement] == name);
-          _setDefaultImplementation(defReplacement, name, false);
+          Value.require(_authImpls[defReplacement] == name && _contexts[defReplacement] == ctx);
+          _setDefaultImplementation(defReplacement, name, ctx, false);
         }
       }
     }
@@ -73,16 +82,17 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
 
   function unsetDefaultImplementation(address impl) public onlyAdmin {
     bytes32 name = _authImpls[impl];
-    if (_defaultImpls[name] == impl) {
-      delete _defaultImpls[name];
-      emit DefaultImplementationUpdated(name, address(0));
+    address ctx = _contexts[impl];
+    if (_defaultImpls[ctx][name] == impl) {
+      delete _defaultImpls[ctx][name];
+      emit DefaultImplementationUpdated(name, ctx, address(0));
     }
   }
 
   function setDefaultImplementation(address impl) public onlyAdmin {
     bytes32 name = _authImpls[impl];
     State.require(name != 0);
-    _setDefaultImplementation(impl, name, true);
+    _setDefaultImplementation(impl, name, _contexts[impl], true);
   }
 
   function _ensureNewRevision(address prevImpl, address newImpl) internal view {
@@ -92,17 +102,18 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   function _setDefaultImplementation(
     address impl,
     bytes32 name,
+    address ctx,
     bool checkRevision
   ) private {
     if (checkRevision) {
-      _ensureNewRevision(_defaultImpls[name], impl);
+      _ensureNewRevision(_defaultImpls[ctx][name], impl);
     }
-    _defaultImpls[name] = impl;
-    emit DefaultImplementationUpdated(name, impl);
+    _defaultImpls[ctx][name] = impl;
+    emit DefaultImplementationUpdated(name, ctx, impl);
   }
 
   function getProxyOwner(address proxy) public view returns (address) {
-    return _proxies[proxy];
+    return _proxyOwners[proxy];
   }
 
   /// @dev Returns the current implementation of `proxy`.
@@ -146,7 +157,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     bytes32 name
   ) private returns (TransparentProxy) {
     TransparentProxy proxy = _createCustomProxy(address(this), implAddress, params, name);
-    _proxies[address(proxy)] = adminAddress == address(0) ? address(this) : adminAddress;
+    _proxyOwners[address(proxy)] = adminAddress == address(0) ? address(this) : adminAddress;
     return proxy;
   }
 
@@ -158,9 +169,10 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   function createProxy(
     address adminAddress,
     bytes32 implName,
+    address ctx,
     bytes memory params
-  ) external onlyAccessibleImpl(implName) returns (address) {
-    return address(_createProxy(adminAddress, getDefaultImplementation(implName), params, implName));
+  ) external override onlyAccessibleImpl(implName) returns (address) {
+    return address(_createProxy(adminAddress, getDefaultImplementation(implName, ctx), params, implName));
   }
 
   function createProxyWithImpl(
@@ -168,7 +180,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     bytes32 implName,
     address impl,
     bytes calldata params
-  ) external onlyAccessibleImpl(implName) returns (address) {
+  ) external override onlyAccessibleImpl(implName) returns (address) {
     State.require(implName != 0 && implName == _authImpls[impl]);
     return address(_createProxy(adminAddress, impl, params, implName));
   }
@@ -182,10 +194,10 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     _;
   }
 
-  function upgradeProxy(address proxyAddress, bytes calldata params) external onlyAdminOrProxyOwner(proxyAddress) returns (bool) {
+  function upgradeProxy(address proxyAddress, bytes calldata params) external override onlyAdminOrProxyOwner(proxyAddress) returns (bool) {
     address prevImpl = getProxyImplementation(proxyAddress);
-    bytes32 name = getImplementationType(prevImpl);
-    address newImpl = getDefaultImplementation(name);
+    (bytes32 name, address ctx) = getImplementationType(prevImpl);
+    address newImpl = getDefaultImplementation(name, ctx);
     if (prevImpl != newImpl) {
       _ensureNewRevision(prevImpl, newImpl);
       _updateImpl(proxyAddress, newImpl, params, name);
@@ -199,11 +211,12 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     address newImpl,
     bool checkRevision,
     bytes calldata params
-  ) external onlyAdmin returns (bool) {
+  ) external override onlyAdmin returns (bool) {
     address prevImpl = getProxyImplementation(proxyAddress);
     if (prevImpl != newImpl) {
-      bytes32 name = getImplementationType(prevImpl);
-      bytes32 name2 = getImplementationType(newImpl);
+      (bytes32 name, address ctx) = getImplementationType(prevImpl);
+      (bytes32 name2, address ctx2) = getImplementationType(newImpl);
+      Value.require(ctx == ctx2);
       if (name != 0 || checkRevision) {
         Value.require(name == name2 || name == 0 || (!checkRevision && name2 == 0));
       }
