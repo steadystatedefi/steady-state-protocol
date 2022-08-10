@@ -34,6 +34,7 @@ library AccessFlags {
   uint256 public constant APPROVAL_CATALOG = 1 << 16;
   uint256 public constant TREASURY = 1 << 17;
   // uint256 public constant COLLATERAL_CURRENCY = 1 << 18;
+  uint256 public constant PRICE_ROUTER = 1 << 19;
 
   uint256 public constant PROTECTED_SINGLETS = ((uint256(1) << 26) - 1) & ~ROLES;
 
@@ -41,10 +42,11 @@ library AccessFlags {
   uint256 public constant PROXY_FACTORY = 1 << 26;
 
   uint256 public constant DATA_HELPER = 1 << 28;
-  uint256 public constant PRICE_ROUTER = 1 << 29;
 
   // any other roles - use range [64..]
   // these roles can be assigned to multiple addresses
   uint256 public constant COLLATERAL_FUND_LISTING = 1 << 64; // an ephemeral role - just to keep a list of collateral funds
   uint256 public constant INSURER_POOL_LISTING = 1 << 65; // an ephemeral role - just to keep a list of insurer funds
+
+  uint256 public constant ROLES_EXT = uint256(0x3) << 64;
 }
