@@ -4,6 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 import { BytesLike, formatBytes32String } from 'ethers/lib/utils';
 
 import { AccessFlags } from '../../helpers/access-flags';
+import { MAX_UINT } from '../../helpers/constants';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { chainId } from '../../helpers/dre';
@@ -37,7 +38,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
 
   const submitApplication = async (cid: BytesLike) => {
     let addr = '';
-    await Events.ApplicationSubmitted.waitOne(approvalCatalog.submitApplication(cid), (ev) => {
+    await Events.ApplicationSubmitted.waitOne(approvalCatalog.submitApplication(cid, cc.address), (ev) => {
       addr = ev.insured;
       expect(ev.requestCid).eq(cid);
     });
@@ -65,8 +66,9 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     await controller.setAddress(AccessFlags.APPROVAL_CATALOG, approvalCatalog.address);
     await controller.grantRoles(user1.address, AccessFlags.UNDERWRITER_POLICY);
     await controller.grantRoles(user1.address, AccessFlags.UNDERWRITER_CLAIM);
-    await proxyCatalog.addAuthenticImplementation(insuredV1.address, proxyType);
+    await proxyCatalog.addAuthenticImplementation(insuredV1.address, proxyType, cc.address);
     await proxyCatalog.setDefaultImplementation(insuredV1.address);
+    await proxyCatalog.setAccess([proxyType], [MAX_UINT]);
   });
 
   it('Submit an application', async () => {
@@ -76,7 +78,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     expect(await approvalCatalog.hasApprovedApplication(insuredAddr)).eq(false);
     await expect(approvalCatalog.getApprovedApplication(insuredAddr)).to.be.reverted;
 
-    await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType);
+    await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType, cc.address);
     cid = formatBytes32String('policy2');
     await Events.ApplicationSubmitted.waitOne(
       approvalCatalog.submitApplicationWithImpl(cid, insuredV2.address),
@@ -212,7 +214,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     const user1Catalog = approvalCatalog.connect(user1);
     let insuredAddr = '';
 
-    await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType);
+    await proxyCatalog.addAuthenticImplementation(insuredV2.address, proxyType, cc.address);
     await Events.ApplicationSubmitted.waitOne(
       approvalCatalog.submitApplicationWithImpl(cid, insuredV2.address),
       (ev) => {

@@ -59,11 +59,13 @@ deployTask(`full:deploy-insured-pool`, `Deploy ${EContractId.InsuredPoolV1}`, __
 
     let insuredPoolProxyAddress = '';
     const initFunctionData = insuredPoolV1.interface.encodeFunctionData('initializeInsured', [deployer.address]);
-    await waitForTx(await proxyCatalog.addAuthenticImplementation(insuredPoolV1.address, PROXY_TYPE));
+    await waitForTx(
+      await proxyCatalog.addAuthenticImplementation(insuredPoolV1.address, PROXY_TYPE, collateralCurrency.address)
+    );
     await waitForTx(await proxyCatalog.setDefaultImplementation(insuredPoolV1.address));
 
     await Events.ProxyCreated.waitOne(
-      proxyCatalog.createProxy(deployer.address, PROXY_TYPE, initFunctionData),
+      proxyCatalog.createProxy(deployer.address, PROXY_TYPE, collateralCurrency.address, initFunctionData),
       (event) => {
         insuredPoolProxyAddress = event.proxy;
       }
