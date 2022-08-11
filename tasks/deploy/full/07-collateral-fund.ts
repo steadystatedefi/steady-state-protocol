@@ -1,5 +1,3 @@
-import { zeroAddress } from 'ethereumjs-util';
-
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
@@ -14,7 +12,7 @@ deployTask(`full:deploy-collateral-fund`, `Deploy ${catalogName}`, __dirname).se
   dreAction(async () => {
     const factory = Factories.CollateralFundV1;
     const cc = Factories.CollateralCurrency.get();
-    const initFunctionData = factory.attach(zeroAddress()).interface.encodeFunctionData('initializeCollateralFund');
+    const initFunctionData = factory.interface.encodeFunctionData('initializeCollateralFund');
 
     const collateralFundAddr = await deployProxyFromCatalog(catalogName, initFunctionData);
 

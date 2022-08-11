@@ -126,6 +126,14 @@ export const notFalsyOrZeroAddress = (address: tEthereumAddress | null | undefin
   return isAddress(address) && !isZeroAddress(address);
 };
 
+export const ensureValidAddress = (address: string | undefined | null, msg?: string): string => {
+  if (notFalsyOrZeroAddress(address)) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return address!;
+  }
+  throw new Error(`Wrong address: ${msg ?? ''} "${address ?? ''}"`);
+};
+
 export const falsyOrZeroAddress = (address: tEthereumAddress | null | undefined): boolean =>
   !notFalsyOrZeroAddress(address);
 

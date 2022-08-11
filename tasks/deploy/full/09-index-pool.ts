@@ -3,10 +3,11 @@ import { zeroAddress } from 'ethereumjs-util';
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
+import { mustWaitTx } from '../../../helpers/runtime-utils';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 import { deployTask } from '../deploy-steps';
 
-import { deployProxyFromCatalog } from './templates';
+import { deployProxyFromCatalog, getDeployedProxy } from './templates';
 
 const catalogName = ProxyTypes.IMPERPETUAL_INDEX_POOL;
 
@@ -29,15 +30,22 @@ deployTask(`full:deploy-index-pool`, `Deploy ${catalogName}`, __dirname).setActi
     };
     const governor = zeroAddress();
 
-    const initFunctionData = factory
-      .attach(zeroAddress())
-      .interface.encodeFunctionData('initializeWeighted', [governor, 'Indexed Pool Token', 'IPT', poolParams]);
+    const initFunctionData = factory.interface.encodeFunctionData('initializeWeighted', [
+      governor,
+      'Indexed Pool Token',
+      'IPT',
+      poolParams,
+    ]);
 
-    await deployProxyFromCatalog(catalogName, initFunctionData);
+    const poolAddr = await deployProxyFromCatalog(catalogName, initFunctionData);
+    const pool = factory.attach(poolAddr);
 
-    // TODO register with the premium fund -
-    // ip.setPremiumDistributor
-    // pf.registerPremiumActuary
-    // TODO register with collateral currency
+    const pfFactory = Factories.PremiumFundV1;
+    const pf = pfFactory.attach(getDeployedProxy(ProxyTypes.PREMIUM_FUND));
+    const cc = Factories.CollateralCurrency.get();
+
+    await mustWaitTx(pool.setPremiumDistributor(pf.address));
+    await mustWaitTx(pf.registerPremiumActuary(pool.address, true));
+    await mustWaitTx(cc.registerInsurer(pool.address));
   })
 );

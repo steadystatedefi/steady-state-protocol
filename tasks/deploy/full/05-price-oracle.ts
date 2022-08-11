@@ -24,9 +24,11 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
       return;
     }
 
-    const initFunctionData = factory.attach(zeroAddress()).interface.encodeFunctionData('initializePriceOracle');
+    const initFunctionData = factory.interface.encodeFunctionData('initializePriceOracle');
     const addr = await deployProxyFromCatalog(catalogName, initFunctionData, '', zeroAddress());
 
     await waitForTx(await accessController.setAddress(accessFlag, addr));
+
+    // TODO configure sources and tokens
   })
 );

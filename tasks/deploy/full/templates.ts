@@ -3,8 +3,11 @@ import { formatBytes32String } from 'ethers/lib/utils';
 
 import { Events } from '../../../helpers/contract-events';
 import { Factories } from '../../../helpers/contract-types';
-import { addProxyToJsonDb, getAddrFromJsonDb } from '../../../helpers/deploy-db';
-import { notFalsyOrZeroAddress } from '../../../helpers/runtime-utils';
+import { addNamedToJsonDb, addProxyToJsonDb, getAddrFromJsonDb } from '../../../helpers/deploy-db';
+import { ensureValidAddress, notFalsyOrZeroAddress } from '../../../helpers/runtime-utils';
+
+export const findDeployedProxy = (name: string): string => getAddrFromJsonDb(name);
+export const getDeployedProxy = (name: string): string => ensureValidAddress(findDeployedProxy(name), name);
 
 export const deployProxyFromCatalog = async (
   catalogName: string,
@@ -15,7 +18,7 @@ export const deployProxyFromCatalog = async (
   const proxyCatalog = Factories.ProxyCatalog.get();
   const catalogType = formatBytes32String(catalogName);
 
-  const found = getAddrFromJsonDb(catalogName);
+  const found = findDeployedProxy(catalogName);
   if (notFalsyOrZeroAddress(found)) {
     console.log(`Already deployed: ${found}`);
     return found;
@@ -43,6 +46,7 @@ export const deployProxyFromCatalog = async (
     contractImpl,
     initFunctionData,
   ]);
+  addNamedToJsonDb(catalogName, contractAddr);
 
   return contractAddr;
 };

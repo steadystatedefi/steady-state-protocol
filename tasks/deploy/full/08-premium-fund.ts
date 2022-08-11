@@ -1,5 +1,3 @@
-import { zeroAddress } from 'ethereumjs-util';
-
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
@@ -12,7 +10,7 @@ const catalogName = ProxyTypes.PREMIUM_FUND;
 deployTask(`full:deploy-premium-fund`, `Deploy ${catalogName}`, __dirname).setAction(
   dreAction(async () => {
     const factory = Factories.PremiumFundV1;
-    const initFunctionData = factory.attach(zeroAddress()).interface.encodeFunctionData('initializePremiumFund');
+    const initFunctionData = factory.interface.encodeFunctionData('initializePremiumFund');
 
     await deployProxyFromCatalog(catalogName, initFunctionData);
   })

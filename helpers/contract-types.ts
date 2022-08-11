@@ -13,6 +13,7 @@ export const Factories = {
   ApprovalCatalogV1: wrap(types.ApprovalCatalogV1__factory),
   InsuredPoolV1: wrap(types.InsuredPoolV1__factory),
   CollateralCurrency: wrap(types.CollateralCurrency__factory),
+  FrontHelper: wrap(types.FrontHelper__factory),
   OracleRouterV1: wrap(types.OracleRouterV1__factory),
   YieldDistributorV1: wrap(types.YieldDistributorV1__factory),
   CollateralFundV1: wrap(types.CollateralFundV1__factory),

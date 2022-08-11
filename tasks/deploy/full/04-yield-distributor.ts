@@ -1,5 +1,3 @@
-import { zeroAddress } from 'ethereumjs-util';
-
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
@@ -21,7 +19,7 @@ deployTask(`full:deploy-yield-distributor`, `Deploy ${catalogName}`, __dirname).
     }
 
     const factory = Factories.YieldDistributorV1;
-    const initFunctionData = factory.attach(zeroAddress()).interface.encodeFunctionData('initializeYieldDistributor');
+    const initFunctionData = factory.interface.encodeFunctionData('initializeYieldDistributor');
 
     const addr = await deployProxyFromCatalog(catalogName, initFunctionData);
 

@@ -12,9 +12,7 @@ const catalogName = ProxyTypes.INSURED_POOL;
 deployTask(`full:deploy-insured-pool`, `Deploy ${catalogName}`, __dirname).setAction(
   dreAction(async () => {
     const factory = Factories.InsuredPoolV1;
-    const initFunctionData = factory
-      .attach(zeroAddress())
-      .interface.encodeFunctionData('initializeInsured', [zeroAddress()]);
+    const initFunctionData = factory.interface.encodeFunctionData('initializeInsured', [zeroAddress()]);
 
     await deployProxyFromCatalog(catalogName, initFunctionData);
   })
