@@ -1,94 +1,59 @@
 import { zeroAddress } from 'ethereumjs-util';
-import { BigNumber } from 'ethers';
 import { formatBytes32String } from 'ethers/lib/utils';
 
+import { AccessFlags } from '../../../helpers/access-flags';
 import { Events } from '../../../helpers/contract-events';
 import { Factories } from '../../../helpers/contract-types';
 import { addProxyToJsonDb } from '../../../helpers/deploy-db';
-import { falsyOrZeroAddress, getFirstSigner, waitForTx } from '../../../helpers/runtime-utils';
+import { dreAction } from '../../../helpers/dre';
+import { getOrDeploy } from '../../../helpers/factory-wrapper';
+import { falsyOrZeroAddress, mustWaitTx, notFalsyOrZeroAddress, waitForTx } from '../../../helpers/runtime-utils';
 import { EContractId } from '../../../helpers/types';
 import { deployTask } from '../deploy-steps';
 
-const APPROVAL_CATALOG = BigNumber.from(1).shl(16);
+const factory = Factories.ApprovalCatalogV1;
 
-const PROXY_TYPE = formatBytes32String(EContractId.ApprovalCatalog);
+deployTask(`full:deploy-approval-catalog`, `Deploy ${factory.toString()}`, __dirname).setAction(
+  dreAction(async () => {
+    const accessController = Factories.AccessController.get();
+    const proxyCatalog = Factories.ProxyCatalog.get();
+    const cc = Factories.CollateralCurrency.get();
+    const PROXY_TYPE = formatBytes32String('APPROVAL_CATALOG');
 
-deployTask(`full:deploy-approval-catalog`, `Deploy ${EContractId.ApprovalCatalogV1}`, __dirname).setAction(
-  async (_, localBRE) => {
-    await localBRE.run('set-DRE');
+    if (falsyOrZeroAddress(await proxyCatalog.getDefaultImplementation(PROXY_TYPE, cc.address))) {
+      const [impl] = await getOrDeploy(factory, '', () => ({
+        args: [accessController.address] as [string],
+      }));
 
-    const existedApprovalCatalogV1Address = Factories.ApprovalCatalogV1.findInstance(EContractId.ApprovalCatalogV1);
-
-    if (!falsyOrZeroAddress(existedApprovalCatalogV1Address)) {
-      console.log(`Already deployed ${EContractId.ApprovalCatalogV1}:`, existedApprovalCatalogV1Address);
-      return;
+      await mustWaitTx(proxyCatalog.addAuthenticImplementation(impl.address, PROXY_TYPE, cc.address));
+      await mustWaitTx(proxyCatalog.setDefaultImplementation(impl.address));
     }
 
-    const proxyCatalogAddress = Factories.ProxyCatalog.findInstance(EContractId.ProxyCatalog);
+    const approvalCatalog = await accessController.getAddress(AccessFlags.APPROVAL_CATALOG);
+    if (notFalsyOrZeroAddress(approvalCatalog)) {
+      console.log(`Already deployed ApprovalCatalog: ${approvalCatalog}`);
+    } else {
+      const initFunctionData = factory.attach(zeroAddress()).interface.encodeFunctionData('initializeApprovalCatalog');
 
-    if (falsyOrZeroAddress(proxyCatalogAddress)) {
-      throw new Error(
-        `${EContractId.ProxyCatalog} hasn't been deployed yet. Please, deploy ${EContractId.ProxyCatalog} first`
+      let approvalCatalogAddr = '';
+      let approvalCatalogImpl = '';
+      await Events.ProxyCreated.waitOne(
+        proxyCatalog.createProxy(zeroAddress(), PROXY_TYPE, zeroAddress(), initFunctionData),
+        (event) => {
+          approvalCatalogAddr = event.proxy;
+          approvalCatalogImpl = event.impl;
+        }
       );
+
+      console.log(`ApprovalCatalog: ${approvalCatalogAddr} => ${approvalCatalogImpl}`);
+
+      await waitForTx(await accessController.setAddress(AccessFlags.APPROVAL_CATALOG, approvalCatalogAddr));
+
+      addProxyToJsonDb(EContractId.ApprovalCatalog, approvalCatalogAddr, approvalCatalogImpl, '', [
+        proxyCatalog.address,
+        approvalCatalogImpl,
+        initFunctionData,
+      ]);
     }
-
-    const accessControllerAddress = Factories.AccessController.findInstance(EContractId.AccessController);
-
-    if (falsyOrZeroAddress(accessControllerAddress)) {
-      throw new Error(
-        `${EContractId.AccessController} hasn't been deployed yet. Please, deploy ${EContractId.AccessController} first.`
-      );
-    }
-
-    const insuredPoolAddress = Factories.InsuredPoolV1.findInstance(EContractId.InsuredPoolV1);
-
-    if (falsyOrZeroAddress(insuredPoolAddress)) {
-      throw new Error(
-        `${EContractId.InsuredPoolV1} hasn't been deployed yet. Please, deploy ${EContractId.InsuredPoolV1} first.`
-      );
-    }
-
-    const deployer = await getFirstSigner();
-    const proxyCatalog = Factories.ProxyCatalog.get(deployer, EContractId.ProxyCatalog);
-    const accessController = Factories.AccessController.get(deployer, EContractId.AccessController);
-
-    const approvalCatalogV1 = await Factories.ApprovalCatalogV1.connectAndDeploy(
-      deployer,
-      EContractId.ApprovalCatalogV1,
-      [accessController.address]
-    );
-    await waitForTx(approvalCatalogV1.deployTransaction);
-
-    console.log(`${EContractId.ApprovalCatalogV1}:`, approvalCatalogV1.address);
-
-    await waitForTx(
-      await proxyCatalog.addAuthenticImplementation(approvalCatalogV1.address, PROXY_TYPE, zeroAddress())
-    );
-    await waitForTx(await proxyCatalog.setDefaultImplementation(approvalCatalogV1.address));
-
-    let approvalCatalogProxyAddress = '';
-    const initFunctionData = approvalCatalogV1.interface.encodeFunctionData('initializeApprovalCatalog');
-
-    await Events.ProxyCreated.waitOne(
-      proxyCatalog.createProxy(deployer.address, PROXY_TYPE, zeroAddress(), initFunctionData),
-      (event) => {
-        approvalCatalogProxyAddress = event.proxy;
-      }
-    );
-
-    console.log(`${EContractId.ApprovalCatalog}:`, approvalCatalogProxyAddress);
-
-    const approvalCatalogProxy = Factories.TransparentProxy.attach(approvalCatalogProxyAddress);
-    addProxyToJsonDb(EContractId.ApprovalCatalog, approvalCatalogProxy.address, approvalCatalogV1.address, PROXY_TYPE, [
-      deployer.address,
-      approvalCatalogV1.address,
-      initFunctionData,
-    ]);
-
-    await waitForTx(await accessController.setProtection(APPROVAL_CATALOG, false));
-    await waitForTx(await accessController.setAddress(APPROVAL_CATALOG, approvalCatalogProxyAddress));
-    await waitForTx(await accessController.setProtection(APPROVAL_CATALOG, true));
-
-    console.log(`${EContractId.ApprovalCatalog} was successfully added to ${EContractId.AccessController}`);
-  }
+  })
 );

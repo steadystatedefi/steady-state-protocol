@@ -125,11 +125,11 @@ export const addNamedDeployable = (f: NamedDeployable, name: string): void => {
 
 type ExcludeOverrides<T extends unknown[]> = T extends [...infer Head, Overrides?] ? Head : T;
 type DeployArgs<TArgs extends unknown[], T extends Contract> = {
-  args: ExcludeOverrides<TArgs>;
+  args: TArgs;
   post?: (contract: T) => Promise<void>;
 };
 
-export async function getOrDeploy<TArgs extends unknown[] = unknown[], T extends Contract = Contract>(
+export async function getOrDeploy<TArgs extends unknown[], T extends Contract>(
   f: NamedDeployable<TArgs, T>,
   n: string,
   deployFn: () => Promise<DeployArgs<TArgs, T>> | DeployArgs<TArgs, T>
@@ -141,7 +141,7 @@ export async function getOrDeploy<TArgs extends unknown[] = unknown[], T extends
     return [f.attach(pre), false];
   }
   const args = await deployFn();
-  const deployed = await f.connectAndDeploy(deployer, n, args.args as TArgs);
+  const deployed = await f.connectAndDeploy(deployer, n, args.args);
 
   await waitForTx(deployed.deployTransaction);
   if (args.post) {
