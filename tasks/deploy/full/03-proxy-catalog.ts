@@ -1,5 +1,7 @@
 import { BigNumber } from 'ethers';
+import { formatBytes32String } from 'ethers/lib/utils';
 
+import { MAX_UINT } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
 import { falsyOrZeroAddress, getFirstSigner, waitForTx } from '../../../helpers/runtime-utils';
 import { EContractId } from '../../../helpers/types';
@@ -33,6 +35,7 @@ deployTask(`full:deploy-proxy-catalog`, `Deploy ${EContractId.ProxyCatalog}`, __
       accessController.address,
     ]);
     await waitForTx(proxyCatalog.deployTransaction);
+    await waitForTx(await proxyCatalog.setAccess([formatBytes32String('INSURED_POOL')], [MAX_UINT]));
 
     console.log(`${EContractId.ProxyCatalog}:`, proxyCatalog.address);
 
