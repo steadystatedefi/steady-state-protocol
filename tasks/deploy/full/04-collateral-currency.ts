@@ -1,9 +1,6 @@
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { getOrDeploy } from '../../../helpers/factory-wrapper';
-import { falsyOrZeroAddress, getFirstSigner, waitForTx } from '../../../helpers/runtime-utils';
-import { EContractId } from '../../../helpers/types';
-import { CollateralCurrency } from '../../../types';
 import { deployTask } from '../deploy-steps';
 
 const factory = Factories.CollateralCurrency;
