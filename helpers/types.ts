@@ -174,15 +174,5 @@ export interface IDependencies {
   UniswapV2Router?: tEthereumAddress;
 }
 
-export enum EContractId {
-  AccessController = 'AccessController',
-  ApprovalCatalog = 'ApprovalCatalog',
-  ApprovalCatalogV1 = 'ApprovalCatalogV1',
-  ProxyCatalog = 'ProxyCatalog',
-  InsuredPool = 'InsuredPool',
-  InsuredPoolV1 = 'InsuredPoolV1',
-  CollateralCurrency = 'CollateralCurrency',
-}
-
 export const getParamPerNetwork = <T>(param: iParamsPerNetwork<T> | iParamsPerNetworkOpt<T>, network?: eNetwork): T =>
   param[getNetworkName(network)] as T;

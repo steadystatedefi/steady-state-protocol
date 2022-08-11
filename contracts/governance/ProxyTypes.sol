@@ -10,6 +10,9 @@ import '../interfaces/IYieldDistributorInit.sol';
 import '../insurer/WeightedPoolConfig.sol';
 
 library ProxyTypes {
+  bytes32 internal constant APPROVAL_CATALOG = 'APPROVAL_CATALOG';
+  bytes32 internal constant ORACLE_ROUTER = 'ORACLE_ROUTER';
+
   bytes32 internal constant INSURED_POOL = 'INSURED_POOL';
 
   function insuredInit(address governor) internal pure returns (bytes memory) {

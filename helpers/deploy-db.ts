@@ -191,6 +191,8 @@ export const getFromJsonDb = <T>(id: string): T => {
   return collection.value() as T;
 };
 
+export const getAddrFromJsonDb = (id: string): string => getFromJsonDb<{ address: tEthereumAddress }>(id)?.address;
+
 export const getFromJsonDbByAddr = (id: string): DbInstanceEntry =>
   getDb().get(`${DRE.network.name}.instance.${id}`).value() as DbInstanceEntry;
 

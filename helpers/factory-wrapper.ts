@@ -2,9 +2,8 @@ import { Contract, ContractFactory, Overrides } from '@ethersproject/contracts';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { Signer } from 'ethers';
 
-import { addContractToJsonDb, getFromJsonDb } from './deploy-db';
+import { addContractToJsonDb, getAddrFromJsonDb } from './deploy-db';
 import { falsyOrZeroAddress, waitForTx } from './runtime-utils';
-import { tEthereumAddress } from './types';
 
 interface Deployable<TArgs extends unknown[] = unknown[], TResult extends Contract = Contract> extends ContractFactory {
   attach(address: string): TResult;
@@ -81,24 +80,19 @@ export const wrapFactory = <TArgs extends unknown[], TResult extends Contract>(
     }
 
     findInstance(name?: string): string | undefined {
-      // TODO: get rid of side effect
       // eslint-disable-next-line no-param-reassign
       name = name ?? this.name();
-
-      return name !== undefined ? getFromJsonDb<{ address: tEthereumAddress }>(name)?.address : undefined;
+      return name !== undefined ? getAddrFromJsonDb(name) : undefined;
     }
 
     get(signer?: Signer, name?: string): TResult {
-      // TODO: get rid of side effect
       // eslint-disable-next-line no-param-reassign
       name = name ?? this.name();
-
       if (name === undefined) {
         throw new Error('instance name is unknown');
       }
 
-      const address = getFromJsonDb<{ address: tEthereumAddress }>(name)?.address;
-
+      const address = getAddrFromJsonDb(name);
       if (falsyOrZeroAddress(address)) {
         throw new Error(`instance address is missing: ${name}`);
       }
@@ -123,7 +117,7 @@ export const addNamedDeployable = (f: NamedDeployable, name: string): void => {
   nameByFactory.set(f, name);
 };
 
-type ExcludeOverrides<T extends unknown[]> = T extends [...infer Head, Overrides?] ? Head : T;
+export type ExcludeOverrides<T extends unknown[]> = T extends [...infer Head, Overrides?] ? Head : T;
 type DeployArgs<TArgs extends unknown[], T extends Contract> = {
   args: TArgs;
   post?: (contract: T) => Promise<void>;
