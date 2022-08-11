@@ -1,8 +1,9 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { zeroAddress } from 'ethereumjs-util';
 import { BigNumberish } from 'ethers';
 import { formatBytes32String } from 'ethers/lib/utils';
 
+import { AccessFlags } from '../../../helpers/access-flags';
+import { MAX_UINT, WAD } from '../../../helpers/constants';
 import { Events } from '../../../helpers/contract-events';
 import { Factories } from '../../../helpers/contract-types';
 import {
@@ -10,8 +11,10 @@ import {
   ApprovalCatalog,
   CollateralCurrency,
   CollateralFundV1,
+  IApprovalCatalog,
   ImperpetualPoolV1,
   InsuredPoolV1,
+  MockERC20,
   OracleRouterV1,
   PremiumFundV1,
   ProxyCatalog,
@@ -19,8 +22,8 @@ import {
 } from '../../../types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 
-const insurerImplName = formatBytes32String('insurer');
-const insuredImplName = formatBytes32String('insured');
+const insurerImplName = formatBytes32String('IMPERPETUAL_INDEX_POOL');
+const insuredImplName = formatBytes32String('INSURED_POOL');
 
 export type State = {
   controller: AccessController;
@@ -34,6 +37,7 @@ export type State = {
 
   insured: InsuredPoolV1;
   insurer: ImperpetualPoolV1;
+  premToken: MockERC20;
 
   fundFuses: BigNumberish;
 };
@@ -73,6 +77,8 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
     state.cc.address,
   ]);
 
+  state.premToken = await Factories.MockERC20.connectAndDeploy(deployer, 'premToken', ['Premium', 'Prem', 18]);
+
   const joinExtension = await Factories.JoinablePoolExtension.connectAndDeploy(deployer, 'joinableExt', [
     state.controller.address,
     1e10,
@@ -93,25 +99,47 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
   ]);
 
   await state.controller.setAnyRoleMode(true);
-  await state.proxyCatalog.addAuthenticImplementation(insurerV1ref.address, insurerImplName, zeroAddress());
-  await state.proxyCatalog.addAuthenticImplementation(insuredV1ref.address, insuredImplName, zeroAddress());
+  await state.controller.setAddress(AccessFlags.PROXY_FACTORY, state.proxyCatalog.address);
+  await state.controller.setAddress(AccessFlags.APPROVAL_CATALOG, state.approvalCatalog.address);
+  await state.controller.setAddress(AccessFlags.PRICE_ROUTER, state.oracle.address);
+  await state.proxyCatalog.setAccess([formatBytes32String('INSURED_POOL')], [MAX_UINT]);
+  await state.proxyCatalog.addAuthenticImplementation(insurerV1ref.address, insurerImplName, state.cc.address);
+  await state.proxyCatalog.addAuthenticImplementation(insuredV1ref.address, insuredImplName, state.cc.address);
   await state.proxyCatalog.setDefaultImplementation(insurerV1ref.address);
   await state.proxyCatalog.setDefaultImplementation(insuredV1ref.address);
 
-  await Events.ProxyCreated.waitOne(
-    state.proxyCatalog.createProxy(
-      deployer.address,
-      insuredImplName,
-      zeroAddress(),
-      insuredV1ref.interface.encodeFunctionData('initializeInsured', [deployer.address])
-    ),
+  const cid = formatBytes32String('policy1');
+  await Events.ApplicationSubmitted.waitOne(
+    state.approvalCatalog.connect(deployer).submitApplication(cid, state.cc.address),
     (ev) => {
-      state.insured = Factories.InsuredPoolV1.attach(ev.proxy);
+      state.insured = Factories.InsuredPoolV1.attach(ev.insured);
     }
   );
 
+  const policy: IApprovalCatalog.ApprovedPolicyStruct = {
+    insured: state.insured.address,
+    requestCid: cid,
+    approvalCid: cid,
+    applied: false,
+    policyName: 'policy 1',
+    policySymbol: 'PL1',
+    riskLevel: 1,
+    basePremiumRate: 1,
+    premiumToken: state.premToken.address,
+    minPrepayValue: 1,
+    rollingAdvanceWindow: 1,
+    expiresAt: 2 ** 31,
+  };
+  await state.controller.grantAnyRoles(deployer.address, AccessFlags.UNDERWRITER_POLICY);
+  await state.approvalCatalog.connect(deployer).approveApplication(policy);
+
   state.insurer = insurerV1ref;
 
+  await state.controller.grantAnyRoles(deployer.address, AccessFlags.PRICE_ROUTER_ADMIN);
+  await state.oracle.setStaticPrices([state.premToken.address], [WAD]);
+  await state.premToken.mint(state.insured.address, WAD);
+
+  await state.controller.revokeAllRoles(deployer.address);
   return state;
 }
 
@@ -136,7 +164,7 @@ export async function setInsurer(state: State, deployer: SignerWithAddress, gove
       .createProxy(
         deployer.address,
         insurerImplName,
-        zeroAddress(),
+        state.cc.address,
         state.insurer.interface.encodeFunctionData('initializeWeighted', [governor, 'Test', 'TST', params])
       ),
     (ev) => {
