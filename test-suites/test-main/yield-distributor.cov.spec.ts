@@ -24,11 +24,11 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
   before(async () => {
     user0 = testEnv.deployer;
     [user1, user2, user3] = testEnv.users;
-    cc = await Factories.MockCollateralCurrency.deploy('Collateral Currency', '$CC', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral Currency', '$CC');
     dist = await Factories.MockYieldDistributor.deploy(cc.address);
     cc.setBorrowManager(dist.address);
 
-    token0 = await Factories.MockCollateralCurrency.deploy('Collateral Asset', '$TK0', 18);
+    token0 = await Factories.MockCollateralCurrency.deploy('Collateral Asset', '$TK0');
     fund = await Factories.MockCollateralFund.deploy(cc.address);
 
     await cc.registerLiquidityProvider(fund.address);

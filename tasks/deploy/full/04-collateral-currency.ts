@@ -1,34 +1,23 @@
 import { Factories } from '../../../helpers/contract-types';
+import { dreAction } from '../../../helpers/dre';
+import { getOrDeploy } from '../../../helpers/factory-wrapper';
 import { falsyOrZeroAddress, getFirstSigner, waitForTx } from '../../../helpers/runtime-utils';
 import { EContractId } from '../../../helpers/types';
+import { CollateralCurrency } from '../../../types';
 import { deployTask } from '../deploy-steps';
 
-deployTask(`full:deploy-collateral-currency`, `Deploy ${EContractId.CollateralCurrency}`, __dirname).setAction(
-  async (_, localBRE) => {
-    await localBRE.run('set-DRE');
+const factory = Factories.CollateralCurrency;
 
-    const existedCollateralCurrencyAddress = Factories.CollateralCurrency.findInstance(EContractId.CollateralCurrency);
+// TODO make CC upgradeable
 
-    if (!falsyOrZeroAddress(existedCollateralCurrencyAddress)) {
-      console.log(`Already deployed ${EContractId.CollateralCurrency}:`, existedCollateralCurrencyAddress);
-      return;
-    }
+deployTask(`full:deploy-collateral-currency`, `Deploy ${factory.toString()}`, __dirname).setAction(
+  dreAction(() =>
+    getOrDeploy(factory, '', () => {
+      const accessController = Factories.AccessController.get();
 
-    const accessControllerAddress = Factories.AccessController.findInstance(EContractId.AccessController);
-
-    if (falsyOrZeroAddress(accessControllerAddress)) {
-      throw new Error(
-        `${EContractId.AccessController} hasn't been deployed yet. Please, deploy ${EContractId.AccessController} first.`
-      );
-    }
-
-    const deployer = await getFirstSigner();
-    const accessController = Factories.AccessController.get(deployer, EContractId.AccessController);
-    const collateralCurrency = await Factories.CollateralCurrency.connectAndDeploy(
-      deployer,
-      EContractId.CollateralCurrency,
-      [accessController.address, 'Collateral Currency', 'CC', 18]
-    );
-    await waitForTx(collateralCurrency.deployTransaction);
-  }
+      return {
+        args: [accessController.address, 'Collateral Currency', 'CC'] as [string, string, string],
+      };
+    })
+  )
 );

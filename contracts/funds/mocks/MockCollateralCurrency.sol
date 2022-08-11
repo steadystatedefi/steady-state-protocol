@@ -6,11 +6,7 @@ import '../CollateralCurrency.sol';
 contract MockCollateralCurrency is CollateralCurrency {
   address private _owner;
 
-  constructor(
-    string memory name_,
-    string memory symbol_,
-    uint8 decimals_
-  ) CollateralCurrency(IAccessController(address(0)), name_, symbol_, decimals_) {
+  constructor(string memory name_, string memory symbol_) CollateralCurrency(IAccessController(address(0)), name_, symbol_) {
     _owner = msg.sender;
   }
 
