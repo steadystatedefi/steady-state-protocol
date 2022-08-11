@@ -1,46 +1,28 @@
-import { BigNumber } from 'ethers';
 import { formatBytes32String } from 'ethers/lib/utils';
 
+import { AccessFlags } from '../../../helpers/access-flags';
 import { MAX_UINT } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
-import { falsyOrZeroAddress, getFirstSigner, waitForTx } from '../../../helpers/runtime-utils';
-import { EContractId } from '../../../helpers/types';
+import { dreAction } from '../../../helpers/dre';
+import { getOrDeploy } from '../../../helpers/factory-wrapper';
+import { waitForTx } from '../../../helpers/runtime-utils';
+import { ProxyCatalog } from '../../../types';
 import { deployTask } from '../deploy-steps';
 
-const PROXY_FACTORY = BigNumber.from(1).shl(26);
+const factory = Factories.ProxyCatalog;
 
-deployTask(`full:deploy-proxy-catalog`, `Deploy ${EContractId.ProxyCatalog}`, __dirname).setAction(
-  async (_, localBRE) => {
-    await localBRE.run('set-DRE');
+deployTask(`full:deploy-proxy-catalog`, `Deploy ${factory.toString()}`, __dirname).setAction(
+  dreAction(() =>
+    getOrDeploy(factory, '', () => {
+      const accessController = Factories.AccessController.get();
 
-    const existedProxyCatalogAddress = Factories.ProxyCatalog.findInstance(EContractId.ProxyCatalog);
-
-    if (!falsyOrZeroAddress(existedProxyCatalogAddress)) {
-      console.log(`Already deployed ${EContractId.ProxyCatalog}:`, existedProxyCatalogAddress);
-      return;
-    }
-
-    const accessControllerAddress = Factories.AccessController.findInstance(EContractId.AccessController);
-
-    if (falsyOrZeroAddress(accessControllerAddress)) {
-      throw new Error(
-        `${EContractId.AccessController} hasn't been deployed yet. Please, deploy ${EContractId.AccessController} first.`
-      );
-    }
-
-    const deployer = await getFirstSigner();
-    const accessController = Factories.AccessController.get(deployer, EContractId.AccessController);
-
-    const proxyCatalog = await Factories.ProxyCatalog.connectAndDeploy(deployer, EContractId.ProxyCatalog, [
-      accessController.address,
-    ]);
-    await waitForTx(proxyCatalog.deployTransaction);
-    await waitForTx(await proxyCatalog.setAccess([formatBytes32String('INSURED_POOL')], [MAX_UINT]));
-
-    console.log(`${EContractId.ProxyCatalog}:`, proxyCatalog.address);
-
-    await waitForTx(await accessController.setAddress(PROXY_FACTORY, proxyCatalog.address));
-
-    console.log(`${EContractId.ProxyCatalog} was successfully added to ${EContractId.AccessController}`);
-  }
+      return {
+        args: [accessController.address] as [string],
+        post: async (proxyCatalog: ProxyCatalog) => {
+          await waitForTx(await proxyCatalog.setAccess([formatBytes32String('INSURED_POOL')], [MAX_UINT]));
+          await waitForTx(await accessController.setAddress(AccessFlags.PROXY_FACTORY, proxyCatalog.address));
+        },
+      };
+    })
+  )
 );

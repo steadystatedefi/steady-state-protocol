@@ -1,9 +1,9 @@
-import { Contract, ContractFactory } from '@ethersproject/contracts';
+import { Contract, ContractFactory, Overrides } from '@ethersproject/contracts';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { Signer } from 'ethers';
 
 import { addContractToJsonDb, getFromJsonDb } from './deploy-db';
-import { falsyOrZeroAddress } from './runtime-utils';
+import { falsyOrZeroAddress, waitForTx } from './runtime-utils';
 import { tEthereumAddress } from './types';
 
 interface Deployable<TArgs extends unknown[] = unknown[], TResult extends Contract = Contract> extends ContractFactory {
@@ -122,3 +122,32 @@ export const mock = <TArgs extends unknown[], TResult extends Contract>(
 export const addNamedDeployable = (f: NamedDeployable, name: string): void => {
   nameByFactory.set(f, name);
 };
+
+type ExcludeOverrides<T extends unknown[]> = T extends [...infer Head, Overrides?] ? Head : T;
+type DeployArgs<TArgs extends unknown[], T extends Contract> = {
+  args: ExcludeOverrides<TArgs>;
+  post?: (contract: T) => Promise<void>;
+};
+
+export async function getOrDeploy<TArgs extends unknown[] = unknown[], T extends Contract = Contract>(
+  f: NamedDeployable<TArgs, T>,
+  n: string,
+  deployFn: () => Promise<DeployArgs<TArgs, T>> | DeployArgs<TArgs, T>
+): Promise<[T, boolean]> {
+  const pre = f.findInstance(n);
+  const logName = n || f.toString();
+  if (pre !== undefined) {
+    console.log(`Already deployed ${logName}:`, pre);
+    return [f.attach(pre), false];
+  }
+  const args = await deployFn();
+  const deployed = await f.connectAndDeploy(deployer, n, args.args as TArgs);
+
+  await waitForTx(deployed.deployTransaction);
+  if (args.post) {
+    console.log(`Configuring ${logName}:`, pre);
+    await args.post(deployed);
+  }
+  console.log(`${logName}:`, deployed.address);
+  return [deployed, true];
+}
