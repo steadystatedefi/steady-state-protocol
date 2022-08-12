@@ -45,13 +45,13 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     return addr;
   };
 
-  const premitDomain = {
+  const permitDomain = {
     name: 'ApprovalCatalog',
     chainId: 0, // chainId()
   };
 
   before(async () => {
-    premitDomain.chainId = testEnv.underCoverage ? 1 : chainId();
+    permitDomain.chainId = testEnv.underCoverage ? 1 : chainId();
 
     user1 = testEnv.users[1];
     controller = await Factories.AccessController.deploy(0);
@@ -303,7 +303,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     {
       const expiry = 1000 + (await currentTime());
       const maker = buildPermitMaker(
-        premitDomain,
+        permitDomain,
         {
           approver: user0.address,
           expiry,
@@ -388,7 +388,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     {
       const expiry = 1000 + (await currentTime());
       const maker = buildPermitMaker(
-        premitDomain,
+        permitDomain,
         {
           approver: user0.address,
           expiry,
@@ -472,7 +472,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       const nonce = await approvalCatalog.nonces(insured);
 
       const maker = buildPermitMaker(
-        premitDomain,
+        permitDomain,
         {
           approver: user1.address,
           expiry,
