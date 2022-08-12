@@ -7,7 +7,6 @@ import dotenv from 'dotenv';
 import 'hardhat-abi-exporter';
 import 'hardhat-contract-sizer';
 import 'hardhat-gas-reporter';
-import 'hardhat-storage-layout';
 import 'hardhat-tracer';
 import { HardhatUserConfig } from 'hardhat/types';
 import 'solidity-coverage';
@@ -19,7 +18,7 @@ import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS, FORK_RPC_URL } from './helper-h
 import { BUIDLEREVM_CHAINID, COVERAGE_CHAINID } from './helpers/buidler-constants';
 import testWalletsData from './helpers/test-wallets.json';
 import { eEthereumNetwork, eNetwork, eOtherNetwork, ePolygonNetwork } from './helpers/types';
-import './tasks/subtasks/set-dre';
+import './tasks/plugins/storage-layout';
 
 dotenv.config();
 
@@ -147,11 +146,6 @@ const buidlerConfig: HardhatUserConfig = {
         settings: {
           optimizer: { enabled: true, runs: 200 },
           evmVersion: 'istanbul',
-          outputSelection: {
-            '*': {
-              '*': ['storageLayout'],
-            },
-          },
         },
       },
     ],
