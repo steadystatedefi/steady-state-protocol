@@ -123,7 +123,7 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
     applied: false,
     policyName: 'policy 1',
     policySymbol: 'PL1',
-    riskLevel: 1,
+    riskLevel: 0,
     basePremiumRate: 1,
     premiumToken: state.premToken.address,
     minPrepayValue: 1,
@@ -132,6 +132,7 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
   };
   await state.controller.grantAnyRoles(deployer.address, AccessFlags.UNDERWRITER_POLICY);
   await state.approvalCatalog.connect(deployer).approveApplication(policy);
+  // await state.insured.applyApprovedApplication();
 
   state.insurer = insurerV1ref;
 
@@ -147,9 +148,9 @@ export async function setInsurer(state: State, deployer: SignerWithAddress, gove
   const params: WeightedPoolParamsStruct = {
     maxAdvanceUnits: 100_000_000,
     minAdvanceUnits: 1_000,
-    riskWeightTarget: 10_00,
+    riskWeightTarget: 1_00,
     minInsuredSharePct: 1_00,
-    maxInsuredSharePct: 15_00,
+    maxInsuredSharePct: 100_00,
     minUnitsPerRound: 10,
     maxUnitsPerRound: 20,
     overUnitsPerRound: 30,

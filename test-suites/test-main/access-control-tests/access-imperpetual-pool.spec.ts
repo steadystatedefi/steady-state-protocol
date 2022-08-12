@@ -2,6 +2,8 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 
 import { AccessFlags } from '../../../helpers/access-flags';
+import { MAX_UINT } from '../../../helpers/constants';
+import { Factories } from '../../../helpers/contract-types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
@@ -19,7 +21,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     minAdvanceUnits: 1_000,
     riskWeightTarget: 10_00,
     minInsuredSharePct: 1_00,
-    maxInsuredSharePct: 15_00,
+    maxInsuredSharePct: 100_00,
     minUnitsPerRound: 10,
     maxUnitsPerRound: 20,
     overUnitsPerRound: 30,
@@ -51,15 +53,21 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
   });
 
   it('ROLE: Insurer Ops', async () => {
+    const ext = Factories.ImperpetualPoolExtension.attach(state.insurer.address);
     await state.insured.joinPool(state.insurer.address);
-    await expect(state.insurer.approveJoiner(state.insured.address, true)).to.be.reverted;
-    await expect(state.insurer.addSubrogation(user2.address, 0)).to.be.reverted;
+
+    await expect(state.insurer.approveJoiner(state.insured.address, true)).reverted;
+    await expect(state.insurer.addSubrogation(user2.address, 0)).reverted;
+    await expect(ext.cancelCoverageDemand(state.insured.address, 0, MAX_UINT)).reverted;
 
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_OPS);
     await state.insurer.approveJoiner(state.insured.address, true);
     await state.insurer.addSubrogation(user2.address, 0);
 
-    // TODO: onlyActiveInsuredOrOps
+    // await state.insured.pushCoverageDemandTo(state.insurer.address, 11);
+
+    // await ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
+    // onlyActiveInsuredOrOps
   });
 
   it('ROLE: Insurer Admin', async () => {
