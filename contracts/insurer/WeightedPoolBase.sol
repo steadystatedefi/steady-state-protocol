@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../tools/upgradeability/VersionedInitializable.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/ICollateralStakeManager.sol';
@@ -19,7 +20,8 @@ abstract contract WeightedPoolBase is
   IYieldStakeAsset,
   Delegator,
   ERC1363ReceiverBase,
-  WeightedPoolStorage
+  WeightedPoolStorage,
+  VersionedInitializable
 {
   address internal immutable _extension;
   address internal immutable _joinExtension;
