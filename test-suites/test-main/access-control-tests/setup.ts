@@ -132,7 +132,6 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
   };
   await state.controller.grantAnyRoles(deployer.address, AccessFlags.UNDERWRITER_POLICY);
   await state.approvalCatalog.connect(deployer).approveApplication(policy);
-  // await state.insured.applyApprovedApplication();
 
   state.insurer = insurerV1ref;
 

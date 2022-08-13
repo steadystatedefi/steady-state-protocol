@@ -1,9 +1,11 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { formatBytes32String } from 'ethers/lib/utils';
 
 import { AccessFlags } from '../../../helpers/access-flags';
-import { MAX_UINT } from '../../../helpers/constants';
+import { MAX_UINT, WAD } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
+import { IApprovalCatalog, ImperpetualPoolExtension } from '../../../types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
@@ -15,6 +17,8 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
 
   let user2: SignerWithAddress;
   let user3: SignerWithAddress;
+
+  let ext: ImperpetualPoolExtension;
 
   const params: WeightedPoolParamsStruct = {
     maxAdvanceUnits: 100_000_000,
@@ -37,6 +41,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     state = await deployAccessControlState(deployer);
 
     await setInsurer(state, deployer, user2.address);
+    ext = Factories.ImperpetualPoolExtension.attach(state.insurer.address);
 
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN | AccessFlags.LP_DEPLOY);
     await state.cc.registerInsurer(state.insurer.address);
@@ -53,7 +58,6 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
   });
 
   it('ROLE: Insurer Ops', async () => {
-    const ext = Factories.ImperpetualPoolExtension.attach(state.insurer.address);
     await state.insured.joinPool(state.insurer.address);
 
     await expect(state.insurer.approveJoiner(state.insured.address, true)).reverted;
@@ -64,10 +68,15 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await state.insurer.approveJoiner(state.insured.address, true);
     await state.insurer.addSubrogation(user2.address, 0);
 
-    // await state.insured.pushCoverageDemandTo(state.insurer.address, 11);
+    await state.insured.pushCoverageDemandTo(state.insurer.address, 11);
 
-    // await ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
-    // onlyActiveInsuredOrOps
+    await state.controller.revokeRoles(deployer.address, AccessFlags.INSURER_OPS);
+    await expect(ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT)).reverted;
+    await expect(ext.cancelCoverage(state.insured.address, 0)).reverted;
+
+    await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_OPS);
+    await ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
+    await ext.cancelCoverage(state.insured.address, 0);
   });
 
   it('ROLE: Insurer Admin', async () => {
@@ -89,7 +98,44 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await state.cc.mintAndTransfer(user2.address, user2.address, 100, 100);
   });
 
-  // TODO: ImperpetualPoolBase onlySelf
+  it('ROLE: onlySelf', async () => {
+    await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_OPS);
+    await state.insured.joinPool(state.insurer.address);
+    await state.insurer.approveJoiner(state.insured.address, true);
 
-  // TODO: WeightedPoolBase OnlyPremiumDistributor
+    await expect(state.insurer.updateCoverageOnCancel(state.insured.address, 0, 0, 0, 0)).reverted;
+    await expect(state.insurer.updateCoverageOnReconcile(state.insured.address, 0, 0)).reverted;
+
+    await state.insured.reconcileWithAllInsurers();
+    await ext.cancelCoverage(state.insured.address, 0);
+  });
+
+  it('ROLE: only active insureds', async () => {
+    await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_OPS | AccessFlags.INSURED_OPS);
+    await state.insured.joinPool(state.insurer.address);
+
+    await state.controller.revokeAllRoles(deployer.address);
+    {
+      await expect(state.insured.pushCoverageDemandTo(state.insurer.address, 11)).reverted;
+      await expect(ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT)).reverted;
+      await expect(ext.receiveDemandedCoverage(state.insured.address, MAX_UINT)).reverted;
+      await expect(ext.cancelCoverage(state.insured.address, 0)).reverted;
+    }
+
+    const claim: IApprovalCatalog.ApprovedClaimStruct = {
+      requestCid: formatBytes32String('claim1'),
+      approvalCid: formatBytes32String('claim2'),
+      payoutRatio: 0,
+      since: 2 ** 30,
+    };
+    await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_OPS | AccessFlags.UNDERWRITER_CLAIM);
+    await state.approvalCatalog.submitClaim(state.insured.address, formatBytes32String('claim1'), 0);
+    await state.approvalCatalog.approveClaim(state.insured.address, claim);
+
+    await state.insurer.approveJoiner(state.insured.address, true);
+    await state.insured.pushCoverageDemandTo(state.insurer.address, 11);
+    await ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
+    await state.insured.reconcileWithAllInsurers();
+    await state.insured.cancelCoverage(user2.address, 0);
+  });
 });
