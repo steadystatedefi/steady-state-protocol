@@ -34,7 +34,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
 
   struct CollateralAsset {
     uint8 flags; // TODO flags
-    address trusted;
+    address trustee;
   }
 
   struct BorrowBalance {
@@ -70,16 +70,20 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     return AccessHelper.remoteAcl();
   }
 
+  event ApprovalFor(address indexed owner, address indexed operator, uint256 approved);
+
   function setApprovalsFor(
     address operator,
     uint256 access,
     bool approved
   ) external override {
+    uint256 flags;
     if (approved) {
-      _approvals[msg.sender][operator] |= access;
+      flags = (_approvals[msg.sender][operator] |= access);
     } else {
-      _approvals[msg.sender][operator] &= ~access;
+      flags = (_approvals[msg.sender][operator] &= ~access);
     }
+    emit ApprovalFor(msg.sender, operator, flags);
   }
 
   function collateral() public view override returns (address) {
@@ -88,6 +92,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
 
   function setAllApprovalsFor(address operator, uint256 access) external override {
     _approvals[msg.sender][operator] = access;
+    emit ApprovalFor(msg.sender, operator, access);
   }
 
   function getAllApprovalsFor(address account, address operator) public view override returns (uint256) {
@@ -102,14 +107,20 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     return _approvals[account][operator] & access == access;
   }
 
+  event SpecialApprovalFor(address indexed operator, uint256 approved);
+
   function internalSetSpecialApprovals(address operator, uint256 access) internal {
     _approvals[address(0)][operator] = access;
+    emit SpecialApprovalFor(operator, access);
   }
 
-  function internalSetTrusted(address token, address trusted) internal {
+  event TrusteeUpdated(address indexed token, address indexed trustedOperator);
+
+  function internalSetTrustee(address token, address trustee) internal {
     CollateralAsset storage asset = _assets[token];
     State.require(asset.flags & AF_ADDED != 0);
-    asset.trusted = trusted;
+    asset.trustee = trustee;
+    emit TrusteeUpdated(token, trustee);
   }
 
   function internalSetFlags(address token, uint8 flags) internal {
@@ -118,12 +129,20 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     asset.flags = AF_ADDED | flags;
   }
 
-  function internalAddAsset(address token, address trusted) internal virtual {
+  event AssetAdded(address indexed token);
+  event AssetRemoved(address indexed token);
+
+  function internalAddAsset(address token, address trustee) internal virtual {
     Value.require(token != address(0));
     State.require(_tokens.add(token));
 
-    _assets[token] = CollateralAsset({flags: type(uint8).max, trusted: trusted});
+    _assets[token] = CollateralAsset({flags: type(uint8).max, trustee: trustee});
     _attachSource(token, true);
+
+    emit AssetAdded(token);
+    if (trustee != address(0)) {
+      emit TrusteeUpdated(token, trustee);
+    }
   }
 
   function internalRemoveAsset(address token) internal {
@@ -131,6 +150,8 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
       CollateralAsset storage asset = _assets[token];
       asset.flags = AF_ADDED;
       _attachSource(token, false);
+
+      emit AssetRemoved(token);
     }
   }
 
@@ -189,6 +210,8 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     return _withdraw(account, to, token, amount);
   }
 
+  event AssetWithdrawn(address indexed token, address indexed account, uint256 amount, uint256 value);
+
   function _withdraw(
     address from,
     address to,
@@ -214,6 +237,8 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
       if (value > 0) {
         _collateral.burn(from, value);
         IERC20(token).safeTransfer(to, amount);
+
+        emit AssetWithdrawn(token, from, amount, value);
         return amount;
       }
     }
@@ -258,7 +283,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     address token
   ) internal view virtual returns (bool) {
     token;
-    return operator == asset.trusted;
+    return operator == asset.trustee;
   }
 
   function _ensureTrusted(
@@ -270,6 +295,8 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     asset = __ensureApproved(operator, account, token, accessFlags);
     Access.require(internalIsTrusted(asset, msg.sender, token));
   }
+
+  event AssetDeposited(address indexed token, address indexed account, uint256 amount, uint256 value);
 
   function __deposit(
     address from,
@@ -292,6 +319,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
   ) private onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) returns (uint256) {
     (uint256 value, bool ok) = __deposit(operator, token, tokenAmount);
     if (ok) {
+      emit AssetDeposited(token, account, tokenAmount, value);
       _collateral.mint(account, value);
       return value;
     }
@@ -308,6 +336,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
   ) private returns (uint256) {
     (uint256 value, bool ok) = __deposit(operator, token, tokenAmount);
     if (ok) {
+      emit AssetDeposited(token, account, tokenAmount, value);
       _collateral.mintAndTransfer(account, investTo, value, depositValue);
       return value + depositValue;
     }
@@ -353,16 +382,19 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     return _withdraw(account, to, token, amount);
   }
 
+  event AssetPaused(address indexed token, bool paused);
+
   function setPaused(address token, bool paused) external onlyEmergencyAdmin {
     internalSetFlags(token, paused ? 0 : type(uint8).max);
+    emit AssetPaused(token, paused);
   }
 
   function isPaused(address token) public view returns (bool) {
     return _assets[token].flags == type(uint8).max;
   }
 
-  function setTrustedOperator(address token, address trusted) external aclHas(AccessFlags.LP_DEPLOY) {
-    internalSetTrusted(token, trusted);
+  function setTrustedOperator(address token, address trustee) external aclHas(AccessFlags.LP_DEPLOY) {
+    internalSetTrustee(token, trustee);
   }
 
   function setSpecialRoles(address operator, uint256 accessFlags) external aclHas(AccessFlags.LP_ADMIN) {
@@ -383,6 +415,9 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     return _tokens.values();
   }
 
+  event AssetBorrowed(address indexed token, uint256 amount, address to);
+  event AssetReplenished(address indexed token, uint256 amount);
+
   function borrow(
     address token,
     uint256 amount,
@@ -401,6 +436,8 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     require((balance.value += uint128(value)) >= value);
 
     SafeERC20.safeTransfer(IERC20(token), to, amount);
+
+    emit AssetBorrowed(token, amount, to);
   }
 
   function repay(address token, uint256 amount) external {
@@ -419,6 +456,8 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
 
     ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
     State.require(bm.verifyRepayUnderlying(msg.sender, value));
+
+    emit AssetReplenished(token, amount);
   }
 
   function resetPriceGuard() external aclHasAny(AccessFlags.LP_ADMIN) {

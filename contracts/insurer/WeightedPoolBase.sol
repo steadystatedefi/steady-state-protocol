@@ -176,6 +176,10 @@ abstract contract WeightedPoolBase is
     return _coveredTotal() + _excessCoverage;
   }
 
+  function totalPremiumRate() external view returns (uint256) {
+    return super.internalGetPremiumTotals().premiumRate;
+  }
+
   function internalPullDemand(uint256 loopLimit) internal {
     uint256 insuredLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemandByPull, 0);
 
