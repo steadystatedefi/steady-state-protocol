@@ -24,7 +24,7 @@ makeSuite('access: Premium Fund', (testEnv: TestEnv) => {
     actuary = await Factories.MockPremiumActuary.deploy(state.premiumFund.address, state.cc.address);
   });
 
-  it('ROLE: insurer admin', async () => {
+  it('ROLE: Insurer Admin', async () => {
     await expect(state.premiumFund.registerPremiumActuary(actuary.address, true)).to.be.reverted;
     await state.controller.grantRoles(deployer.address, INSURER_ADMIN);
     await state.premiumFund.registerPremiumActuary(actuary.address, true);

@@ -41,7 +41,7 @@ makeSuite('access: Yield Distributor', (testEnv: TestEnv) => {
     await state.controller.grantRoles(deployer.address, flags);
   };
 
-  it('Role: Borrower admin', async () => {
+  it('Role: Borrower Admin', async () => {
     await expect(state.dist.addYieldSource(user2.address, YieldSourceType.Passive)).to.be.reverted;
     await grantRoles(BORROWER_ADMIN);
     await state.dist.addYieldSource(user2.address, YieldSourceType.Passive);

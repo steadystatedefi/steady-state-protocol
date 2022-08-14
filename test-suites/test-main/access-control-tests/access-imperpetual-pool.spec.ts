@@ -110,7 +110,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await ext.cancelCoverage(state.insured.address, 0);
   });
 
-  it('ROLE: only active insureds', async () => {
+  it('ROLE: onlyActiveInsureds', async () => {
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_OPS | AccessFlags.INSURED_OPS);
     await state.insured.joinPool(state.insurer.address);
 
@@ -137,5 +137,20 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
     await state.insured.reconcileWithAllInsurers();
     await state.insured.cancelCoverage(user2.address, 0);
+  });
+
+  it('ROLE: onlyPremiumDistributor', async () => {
+    await state.controller.grantRoles(
+      deployer.address,
+      AccessFlags.INSURER_ADMIN | AccessFlags.INSURER_OPS | AccessFlags.INSURED_OPS
+    );
+    await state.insured.joinPool(state.insurer.address);
+
+    await expect(state.insurer.burnPremium(user2.address, 0, user3.address)).reverted;
+    await expect(state.insurer.collectDrawdownPremium()).reverted;
+
+    await state.insurer.setPremiumDistributor(user2.address);
+    await state.insurer.connect(user2).burnPremium(user2.address, 0, user3.address);
+    await state.insurer.connect(user2).collectDrawdownPremium();
   });
 });
