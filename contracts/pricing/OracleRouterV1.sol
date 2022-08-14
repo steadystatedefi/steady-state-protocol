@@ -9,9 +9,7 @@ contract OracleRouterV1 is VersionedInitializable, PriceGuardOracleBase {
 
   constructor(IAccessController acl, address quote) PriceGuardOracleBase(acl, quote) {}
 
-  function initializePriceOracle() public initializer(CONTRACT_REVISION) {
-    // _initializeDomainSeparator();
-  }
+  function initializePriceOracle() public initializer(CONTRACT_REVISION) {}
 
   function getRevision() internal pure override returns (uint256) {
     return CONTRACT_REVISION;

@@ -19,6 +19,8 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
 
   constructor(IAccessController acl, address quote) AccessHelper(acl) OracleRouterBase(quote) {}
 
+  event SourceTripped(address indexed asset, uint256 price);
+
   function pullAssetPrice(address asset, uint256 fuseMask) external override returns (uint256) {
     if (asset == getQuoteAsset()) {
       return WadRayMath.WAD;
@@ -35,7 +37,10 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
     }
 
     if (flags & EF_LIMIT_BREACHED != 0) {
-      internalSetCustomFlags(asset, 0, EF_LIMIT_BREACHED_STICKY);
+      if (flags & EF_LIMIT_BREACHED_STICKY == 0) {
+        emit SourceTripped(asset, v);
+        internalSetCustomFlags(asset, 0, EF_LIMIT_BREACHED_STICKY);
+      }
       internalBlowFuses(asset);
       v = 0;
     } else if (flags & EF_LIMIT_BREACHED_STICKY != 0) {
@@ -49,15 +54,21 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
     return v;
   }
 
+  event SourceToGroupsAdded(address indexed asset, uint256 mask);
+  event SourceFromGroupsRemoved(address indexed asset, uint256 mask);
+
   function attachSource(address asset, bool attach) external override {
     Value.require(asset != address(0));
 
-    uint256 maskUnset = internalGetOwnedFuses(msg.sender);
-    uint256 maskSet;
-    Access.require(maskUnset != 0);
+    uint256 maskSet = internalGetOwnedFuses(msg.sender);
+    uint256 maskUnset;
+    Access.require(maskSet != 0);
 
     if (attach) {
-      (maskSet, maskUnset) = (maskUnset, 0);
+      emit SourceToGroupsAdded(asset, maskSet);
+    } else {
+      (maskSet, maskUnset) = (0, maskSet);
+      emit SourceFromGroupsRemoved(asset, maskUnset);
     }
     internalSetFuses(asset, maskUnset, maskSet);
   }
@@ -66,6 +77,7 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
     uint256 mask = internalGetOwnedFuses(msg.sender);
     if (mask != 0) {
       internalResetFuses(mask);
+      emit SourceGroupResetted(msg.sender, mask);
     }
   }
 
