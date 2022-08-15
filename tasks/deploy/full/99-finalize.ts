@@ -10,14 +10,13 @@ task(`full:deploy-finalize`, 'Finalize deploy')
   .addFlag('register', `Register access controller`)
   .setAction(
     dreAction(async () => {
-      // const network = <eNetwork>localBRE.network.name;
-      // const poolConfig = loadRuntimeConfig(pool);
       const acAddr = Factories.AccessController.findInstance() ?? '';
       if (falsyOrZeroAddress(acAddr)) {
         return;
       }
 
       const ac = Factories.AccessController.attach(acAddr);
+      console.log('Renounce temporary admin');
       await mustWaitTx(ac.renounceTemporaryAdmin());
     })
   );

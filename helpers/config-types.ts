@@ -85,7 +85,6 @@ export interface INetworkConfiguration<Tokens extends string = string> {
   CollateralCurrency: ICollateralCurrency<Tokens>;
   CollateralFund: ICollateralFund<RealAssets<Tokens>>;
   Dependencies: IDependencies;
-  // price oracle quote
   PriceFeeds: ParamPerOpt<Tokens, IPriceStatic<Tokens> | IPriceFeed<Tokens>>;
   IndexPools: IIndexPoolConfig[];
 }
