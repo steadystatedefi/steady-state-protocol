@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/math/WadRayMath.sol';
+import '../tools/math/Math.sol';
 import '../interfaces/IInsurerPool.sol';
 import './Rounds.sol';
 
@@ -17,11 +18,12 @@ abstract contract WeightedRoundsBase {
   using Rounds for Rounds.PackedInsuredParams;
   using EnumerableSet for EnumerableSet.AddressSet;
   using WadRayMath for uint256;
+  using Math for uint256;
 
   uint256 private immutable _unitSize;
 
   constructor(uint256 unitSize) {
-    require(unitSize > 0);
+    Value.require(unitSize > 0);
     _unitSize = unitSize;
   }
 
@@ -126,8 +128,8 @@ abstract contract WeightedRoundsBase {
   {
     // console.log('\ninternalAddCoverageDemand', unitCount);
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
-    require(entry.status == InsuredStatus.Accepted);
-    require(entry.params.minPremiumRate() <= params.premiumRate);
+    Access.require(entry.status == InsuredStatus.Accepted);
+    Value.require(entry.params.minPremiumRate() <= params.premiumRate);
 
     if (unitCount == 0 || params.loopLimit == 0) {
       return unitCount;
@@ -147,7 +149,7 @@ abstract contract WeightedRoundsBase {
       // console.log('addDemandLoop', thisBatch, isFirstOfOpen, b.totalUnitsBeforeBatch);
       params.loopLimit--;
 
-      // require(thisBatch != 0);
+      // Sanity.require(thisBatch != 0);
       if (b.rounds == 0) {
         // NB! empty batches can also be produced by cancellation
 
@@ -185,7 +187,7 @@ abstract contract WeightedRoundsBase {
       }
 
       if (addPerRound > 0) {
-        // require(takeNext); // TODO ?
+        // Sanity.require(takeNext); // TODO ?
         uint64 addedUnits = uint64(addPerRound) * b.rounds;
         unitCount -= addedUnits;
         entry.demandedUnits += addedUnits;
@@ -199,7 +201,7 @@ abstract contract WeightedRoundsBase {
       updateBatch = false;
 
       entry.nextBatchNo = thisBatch = b.nextBatchNo;
-      // require(thisBatch != 0);
+      // Sanity.require(thisBatch != 0);
 
       uint80 totalUnitsBeforeBatch = b.totalUnitsBeforeBatch + uint80(b.unitPerRound) * b.rounds;
       b = _batches[thisBatch];
@@ -262,8 +264,8 @@ abstract contract WeightedRoundsBase {
     uint64 firstOpen = _firstOpenBatchNo;
     if (firstOpen == 0) {
       // there are no batches
-      require(_batchCount == 0);
-      require(nextBatchNo == 0);
+      Sanity.require(_batchCount == 0);
+      Sanity.require(nextBatchNo == 0);
       _initTimeMark(_latestBatchNo = _batchCount = _partial.batchNo = _firstOpenBatchNo = 1);
       return (b, 1, true);
     }
@@ -275,7 +277,7 @@ abstract contract WeightedRoundsBase {
     }
 
     if (b.nextBatchNo == 0) {
-      require(b.rounds == 0);
+      Sanity.require(b.rounds == 0);
     } else {
       PartialState memory part = _partial;
       if (part.batchNo == thisBatchNo) {
@@ -349,9 +351,7 @@ abstract contract WeightedRoundsBase {
     AddCoverageDemandParams memory params,
     bool canClose
   ) private returns (uint16 addPerRound, bool takeNext) {
-    require(b.isOpen() && b.rounds > 0); // TODO dev sanity check - remove later
-
-    // console.log('addToBatch', unitCount, canClose);
+    Sanity.require(b.isOpen() && b.rounds > 0);
 
     if (unitCount < b.rounds) {
       // split the batch or return the non-allocated units
@@ -360,7 +360,7 @@ abstract contract WeightedRoundsBase {
       if (splitRounds == 0) {
         return (0, false);
       }
-      require(unitCount >= splitRounds);
+      Sanity.require(unitCount >= splitRounds);
       // console.log('batchSplit-before', splitRounds, b.rounds, b.nextBatchNo);
       _splitBatch(splitRounds, b);
       // console.log('batchSplit-after', b.rounds, b.nextBatchNo);
@@ -388,7 +388,7 @@ abstract contract WeightedRoundsBase {
         if (addPerRound > n) {
           addPerRound = uint16(n);
         }
-        require(addPerRound > 0);
+        Sanity.require(addPerRound > 0);
 
         b.unitPerRound += addPerRound;
         b.roundPremiumRateSum += uint56(params.premiumRate) * addPerRound;
@@ -435,7 +435,7 @@ abstract contract WeightedRoundsBase {
   /// @param b The batch to add leftover rounds to
   function _splitBatch(uint24 remainingRounds, Rounds.Batch memory b) private {
     if (b.rounds == remainingRounds) return;
-    require(b.rounds > remainingRounds, 'split beyond size');
+    Sanity.require(b.rounds > remainingRounds);
 
     uint64 newBatchNo = ++_batchCount;
 
@@ -547,7 +547,7 @@ abstract contract WeightedRoundsBase {
 
     Rounds.Batch memory b;
     while (d.rounds > fullRounds) {
-      require(d.startBatchNo != 0);
+      Sanity.require(d.startBatchNo != 0);
       b = _batches[d.startBatchNo];
       // console.log('collectBatch', d.startBatchNo, b.nextBatchNo, b.rounds);
 
@@ -585,8 +585,8 @@ abstract contract WeightedRoundsBase {
       return true;
     }
 
-    require(d.rounds > fullRounds);
-    require(d.startBatchNo != 0);
+    Sanity.require(d.rounds > fullRounds);
+    Sanity.require(d.startBatchNo != 0);
     covered.lastUpdateRounds += fullRounds;
     covered.lastUpdateBatchNo = d.startBatchNo;
 
@@ -658,8 +658,7 @@ abstract contract WeightedRoundsBase {
       // normalization by unitSize to reduce storage requirements
       v += _calcTimeMarkPortion(premiumRate * mark.coverageTW, d.unitPerRound, uint256(_unitSize) * batchUnitPerRound);
     }
-    require(v <= type(uint96).max);
-    coveragePremium = uint96(v);
+    coveragePremium = v.asUint96();
 
     v = premium.coveragePremiumRate + premiumRate * uint256(rounds) * d.unitPerRound;
     if (pendingCovered > 0) {
@@ -667,7 +666,7 @@ abstract contract WeightedRoundsBase {
       // roundup is aggresive here to ensure that this pools is guaranteed to pay not less that it pays out
       v += (pendingCovered * premiumRate + (_unitSize - 1)) / _unitSize;
     }
-    require((coveragePremiumRate = uint64(v)) == v);
+    Value.require((coveragePremiumRate = uint64(v)) == v);
     // console.log('premiumAfter', coveragePremium, coveragePremiumRate);
   }
 
@@ -832,7 +831,7 @@ abstract contract WeightedRoundsBase {
       _poolPremium = params.premium;
     }
     if (params.openBatchUpdated) {
-      require(params.openBatchNo != 0);
+      Sanity.require(params.openBatchNo != 0);
       _firstOpenBatchNo = params.openBatchNo;
     }
     _partial = part;
@@ -859,7 +858,7 @@ abstract contract WeightedRoundsBase {
     b = _batches[part.batchNo];
 
     if (part.roundCoverage > 0) {
-      require(b.isReady(), 'wrong partial round'); // sanity check
+      Sanity.require(b.isReady());
 
       _updateTimeMark(part, b.unitPerRound);
 
@@ -884,8 +883,8 @@ abstract contract WeightedRoundsBase {
 
       // if filled in the final round of a batch
       if (part.roundNo >= b.rounds) {
-        require(part.roundNo == b.rounds);
-        require(part.roundCoverage == 0);
+        Sanity.require(part.roundNo == b.rounds);
+        Sanity.require(part.roundCoverage == 0);
 
         if (b.state != Rounds.State.Full) {
           b.state = Rounds.State.Full;
@@ -893,7 +892,7 @@ abstract contract WeightedRoundsBase {
 
           if (b.unitPerRound == 0) {
             // this is a special case when all units were removed by cancellations
-            require(b.rounds == 0);
+            Sanity.require(b.rounds == 0);
             // total premium doesn't need to be updated as the rate remains the same
           } else {
             _addPartialToTotalPremium(part.batchNo, params.premium, b);
@@ -941,7 +940,7 @@ abstract contract WeightedRoundsBase {
         uint256 n = amount / maxRoundCoverage;
 
         uint24 vacantRounds = b.rounds - part.roundNo;
-        require(vacantRounds > 0);
+        Sanity.require(vacantRounds > 0);
 
         if (n < vacantRounds) {
           // params.unitsCovered += n * b.unitPerRound;
@@ -989,7 +988,7 @@ abstract contract WeightedRoundsBase {
   /// of the coverage curve over time
   function _updateTimeMark(PartialState memory part, uint256 batchUnitPerRound) private {
     // console.log('==updateTimeMark', part.batchNo);
-    require(part.batchNo != 0);
+    Sanity.require(part.batchNo != 0);
     TimeMark memory mark = _marks[part.batchNo];
 
     if (mark.timestamp <= 1) {
@@ -1000,7 +999,7 @@ abstract contract WeightedRoundsBase {
       if (duration == 0) return;
 
       uint256 coverageTW = mark.coverageTW + (uint256(_unitSize) * part.roundNo * batchUnitPerRound + part.roundCoverage) * duration;
-      require(coverageTW == (mark.coverageTW = uint192(coverageTW)));
+      Value.require(coverageTW == (mark.coverageTW = uint192(coverageTW)));
 
       mark.duration += duration;
     }
@@ -1071,7 +1070,7 @@ abstract contract WeightedRoundsBase {
     // TODO problems: consider zero-round batches when adding demand and coverage
 
     Rounds.InsuredEntry storage entry = _insureds[params.insured];
-    require(entry.status == InsuredStatus.Accepted);
+    Access.require(entry.status == InsuredStatus.Accepted);
 
     _removeFromPullable(params.insured, entry.nextBatchNo);
 
@@ -1095,7 +1094,7 @@ abstract contract WeightedRoundsBase {
     entry.demandedUnits -= cancelledUnits;
 
     uint24 cancelFirstSlotRounds = uint24(demand.rounds - skippedRounds);
-    require(cancelFirstSlotRounds > 0);
+    Sanity.require(cancelFirstSlotRounds > 0);
 
     demand.rounds = uint24(skippedRounds);
 
@@ -1151,7 +1150,7 @@ abstract contract WeightedRoundsBase {
       if (params.done) {
         if (skippedRounds == demand.rounds) {
           // the whole demand slot was skipped, so use the previous one
-          require(cancelUnits == 0);
+          Sanity.require(cancelUnits == 0);
           index++;
           demand = prev;
           batchNo = prev.startBatchNo;
@@ -1160,7 +1159,7 @@ abstract contract WeightedRoundsBase {
         break;
       }
 
-      require(skippedRounds == 0);
+      Sanity.require(skippedRounds == 0);
     }
   }
 
@@ -1188,7 +1187,7 @@ abstract contract WeightedRoundsBase {
         Rounds.Batch storage batch = _batches[batchNo];
         skippedRounds += batch.rounds;
         if (skippedRounds >= demand.rounds) {
-          require(skippedRounds == demand.rounds);
+          Sanity.require(skippedRounds == demand.rounds);
           return (true, batchNo, 0, skippedRounds);
         }
         batchNo = batch.nextBatchNo;
@@ -1338,6 +1337,8 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  error DemandMustBeCancelled();
+
   /// @dev Cancel ALL coverage for the insured, including in the partial state
   /// @dev Deletes the coverage information and demands of the insured
   /// @return coverage The coverage info of the insured. IS FINALIZED
@@ -1370,14 +1371,13 @@ abstract contract WeightedRoundsBase {
     PartialState memory part = _partial;
 
     if (covered.lastUpdateIndex < demands.length) {
-      require(
-        covered.lastUpdateIndex == demands.length - 1 && covered.lastUpdateBatchNo == part.batchNo && covered.lastPartialRoundNo == part.roundNo,
-        'demand must be cancelled'
-      );
-
-      d = demands[covered.lastUpdateIndex];
+      if (covered.lastUpdateIndex == demands.length - 1 && covered.lastUpdateBatchNo == part.batchNo && covered.lastPartialRoundNo == part.roundNo) {
+        d = demands[covered.lastUpdateIndex];
+      } else {
+        revert DemandMustBeCancelled();
+      }
     } else {
-      require(entry.demandedUnits == covered.coveredUnits);
+      Sanity.require(entry.demandedUnits == covered.coveredUnits);
     }
 
     providedCoverage = covered.coveredUnits * _unitSize;
@@ -1416,7 +1416,7 @@ abstract contract WeightedRoundsBase {
     params.loopLimit = ~uint256(0);
 
     (coverage, covered, premium) = internalGetCoveredDemand(params);
-    require(params.done);
+    Sanity.require(params.done);
 
     receivedCoverage = params.receivedCoverage;
     receivedPremium = params.receivedPremium;
@@ -1434,7 +1434,7 @@ abstract contract WeightedRoundsBase {
     if (d.unitPerRound == 0) {
       return 0;
     }
-    require(d.unitPerRound <= b.unitPerRound);
+    Sanity.require(d.unitPerRound <= b.unitPerRound);
 
     {
       TimeMark storage mark = _marks[part.batchNo];
@@ -1469,8 +1469,7 @@ abstract contract WeightedRoundsBase {
   /// @dev Update the premium based on time elapsed and premium rate
   function _syncPremium(Rounds.CoveragePremium memory premium) private view returns (Rounds.CoveragePremium memory) {
     if (premium.lastUpdatedAt != 0) {
-      uint256 v = premium.coveragePremium + uint256(premium.coveragePremiumRate) * (uint32(block.timestamp) - premium.lastUpdatedAt);
-      require((premium.coveragePremium = uint96(v)) == v);
+      premium.coveragePremium += uint96(premium.coveragePremiumRate) * (uint32(block.timestamp) - premium.lastUpdatedAt);
     }
     premium.lastUpdatedAt = uint32(block.timestamp);
     return premium;
@@ -1483,8 +1482,7 @@ abstract contract WeightedRoundsBase {
   function _cancelPremium(Rounds.CoveragePremium memory premium, uint256 finalPremium) private returns (Rounds.CoveragePremium memory) {
     Rounds.CoveragePremium memory poolPremium = _syncPremium(_poolPremium);
 
-    finalPremium = finalPremium.wadDiv(_unitSize);
-    require(finalPremium <= type(uint96).max);
+    finalPremium = finalPremium.wadDiv(_unitSize).asUint96();
 
     poolPremium.coveragePremiumRate -= premium.coveragePremiumRate;
     poolPremium.coveragePremium += uint96(finalPremium - premium.coveragePremium);

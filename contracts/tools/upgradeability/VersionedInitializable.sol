@@ -35,6 +35,9 @@ abstract contract VersionedInitializable is IVersioned {
   /// @dev Indicates that the contract is in the process of being initialized.
   uint256 private lastInitializingRevision = 0;
 
+  error OnlyInsideConstructor();
+  error OnlyBeforeInitializer();
+
   /**
    * @dev There is a built-in protection from self-destruct of implementation exploits. This protection
    * prevents initializers from being called on an implementation inself, but only on proxied contracts.
@@ -42,12 +45,14 @@ abstract contract VersionedInitializable is IVersioned {
    * It must be called before any initializers, otherwise it will fail.
    */
   function _unsafeResetVersionedInitializers() internal {
-    require(isConstructor(), 'only for constructor');
+    if (!isConstructor()) {
+      revert OnlyInsideConstructor();
+    }
 
     if (lastInitializedRevision == IMPL_REVISION) {
       lastInitializedRevision = 0;
-    } else {
-      require(lastInitializedRevision == 0, 'can only be called before initializer(s)');
+    } else if (lastInitializedRevision != 0) {
+      revert OnlyBeforeInitializer();
     }
   }
 
@@ -85,6 +90,13 @@ abstract contract VersionedInitializable is IVersioned {
     }
   }
 
+  error WrongContractRevision();
+  error WrongInitializerRevision();
+  error InconsistentContractRevision();
+  error AlreadyInitialized();
+  error InitializerBlockedOff();
+  error WrongOrderOfInitializers();
+
   function _preInitializer(uint256 localRevision)
     private
     returns (
@@ -94,18 +106,27 @@ abstract contract VersionedInitializable is IVersioned {
     )
   {
     topRevision = getRevision();
-    require(topRevision < IMPL_REVISION, 'invalid contract revision');
+    if (topRevision >= IMPL_REVISION) {
+      revert WrongContractRevision();
+    }
 
-    require(localRevision > 0, 'incorrect initializer revision');
-    require(localRevision <= topRevision, 'inconsistent contract revision');
+    if (localRevision > topRevision) {
+      revert InconsistentContractRevision();
+    } else if (localRevision == 0) {
+      revert WrongInitializerRevision();
+    }
 
     if (lastInitializedRevision < IMPL_REVISION) {
       // normal initialization
       initializing = lastInitializingRevision > 0 && lastInitializedRevision < topRevision;
-      require(initializing || isConstructor() || topRevision > lastInitializedRevision, 'already initialized');
+      if (!(initializing || isConstructor() || topRevision > lastInitializedRevision)) {
+        revert AlreadyInitialized();
+      }
     } else {
       // by default, initialization of implementation is only allowed inside a constructor
-      require(lastInitializedRevision == IMPL_REVISION && isConstructor(), 'initializer blocked');
+      if (!(lastInitializedRevision == IMPL_REVISION && isConstructor())) {
+        revert InitializerBlockedOff();
+      }
 
       // enable normal use of initializers inside a constructor
       lastInitializedRevision = 0;
@@ -115,8 +136,8 @@ abstract contract VersionedInitializable is IVersioned {
       initializing = lastInitializingRevision > 0;
     }
 
-    if (initializing) {
-      require(lastInitializingRevision > localRevision, 'incorrect order of initializers');
+    if (initializing && lastInitializingRevision <= localRevision) {
+      revert WrongOrderOfInitializers();
     }
 
     if (localRevision <= lastInitializedRevision) {
@@ -126,9 +147,8 @@ abstract contract VersionedInitializable is IVersioned {
         // Further calls will fail with the `incorrect order` assertion above.
         lastInitializingRevision = 1;
       }
-      return (topRevision, initializing, true);
+      skip = true;
     }
-    return (topRevision, initializing, false);
   }
 
   function isRevisionInitialized(uint256 localRevision) internal view returns (bool) {

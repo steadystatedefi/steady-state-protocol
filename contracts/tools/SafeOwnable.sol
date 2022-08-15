@@ -52,57 +52,67 @@ abstract contract SafeOwnable {
     return (_lastOwner, _activeOwner, _pendingOwner);
   }
 
-  /// @dev Reverts if called by any account other than the owner.
-  /// Will also revert after transferOwnership() when neither acceptOwnership() nor recoverOwnership() was called.
-  modifier onlyOwner() {
+  function _onlyOwner() private view {
     require(
       _activeOwner == msg.sender,
       _pendingOwner == msg.sender ? 'Ownable: caller is not the owner (pending)' : 'Ownable: caller is not the owner'
     );
+  }
+
+  /// @dev Reverts if called by any account other than the owner.
+  /// Will also revert after transferOwnership() when neither acceptOwnership() nor recoverOwnership() was called.
+  modifier onlyOwner() {
+    _onlyOwner();
     _;
   }
 
   /**
-   * @dev Leaves the contract without owner. It will not be possible to call
-   * `onlyOwner` functions anymore. Can only be called by the current owner.
+   * @dev Initiate ownership renouncment. After cempletion of renouncment, the contract will be without an owner.
+   * It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner.
    *
-   * NOTE: Renouncing ownership will leave the contract without an owner,
-   * thereby removing any functionality that is only available to the owner.
+   * NB! To complete renouncment, current owner must call acceptOwnershipTransfer()
    */
   function renounceOwnership() external onlyOwner {
-    emit OwnershipTransferred(_activeOwner, address(0));
-    _activeOwner = address(0);
-    _pendingOwner = address(0);
-    _lastOwner = address(0);
+    _initiateOwnershipTransfer(address(0));
   }
 
   /// @dev Initiates ownership transfer of the contract to a new account `newOwner`.
-  /// Can only be called by the current owner. The new owner must call acceptOwnership() to get the ownership.
+  /// Can only be called by the current owner. The new owner must call acceptOwnershipTransfer() to get the ownership.
   function transferOwnership(address newOwner) external onlyOwner {
     require(newOwner != address(0), 'Ownable: new owner is the zero address');
+    _initiateOwnershipTransfer(newOwner);
+  }
+
+  function _initiateOwnershipTransfer(address newOwner) private {
     emit OwnershipTransferring(msg.sender, newOwner);
     _pendingOwner = newOwner;
     _lastOwner = _activeOwner;
     _activeOwner = address(0);
   }
 
-  /// @dev Accepts ownership of this contract. Can only be called by the new owner set with transferOwnership().
-  function acceptOwnership() external {
-    require(_activeOwner == address(0) && _pendingOwner == msg.sender, 'SafeOwnable: caller is not the pending owner');
+  /// @dev Accepts ownership of this contract. Can be called:
+  // - by the new owner set with transferOwnership(); or
+  // - by the last owner to confirm renouncement after renounceOwnership().
+  function acceptOwnershipTransfer() external {
+    address pendingOwner = _pendingOwner;
+    address lastOwner = _lastOwner;
+    require(
+      _activeOwner == address(0) && (pendingOwner == msg.sender || (pendingOwner == address(0) && lastOwner == msg.sender)),
+      'SafeOwnable: caller is not the pending owner'
+    );
 
-    emit OwnershipTransferred(_lastOwner, msg.sender);
+    emit OwnershipTransferred(lastOwner, pendingOwner);
     _lastOwner = address(0);
-    _activeOwner = msg.sender;
+    _activeOwner = pendingOwner;
   }
 
   /// @dev Recovers ownership of this contract to the last owner after transferOwnership(),
   /// unless acceptOwnership() was already called by the new owner.
   function recoverOwnership() external {
     require(_activeOwner == address(0) && _lastOwner == msg.sender, 'SafeOwnable: caller can not recover ownership');
-    emit OwnershipTransferring(msg.sender, address(0));
     emit OwnershipTransferred(msg.sender, msg.sender);
     _pendingOwner = msg.sender;
-    _lastOwner = address(0);
     _activeOwner = msg.sender;
+    _lastOwner = address(0);
   }
 }

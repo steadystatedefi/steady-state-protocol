@@ -341,14 +341,14 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const { availableCoverage: expectedCollateral } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
     expect(expectedCollateral).gt(0);
 
-    await insured.reconcileWithAllInsurers(); // required to cancel
+    await insured.reconcileWithInsurers(0, 0); // required to cancel
 
     const receivedCollateral = await cc.balanceOf(insured.address);
     expect(receivedCollateral).eq(expectedCollateral.mul(100 - drawdownPct).div(100)); // drawdown withholded
     expect(receivedCollateral).eq(await insured.totalReceivedCollateral());
     expect(receivedCollateral.add(await cc.balanceOf(pool.address))).eq(totalInvested);
 
-    await insured.reconcileWithAllInsurers(); // repeated call should do nothing
+    await insured.reconcileWithInsurers(0, 0); // repeated call should do nothing
 
     expect(receivedCollateral).eq(await cc.balanceOf(insured.address));
     expect(receivedCollateral).eq(await insured.totalReceivedCollateral());
@@ -441,7 +441,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     const insured = insureds[1];
 
-    await insured.reconcileWithAllInsurers(); // required to cancel
+    await insured.reconcileWithInsurers(0, 0); // required to cancel
 
     const adj0 = await pool.getPendingAdjustments();
 

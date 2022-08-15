@@ -25,7 +25,7 @@ contract JoinablePoolExtension is IJoinableBase, WeightedPoolStorage {
     internalRequestJoin(insured);
   }
 
-  function approveJoiner(address insured, bool accepted) external {
+  function approveJoiner(address insured, bool accepted) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
     internalProcessJoin(insured, accepted);
   }
 }

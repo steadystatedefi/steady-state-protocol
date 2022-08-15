@@ -26,11 +26,16 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
+  event AssetAdded(address indexed asset);
+  event AssetRemoved(address indexed asset);
+
   function registerStakeAsset(address asset, bool register) external override onlyCollateralCurrency {
     if (register) {
       internalAddAsset(asset);
+      emit AssetAdded(asset);
     } else {
       internalRemoveAsset(asset);
+      emit AssetRemoved(asset);
     }
   }
 
@@ -83,12 +88,15 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
     return true;
   }
 
+  event YieldPayout(address indexed source, uint256 amount, uint256 expectedRate);
+
   function addYieldPayout(uint256 amount, uint256 expectedRate) external {
     if (amount > 0) {
       transferCollateralFrom(msg.sender, address(this), amount);
     }
     internalSyncTotal();
     internalAddYieldPayout(msg.sender, amount, expectedRate);
+    emit YieldPayout(msg.sender, amount, expectedRate);
   }
 
   function addYieldSource(address source, uint8 sourceType) external aclHas(AccessFlags.BORROWER_ADMIN) {

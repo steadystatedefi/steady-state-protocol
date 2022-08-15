@@ -226,6 +226,8 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
   }
 
+  event AssetUpdated(address indexed asset, uint256 stakedTotal, uint256 collateralFactor);
+
   function _updateAsset(
     IYieldStakeAsset asset,
     uint256 collateralFactor,
@@ -246,6 +248,8 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
 
     uint256 newCollateral = uint256(assetBalance.stakedTokenTotal).rayMul(collateralFactor);
 
+    emit AssetUpdated(address(asset), assetBalance.stakedTokenTotal, collateralFactor);
+
     _assetBalances[asset] = assetBalance;
 
     if (newCollateral != prevCollateral) {
@@ -259,6 +263,8 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
   }
 
   function internalOnStakedCollateralChanged(uint256 prevStaked, uint256 newStaked) internal virtual {}
+
+  event StakeUpdated(address indexed asset, address indexed account, uint256 staked);
 
   function _updateAssetAndUser(
     IYieldStakeAsset asset,
@@ -306,6 +312,8 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
       _userAssets[account][index] = asset;
     }
     balance.stakedTokenAmount = balanceAfter.asUint112();
+
+    emit StakeUpdated(address(asset), account, balanceAfter);
   }
 
   function _syncPresentAsset(IYieldStakeAsset asset, uint256 totalIntegral) private view returns (AssetBalance memory assetBalance) {
@@ -415,6 +423,8 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     }
   }
 
+  event YieldClaimed(address indexed account, uint256 amount);
+
   function _transferYield(
     address account,
     uint256 amount,
@@ -437,6 +447,8 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
       }
       cc.transferOnBehalf(account, to, amount);
     }
+
+    emit YieldClaimed(account, amount);
     return amount;
   }
 
@@ -450,13 +462,20 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
     return _totalBorrowedCollateral;
   }
 
+  event CollateralBorrowUpdate(uint256 totalStakedCollateral, uint256 totalBorrowedCollateral);
+
   function internalApplyBorrow(uint256 value) internal {
     uint256 totalBorrowed = _totalBorrowedCollateral + value;
-    State.require(totalBorrowed <= _totalStakedCollateral);
+    uint256 totalStaked = _totalStakedCollateral;
+
+    State.require(totalBorrowed <= totalStaked);
+
     _totalBorrowedCollateral = totalBorrowed.asUint128();
+
+    emit CollateralBorrowUpdate(totalStaked, totalBorrowed);
   }
 
   function internalApplyRepay(uint256 value) internal {
-    _totalBorrowedCollateral = uint128(_totalBorrowedCollateral - value);
+    emit CollateralBorrowUpdate(_totalStakedCollateral, _totalBorrowedCollateral = uint128(_totalBorrowedCollateral - value));
   }
 }
