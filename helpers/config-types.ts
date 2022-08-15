@@ -78,6 +78,9 @@ type RealAssets<Tokens extends string> = Exclude<Tokens, keyof typeof simulatedA
 export interface INetworkConfiguration<Tokens extends string = string> {
   Owner?: EthereumAddress;
   EmergencyAdmins?: EthereumAddress[];
+  Commons: {
+    unitSize: BigNumber;
+  };
   Assets: ParamPer<RealAssets<Tokens>, EthereumAddress>;
   CollateralCurrency: ICollateralCurrency<Tokens>;
   CollateralFund: ICollateralFund<RealAssets<Tokens>>;

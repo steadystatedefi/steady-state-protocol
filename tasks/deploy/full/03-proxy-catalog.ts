@@ -5,7 +5,7 @@ import { formatBytes32String } from 'ethers/lib/utils';
 import { AccessFlags } from '../../../helpers/access-flags';
 import { loadNetworkConfig } from '../../../helpers/config-loader';
 import { getAssetAddress } from '../../../helpers/config-types';
-import { MAX_UINT, WAD } from '../../../helpers/constants';
+import { MAX_UINT } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { getOrDeploy, NamedDeployable } from '../../../helpers/factory-wrapper';
@@ -96,7 +96,7 @@ deployTask(
     );
 
     {
-      const unitSize = WAD;
+      const unitSize = cfg.Commons.unitSize;
       const args = { args: [accessController.address, unitSize, cc.address] as [string, BigNumberish, string] };
 
       const [ext0] = await getOrDeploy(Factories.ImperpetualPoolExtension, '', () => args);

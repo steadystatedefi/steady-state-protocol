@@ -27,6 +27,7 @@ const stepCatalog = new Map<
 >();
 
 stepCatalog.set('full', []);
+stepCatalog.set('dev', []);
 
 const defaultParams = (params: IDeployStepParams) => Promise.resolve({ cfg: params.cfg, verify: params.verify });
 

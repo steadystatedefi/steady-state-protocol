@@ -1,4 +1,5 @@
 import { IConfiguration, INetworkConfiguration } from './config-types';
+import { DevConfig } from './config/dev';
 import { FullConfig } from './config/full';
 import { getNetworkName } from './runtime-utils';
 
@@ -8,7 +9,7 @@ export enum ConfigNames {
 }
 
 const configs: Record<keyof typeof ConfigNames, IConfiguration> = {
-  Test: FullConfig,
+  Test: DevConfig,
   Full: FullConfig,
 };
 

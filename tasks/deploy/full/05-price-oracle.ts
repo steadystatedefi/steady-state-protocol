@@ -117,7 +117,7 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
     });
 
     if (filteredAssetAddrs.length > 0) {
-      console.log('Adding price sources:', filteredAssetAddrs.length);
+      console.log('Adding price sources:', filteredAssetAddrs.length, filteredAssetAddrs);
       await mustWaitTx(router.setPriceSources(filteredAssetAddrs, filteredAssetInfos));
     }
 
