@@ -106,27 +106,9 @@ abstract contract InsuredPoolBase is
     internalJoinProcessed(msg.sender, accepted);
   }
 
-  ///@notice Reconcile with all chartered insurers
-  /// @return receivedCoverage Returns the amount of coverage received
-  /// @return receivedCollateral Returns the amount of collateral received (<= receivedCoverage)
-  /// @return demandedCoverage Total amount of coverage demanded
-  /// @return providedCoverage Total coverage provided (demand satisfied)
-  function reconcileWithAllInsurers()
-    external
-    onlyGovernorOr(AccessFlags.INSURED_OPS)
-    returns (
-      uint256 receivedCoverage,
-      uint256 receivedCollateral,
-      uint256 demandedCoverage,
-      uint256 providedCoverage
-    )
-  {
-    return _reconcileWithInsurers(0, type(uint256).max);
-  }
-
   /// @notice Reconcile the coverage and premium with chartered insurers
   /// @param startIndex Index to start at
-  /// @param count Max amount of insurers to reconcile with
+  /// @param count Max amount of insurers to reconcile with, 0 == max
   /// @return receivedCoverage Returns the amount of coverage received
   /// @return receivedCollateral Returns the amount of collateral received (<= receivedCoverage)
   /// @return demandedCoverage Total amount of coverage demanded
@@ -141,7 +123,7 @@ abstract contract InsuredPoolBase is
       uint256 providedCoverage
     )
   {
-    return _reconcileWithInsurers(startIndex, count);
+    return _reconcileWithInsurers(startIndex, count > 0 ? count : type(uint256).max);
   }
 
   /// @dev Go through each insurer and reconcile with them
@@ -202,7 +184,7 @@ abstract contract InsuredPoolBase is
   }
 
   /// @notice Get the values if reconciliation were to occur with all insurers
-  function receivableByReconcileWithAllInsurers()
+  function receivableByReconcileWithInsurers(uint256 startIndex, uint256 count)
     external
     view
     returns (
@@ -213,7 +195,7 @@ abstract contract InsuredPoolBase is
       uint256 accumulated
     )
   {
-    return _reconcileWithInsurersView(0, type(uint256).max);
+    return _reconcileWithInsurersView(startIndex, count > 0 ? count : type(uint256).max);
   }
 
   // TODO cancelCoverageDemnad

@@ -282,7 +282,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   it('Reconcile', async () => {
     for (const insured of insureds) {
       const { coverage: coverage0 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
-      await insured.reconcileWithAllInsurers();
+      await insured.reconcileWithInsurers(0, 0);
 
       const { coverage } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       expect(coverage0.totalDemand).eq(coverage.totalDemand);
