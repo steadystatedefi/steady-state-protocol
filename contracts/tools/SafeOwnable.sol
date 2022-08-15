@@ -52,13 +52,17 @@ abstract contract SafeOwnable {
     return (_lastOwner, _activeOwner, _pendingOwner);
   }
 
-  /// @dev Reverts if called by any account other than the owner.
-  /// Will also revert after transferOwnership() when neither acceptOwnership() nor recoverOwnership() was called.
-  modifier onlyOwner() {
+  function _onlyOwner() private view {
     require(
       _activeOwner == msg.sender,
       _pendingOwner == msg.sender ? 'Ownable: caller is not the owner (pending)' : 'Ownable: caller is not the owner'
     );
+  }
+
+  /// @dev Reverts if called by any account other than the owner.
+  /// Will also revert after transferOwnership() when neither acceptOwnership() nor recoverOwnership() was called.
+  modifier onlyOwner() {
+    _onlyOwner();
     _;
   }
 
@@ -73,7 +77,7 @@ abstract contract SafeOwnable {
   }
 
   /// @dev Initiates ownership transfer of the contract to a new account `newOwner`.
-  /// Can only be called by the current owner. The new owner must call acceptOwnership() to get the ownership.
+  /// Can only be called by the current owner. The new owner must call acceptOwnershipTransfer() to get the ownership.
   function transferOwnership(address newOwner) external onlyOwner {
     require(newOwner != address(0), 'Ownable: new owner is the zero address');
     _initiateOwnershipTransfer(newOwner);
