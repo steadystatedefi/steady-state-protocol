@@ -126,8 +126,8 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
 
   const reconcilePools = async () => {
     for (const insured of insureds) {
-      const tx = await mustWaitTx(insured.reconcileWithAllInsurers());
-      const coverage = await insured.receivableByReconcileWithAllInsurers();
+      const tx = await mustWaitTx(insured.reconcileWithInsurers(0, 0));
+      const coverage = await insured.receivableByReconcileWithInsurers(0, 0);
       console.log(
         `${iteration}\tReconcile\t${insured.address}\t${coverage.providedCoverage.toString()}\t${tx.gasUsed.toString()}`
       );

@@ -367,7 +367,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
   it('Fails to cancel coverage with coverage demand present', async () => {
     const insured = insureds[0];
-    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('demand must be cancelled');
+    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith(testEnv.covReason('DemandMustBeCancelled()'));
   });
 
   it('Cancel coverage demand for insureds[0]', async () => {
@@ -443,7 +443,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       const { availableCoverage: expectedCollateral } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
       expect(expectedCollateral).gt(0);
 
-      await insured.reconcileWithAllInsurers(); // required to cancel
+      await insured.reconcileWithInsurers(0, 0); // required to cancel
 
       const receivedCollateral = await cc.balanceOf(insured.address);
       expect(receivedCollateral).eq(expectedCollateral);
@@ -632,7 +632,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
           insured.address,
           0
         );
-        await insured.reconcileWithAllInsurers();
+        await insured.reconcileWithInsurers(0, 0);
         const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
 
         expect(await cc.balanceOf(insured.address)).eq(expectedCollateral);
@@ -674,7 +674,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     const insured = insureds[1];
 
-    await insured.reconcileWithAllInsurers(); // required to cancel
+    await insured.reconcileWithInsurers(0, 0); // required to cancel
 
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
@@ -742,7 +742,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     const insured = insureds[2];
 
-    await insured.reconcileWithAllInsurers(); // required to cancel
+    await insured.reconcileWithInsurers(0, 0); // required to cancel
 
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);

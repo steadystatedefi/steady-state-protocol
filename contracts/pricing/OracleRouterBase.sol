@@ -23,7 +23,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
 
   function _onlyOracleAdmin() private view {
     if (!hasAnyAcl(msg.sender, AccessFlags.PRICE_ROUTER_ADMIN)) {
-      revert Errors.CalllerNotOracleAdmin();
+      revert Errors.CallerNotOracleAdmin();
     }
   }
 
@@ -171,52 +171,70 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
+  event SourceStaticUpdated(address indexed asset, uint256 value);
+  event SourceStaticConfigured(address indexed asset, uint256 value, uint8 decimals, address xPrice);
+  event SourceFeedConfigured(address indexed asset, address source, uint8 decimals, address xPrice, uint8 feedType, uint8 callFlags);
+
   function _setStaticValue(address asset, uint256 value) private {
+    Value.require(asset != _quote);
+
     internalSetStatic(asset, value, 0);
+    emit SourceStaticUpdated(asset, value);
   }
 
   function _setPriceSource(address asset, PriceSource calldata source) private {
+    Value.require(asset != _quote);
+
     if (source.feedType == PriceFeedType.StaticValue) {
-      _setStaticValue(asset, source.feedConstValue);
+      internalSetStatic(asset, source.feedConstValue, 0);
+
+      emit SourceStaticConfigured(asset, source.feedConstValue, source.decimals, source.crossPrice);
     } else {
       uint8 callFlags;
       if (source.feedType == PriceFeedType.UniSwapV2Pair) {
         callFlags = _setupUniswapV2(source.feedContract, asset);
       }
       internalSetSource(asset, uint8(source.feedType), source.feedContract, callFlags);
+
+      emit SourceFeedConfigured(asset, source.feedContract, source.decimals, source.crossPrice, uint8(source.feedType), callFlags);
     }
     internalSetConfig(asset, source.decimals, source.crossPrice, 0);
   }
 
-  function setPriceSourceRange(
+  event PriceRangeUpdated(address indexed asset, uint256 targetPrice, uint16 tolerancePct);
+
+  function setSafePriceRange(
     address asset,
     uint256 targetPrice,
     uint16 tolerancePct
   ) external override onlyOracleAdmin {
-    Value.require(asset != address(0));
+    Value.require(asset != address(0) && asset != _quote);
 
     internalSetPriceTolerance(asset, targetPrice, tolerancePct);
+    emit PriceRangeUpdated(asset, targetPrice, tolerancePct);
   }
 
   function getPriceSourceRange(address asset) external view override returns (uint256 targetPrice, uint16 tolerancePct) {
     (, , , targetPrice, tolerancePct) = internalGetSource(asset);
   }
 
+  event SourceGroupResetted(address indexed account, uint256 mask);
+
   function resetSourceGroupByAdmin(uint256 mask) external override onlyOracleAdmin {
     internalResetGroup(mask);
+    emit SourceGroupResetted(address(0), mask);
   }
 
   function internalResetGroup(uint256 mask) internal virtual;
 
   function internalRegisterGroup(address account, uint256 mask) internal virtual;
 
-  function registerSourceGroup(
-    address account,
-    uint256 mask,
-    bool register
-  ) external override onlyOracleAdmin {
+  event SourceGroupConfigured(address indexed account, uint256 mask);
+
+  function configureSourceGroup(address account, uint256 mask) external override onlyOracleAdmin {
     Value.require(account != address(0));
-    internalRegisterGroup(account, register ? mask : 0);
+    internalRegisterGroup(account, mask);
+    emit SourceGroupConfigured(account, mask);
   }
 
   function groupsOf(address) external view virtual returns (uint256 memberOf, uint256 ownerOf);

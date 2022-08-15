@@ -59,7 +59,7 @@ abstract contract WeightedPoolBase is
     _delegate(_joinExtension);
   }
 
-  function approveJoiner(address, bool) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
+  function approveJoiner(address, bool) external {
     _delegate(_joinExtension);
   }
 
@@ -96,12 +96,15 @@ abstract contract WeightedPoolBase is
 
   function internalCollectDrawdownPremium() internal virtual returns (uint256);
 
+  event SubrogationAdded(uint256 value);
+
   function addSubrogation(address donor, uint256 value) external aclHas(AccessFlags.INSURER_OPS) {
     if (value > 0) {
       transferCollateralFrom(donor, address(this), value);
       internalSubrogated(value);
       internalOnCoverageRecovered();
       internalOnCoveredUpdated();
+      emit SubrogationAdded(value);
     }
   }
 
@@ -148,8 +151,11 @@ abstract contract WeightedPoolBase is
 
   function internalMintForCoverage(address account, uint256 value) internal virtual;
 
+  event Paused(bool);
+
   function setPaused(bool paused) external onlyEmergencyAdmin {
     _paused = paused;
+    emit Paused(paused);
   }
 
   function isPaused() public view returns (bool) {
@@ -174,6 +180,10 @@ abstract contract WeightedPoolBase is
 
   function collateralSupply() public view override returns (uint256) {
     return _coveredTotal() + _excessCoverage;
+  }
+
+  function totalPremiumRate() external view returns (uint256) {
+    return super.internalGetPremiumTotals().premiumRate;
   }
 
   function internalPullDemand(uint256 loopLimit) internal {
