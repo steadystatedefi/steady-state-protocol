@@ -3,7 +3,9 @@ import { BigNumber, BigNumberish, Contract } from 'ethers';
 import { formatBytes32String } from 'ethers/lib/utils';
 
 import { AccessFlags } from '../../../helpers/access-flags';
-import { MAX_UINT, USD_ADDRESS, WAD } from '../../../helpers/constants';
+import { loadNetworkConfig } from '../../../helpers/config-loader';
+import { getAssetAddress } from '../../../helpers/config-types';
+import { MAX_UINT, WAD } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { getOrDeploy, NamedDeployable } from '../../../helpers/factory-wrapper';
@@ -19,7 +21,9 @@ deployTask(
   `Deploy ${factory.toString()} and default implementations`,
   __dirname
 ).setAction(
-  dreAction(async () => {
+  dreAction(async ({ cfg: configName }) => {
+    const cfg = loadNetworkConfig(configName as string);
+
     const accessController = Factories.AccessController.get();
     const cc = Factories.CollateralCurrency.get();
 
@@ -62,16 +66,18 @@ deployTask(
     };
 
     await addImpl(ProxyTypes.APPROVAL_CATALOG, Factories.ApprovalCatalogV1, [accessController.address], zeroAddress());
+
+    const quoteTokenAddr = getAssetAddress(cfg, cfg.CollateralCurrency.quoteToken);
     await addImpl(
       ProxyTypes.ORACLE_ROUTER,
       Factories.OracleRouterV1,
-      [accessController.address, USD_ADDRESS],
+      [accessController.address, quoteTokenAddr],
       zeroAddress()
     );
     await addImpl(
       ProxyTypes.COLLATERAL_FUND,
       Factories.CollateralFundV1,
-      [accessController.address, cc.address, 1],
+      [accessController.address, cc.address, cfg.CollateralFund.fuseMask ?? 0],
       cc.address
     );
     await addImpl(

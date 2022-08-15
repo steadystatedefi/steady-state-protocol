@@ -5,10 +5,10 @@ import { Interface } from 'ethers/lib/utils';
 import * as types from '../types';
 
 import { ExtractInterface, getDefaultDeployer, UnnamedAttachable } from './factory-wrapper';
-import { tEthereumAddress } from './types';
+import { EthereumAddress } from './types';
 
 interface InterfaceFactory<TResult extends Contract> {
-  connect(address: tEthereumAddress, signerOrProvider: Signer): TResult;
+  connect(address: EthereumAddress, signerOrProvider: Signer): TResult;
   createInterface(): Interface;
 }
 
@@ -16,7 +16,7 @@ const iface = <TResult extends Contract>(F: InterfaceFactory<TResult>): UnnamedA
   new (class implements UnnamedAttachable<TResult> {
     readonly interface = F.createInterface() as ExtractInterface<TResult>;
 
-    attach(address: tEthereumAddress): TResult {
+    attach(address: EthereumAddress): TResult {
       return F.connect(address, getDefaultDeployer());
     }
   })();

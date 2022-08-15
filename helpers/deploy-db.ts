@@ -5,12 +5,12 @@ import FileSync from 'lowdb/adapters/FileSync';
 import { stringifyArgs } from './contract-verification';
 import { DRE } from './dre';
 import { falsyOrZeroAddress, isForkNetwork } from './runtime-utils';
-import { tEthereumAddress } from './types';
+import { EthereumAddress } from './types';
 
 const getDb = () => low(new FileSync('./deployed-contracts.json'));
 
 export interface DbNamedEntry {
-  address: tEthereumAddress;
+  address: EthereumAddress;
   count: number;
 }
 
@@ -90,8 +90,8 @@ export function addContractAddrToJsonDb(
 
 export const addProxyToJsonDb = (
   id: string,
-  proxyAddress: tEthereumAddress,
-  implAddress: tEthereumAddress,
+  proxyAddress: EthereumAddress,
+  implAddress: EthereumAddress,
   subType: string,
   verifyArgs?: unknown[]
 ): void => {
@@ -114,7 +114,7 @@ export const addProxyToJsonDb = (
   db.set(`${currentNetwork}.external.${proxyAddress}`, logEntry).write();
 };
 
-export const addExternalToJsonDb = (id: string, address: tEthereumAddress, verifyArgs?: unknown[]): void => {
+export const addExternalToJsonDb = (id: string, address: EthereumAddress, verifyArgs?: unknown[]): void => {
   const currentNetwork = DRE.network.name;
   const db = getDb();
 
@@ -131,7 +131,7 @@ export const addExternalToJsonDb = (id: string, address: tEthereumAddress, verif
   db.set(`${currentNetwork}.external.${address}`, logEntry).write();
 };
 
-export const addNamedToJsonDb = (contractId: string, contractAddress: tEthereumAddress): void => {
+export const addNamedToJsonDb = (contractId: string, contractAddress: EthereumAddress): void => {
   const currentNetwork = DRE.network.name;
   const db = getDb();
 
@@ -144,20 +144,20 @@ export const addNamedToJsonDb = (contractId: string, contractAddress: tEthereumA
   }).write();
 };
 
-export const setVerifiedToJsonDb = (address: tEthereumAddress, verified: boolean): void => {
+export const setVerifiedToJsonDb = (address: EthereumAddress, verified: boolean): void => {
   const currentNetwork = DRE.network.name;
   const db = getDb();
 
   db.set(`${currentNetwork}.verified.${address}`, verified).write();
 };
 
-export const getVerifiedFromJsonDb = (address: tEthereumAddress): Promise<boolean> => {
+export const getVerifiedFromJsonDb = (address: EthereumAddress): Promise<boolean> => {
   const currentNetwork = DRE.network.name;
   const db = getDb();
   return db.get(`${currentNetwork}.verified.${address}`).value() as Promise<boolean>;
 };
 
-export const getInstanceFromJsonDb = (address: tEthereumAddress): DbInstanceEntry =>
+export const getInstanceFromJsonDb = (address: EthereumAddress): DbInstanceEntry =>
   <DbInstanceEntry>getDb().get(`${DRE.network.name}.instance.${address}`).value();
 
 export const getInstancesFromJsonDb = (): [string, DbInstanceEntry][] => {
@@ -191,17 +191,17 @@ export const getFromJsonDb = <T>(id: string): T => {
   return collection.value() as T;
 };
 
-export const getAddrFromJsonDb = (id: string): string => getFromJsonDb<{ address: tEthereumAddress }>(id)?.address;
+export const getAddrFromJsonDb = (id: string): string => getFromJsonDb<{ address: EthereumAddress }>(id)?.address;
 
 export const getFromJsonDbByAddr = (id: string): DbInstanceEntry =>
   getDb().get(`${DRE.network.name}.instance.${id}`).value() as DbInstanceEntry;
 
 export const hasInJsonDb = (id: string): boolean =>
-  !falsyOrZeroAddress(getFromJsonDb<{ address: tEthereumAddress }>(id)?.address);
+  !falsyOrZeroAddress(getFromJsonDb<{ address: EthereumAddress }>(id)?.address);
 
 export const getInstanceCountFromJsonDb = (): number => getInstancesFromJsonDb().length;
 
-export const printContracts = (deployer: string): [Map<string, tEthereumAddress>, number, number] => {
+export const printContracts = (deployer: string): [Map<string, EthereumAddress>, number, number] => {
   const currentNetwork = DRE.network.name;
 
   console.log('Contracts deployed at', currentNetwork, 'by', deployer);
@@ -211,7 +211,7 @@ export const printContracts = (deployer: string): [Map<string, tEthereumAddress>
   const logEntries = getInstancesFromJsonDb();
 
   let multiCount = 0;
-  const entryMap = new Map<string, tEthereumAddress>();
+  const entryMap = new Map<string, EthereumAddress>();
 
   entries.forEach(([key, value]: [string, DbNamedEntry]) => {
     if (key.startsWith('~')) {

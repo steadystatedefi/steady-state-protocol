@@ -17,7 +17,12 @@ deployTask(`full:deploy-access-controller`, `Deploy ${factory.toString()}`, __di
     const deployer = getDefaultDeployer();
     if (deployer.address !== (await ac.getTemporaryAdmin()).admin) {
       await mustWaitTx(ac.setTemporaryAdmin(deployer.address, 3600));
-      await mustWaitTx(ac.grantRoles(deployer.address, AccessFlags.LP_DEPLOY + AccessFlags.INSURER_ADMIN));
+      await mustWaitTx(
+        ac.grantRoles(
+          deployer.address,
+          AccessFlags.LP_DEPLOY + AccessFlags.INSURER_ADMIN + AccessFlags.PRICE_ROUTER_ADMIN
+        )
+      );
     }
   })
 );

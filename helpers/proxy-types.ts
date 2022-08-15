@@ -7,3 +7,9 @@ export const ProxyTypes = {
   IMPERPETUAL_INDEX_POOL: 'IMPERPETUAL_INDEX_POOL',
   INSURED_POOL: 'INSURED_POOL',
 } as const;
+
+export enum PriceFeedType {
+  StaticValue,
+  ChainLinkV3,
+  UniSwapV2Pair,
+}

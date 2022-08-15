@@ -1,3 +1,4 @@
+import { loadNetworkConfig } from '../../../helpers/config-loader';
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { getOrDeploy } from '../../../helpers/factory-wrapper';
@@ -8,13 +9,16 @@ const factory = Factories.CollateralCurrency;
 // TODO make CC upgradeable
 
 deployTask(`full:deploy-collateral-currency`, `Deploy ${factory.toString()}`, __dirname).setAction(
-  dreAction(() =>
-    getOrDeploy(factory, '', () => {
+  dreAction(async ({ cfg: configName }) => {
+    const cfg = loadNetworkConfig(configName as string);
+
+    await getOrDeploy(factory, '', () => {
       const accessController = Factories.AccessController.get();
+      const ccDetails = cfg.CollateralCurrency;
 
       return {
-        args: [accessController.address, 'Collateral Currency', 'CC'] as [string, string, string],
+        args: [accessController.address, ccDetails.name, ccDetails.symbol] as [string, string, string],
       };
-    })
-  )
+    });
+  })
 );

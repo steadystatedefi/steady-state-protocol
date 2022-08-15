@@ -3,7 +3,7 @@ import { BigNumber } from 'ethers';
 
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime, increaseTime } from '../../helpers/runtime-utils';
-import { tEthereumAddress } from '../../helpers/types';
+import { EthereumAddress } from '../../helpers/types';
 import { MockWeightedRounds } from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
@@ -13,9 +13,9 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   const ratePerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let subj: MockWeightedRounds;
-  let insured1: tEthereumAddress;
-  let insured2: tEthereumAddress;
-  let insured3: tEthereumAddress;
+  let insured1: EthereumAddress;
+  let insured2: EthereumAddress;
+  let insured3: EthereumAddress;
 
   let totalPremium = BigNumber.from(0);
   let totalPremiumRate = BigNumber.from(0);
@@ -67,7 +67,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
   };
 
   const expectCoverage = async (
-    insured: tEthereumAddress,
+    insured: EthereumAddress,
     demand: number,
     covered: number,
     pending: number

@@ -6,27 +6,24 @@ import { isAddress } from 'ethers/lib/utils';
 import { NameTags } from 'hardhat-tracer/dist/src/types';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
+import { ENetwork, isAutoGasNetwork } from './config-networks';
 import { DRE } from './dre';
-import { eNetwork, isAutoGasNetwork, tEthereumAddress } from './types';
+import { EthereumAddress } from './types';
 
 export const isForkNetwork = (): boolean => !!process.env.FORK;
 
-export const getNetworkName = (x?: string | HardhatRuntimeEnvironment): eNetwork => {
+export const getNetworkName = (x?: string | HardhatRuntimeEnvironment): ENetwork => {
   const FORK = process.env.FORK;
 
   if (FORK) {
-    return <eNetwork>FORK;
+    return <ENetwork>FORK;
   }
 
   if (typeof x === 'string') {
-    return <eNetwork>x;
+    return <ENetwork>x;
   }
 
-  if (x === undefined) {
-    return <eNetwork>DRE.network.name;
-  }
-
-  return <eNetwork>x.network.name;
+  return (x?.network?.name ?? DRE.network.name) as ENetwork;
 };
 
 export const autoGas = (num: number, name?: string): number | undefined =>
@@ -119,7 +116,7 @@ export const chunk = <T>(arr: Array<T>, chunkSize: number): Array<Array<T>> =>
     []
   );
 
-export const notFalsyOrZeroAddress = (address: tEthereumAddress | null | undefined): boolean => {
+export const notFalsyOrZeroAddress = (address: EthereumAddress | null | undefined): boolean => {
   if (!address) {
     return false;
   }
@@ -134,10 +131,10 @@ export const ensureValidAddress = (address: string | undefined | null, msg?: str
   throw new Error(`Wrong address: ${msg ?? ''} "${address ?? ''}"`);
 };
 
-export const falsyOrZeroAddress = (address: tEthereumAddress | null | undefined): boolean =>
+export const falsyOrZeroAddress = (address: EthereumAddress | null | undefined): boolean =>
   !notFalsyOrZeroAddress(address);
 
-export const getSigner = (address?: tEthereumAddress | string): SignerWithAddress =>
+export const getSigner = (address?: EthereumAddress | string): SignerWithAddress =>
   DRE.ethers.provider.getSigner(address) as unknown as SignerWithAddress;
 
 export const getFirstSigner = async (): Promise<SignerWithAddress> => {
@@ -146,7 +143,7 @@ export const getFirstSigner = async (): Promise<SignerWithAddress> => {
   return signer;
 };
 
-export const getSignerAddress = async (n: number): Promise<tEthereumAddress | undefined> => {
+export const getSignerAddress = async (n: number): Promise<EthereumAddress | undefined> => {
   const signers = await getSigners();
 
   return signers[n]?.address;
