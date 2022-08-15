@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/upgradeability/VersionedInitializable.sol';
 import './ImperpetualPoolBase.sol';
 
-contract ImperpetualPoolV1 is VersionedInitializable, ImperpetualPoolBase, IWeightedPoolInit {
+contract ImperpetualPoolV1 is ImperpetualPoolBase, IWeightedPoolInit {
   uint256 private constant CONTRACT_REVISION = 1;
   uint8 internal constant DECIMALS = 18;
 

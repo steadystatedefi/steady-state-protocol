@@ -6,6 +6,7 @@ export const Factories = {
   JoinablePoolExtension: wrap(types.JoinablePoolExtension__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
+  ImperpetualPoolV1: wrap(types.ImperpetualPoolV1__factory),
   AccessController: wrap(types.AccessController__factory),
   ProxyCatalog: wrap(types.ProxyCatalog__factory),
   TransparentProxy: wrap(types.TransparentProxy__factory),

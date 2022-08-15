@@ -216,18 +216,18 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   struct RequestedClaim {
     bytes32 cid; // supporting documents
     address requestedBy;
-    uint256 payoutRatio;
+    uint256 payoutValue;
   }
 
   mapping(address => RequestedClaim[]) private _requestedClaims;
   mapping(address => ApprovedClaim) private _approvedClaims;
 
-  event ClaimSubmitted(address indexed insured, bytes32 indexed cid, uint256 payoutRatio);
+  event ClaimSubmitted(address indexed insured, bytes32 indexed cid, uint256 payoutValue);
 
   function submitClaim(
     address insured,
     bytes32 cid,
-    uint256 payoutRatio
+    uint256 payoutValue
   ) external returns (uint256) {
     Value.require(cid != 0);
     Value.require(insured != address(0));
@@ -235,9 +235,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     Access.require(IClaimAccessValidator(insured).canClaimInsurance(msg.sender));
 
     RequestedClaim[] storage claims = _requestedClaims[insured];
-    claims.push(RequestedClaim({cid: cid, requestedBy: msg.sender, payoutRatio: payoutRatio}));
+    claims.push(RequestedClaim({cid: cid, requestedBy: msg.sender, payoutValue: payoutValue}));
 
-    emit ClaimSubmitted(insured, cid, payoutRatio);
+    emit ClaimSubmitted(insured, cid, payoutValue);
 
     return claims.length;
   }
