@@ -1,4 +1,4 @@
-import { BigNumberish } from 'ethers';
+import { BigNumber, BigNumberish } from 'ethers';
 
 import { WeightedPoolParamsStruct } from '../types/contracts/insurer/WeightedPoolBase';
 
@@ -21,17 +21,26 @@ export interface ICollateralCurrency<K extends string> extends ITokenDetails {
   quoteToken: K;
 }
 
-export interface ICollateralFund {
+export interface ICollateralFundAsset {
+  trustee?: EthereumAddress;
+}
+
+export interface ICollateralFund<K extends string> {
   fuseMask: BigNumberish;
+  assets?: ParamPerOpt<K, ICollateralFundAsset>;
 }
 
 export interface IPriceBase<K extends string> {
   decimals: number;
   xPrice?: K | true;
+  priceRange?: {
+    target: BigNumber;
+    tolerance: number;
+  };
 }
 
 export interface IPriceStatic<K extends string = string> extends IPriceBase<K> {
-  value: BigNumberish;
+  value: BigNumber;
 }
 
 export interface IPriceFeed<K extends string = string> extends IPriceBase<K> {
@@ -64,11 +73,14 @@ const simulatedAssets = {
   ETH: ETH_ADDRESS,
 };
 
+type RealAssets<Tokens extends string> = Exclude<Tokens, keyof typeof simulatedAssets>;
+
 export interface INetworkConfiguration<Tokens extends string = string> {
   Owner?: EthereumAddress;
-  Assets: ParamPer<Exclude<Tokens, keyof typeof simulatedAssets>, EthereumAddress>;
+  EmergencyAdmins?: EthereumAddress[];
+  Assets: ParamPer<RealAssets<Tokens>, EthereumAddress>;
   CollateralCurrency: ICollateralCurrency<Tokens>;
-  CollateralFund: ICollateralFund;
+  CollateralFund: ICollateralFund<RealAssets<Tokens>>;
   Dependencies: IDependencies;
   // price oracle quote
   PriceFeeds: ParamPerOpt<Tokens, IPriceStatic<Tokens> | IPriceFeed<Tokens>>;
@@ -78,8 +90,7 @@ export interface INetworkConfiguration<Tokens extends string = string> {
 export type IConfiguration<Networks extends string = string> = ParamPerOpt<Networks, INetworkConfiguration<string>>;
 
 export function findAssetAddress<Tokens extends string>(cfg: INetworkConfiguration<Tokens>, name: Tokens): string {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-explicit-any
-  return (cfg.Assets[name as any] ?? simulatedAssets[name as string]) as string;
+  return (cfg.Assets[name as RealAssets<Tokens>] ?? simulatedAssets[name as string]) as string;
 }
 
 export function getAssetAddress<Tokens extends string>(cfg: INetworkConfiguration<Tokens>, name: Tokens): string {

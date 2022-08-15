@@ -203,15 +203,24 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
 
   event PriceRangeUpdated(address indexed asset, uint256 targetPrice, uint16 tolerancePct);
 
-  function setSafePriceRange(
-    address asset,
-    uint256 targetPrice,
-    uint16 tolerancePct
+  function setSafePriceRanges(
+    address[] calldata assets,
+    uint256[] calldata targetPrices,
+    uint16[] calldata tolerancePcts
   ) external override onlyOracleAdmin {
-    Value.require(asset != address(0) && asset != _quote);
+    Value.require(assets.length == targetPrices.length);
+    Value.require(assets.length == tolerancePcts.length);
+    for (uint256 i = assets.length; i > 0; ) {
+      i--;
+      address asset = assets[i];
+      Value.require(asset != address(0) && asset != _quote);
 
-    internalSetPriceTolerance(asset, targetPrice, tolerancePct);
-    emit PriceRangeUpdated(asset, targetPrice, tolerancePct);
+      uint256 targetPrice = targetPrices[i];
+      uint16 tolerancePct = tolerancePcts[i];
+
+      internalSetPriceTolerance(asset, targetPrice, tolerancePct);
+      emit PriceRangeUpdated(asset, targetPrice, tolerancePct);
+    }
   }
 
   function getPriceSourceRange(address asset) external view override returns (uint256 targetPrice, uint16 tolerancePct) {

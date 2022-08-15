@@ -1,51 +1,38 @@
 import { zeroAddress } from 'ethereumjs-util';
 
+import { loadNetworkConfig } from '../../../helpers/config-loader';
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { mustWaitTx } from '../../../helpers/runtime-utils';
-import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 import { deployTask } from '../deploy-steps';
 
 import { deployProxyFromCatalog, getDeployedProxy } from './templates';
 
-const catalogName = ProxyTypes.IMPERPETUAL_INDEX_POOL;
-
-deployTask(`full:deploy-index-pool`, `Deploy ${catalogName}`, __dirname).setAction(
-  dreAction(async () => {
-    const factory = Factories.ImperpetualPoolV1;
-
-    const poolParams: WeightedPoolParamsStruct = {
-      maxAdvanceUnits: 10000,
-      minAdvanceUnits: 1000,
-      riskWeightTarget: 1000, // 10%
-      minInsuredSharePct: 100, // 1%
-      maxInsuredSharePct: 4000, // 40%
-      minUnitsPerRound: 20,
-      maxUnitsPerRound: 20,
-      overUnitsPerRound: 30,
-      coveragePrepayPct: 9000, // 90%
-      maxUserDrawdownPct: 1000, // 10%
-      unitsPerAutoPull: 0,
-    };
-    const governor = zeroAddress();
-
-    const initFunctionData = factory.interface.encodeFunctionData('initializeWeighted', [
-      governor,
-      'Indexed Pool Token',
-      'IPT',
-      poolParams,
-    ]);
-
-    const poolAddr = await deployProxyFromCatalog(catalogName, initFunctionData);
-    const pool = factory.attach(poolAddr);
+deployTask(`full:deploy-index-pool`, `Deploy index pools`, __dirname).setAction(
+  dreAction(async ({ cfg: configName }) => {
+    const cfg = loadNetworkConfig(configName as string);
 
     const pfFactory = Factories.PremiumFundV1;
     const pf = pfFactory.attach(getDeployedProxy(ProxyTypes.PREMIUM_FUND));
     const cc = Factories.CollateralCurrency.get();
 
-    await mustWaitTx(pool.setPremiumDistributor(pf.address));
-    await mustWaitTx(pf.registerPremiumActuary(pool.address, true));
-    await mustWaitTx(cc.registerInsurer(pool.address));
+    let index = 0;
+    for (const poolInfo of cfg.IndexPools) {
+      index += 1;
+
+      const factory = Factories.ImperpetualPoolV1; // TODO this needs to be based on poolInfo.poolType
+      const initFunctionData = factory.interface.encodeFunctionData(poolInfo.initializer, [
+        poolInfo.governor ?? zeroAddress(),
+        ...poolInfo.initParams,
+      ]);
+
+      const poolAddr = await deployProxyFromCatalog(poolInfo.poolType, initFunctionData, `${index}`);
+      const pool = factory.attach(poolAddr);
+
+      await mustWaitTx(pool.setPremiumDistributor(pf.address));
+      await mustWaitTx(pf.registerPremiumActuary(pool.address, true));
+      await mustWaitTx(cc.registerInsurer(pool.address));
+    }
   })
 );

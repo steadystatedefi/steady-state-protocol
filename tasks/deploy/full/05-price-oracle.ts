@@ -1,4 +1,5 @@
 import { zeroAddress } from 'ethereumjs-util';
+import { BigNumber } from 'ethers';
 
 import { AccessFlags } from '../../../helpers/access-flags';
 import { loadNetworkConfig } from '../../../helpers/config-loader';
@@ -35,10 +36,12 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
 
     await waitForTx(await accessController.setAddress(accessFlag, addr));
 
+    const assetNames: string[] = [];
     const assetAddrs: string[] = [];
     const assetInfos: PriceSourceStruct[] = [];
 
-    for (const [assetName, feedInfo] of Object.entries(cfg.PriceFeeds)) {
+    const configPriceFeeds = Object.entries(cfg.PriceFeeds);
+    for (const [assetName, feedInfo] of configPriceFeeds) {
       if (!feedInfo) {
         continue;
       }
@@ -84,6 +87,7 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
         crossPrice = feedInfo.xPrice ? getAssetAddress(cfg, feedInfo.xPrice) : zeroAddress();
       }
 
+      assetNames.push(assetName);
       assetAddrs.push(assetAddr);
       assetInfos.push({
         feedType,
@@ -98,6 +102,8 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
       return;
     }
 
+    console.log('Checking price sources:', assetNames.length, assetNames);
+
     const router = Factories.OracleRouterV1.attach(addr);
 
     const filteredAssetAddrs: string[] = [];
@@ -110,11 +116,34 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
       }
     });
 
-    if (filteredAssetAddrs.length === 0) {
-      return;
+    if (filteredAssetAddrs.length > 0) {
+      console.log('Adding price sources:', filteredAssetAddrs.length);
+      await mustWaitTx(router.setPriceSources(filteredAssetAddrs, filteredAssetInfos));
     }
 
-    await mustWaitTx(router.setPriceSources(filteredAssetAddrs, filteredAssetInfos));
+    {
+      const rangeAssets: string[] = [];
+      const rangeTargets: BigNumber[] = [];
+      const rangeTolerances: number[] = [];
+
+      let i = 0;
+      for (const [, feedInfo] of configPriceFeeds) {
+        if (!feedInfo) {
+          continue;
+        }
+        if (feedInfo.priceRange) {
+          rangeAssets.push(assetAddrs[i]);
+          rangeTargets.push(feedInfo.priceRange.target);
+          rangeTolerances.push(feedInfo.priceRange.tolerance);
+        }
+        i += 1;
+      }
+
+      if (rangeAssets.length > 0) {
+        console.log('Configuring price ranges:', rangeAssets.length);
+        await mustWaitTx(router.setSafePriceRanges(rangeAssets, rangeTargets, rangeTolerances));
+      }
+    }
   })
 );
 

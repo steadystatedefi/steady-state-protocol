@@ -10,14 +10,15 @@ export const findDeployedProxy = (name: string): string => getAddrFromJsonDb(nam
 export const getDeployedProxy = (name: string): string => ensureValidAddress(findDeployedProxy(name), name);
 
 export const deployProxyFromCatalog = async (
-  catalogName: string,
+  catalogBaseName: string,
   initFunctionData: string,
   subInstance?: string,
   ctx?: string
 ): Promise<string> => {
   const proxyCatalog = Factories.ProxyCatalog.get();
-  const catalogType = formatBytes32String(catalogName);
+  const catalogType = formatBytes32String(catalogBaseName);
 
+  const catalogName = subInstance ? `${catalogBaseName}-${subInstance}` : catalogBaseName;
   const found = findDeployedProxy(catalogName);
   if (notFalsyOrZeroAddress(found)) {
     console.log(`Already deployed: ${found}`);
