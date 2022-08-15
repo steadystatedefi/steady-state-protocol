@@ -3,8 +3,7 @@ import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { mustWaitTx, notFalsyOrZeroAddress } from '../../../helpers/runtime-utils';
 import { deployTask } from '../deploy-steps';
-
-import { deployProxyFromCatalog } from './templates';
+import { deployProxyFromCatalog } from '../templates';
 
 const catalogName = ProxyTypes.YIELD_DISTRIBUTOR;
 

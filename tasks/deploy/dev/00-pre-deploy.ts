@@ -3,7 +3,7 @@ import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { deployTask } from '../deploy-steps';
 
-deployTask(`dev:deploy-mocks`, `Deploy dependency mocks`, __dirname).setAction(
+deployTask(`dev:pre-deploy`, `Deploy dependency mocks`, __dirname).setAction(
   dreAction(async ({ cfg: configName }) => {
     const cfg = loadNetworkConfig(configName as string);
 

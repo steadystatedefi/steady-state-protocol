@@ -6,10 +6,9 @@ import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { mustWaitTx } from '../../../helpers/runtime-utils';
 import { deployTask } from '../deploy-steps';
+import { deployProxyFromCatalog, getDeployedProxy } from '../templates';
 
-import { deployProxyFromCatalog, getDeployedProxy } from './templates';
-
-deployTask(`full:deploy-index-pool`, `Deploy index pools`, __dirname).setAction(
+deployTask(`full:deploy-index-pools`, `Deploy index pools`, __dirname).setAction(
   dreAction(async ({ cfg: configName }) => {
     const cfg = loadNetworkConfig(configName as string);
 

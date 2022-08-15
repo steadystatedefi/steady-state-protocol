@@ -12,8 +12,7 @@ import { falsyOrZeroAddress, mustWaitTx, notFalsyOrZeroAddress, waitForTx } from
 import { EthereumAddress } from '../../../helpers/types';
 import { PriceSourceStruct } from '../../../types/contracts/pricing/OracleRouterBase';
 import { deployTask } from '../deploy-steps';
-
-import { deployProxyFromCatalog } from './templates';
+import { deployProxyFromCatalog } from '../templates';
 
 const catalogName = ProxyTypes.ORACLE_ROUTER;
 

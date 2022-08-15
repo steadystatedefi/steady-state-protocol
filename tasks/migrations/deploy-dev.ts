@@ -33,16 +33,26 @@ task('deploy-dev', 'Deploy dev enviroment').setAction(
       const devSteps = await getDeploySteps('dev', stepCfg);
       const fullSteps = await getDeploySteps('full', stepCfg);
 
-      for (const step of devSteps) {
-        const stepId = `0${step.seqId}`;
+      {
+        const step = devSteps[0];
         console.log('\n======================================================================');
-        console.log(`00-${stepId.substring(stepId.length - 2)}`, step.stepName);
+        console.log('00', step.stepName);
         console.log('======================================================================\n');
         await DRE.run(step.taskName, step.args);
       }
 
       for (const step of fullSteps) {
         const stepId = `0${step.seqId}`;
+        console.log('\n======================================================================');
+        console.log(stepId.substring(stepId.length - 2), step.stepName);
+        console.log('======================================================================\n');
+        await DRE.run(step.taskName, step.args);
+      }
+
+      const seqBase = fullSteps[fullSteps.length - 1].seqId - 1;
+
+      for (const step of devSteps.slice(1)) {
+        const stepId = `0${step.seqId + seqBase}`;
         console.log('\n======================================================================');
         console.log(stepId.substring(stepId.length - 2), step.stepName);
         console.log('======================================================================\n');

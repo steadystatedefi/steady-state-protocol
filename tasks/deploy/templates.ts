@@ -1,10 +1,10 @@
 import { zeroAddress } from 'ethereumjs-util';
 import { formatBytes32String } from 'ethers/lib/utils';
 
-import { Events } from '../../../helpers/contract-events';
-import { Factories } from '../../../helpers/contract-types';
-import { addNamedToJsonDb, addProxyToJsonDb, getAddrFromJsonDb } from '../../../helpers/deploy-db';
-import { ensureValidAddress, notFalsyOrZeroAddress } from '../../../helpers/runtime-utils';
+import { Events } from '../../helpers/contract-events';
+import { Factories } from '../../helpers/contract-types';
+import { addNamedToJsonDb, addProxyToJsonDb, getAddrFromJsonDb } from '../../helpers/deploy-db';
+import { ensureValidAddress, notFalsyOrZeroAddress } from '../../helpers/runtime-utils';
 
 export const findDeployedProxy = (name: string): string => getAddrFromJsonDb(name);
 export const getDeployedProxy = (name: string): string => ensureValidAddress(findDeployedProxy(name), name);

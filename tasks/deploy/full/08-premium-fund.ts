@@ -2,8 +2,7 @@ import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { deployTask } from '../deploy-steps';
-
-import { deployProxyFromCatalog } from './templates';
+import { deployProxyFromCatalog } from '../templates';
 
 const catalogName = ProxyTypes.PREMIUM_FUND;
 
