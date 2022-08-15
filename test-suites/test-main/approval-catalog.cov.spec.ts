@@ -234,7 +234,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
     await Events.ClaimSubmitted.waitOne(user1Catalog.submitClaim(insuredAddr, claimcid, 10), (ev) => {
       expect(ev.insured).eq(insuredAddr);
       expect(ev.cid).eq(claimcid);
-      expect(ev.payoutRatio).eq(10);
+      expect(ev.payoutValue).eq(10);
     });
     {
       expect(res).eq(1);
