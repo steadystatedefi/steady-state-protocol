@@ -32,6 +32,7 @@ library Errors {
 
   error OperationPaused();
   error IllegalState();
+  error Impossible();
   error IllegalValue();
   error NotSupported();
   error NotImplemented();
@@ -50,6 +51,16 @@ library Errors {
   error CollateralTransferFailed();
 
   error UnknownPriceAsset(address asset);
+}
+
+library Sanity {
+  // slither-disable-next-line shadowing-builtin
+  function require(bool ok) internal pure {
+    // This code should be commented out on release
+    if (!ok) {
+      revert Errors.Impossible();
+    }
+  }
 }
 
 library State {
