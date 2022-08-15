@@ -15,15 +15,19 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
 
   constructor(IAccessController acl, address collateral_) InsuredPoolBase(acl, collateral_) {}
 
+  event CoverageDemandUpdated(uint256 requiredCoverage, uint256 premiumRate);
+
   function _initializeCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) internal {
     State.require(_premiumRate == 0);
     Value.require(premiumRate != 0);
     Value.require((_requiredCoverage = uint96(requiredCoverage)) == requiredCoverage);
     Value.require((_premiumRate = uint64(premiumRate)) == premiumRate);
+    emit CoverageDemandUpdated(requiredCoverage, premiumRate);
   }
 
   function internalAddRequiredCoverage(uint256 amount) internal {
     _requiredCoverage += amount.asUint96();
+    emit CoverageDemandUpdated(_requiredCoverage + _demandedCoverage, _premiumRate);
   }
 
   /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
@@ -35,7 +39,6 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
   ) internal override {
     _requiredCoverage = uint96(_requiredCoverage - amount);
     _demandedCoverage += uint96(amount);
-    // console.log('internalCoverageDemandAdded', amount, _demandedCoverage);
     InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
   }
 
@@ -50,7 +53,6 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
       amountToAdd = maxAmount;
     }
     premiumRate = _premiumRate;
-    // console.log('internalAllocateCoverageDemand', amount, _requiredCoverage, amountToAdd);
   }
 
   function setCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) external onlyGovernor {
@@ -61,14 +63,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     _initializeCoverageDemand(requiredCoverage, premiumRate);
   }
 
-  /// @inheritdoc IInsuredPool
-  function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
-    return internalOfferCoverage(msg.sender, offeredAmount);
-  }
-
-  /// @dev Must be whitelisted to do this
-  /// @dev Maximum is _requiredCoverage
-  function internalOfferCoverage(address account, uint256 offeredAmount) private returns (uint256 acceptedAmount, uint256 rate) {
+  function internalOfferCoverage(address account, uint256 offeredAmount) internal override returns (uint256 acceptedAmount, uint256 rate) {
     _ensureHolder(account);
     acceptedAmount = _requiredCoverage;
     if (acceptedAmount <= offeredAmount) {

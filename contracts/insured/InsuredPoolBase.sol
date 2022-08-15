@@ -335,4 +335,14 @@ abstract contract InsuredPoolBase is
   function canClaimInsurance(address claimedBy) public view virtual override returns (bool) {
     return claimedBy == governorAccount();
   }
+
+  event CoverageDemandOffered(address indexed offeredBy, uint256 offeredAmount, uint256 acceptedAmount, uint256 rate);
+
+  /// @inheritdoc IInsuredPool
+  function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
+    (acceptedAmount, rate) = internalOfferCoverage(msg.sender, offeredAmount);
+    emit CoverageDemandOffered(msg.sender, offeredAmount, acceptedAmount, rate);
+  }
+
+  function internalOfferCoverage(address account, uint256 offeredAmount) internal virtual returns (uint256 acceptedAmount, uint256 rate);
 }
