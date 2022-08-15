@@ -106,7 +106,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await expect(state.insurer.updateCoverageOnCancel(state.insured.address, 0, 0, 0, 0)).reverted;
     await expect(state.insurer.updateCoverageOnReconcile(state.insured.address, 0, 0)).reverted;
 
-    await state.insured.reconcileWithAllInsurers();
+    await state.insured.reconcileWithInsurers(0, 0);
     await ext.cancelCoverage(state.insured.address, 0);
   });
 
@@ -135,7 +135,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await state.insurer.approveJoiner(state.insured.address, true);
     await state.insured.pushCoverageDemandTo(state.insurer.address, 11);
     await ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
-    await state.insured.reconcileWithAllInsurers();
+    await state.insured.reconcileWithInsurers(0, 0);
     await state.insured.cancelCoverage(user2.address, 0);
   });
 
