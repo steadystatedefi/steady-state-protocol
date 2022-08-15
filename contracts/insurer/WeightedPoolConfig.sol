@@ -92,7 +92,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     } else {
       min *= unitCount;
     }
-    require(min > 0); // TODO sanity check - remove later
+    Sanity.require(min > 0); // TODO sanity check - remove later
 
     return uint24(min);
   }
@@ -214,16 +214,16 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
       return false;
     }
 
-    // TODO check IInsuredPool(insured).premiumToken() == insuredParams.premiumToken
+    // TODO State.require(IInsuredPool(insured).premiumToken() == approvedParams.premiumToken);
 
     InsuredParams memory insuredSelfParams = IInsuredPool(insured).insuredParams();
 
     uint256 unitSize = internalUnitSize();
     uint256 minUnits = (insuredSelfParams.minPerInsurer + unitSize - 1) / unitSize;
-    require(minUnits <= type(uint24).max);
+    State.require(minUnits <= type(uint24).max);
 
     uint256 baseRate = (approvedParams.basePremiumRate + unitSize - 1) / unitSize;
-    require(baseRate <= type(uint40).max);
+    State.require(baseRate <= type(uint40).max);
 
     super.internalSetInsuredParams(
       insured,

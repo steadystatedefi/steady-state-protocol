@@ -367,7 +367,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
   it('Fails to cancel coverage with coverage demand present', async () => {
     const insured = insureds[0];
-    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('demand must be cancelled');
+    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith(testEnv.covReason('DemandMustBeCancelled()'));
   });
 
   it('Cancel coverage demand for insureds[0]', async () => {

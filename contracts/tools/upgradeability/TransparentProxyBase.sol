@@ -48,9 +48,13 @@ abstract contract TransparentProxyBase is BaseUpgradeabilityProxy, IProxy {
     Address.functionDelegateCall(logic, data);
   }
 
+  error AdminCantCallFallback();
+
   /// @dev Only fall back when the sender is not the admin.
   function _willFallback() internal virtual override {
-    require(msg.sender != _admin(), 'Cannot call fallback function from the proxy admin');
+    if (msg.sender == _admin()) {
+      revert AdminCantCallFallback();
+    }
     super._willFallback();
   }
 }
