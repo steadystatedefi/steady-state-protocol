@@ -51,7 +51,7 @@ contract BaseUpgradeabilityProxy is Proxy {
    * @param newImplementation Address of the new implementation.
    */
   function _setImplementation(address newImplementation) internal {
-    Errors.requireContract(newImplementation);
+    Value.requireContract(newImplementation);
 
     bytes32 slot = IMPLEMENTATION_SLOT;
 

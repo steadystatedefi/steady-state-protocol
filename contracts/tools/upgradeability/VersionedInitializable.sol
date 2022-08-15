@@ -35,6 +35,9 @@ abstract contract VersionedInitializable is IVersioned {
   /// @dev Indicates that the contract is in the process of being initialized.
   uint256 private lastInitializingRevision = 0;
 
+  error OnlyInsideConstructor();
+  error OnlyBeforeInitializer();
+
   /**
    * @dev There is a built-in protection from self-destruct of implementation exploits. This protection
    * prevents initializers from being called on an implementation inself, but only on proxied contracts.
@@ -42,12 +45,14 @@ abstract contract VersionedInitializable is IVersioned {
    * It must be called before any initializers, otherwise it will fail.
    */
   function _unsafeResetVersionedInitializers() internal {
-    require(isConstructor(), 'only for constructor');
+    if (!isConstructor()) {
+      revert OnlyInsideConstructor();
+    }
 
     if (lastInitializedRevision == IMPL_REVISION) {
       lastInitializedRevision = 0;
-    } else {
-      require(lastInitializedRevision == 0, 'can only be called before initializer(s)');
+    } else if (lastInitializedRevision != 0) {
+      revert OnlyBeforeInitializer();
     }
   }
 

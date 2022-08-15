@@ -22,12 +22,6 @@ library Errors {
     }
   }
 
-  function requireContract(address a) internal view {
-    if (!Address.isContract(a)) {
-      revert ContractRequired();
-    }
-  }
-
   function _mutable() private returns (bool) {}
 
   function notImplemented() internal {
@@ -76,6 +70,12 @@ library Value {
   function require(bool ok) internal pure {
     if (!ok) {
       revert Errors.IllegalValue();
+    }
+  }
+
+  function requireContract(address a) internal view {
+    if (!Address.isContract(a)) {
+      revert Errors.ContractRequired();
     }
   }
 }
