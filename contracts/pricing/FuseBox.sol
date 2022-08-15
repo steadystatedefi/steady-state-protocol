@@ -22,8 +22,6 @@ abstract contract FuseBox {
         _fuseBox = fuseBox | mask;
         internalFuseBlown(addr, fuseBox, mask);
         blown = true;
-      } else {
-        blown = fuseBox & mask != 0;
       }
     }
   }

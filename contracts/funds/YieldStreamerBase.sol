@@ -120,6 +120,9 @@ abstract contract YieldStreamerBase is Collateralized {
     }
   }
 
+  event YieldSourceAdded(address indexed source, uint8 sourceType);
+  event YieldSourceRemoved(address indexed source);
+
   function internalAddYieldSource(address source, uint8 sourceType) internal {
     Value.require(source != address(0));
     Value.require(sourceType != uint8(YieldSourceType.None));
@@ -133,6 +136,7 @@ abstract contract YieldStreamerBase is Collateralized {
       ps.source = source;
       ps.sourceType = sourceType;
     }
+    emit YieldSourceAdded(source, sourceType);
   }
 
   // NB! Total integral must be synced before calling this method
@@ -148,6 +152,7 @@ abstract contract YieldStreamerBase is Collateralized {
           _sources[(_pullableSources[pullableIndex] = _pullableSources[index]).source].pullableIndex = pullableIndex;
         }
       }
+      emit YieldSourceRemoved(source);
     }
     delete _sources[source];
   }
@@ -173,6 +178,8 @@ abstract contract YieldStreamerBase is Collateralized {
     }
   }
 
+  event YieldSourcePulled(address indexed source, uint256 amount);
+
   function internalPullYield(uint256 availableYield, uint256 requestedYield) internal virtual returns (bool foundMore) {
     uint256 count = _pullableCount;
     if (count == 0) {
@@ -189,7 +196,9 @@ abstract contract YieldStreamerBase is Collateralized {
 
       PullableSource storage ps = _pullableSources[i];
       uint256 collectedYield = internalPullYieldFrom(ps.sourceType, ps.source);
+
       if (collectedYield > 0) {
+        emit YieldSourcePulled(ps.source, collectedYield);
         foundMore = true;
       }
 

@@ -68,7 +68,7 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     return expectedPrepay(uint32(block.timestamp) + timeDelta);
   }
 
-  function internalWithdrawPrepay(address recipient, uint256 amount) internal {
+  function internalWithdrawPrepay(address recipient, uint256 amount) internal returns (uint256) {
     IERC20 token = _premiumToken;
 
     uint256 balance = token.balanceOf(address(this));
@@ -93,6 +93,8 @@ abstract contract PremiumCollectorBase is IPremiumCollector, IPremiumSource {
     if (amount > 0) {
       token.safeTransfer(recipient, amount);
     }
+
+    return amount;
   }
 
   function collateral() public view virtual returns (address);

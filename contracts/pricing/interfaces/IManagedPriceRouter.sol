@@ -12,7 +12,7 @@ interface IManagedPriceRouter is IPriceRouter {
 
   function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external;
 
-  function setPriceSourceRange(
+  function setSafePriceRange(
     address asset,
     uint256 targetPrice,
     uint16 tolerancePct
@@ -22,11 +22,7 @@ interface IManagedPriceRouter is IPriceRouter {
 
   function attachSource(address asset, bool attach) external;
 
-  function registerSourceGroup(
-    address account,
-    uint256 mask,
-    bool register
-  ) external;
+  function configureSourceGroup(address account, uint256 mask) external;
 
   function resetSourceGroup() external;
 

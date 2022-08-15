@@ -60,8 +60,11 @@ abstract contract InsuredPoolBase is
     return Collateralized.collateral();
   }
 
+  event ParamsUpdated(InsuredParams params);
+
   function internalSetInsuredParams(InsuredParams memory params) internal {
     _params = params;
+    emit ParamsUpdated(params);
   }
 
   /// @inheritdoc IInsuredPool
@@ -100,6 +103,10 @@ abstract contract InsuredPoolBase is
     internalPushCoverageDemandTo(target, amount);
   }
 
+  function setInsuredParams(InsuredParams calldata params) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
+    internalSetInsuredParams(params);
+  }
+
   /// @notice Called when the insurer has process this insured
   /// @param accepted True if this insured was accepted to the pool
   function joinProcessed(bool accepted) external override {
@@ -126,6 +133,8 @@ abstract contract InsuredPoolBase is
     return _reconcileWithInsurers(startIndex, count > 0 ? count : type(uint256).max);
   }
 
+  event CoverageReconciled(address indexed insurer, uint256 receivedCoverage, uint256 receivedCollateral);
+
   /// @dev Go through each insurer and reconcile with them
   /// @dev Does NOT sync the rate
   function _reconcileWithInsurers(uint256 startIndex, uint256 count)
@@ -140,12 +149,17 @@ abstract contract InsuredPoolBase is
     address[] storage insurers = getCharteredInsurers();
     uint256 max = insurers.length;
     unchecked {
-      if ((count += startIndex) > startIndex && count < max) {
-        max = count;
-      }
+      count += startIndex;
     }
+    if (count > startIndex && count < max) {
+      max = count;
+    }
+
     for (; startIndex < max; startIndex++) {
-      (uint256 cov, uint256 col, DemandedCoverage memory cv) = internalReconcileWithInsurer(ICoverageDistributor(insurers[startIndex]), false);
+      address insurer = insurers[startIndex];
+      (uint256 cov, uint256 col, DemandedCoverage memory cv) = internalReconcileWithInsurer(ICoverageDistributor(insurer), false);
+      emit CoverageReconciled(insurer, cov, col);
+
       receivedCoverage += cov;
       receivedCollateral += col;
       demandedCoverage += cv.totalDemand;
@@ -200,6 +214,8 @@ abstract contract InsuredPoolBase is
 
   // TODO cancelCoverageDemnad
 
+  event CoverageCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
+
   /// @notice Cancel coverage and get paid out the coverage amount
   /// @param payoutReceiver The receiver of the collateral currency
   /// @param expectedPayout Amount to get paid out for
@@ -223,6 +239,8 @@ abstract contract InsuredPoolBase is
       require(payoutReceiver != address(0));
       transferCollateral(payoutReceiver, totalPayout);
     }
+
+    emit CoverageCancelled(expectedPayout, totalPayout, payoutReceiver);
   }
 
   function internalCollateralReceived(address insurer, uint256 amount) internal override {
@@ -281,8 +299,11 @@ abstract contract InsuredPoolBase is
     return super.totalReceivedCollateral();
   }
 
+  event PrepayWithdrawn(uint256 amount, address indexed recipient);
+
   function withdrawPrepay(address recipient, uint256 amount) external override onlyGovernor {
-    internalWithdrawPrepay(recipient, amount);
+    amount = internalWithdrawPrepay(recipient, amount);
+    emit PrepayWithdrawn(amount, recipient);
   }
 
   function governor() public view returns (address) {
@@ -296,4 +317,14 @@ abstract contract InsuredPoolBase is
   function canClaimInsurance(address claimedBy) public view virtual override returns (bool) {
     return claimedBy == governorAccount();
   }
+
+  event CoverageDemandOffered(address indexed offeredBy, uint256 offeredAmount, uint256 acceptedAmount, uint256 rate);
+
+  /// @inheritdoc IInsuredPool
+  function offerCoverage(uint256 offeredAmount) external override returns (uint256 acceptedAmount, uint256 rate) {
+    (acceptedAmount, rate) = internalOfferCoverage(msg.sender, offeredAmount);
+    emit CoverageDemandOffered(msg.sender, offeredAmount, acceptedAmount, rate);
+  }
+
+  function internalOfferCoverage(address account, uint256 offeredAmount) internal virtual returns (uint256 acceptedAmount, uint256 rate);
 }
