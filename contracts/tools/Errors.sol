@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-library Errors {
-  string public constant TXT_CALLER_NOT_PROXY_OWNER = 'ProxyOwner: caller is not the owner';
+import '@openzeppelin/contracts/utils/Address.sol';
 
+library Errors {
   function illegalState(bool ok) internal pure {
     if (!ok) {
       revert IllegalState();
@@ -43,11 +43,15 @@ library Errors {
   error ExcessiveVolatility();
   error ExcessiveVolatilityLock(uint256 mask);
 
-  error CalllerNotEmergencyAdmin();
-  error CalllerNotSweepAdmin();
-  error CalllerNotOracleAdmin();
+  error CallerNotProxyOwner();
+  error CallerNotEmergencyAdmin();
+  error CallerNotSweepAdmin();
+  error CallerNotOracleAdmin();
 
   error CollateralTransferFailed();
+
+  error ContractRequired();
+  error ImplementationRequired();
 
   error UnknownPriceAsset(address asset);
 }
@@ -66,6 +70,12 @@ library Value {
   function require(bool ok) internal pure {
     if (!ok) {
       revert Errors.IllegalValue();
+    }
+  }
+
+  function requireContract(address a) internal view {
+    if (!Address.isContract(a)) {
+      revert Errors.ContractRequired();
     }
   }
 }
