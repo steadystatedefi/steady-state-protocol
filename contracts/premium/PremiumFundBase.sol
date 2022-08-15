@@ -76,6 +76,9 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     return AccessHelper.remoteAcl();
   }
 
+  event ActuaryAdded(address indexed actuary);
+  event ActuaryRemoved(address indexed actuary);
+
   function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
     ActuaryConfig storage config = _configs[actuary];
     address cc = collateral();
@@ -89,17 +92,24 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
 
       config.state = ActuaryState.Active;
       _tokenActuaries[cc].add(actuary);
+      emit ActuaryAdded(actuary);
     } else if (config.state >= ActuaryState.Active) {
       config.state = ActuaryState.Inactive;
       _tokenActuaries[cc].remove(actuary);
+      emit ActuaryRemoved(actuary);
     }
   }
+
+  event ActuaryPaused(address indexed actuary, bool paused);
+  event ActuaryTokenPaused(address indexed actuary, address indexed token, bool paused);
+  event TokenPaused(address indexed token, bool paused);
 
   function setPaused(address actuary, bool paused) external onlyEmergencyAdmin {
     ActuaryConfig storage config = _configs[actuary];
     State.require(config.state >= ActuaryState.Active);
 
     config.state = paused ? ActuaryState.Paused : ActuaryState.Active;
+    emit ActuaryPaused(actuary, paused);
   }
 
   function isPaused(address actuary) public view returns (bool) {
@@ -118,6 +128,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     BalancerLib2.AssetConfig storage assetConfig = _balancers[actuary].configs[token];
     uint16 flags = assetConfig.flags;
     assetConfig.flags = paused ? flags | BalancerLib2.BF_SUSPENDED : flags & ~BalancerLib2.BF_SUSPENDED;
+    emit ActuaryTokenPaused(actuary, token, paused);
   }
 
   function isPaused(address actuary, address token) public view returns (bool) {
@@ -134,6 +145,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     TokenState storage state = _tokens[token];
     uint8 flags = state.flags;
     state.flags = paused ? flags | TS_SUSPENDED : flags & ~TS_SUSPENDED;
+    emit TokenPaused(token, paused);
   }
 
   function isPausedToken(address token) public view returns (bool) {
@@ -144,6 +156,9 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   uint8 private constant SMM_SOLO = 0;
   uint8 private constant SMM_MANY_NO_LIST = 1;
   uint8 private constant SMM_LIST = 2;
+
+  event ActuarySourceAdded(address indexed actuary, address indexed source, address indexed token);
+  event ActuarySourceRemoved(address indexed actuary, address indexed source, address indexed token);
 
   function registerPremiumSource(address source, bool register) external override {
     address actuary = msg.sender;
@@ -161,12 +176,14 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       _markTokenAsPresent(targetToken);
       config.sourceToken[source] = targetToken;
       _tokenActuaries[targetToken].add(actuary);
+      emit ActuarySourceAdded(actuary, source, targetToken);
     } else {
       address targetToken = config.sourceToken[source];
       if (targetToken != address(0)) {
         if (_removePremiumSource(config, _balancers[actuary], source, targetToken)) {
           _tokenActuaries[targetToken].remove(actuary);
         }
+        emit ActuarySourceRemoved(actuary, source, targetToken);
       }
     }
   }
@@ -246,6 +263,15 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     State.require(config.state == ActuaryState.Active);
   }
 
+  event PremiumAllocationUpdated(
+    address indexed actuary,
+    address indexed source,
+    address indexed token,
+    uint256 increment,
+    uint256 rate,
+    bool underprovisioned
+  );
+
   function _premiumAllocationUpdated(
     ActuaryConfig storage config,
     address actuary,
@@ -283,21 +309,20 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       increment = rate * (uint32(block.timestamp - updatedAt));
     }
 
-    if (
-      !balancer.replenishAsset(
-        BalancerLib2.ReplenishParams({actuary: actuary, source: source, token: targetToken, replenishFn: _replenishFn}),
-        increment,
-        uint96(rate),
-        lastRate,
-        checkSuspended
-      )
-    ) {
-      // the source failed to keep the promised premium rate, stop the rate to avoid false inflow
-      rate = 0;
-    }
+    bool underprovisioned = !balancer.replenishAsset(
+      BalancerLib2.ReplenishParams({actuary: actuary, source: source, token: targetToken, replenishFn: _replenishFn}),
+      increment,
+      uint96(rate),
+      lastRate,
+      checkSuspended
+    );
+    emit PremiumAllocationUpdated(actuary, source, token, increment, rate, underprovisioned);
 
-    if (lastRate != rate) {
-      require((sBalance.rate = uint96(rate)) == rate);
+    if (underprovisioned) {
+      // the source failed to keep the promised premium rate, stop the rate to avoid false inflow
+      sBalance.rate = 0;
+    } else if (lastRate != rate) {
+      Value.require((sBalance.rate = uint96(rate)) == rate);
     }
     sBalance.updatedAt = uint32(block.timestamp);
   }
@@ -339,6 +364,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
 
     _removePremiumSource(config, balancer, source, targetToken);
+    emit ActuarySourceRemoved(msg.sender, source, targetToken);
   }
 
   function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredValue)
@@ -363,7 +389,6 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       // this is called by auto-replenishment during swap - it is not related to any specific source
       // will auto-replenish from one source only to keep gas cost stable
       params.source = _sourceForReplenish(config, params.token);
-      //console.log(params.source);
     }
 
     SourceBalance storage balance = config.sourceBalances[params.source];
@@ -423,17 +448,18 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       missingValue = (requiredAmount - collectedAmount).wadMul(price);
 
       /*
-      // // This section of code enables use of CC as an additional way of premium payment
 
-      // if (missingValue > 0) {
-      //   // assert(params.token != collateral());
-      //   uint256 collectedValue = _collectPremiumCall(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
+      // This section of code enables use of CC as an additional way of premium payment
 
-      //   if (collectedValue > 0) {
-      //     missingValue -= collectedValue;
-      //     collectedAmount += collectedValue.wadDiv(price);
-      //   }
-      // }
+      if (missingValue > 0) {
+        // assert(params.token != collateral());
+        uint256 collectedValue = _collectPremiumCall(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
+
+        if (collectedValue > 0) {
+          missingValue -= collectedValue;
+          collectedAmount += collectedValue.wadDiv(price);
+        }
+      }
 
       */
     }
