@@ -31,26 +31,29 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   //   _loopLimits = v;
   // }
 
+  event WeightedPoolParamsUpdated(WeightedPoolParams params);
+
   function internalSetPoolParams(WeightedPoolParams memory params) internal virtual {
-    require(params.minUnitsPerRound > 0);
-    require(params.maxUnitsPerRound >= params.minUnitsPerRound);
-    require(params.overUnitsPerRound >= params.maxUnitsPerRound);
+    Value.require(
+      params.minUnitsPerRound > 0 && params.maxUnitsPerRound >= params.minUnitsPerRound && params.overUnitsPerRound >= params.maxUnitsPerRound
+    );
 
-    require(params.maxAdvanceUnits >= params.minAdvanceUnits);
-    require(params.minAdvanceUnits >= params.maxUnitsPerRound);
+    Value.require(params.maxAdvanceUnits >= params.minAdvanceUnits && params.minAdvanceUnits >= params.maxUnitsPerRound);
 
-    require(params.minInsuredSharePct > 0);
-    require(params.maxInsuredSharePct > params.minInsuredSharePct);
-    require(params.maxInsuredSharePct <= PercentageMath.ONE);
+    Value.require(
+      params.minInsuredSharePct > 0 && params.maxInsuredSharePct > params.minInsuredSharePct && params.maxInsuredSharePct <= PercentageMath.ONE
+    );
 
-    require(params.riskWeightTarget > 0);
-    require(params.riskWeightTarget < PercentageMath.ONE);
+    Value.require(params.riskWeightTarget > 0 && params.riskWeightTarget < PercentageMath.ONE);
 
-    require(params.coveragePrepayPct >= _params.coveragePrepayPct);
-    require(params.coveragePrepayPct >= PercentageMath.HALF_ONE);
-    require(params.maxUserDrawdownPct <= PercentageMath.ONE - params.coveragePrepayPct);
+    Value.require(
+      params.coveragePrepayPct >= _params.coveragePrepayPct &&
+        params.coveragePrepayPct >= PercentageMath.HALF_ONE &&
+        params.maxUserDrawdownPct <= PercentageMath.ONE - params.coveragePrepayPct
+    );
 
     _params = params;
+    emit WeightedPoolParamsUpdated(params);
   }
 
   ///@return The number of rounds to initialize a new batch
