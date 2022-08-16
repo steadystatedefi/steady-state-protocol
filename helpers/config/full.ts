@@ -53,5 +53,6 @@ const configMain: INetworkConfiguration<FullTokens> = {
 
 export const FullConfig: IConfiguration<ENetwork> = {
   main: configMain,
+  goerli: configMain,
   hardhat: configMain,
 };
