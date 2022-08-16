@@ -16,11 +16,11 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
   bool private _governorIsContract;
 
   function _onlyActiveInsured(address insurer) internal view {
-    require(internalGetStatus(insurer) == InsuredStatus.Accepted);
+    Access.require(internalGetStatus(insurer) == InsuredStatus.Accepted);
   }
 
   function _onlyInsured(address insurer) private view {
-    require(internalGetStatus(insurer) > InsuredStatus.Unknown);
+    Access.require(internalGetStatus(insurer) > InsuredStatus.Unknown);
   }
 
   modifier onlyActiveInsured() {
@@ -56,7 +56,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     IJoinHandler jh = governorContract();
     if (address(jh) == address(0)) {
       IApprovalCatalog c = approvalCatalog();
-      require(address(c) == address(0) || c.hasApprovedApplication(insured));
+      Access.require(address(c) == address(0) || c.hasApprovedApplication(insured));
       return InsuredStatus.Joining;
     } else {
       return jh.handleJoinRequest(insured);
@@ -88,7 +88,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
       if (!enforcedCancel || c.hasApprovedClaim(insured)) {
         IApprovalCatalog.ApprovedClaim memory info = c.applyApprovedClaim(insured);
 
-        require(enforcedCancel || info.since <= block.timestamp);
+        Access.require(enforcedCancel || info.since <= block.timestamp);
         approvedPayoutRatio = WadRayMath.RAY.percentMul(info.payoutRatio);
       }
       // else approvedPayoutRatio = 0 (for enfoced calls without an approved claim)

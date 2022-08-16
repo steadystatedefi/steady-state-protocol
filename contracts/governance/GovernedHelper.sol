@@ -11,11 +11,11 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function _onlyGovernorOr(uint256 flags) internal view {
-    require(_isAllowed(flags) || hasAnyAcl(msg.sender, flags));
+    Access.require(_isAllowed(flags) || hasAnyAcl(msg.sender, flags));
   }
 
   function _onlyGovernor() private view {
-    require(governorAccount() == msg.sender);
+    Access.require(governorAccount() == msg.sender);
   }
 
   function _isAllowed(uint256 flags) private view returns (bool) {
@@ -35,7 +35,7 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
   }
 
   function _onlySelf() private view {
-    require(msg.sender == address(this));
+    Access.require(msg.sender == address(this));
   }
 
   modifier onlySelf() {

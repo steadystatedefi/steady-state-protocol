@@ -118,7 +118,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ApplicationApproved(address indexed approver, address indexed insured, bytes32 indexed requestCid, ApprovedPolicy data);
 
-  function approveApplication(ApprovedPolicy calldata data) external aclHas(AccessFlags.UNDERWRITER_POLICY) {
+  function approveApplication(ApprovedPolicy calldata data) external {
+    _onlyUnderwriterOfPolicy(msg.sender);
+
     _approveApplication(msg.sender, data);
   }
 
@@ -141,6 +143,8 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     bytes32 r,
     bytes32 s
   ) external {
+    _onlyUnderwriterOfPolicy(approver);
+
     uint256 nonce = _nonces[data.insured]++;
     EIP712Lib.verifyCustomPermit(
       approver,
@@ -183,8 +187,11 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     return keccak256(abi.encodePacked(data));
   }
 
-  function _approveApplication(address approver, ApprovedPolicy calldata data) private {
+  function _onlyUnderwriterOfPolicy(address approver) private view {
     Access.require(hasAnyAcl(approver, AccessFlags.UNDERWRITER_POLICY));
+  }
+
+  function _approveApplication(address approver, ApprovedPolicy calldata data) private {
     Value.require(data.insured != address(0));
     Value.require(data.requestCid != 0);
     Value.require(!data.applied);
@@ -199,7 +206,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     address insured,
     bytes32 cid,
     string calldata reason
-  ) external aclHas(AccessFlags.UNDERWRITER_POLICY) {
+  ) external {
+    _onlyUnderwriterOfPolicy(msg.sender);
+
     Value.require(insured != address(0));
     ApprovedPolicy storage data = _approvedPolicies[insured];
     if (data.insured != address(0)) {
@@ -229,10 +238,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     bytes32 cid,
     uint256 payoutValue
   ) external returns (uint256) {
+    Access.require(insured != address(0) && IClaimAccessValidator(insured).canClaimInsurance(msg.sender));
     Value.require(cid != 0);
-    Value.require(insured != address(0));
     State.require(!hasApprovedClaim(insured));
-    Access.require(IClaimAccessValidator(insured).canClaimInsurance(msg.sender));
 
     RequestedClaim[] storage claims = _requestedClaims[insured];
     claims.push(RequestedClaim({cid: cid, requestedBy: msg.sender, payoutValue: payoutValue}));
@@ -253,7 +261,8 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ClaimApproved(address indexed approver, address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
-  function approveClaim(address insured, ApprovedClaim calldata data) external aclHas(AccessFlags.UNDERWRITER_CLAIM) {
+  function approveClaim(address insured, ApprovedClaim calldata data) external {
+    _onlyUnderwriterClaim(msg.sender);
     _approveClaim(msg.sender, insured, data);
   }
 
@@ -277,6 +286,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     bytes32 r,
     bytes32 s
   ) external {
+    _onlyUnderwriterClaim(approver);
     uint256 nonce = _nonces[insured]++;
     EIP712Lib.verifyCustomPermit(
       approver,
@@ -290,12 +300,15 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     _approveClaim(approver, insured, data);
   }
 
+  function _onlyUnderwriterClaim(address approver) private view {
+    Access.require(hasAnyAcl(approver, AccessFlags.UNDERWRITER_CLAIM));
+  }
+
   function _approveClaim(
     address approver,
     address insured,
     ApprovedClaim calldata data
   ) private {
-    Access.require(hasAnyAcl(approver, AccessFlags.UNDERWRITER_CLAIM));
     Value.require(insured != address(0));
     Value.require(data.requestCid != 0);
     State.require(!hasApprovedClaim(insured));

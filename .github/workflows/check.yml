@@ -44,6 +44,9 @@ jobs:
       - name: Tests
         run: npm run test
 
+      - name: Deploy test
+        run: npm run test-deploy:hardhat
+
   slither:
     runs-on: ubuntu-latest
     name: Slither static analysis

@@ -3,7 +3,7 @@ import { ConfigurableTaskDefinition, TaskArguments } from 'hardhat/types';
 
 import path from 'path';
 
-import { NamesOfConfig } from '../../helpers/config-loader';
+import { ConfigNamesAsString } from '../../helpers/config-loader';
 
 export interface IDeployStepParams {
   cfg: string;
@@ -27,6 +27,7 @@ const stepCatalog = new Map<
 >();
 
 stepCatalog.set('full', []);
+stepCatalog.set('dev', []);
 
 const defaultParams = (params: IDeployStepParams) => Promise.resolve({ cfg: params.cfg, verify: params.verify });
 
@@ -43,7 +44,7 @@ export function deployTask(
 
   addStep(deployType, description, name, paramsFn);
   return task(name, description)
-    .addParam('cfg', `Configuration name: ${NamesOfConfig}`)
+    .addParam('cfg', `Configuration name: ${ConfigNamesAsString}`)
     .addFlag('verify', `Verify contracts via Etherscan API.`);
 }
 

@@ -32,7 +32,7 @@ makeSuite('access: Oracle Router', (testEnv: TestEnv) => {
     {
       await expect(state.oracle.setStaticPrices([state.premToken.address], [WAD.add(1)])).reverted;
       await expect(state.oracle.setPriceSources([state.premToken.address], [source])).reverted;
-      await expect(state.oracle.setSafePriceRange(state.premToken.address, WAD, 2000)).reverted;
+      await expect(state.oracle.setSafePriceRanges([state.premToken.address], [WAD], [2000])).reverted;
       await expect(state.oracle.resetSourceGroupByAdmin(1)).reverted;
       await expect(state.oracle.configureSourceGroup(user2.address, 1)).reverted;
     }
@@ -41,7 +41,7 @@ makeSuite('access: Oracle Router', (testEnv: TestEnv) => {
     {
       await state.oracle.setStaticPrices([state.premToken.address], [WAD.add(1)]);
       await state.oracle.setPriceSources([state.premToken.address], [source]);
-      await state.oracle.setSafePriceRange(state.premToken.address, WAD, 2000);
+      await state.oracle.setSafePriceRanges([state.premToken.address], [WAD], [2000]);
       await state.oracle.resetSourceGroupByAdmin(1);
       await state.oracle.configureSourceGroup(user2.address, 1);
     }

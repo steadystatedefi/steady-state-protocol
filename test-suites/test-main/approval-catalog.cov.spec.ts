@@ -340,7 +340,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       {
         const { v, r, s } = await maker.signBy(user1);
         await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
-          testEnv.covReason('WrongPermitSignature()')
+          testEnv.covReason('AccessDenied()')
         );
         await expect(approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s)).revertedWith(
           testEnv.covReason('WrongPermitSignature()')
@@ -351,7 +351,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         maker.value.approver = user1.address;
         const { v, r, s } = await maker.signBy(user1);
         await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
-          testEnv.covReason('WrongPermitSignature()')
+          testEnv.covReason('AccessDenied()')
         );
 
         await approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s);
@@ -426,7 +426,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         const { v, r, s } = await maker.signBy(user1);
         await expect(
           approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
-        ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
+        ).revertedWith(testEnv.covReason('AccessDenied()'));
         await expect(
           approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s)
         ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
@@ -437,7 +437,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         const { v, r, s } = await maker.signBy(user1);
         await expect(
           approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
-        ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
+        ).revertedWith(testEnv.covReason('AccessDenied()'));
 
         await approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s);
         expect(await approvalCatalog.hasApprovedClaim(insured)).eq(true);

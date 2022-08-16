@@ -1,22 +1,38 @@
+import { IConfiguration, INetworkConfiguration } from './config-types';
+import { DevConfig } from './config/dev';
 import { FullConfig } from './config/full';
-import { IConfiguration } from './types';
+import { getNetworkName } from './runtime-utils';
 
 export enum ConfigNames {
-  Test = 'Test',
   Full = 'Full',
+  Test = 'Test',
 }
 
-export const NamesOfConfig = JSON.stringify(Object.values(ConfigNames));
+const configs: Record<keyof typeof ConfigNames, IConfiguration> = {
+  Test: DevConfig,
+  Full: FullConfig,
+};
 
-export const loadRuntimeConfig = (configName: ConfigNames): IConfiguration => {
-  switch (configName) {
-    case ConfigNames.Full:
-      return FullConfig;
-    case ConfigNames.Test:
-      return FullConfig;
-    default:
-      throw new Error(`Unsupported pool configuration: ${String(configName)} ${NamesOfConfig}`);
+export const ConfigNamesAsString = JSON.stringify([...Object.keys(configs)]);
+
+export const loadRuntimeConfig = (configName: string): IConfiguration => {
+  const cfg = configs[configName] as IConfiguration;
+  if (!cfg) {
+    throw new Error(`Unknown configuration: ${String(configName)} ${ConfigNamesAsString}`);
   }
+  return cfg;
 };
 
 export const loadTestConfig = (): IConfiguration => loadRuntimeConfig(ConfigNames.Test);
+
+export const getNetworkConfig = (cfg: IConfiguration, network?: string): INetworkConfiguration => {
+  const name = network || getNetworkName();
+  const nc = cfg?.[name];
+  if (!nc) {
+    throw new Error(`Unknown network configuration: ${String(name)} ${JSON.stringify([...Object.keys(cfg)])}`);
+  }
+  return nc;
+};
+
+export const loadNetworkConfig = (configName: string, network?: string): INetworkConfiguration =>
+  getNetworkConfig(loadRuntimeConfig(configName), network);

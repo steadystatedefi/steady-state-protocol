@@ -6,6 +6,7 @@ import '../tools/tokens/IERC20Details.sol';
 import '../interfaces/IProxyFactory.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IPremiumActuary.sol';
+import '../interfaces/IManagedCollateralCurrency.sol';
 import '../funds/interfaces/ICollateralFund.sol';
 import '../premium/interfaces/IPremiumFund.sol';
 import '../access/AccessHelper.sol';
@@ -17,6 +18,7 @@ contract FrontHelper is AccessHelper {
   struct CollateralFundInfo {
     address fund;
     address collateral;
+    address yieldDistributor;
     address[] assets;
   }
 
@@ -53,8 +55,10 @@ contract FrontHelper is AccessHelper {
     for (uint256 i = list.length; i > 0; ) {
       i--;
       ICollateralFund fund = ICollateralFund(collateralFunds[i].fund = list[i]);
-      collateralFunds[i].collateral = fund.collateral();
+      address cc = fund.collateral();
+      collateralFunds[i].collateral = cc;
       collateralFunds[i].assets = fund.assets();
+      collateralFunds[i].yieldDistributor = IManagedCollateralCurrency(cc).borrowManager();
     }
 
     list = ac.roleHolders(AccessFlags.INSURER_POOL_LISTING);
@@ -84,16 +88,16 @@ contract FrontHelper is AccessHelper {
     address[] activeSources;
   }
 
-  function getDistribution(address[] calldata premiumFunds) external view returns (PremiumFundInfo[] memory funds) {
+  function getPremiumFundInfo(address[] calldata premiumFunds) external view returns (PremiumFundInfo[] memory funds) {
     funds = new PremiumFundInfo[](premiumFunds.length);
     for (uint256 i = premiumFunds.length; i > 0; ) {
       i--;
-      funds[i] = _getDistributorInfo(IPremiumFund(premiumFunds[i]));
+      funds[i] = _getPremiumFundInfo(IPremiumFund(premiumFunds[i]));
     }
   }
 
   // slither-disable-next-line calls-loop
-  function _getDistributorInfo(IPremiumFund fund) private view returns (PremiumFundInfo memory info) {
+  function _getPremiumFundInfo(IPremiumFund fund) private view returns (PremiumFundInfo memory info) {
     info.fund = address(fund);
 
     address[] memory knownTokens = fund.knownTokens();

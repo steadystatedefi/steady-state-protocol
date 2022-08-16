@@ -15,7 +15,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
 
   before(async () => {
     user = testEnv.users[0];
-    cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC');
   });
 
   it('Create an insurer', async () => {

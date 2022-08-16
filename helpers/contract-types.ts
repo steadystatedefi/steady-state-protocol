@@ -1,8 +1,11 @@
 import * as types from '../types';
 
-import { addNamedDeployable, NamedDeployable, wrap, mock } from './factory-wrapper';
+import { wrap, mock, iface, loadFactories } from './factory-wrapper';
 
 export const Factories = {
+  IERC20: iface(types.IERC20Detailed__factory),
+  IInsurerPool: iface(types.IInsurerPool__factory),
+
   JoinablePoolExtension: wrap(types.JoinablePoolExtension__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
@@ -13,12 +16,13 @@ export const Factories = {
   ApprovalCatalogV1: wrap(types.ApprovalCatalogV1__factory),
   InsuredPoolV1: wrap(types.InsuredPoolV1__factory),
   CollateralCurrency: wrap(types.CollateralCurrency__factory),
+  FrontHelper: wrap(types.FrontHelper__factory),
   OracleRouterV1: wrap(types.OracleRouterV1__factory),
+  YieldDistributorV1: wrap(types.YieldDistributorV1__factory),
   CollateralFundV1: wrap(types.CollateralFundV1__factory),
   PremiumFundV1: wrap(types.PremiumFundV1__factory),
-  YieldDistributorV1: wrap(types.YieldDistributorV1__factory),
 
-  MockCollateralCurrency: wrap(types.MockCollateralCurrency__factory),
+  MockCollateralCurrency: mock(types.MockCollateralCurrency__factory),
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),
   MockCollateralCurrencyStub: mock(types.MockCollateralCurrencyStub__factory),
   MockPerpetualPool: mock(types.MockPerpetualPool__factory),
@@ -41,6 +45,4 @@ export const Factories = {
   MockInsurerForYield: mock(types.MockInsurerForYield__factory),
 };
 
-Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));
-
-export const factoryByName = (s: string): NamedDeployable => Factories[s] as NamedDeployable;
+loadFactories(Factories);

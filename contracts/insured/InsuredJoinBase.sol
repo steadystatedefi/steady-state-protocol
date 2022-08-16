@@ -16,10 +16,10 @@ abstract contract InsuredJoinBase is IInsuredPool {
   uint16 private constant INDEX_MAX = STATUS_MAX - 2;
 
   function internalJoinPool(IJoinable pool) internal {
-    require(address(pool) != address(0));
+    Value.require(address(pool) != address(0));
     uint32 status = getAccountStatus(address(pool));
 
-    require(status == 0 || status == STATUS_NOT_JOINED);
+    State.require(status == 0 || status == STATUS_NOT_JOINED);
     internalSetServiceAccountStatus(address(pool), STATUS_PENDING);
 
     pool.requestJoin(address(this));
@@ -43,12 +43,12 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   ///@dev Add the Insurer pool if accepted, and set the status of it
   function internalJoinProcessed(address insurer, bool accepted) internal {
-    require(getAccountStatus(insurer) == STATUS_PENDING);
+    Access.require(getAccountStatus(insurer) == STATUS_PENDING);
 
     if (accepted) {
       bool chartered = IJoinable(insurer).charteredDemand();
       uint256 index = chartered ? (_charteredInsurers.length << 1) + 1 : (_genericInsurers.length + 1) << 1;
-      require(index < INDEX_MAX);
+      State.require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
       internalSetServiceAccountStatus(insurer, uint16(index));
       _addCoverageDemandTo(ICoverageDistributor(insurer), 0, getDemandOnJoin(), 0);
@@ -61,7 +61,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
   function pullCoverageDemand(uint256 amount, uint256 loopLimit) external override returns (bool) {
     uint16 status = getAccountStatus(msg.sender);
     if (status <= INDEX_MAX) {
-      require(status > 0);
+      Access.require(status > 0);
       return _addCoverageDemandTo(ICoverageDistributor(msg.sender), amount, type(uint256).max, loopLimit);
     }
     return false;
@@ -69,7 +69,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
 
   function internalPushCoverageDemandTo(ICoverageDistributor target, uint256 maxAmount) internal {
     uint16 status = getAccountStatus(address(target));
-    require(status > 0 && status <= INDEX_MAX);
+    Access.require(status > 0 && status <= INDEX_MAX);
     _addCoverageDemandTo(target, 0, maxAmount, 0);
   }
 
@@ -87,7 +87,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     uint256 unitSize = target.coverageUnitSize();
 
     (uint256 amount, uint256 premiumRate) = internalAllocateCoverageDemand(address(target), minAmount, maxAmount, unitSize);
-    require(amount <= maxAmount);
+    State.require(amount <= maxAmount);
 
     amount = amount < unitSize ? 0 : target.addCoverageDemand(amount / unitSize, premiumRate, amount % unitSize != 0, loopLimit);
     if (amount == 0) {

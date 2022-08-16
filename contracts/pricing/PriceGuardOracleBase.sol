@@ -62,15 +62,15 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
 
     uint256 maskSet = internalGetOwnedFuses(msg.sender);
     uint256 maskUnset;
-    Access.require(maskSet != 0);
-
-    if (attach) {
-      emit SourceToGroupsAdded(asset, maskSet);
-    } else {
-      (maskSet, maskUnset) = (0, maskSet);
-      emit SourceFromGroupsRemoved(asset, maskUnset);
+    if (maskSet != 0) {
+      if (attach) {
+        emit SourceToGroupsAdded(asset, maskSet);
+      } else {
+        (maskSet, maskUnset) = (0, maskSet);
+        emit SourceFromGroupsRemoved(asset, maskUnset);
+      }
+      internalSetFuses(asset, maskUnset, maskSet);
     }
-    internalSetFuses(asset, maskUnset, maskSet);
   }
 
   function resetSourceGroup() external override {

@@ -21,8 +21,8 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
   before(async () => {
     user0 = testEnv.deployer;
     [user1, user2, user3] = testEnv.users;
-    cc = await Factories.MockCollateralCurrency.deploy('Collateral Currency', '$CC', 18);
-    token0 = await Factories.MockCollateralCurrency.deploy('Collateral Asset', '$TK0', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral Currency', '$CC');
+    token0 = await Factories.MockCollateralCurrency.deploy('Collateral Asset', '$TK0');
     fund = await Factories.MockCollateralFund.deploy(cc.address);
     await cc.registerLiquidityProvider(fund.address);
     await token0.registerLiquidityProvider(user0.address);

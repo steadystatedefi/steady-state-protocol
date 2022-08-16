@@ -3,7 +3,6 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
 import { HALF_RAY, RAY } from '../../helpers/constants';
-import { Ifaces } from '../../helpers/contract-ifaces';
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { MockCollateralCurrency, IInsurerPool, MockInsuredPool, MockImperpetualPool } from '../../types';
@@ -26,13 +25,13 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
   before(async () => {
     user = testEnv.users[0];
-    cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC', 18);
+    cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC');
     const joinExtension = await Factories.JoinablePoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     const extension = await Factories.ImperpetualPoolExtension.deploy(zeroAddress(), unitSize, cc.address);
     await cc.registerLiquidityProvider(testEnv.deployer.address);
     pool = await Factories.MockImperpetualPool.deploy(extension.address, joinExtension.address);
     await cc.registerInsurer(pool.address);
-    poolIntf = Ifaces.IInsurerPool.attach(pool.address);
+    poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
 
   enum InsuredStatus {

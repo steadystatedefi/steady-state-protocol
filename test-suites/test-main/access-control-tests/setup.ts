@@ -57,7 +57,6 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
     state.controller.address,
     'Collateral Currency',
     'CC',
-    18,
   ]);
   state.fund = await Factories.CollateralFundV1.connectAndDeploy(deployer, 'fund', [
     state.controller.address,

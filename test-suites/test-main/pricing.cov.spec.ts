@@ -215,17 +215,17 @@ makeSuite('Pricing', (testEnv: TestEnv) => {
     }
   });
 
-  it.only('Excessive volatility', async () => {
+  it('Excessive volatility', async () => {
     const value = BigNumber.from(10).pow(10);
     const fuse = 2;
     const chainlinkOracle = await setChainlink(token.address, value, zeroAddress());
     await user1oracle.configureSourceGroup(user1.address, fuse);
     await user1oracle.attachSource(token.address, true);
 
-    await expect(oracle.setSafePriceRange(token.address, value, 2000)).to.be.reverted;
-    await expect(user1oracle.setSafePriceRange(zeroAddress(), value, 2000)).to.be.reverted;
+    await expect(oracle.setSafePriceRanges([token.address], [value], [2000])).to.be.reverted;
+    await expect(user1oracle.setSafePriceRanges([zeroAddress()], [value], [2000])).to.be.reverted;
 
-    await user1oracle.setSafePriceRange(token.address, value, 2000); // 20%
+    await user1oracle.setSafePriceRanges([token.address], [value], [2000]); // 20%
     const vals = await oracle.getPriceSourceRange(token.address);
     expect(vals.targetPrice).eq(value);
     expect(vals.tolerancePct).eq(2000);
