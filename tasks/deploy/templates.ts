@@ -4,12 +4,14 @@ import { formatBytes32String } from 'ethers/lib/utils';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { addNamedToJsonDb, addProxyToJsonDb, getAddrFromJsonDb } from '../../helpers/deploy-db';
+import { NamedAttachable } from '../../helpers/factory-wrapper';
 import { ensureValidAddress, notFalsyOrZeroAddress } from '../../helpers/runtime-utils';
 
 export const findDeployedProxy = (name: string): string => getAddrFromJsonDb(name);
 export const getDeployedProxy = (name: string): string => ensureValidAddress(findDeployedProxy(name), name);
 
 export const deployProxyFromCatalog = async (
+  factory: NamedAttachable,
   catalogBaseName: string,
   initFunctionData: string,
   subInstance?: string,
@@ -42,7 +44,7 @@ export const deployProxyFromCatalog = async (
 
   console.log(`${catalogName}: ${contractAddr} => ${contractImpl}`);
 
-  addProxyToJsonDb(catalogName, contractAddr, contractImpl, subInstance ?? '', [
+  addProxyToJsonDb(catalogName, contractAddr, contractImpl, subInstance ?? '', factory.name() ?? '', [
     proxyCatalog.address,
     contractImpl,
     initFunctionData,

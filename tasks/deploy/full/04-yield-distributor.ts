@@ -20,7 +20,7 @@ deployTask(`full:deploy-yield-distributor`, `Deploy ${catalogName}`, __dirname).
     const factory = Factories.YieldDistributorV1;
     const initFunctionData = factory.interface.encodeFunctionData('initializeYieldDistributor');
 
-    const addr = await deployProxyFromCatalog(catalogName, initFunctionData);
+    const addr = await deployProxyFromCatalog(factory, catalogName, initFunctionData);
 
     await mustWaitTx(cc.setBorrowManager(addr));
   })

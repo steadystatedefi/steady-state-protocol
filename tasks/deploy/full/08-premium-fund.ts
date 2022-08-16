@@ -11,6 +11,6 @@ deployTask(`full:deploy-premium-fund`, `Deploy ${catalogName}`, __dirname).setAc
     const factory = Factories.PremiumFundV1;
     const initFunctionData = factory.interface.encodeFunctionData('initializePremiumFund');
 
-    await deployProxyFromCatalog(catalogName, initFunctionData);
+    await deployProxyFromCatalog(factory, catalogName, initFunctionData);
   })
 );

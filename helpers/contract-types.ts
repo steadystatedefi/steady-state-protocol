@@ -1,8 +1,11 @@
 import * as types from '../types';
 
-import { addNamedDeployable, NamedDeployable, wrap, mock } from './factory-wrapper';
+import { wrap, mock, iface, loadFactories } from './factory-wrapper';
 
 export const Factories = {
+  IERC20: iface(types.IERC20Detailed__factory),
+  IInsurerPool: iface(types.IInsurerPool__factory),
+
   JoinablePoolExtension: wrap(types.JoinablePoolExtension__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
   ImperpetualPoolExtension: wrap(types.ImperpetualPoolExtension__factory),
@@ -42,6 +45,4 @@ export const Factories = {
   MockInsurerForYield: mock(types.MockInsurerForYield__factory),
 };
 
-Object.entries(Factories).forEach(([name, factory]) => addNamedDeployable(factory, name));
-
-export const factoryByName = (s: string): NamedDeployable => Factories[s] as NamedDeployable;
+loadFactories(Factories);

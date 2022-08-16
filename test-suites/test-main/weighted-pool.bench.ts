@@ -2,7 +2,6 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
-import { Ifaces } from '../../helpers/contract-ifaces';
 import { Factories } from '../../helpers/contract-types';
 import { createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
 import { IInsurerPool, MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
@@ -24,7 +23,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     const joinExtension = await Factories.JoinablePoolExtension.deploy(zeroAddress(), unitSize, fund.address);
     const extension = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, fund.address);
     pool = await Factories.MockPerpetualPool.deploy(extension.address, joinExtension.address);
-    poolIntf = Ifaces.IInsurerPool.attach(pool.address);
+    poolIntf = Factories.IInsurerPool.attach(pool.address);
 
     await pool.setPoolParams({
       maxAdvanceUnits: 100_000_000,

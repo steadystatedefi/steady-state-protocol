@@ -13,6 +13,6 @@ deployTask(`dev:deploy-insured-pools`, `Deploy insured pools`, __dirname).setAct
     const factory = Factories.InsuredPoolV1;
     const initFunctionData = factory.interface.encodeFunctionData('initializeInsured', [zeroAddress()]);
 
-    await deployProxyFromCatalog(catalogName, initFunctionData);
+    await deployProxyFromCatalog(factory, catalogName, initFunctionData);
   })
 );

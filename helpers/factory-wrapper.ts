@@ -5,6 +5,7 @@ import { Interface } from 'ethers/lib/utils';
 
 import { addContractToJsonDb, getAddrFromJsonDb } from './deploy-db';
 import { falsyOrZeroAddress, waitForTx } from './runtime-utils';
+import { EthereumAddress } from './types';
 
 interface Deployable<TArgs extends unknown[] = unknown[], TResult extends Contract = Contract> extends ContractFactory {
   attach(address: string): TResult;
@@ -26,10 +27,6 @@ class ContractInterface<I extends Interface> extends Contract {
   readonly interface!: I;
 }
 
-interface InterfaceFactory {
-  createInterface(): Interface;
-}
-
 export type ExtractInterface<T extends ContractInterface<Interface>> = T extends ContractInterface<infer I> ? I : never;
 
 export interface UnnamedAttachable<TResult extends Contract = Contract> {
@@ -37,9 +34,9 @@ export interface UnnamedAttachable<TResult extends Contract = Contract> {
   attach(address: string): TResult;
 }
 
-export interface NamedGettable<TResult extends Contract = Contract> extends Named {
-  interface: ExtractInterface<TResult>;
-  attach(address: string): TResult;
+export interface NamedAttachable<TResult extends Contract = Contract> extends UnnamedAttachable<TResult>, Named {}
+
+export interface NamedGettable<TResult extends Contract = Contract> extends NamedAttachable<TResult> {
   get(signer?: Signer | null, name?: string): TResult;
   findInstance(name?: string): string | undefined;
 }
@@ -51,6 +48,7 @@ export interface NamedDeployable<DeployArgs extends unknown[] = unknown[], TResu
 }
 
 let deployer: SignerWithAddress;
+let blockMocks = false;
 
 export const setDefaultDeployer = (d: SignerWithAddress): void => {
   deployer = d;
@@ -58,32 +56,44 @@ export const setDefaultDeployer = (d: SignerWithAddress): void => {
 
 export const getDefaultDeployer = (): SignerWithAddress => deployer;
 
-const nameByFactory = new Map<NamedDeployable, string>();
+export const setBlockMocks = (block: boolean): void => {
+  blockMocks = block;
+};
 
-export const wrapFactory = <TArgs extends unknown[], TResult extends Contract>(
+export const wrapContractFactory = <TArgs extends unknown[], TResult extends Contract>(
   F: FactoryConstructor<TArgs, TResult>,
   mock: boolean
 ): NamedDeployable<TArgs, TResult> =>
   new (class implements NamedDeployable<TArgs, TResult> {
-    readonly interface = (F as unknown as InterfaceFactory).createInterface() as ExtractInterface<TResult>;
+    readonly interface = (F as unknown as InterfaceFactory<TResult>).createInterface();
 
     deploy(...args: TArgs): Promise<TResult> {
       return this.connectAndDeploy(deployer, '', args);
     }
 
+    private checkMocks() {
+      if (blockMocks && mock) {
+        throw new Error(`Mocks are not allowed: ${this.toString()}`);
+      }
+    }
+
     async connectAndDeploy(d: Signer | null, deployName: string, args: TArgs): Promise<TResult> {
+      this.checkMocks();
+
       const dd = d || deployer;
       if (!dd) {
         throw new Error('deployer is required');
       }
       const name = deployName || this.name();
       const c = await new F(dd).deploy(...args);
-      addContractToJsonDb(name || 'unknown', c, name !== undefined, args);
+      addContractToJsonDb(name || 'unknown', c, this.name() ?? '', name !== undefined, args);
 
       return c;
     }
 
     attach(address: string): TResult {
+      this.checkMocks();
+
       if (falsyOrZeroAddress(address)) {
         throw new Error(`Unable to attach ${this.toString()}: ${address}`);
       }
@@ -95,15 +105,21 @@ export const wrapFactory = <TArgs extends unknown[], TResult extends Contract>(
     }
 
     name(): string | undefined {
-      return nameByFactory.get(this);
+      return getNameByFactory(this);
     }
 
     findInstance(n?: string): string | undefined {
+      if (blockMocks && mock) {
+        return undefined;
+      }
+
       const name = n ?? this.name();
       return name !== undefined ? getAddrFromJsonDb(name) : undefined;
     }
 
     get(signer?: Signer | null, name?: string): TResult {
+      this.checkMocks();
+
       // eslint-disable-next-line no-param-reassign
       name = name ?? this.name();
       if (name === undefined) {
@@ -123,17 +139,15 @@ export const wrapFactory = <TArgs extends unknown[], TResult extends Contract>(
     }
   })();
 
-export const wrap = <TArgs extends unknown[], TResult extends Contract>(
-  f: FactoryConstructor<TArgs, TResult>
-): NamedDeployable<TArgs, TResult> => wrapFactory(f, false);
+const nameByFactory = new Map<Named, string>();
 
-export const mock = <TArgs extends unknown[], TResult extends Contract>(
-  f: FactoryConstructor<TArgs, TResult>
-): NamedDeployable<TArgs, TResult> => wrapFactory(f, true);
-
-export const addNamedDeployable = (f: NamedDeployable, name: string): void => {
-  nameByFactory.set(f, name);
+export const loadFactories = (catalog: Record<string, NamedAttachable>): void => {
+  Object.entries(catalog).forEach(([n, f]) => nameByFactory.set(f, n));
 };
+
+function getNameByFactory(f: Named): string | undefined {
+  return nameByFactory.get(f);
+}
 
 export type ExcludeOverrides<T extends unknown[]> = T extends [...infer Head, Overrides?] ? Head : T;
 type DeployArgs<TArgs extends unknown[], T extends Contract> = {
@@ -163,3 +177,41 @@ export async function getOrDeploy<TArgs extends unknown[], T extends Contract>(
   console.log(`${logName}:`, deployed.address);
   return [deployed, true];
 }
+
+interface InterfaceFactory<TResult extends Contract> {
+  connect(address: EthereumAddress, signerOrProvider: Signer): TResult;
+  createInterface(): ExtractInterface<TResult>;
+}
+
+export const wrapInterfaceFactory = <TResult extends Contract>(
+  F: InterfaceFactory<TResult>
+): NamedAttachable<TResult> =>
+  new (class implements NamedAttachable<TResult> {
+    readonly interface = F.createInterface();
+
+    attach(address: EthereumAddress): TResult {
+      return F.connect(address, getDefaultDeployer());
+    }
+
+    toString(): string {
+      return this.name() || 'unknown';
+    }
+
+    name(): string | undefined {
+      return getNameByFactory(this);
+    }
+
+    isMock(): boolean {
+      return false;
+    }
+  })();
+
+export const wrap = <TArgs extends unknown[], TResult extends Contract>(
+  f: FactoryConstructor<TArgs, TResult>
+): NamedDeployable<TArgs, TResult> => wrapContractFactory(f, false);
+
+export const mock = <TArgs extends unknown[], TResult extends Contract>(
+  f: FactoryConstructor<TArgs, TResult>
+): NamedDeployable<TArgs, TResult> => wrapContractFactory(f, true);
+
+export const iface = wrapInterfaceFactory;

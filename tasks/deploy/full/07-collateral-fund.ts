@@ -19,7 +19,7 @@ deployTask(`full:deploy-collateral-fund`, `Deploy ${catalogName}`, __dirname).se
     const cc = Factories.CollateralCurrency.get();
     const initFunctionData = factory.interface.encodeFunctionData('initializeCollateralFund');
 
-    const collateralFundAddr = await deployProxyFromCatalog(catalogName, initFunctionData);
+    const collateralFundAddr = await deployProxyFromCatalog(factory, catalogName, initFunctionData);
 
     if (!(await cc.isLiquidityProvider(collateralFundAddr))) {
       await mustWaitTx(cc.registerLiquidityProvider(collateralFundAddr));

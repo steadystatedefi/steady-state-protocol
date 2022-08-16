@@ -16,6 +16,7 @@ export interface DbNamedEntry {
 
 export interface DbInstanceEntry {
   id: string;
+  factory: string;
   verify?: {
     args?: string;
     impl?: string;
@@ -30,6 +31,7 @@ export const cleanupJsonDb = (currentNetwork: string): void => {
 export const addContractToJsonDb = (
   contractId: string,
   contractInstance: Contract,
+  contractAddr: string,
   register: boolean,
   verifyArgs?: unknown[]
 ): void => {
@@ -51,12 +53,13 @@ export const addContractToJsonDb = (
     console.log();
   }
 
-  addContractAddrToJsonDb(contractId, contractInstance.address, register, verifyArgs);
+  addContractAddrToJsonDb(contractId, contractInstance.address, contractAddr, register, verifyArgs);
 };
 
 export function addContractAddrToJsonDb(
   contractId: string,
   contractAddr: string,
+  contractFactory: string,
   register: boolean,
   verifyArgs?: unknown[]
 ): void {
@@ -65,6 +68,7 @@ export function addContractAddrToJsonDb(
 
   const logEntry: DbInstanceEntry = {
     id: contractId,
+    factory: contractFactory,
   };
 
   if (verifyArgs !== undefined) {
@@ -93,6 +97,7 @@ export const addProxyToJsonDb = (
   proxyAddress: EthereumAddress,
   implAddress: EthereumAddress,
   subType: string,
+  contractFactory: string,
   verifyArgs?: unknown[]
 ): void => {
   const currentNetwork = DRE.network.name;
@@ -100,6 +105,7 @@ export const addProxyToJsonDb = (
 
   const logEntry: DbInstanceEntry = {
     id,
+    factory: contractFactory,
     verify: {
       impl: implAddress,
       subType,
@@ -114,12 +120,18 @@ export const addProxyToJsonDb = (
   db.set(`${currentNetwork}.external.${proxyAddress}`, logEntry).write();
 };
 
-export const addExternalToJsonDb = (id: string, address: EthereumAddress, verifyArgs?: unknown[]): void => {
+export const addExternalToJsonDb = (
+  id: string,
+  address: EthereumAddress,
+  contractFactory: string,
+  verifyArgs?: unknown[]
+): void => {
   const currentNetwork = DRE.network.name;
   const db = getDb();
 
   const logEntry: DbInstanceEntry = {
     id,
+    factory: contractFactory,
     verify: {},
   };
 
