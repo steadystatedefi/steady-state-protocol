@@ -11,7 +11,7 @@ import { makeSuite, TestEnv } from '../setup/make-suite';
 
 import { deployAccessControlState, State } from './setup';
 
-makeSuite.only('access: Oracle Router', (testEnv: TestEnv) => {
+makeSuite('access: Oracle Router', (testEnv: TestEnv) => {
   let deployer: SignerWithAddress;
   let state: State;
   let user2: SignerWithAddress;
