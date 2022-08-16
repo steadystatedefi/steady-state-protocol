@@ -84,11 +84,11 @@ abstract contract WeightedRoundsBase {
   /// @dev sets of insureds with "hasMore"
   mapping(uint64 => EnumerableSet.AddressSet) private _pullableDemands;
 
-  function internalSetInsuredStatus(address account, InsuredStatus status) internal {
+  function internalSetInsuredStatus(address account, MemberStatus status) internal {
     _insureds[account].status = status;
   }
 
-  function internalGetInsuredStatus(address account) internal view returns (InsuredStatus) {
+  function internalGetInsuredStatus(address account) internal view returns (MemberStatus) {
     return _insureds[account].status;
   }
 
@@ -97,7 +97,7 @@ abstract contract WeightedRoundsBase {
     _insureds[account].params = Rounds.packInsuredParams(params.minUnits, params.maxShare, params.minPremiumRate);
   }
 
-  function internalGetInsuredParams(address account) internal view returns (InsuredStatus, Rounds.InsuredParams memory) {
+  function internalGetInsuredParams(address account) internal view returns (MemberStatus, Rounds.InsuredParams memory) {
     Rounds.InsuredEntry storage entry = _insureds[account];
     return (entry.status, entry.params.unpackInsuredParams());
   }
@@ -128,7 +128,7 @@ abstract contract WeightedRoundsBase {
   {
     // console.log('\ninternalAddCoverageDemand', unitCount);
     Rounds.InsuredEntry memory entry = _insureds[params.insured];
-    Access.require(entry.status == InsuredStatus.Accepted);
+    Access.require(entry.status == MemberStatus.Accepted);
     Value.require(entry.params.minPremiumRate() <= params.premiumRate);
 
     if (unitCount == 0 || params.loopLimit == 0) {
@@ -187,7 +187,7 @@ abstract contract WeightedRoundsBase {
       }
 
       if (addPerRound > 0) {
-        // Sanity.require(takeNext); // TODO ?
+        // Sanity.require(takeNext);
         uint64 addedUnits = uint64(addPerRound) * b.rounds;
         unitCount -= addedUnits;
         entry.demandedUnits += addedUnits;
@@ -1070,7 +1070,7 @@ abstract contract WeightedRoundsBase {
     // TODO problems: consider zero-round batches when adding demand and coverage
 
     Rounds.InsuredEntry storage entry = _insureds[params.insured];
-    Access.require(entry.status == InsuredStatus.Accepted);
+    Access.require(entry.status == MemberStatus.Accepted);
 
     _removeFromPullable(params.insured, entry.nextBatchNo);
 
@@ -1528,7 +1528,7 @@ abstract contract WeightedRoundsBase {
       for (uint256 n = demands.length(); n > 0; ) {
         n--;
         insured = demands.at(n);
-        if (_insureds[insured].status == InsuredStatus.Accepted) {
+        if (_insureds[insured].status == MemberStatus.Accepted) {
           if (!trimOnly) {
             demands.remove(insured);
           }

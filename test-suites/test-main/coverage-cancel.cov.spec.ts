@@ -32,7 +32,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
 
-  enum InsuredStatus {
+  enum MemberStatus {
     Unknown,
     JoinCancelled,
     JoinRejected,
@@ -60,7 +60,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       await pool.approveNextJoin(riskWeightValue);
       await insured.joinPool(pool.address, { gasLimit: 1000000 });
       insuredTS.push(await currentTime());
-      expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
+      expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
@@ -256,7 +256,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       totalPremium += interest.accumulated.toNumber();
       totalPremiumRate += interest.rate.toNumber();
 
-      expect(await pool.statusOf(address)).eq(InsuredStatus.NotApplicable);
+      expect(await pool.statusOf(address)).eq(MemberStatus.NotApplicable);
     }
 
     expect(totalPremium).gt(0);
@@ -621,7 +621,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       for (const insured of insureds) {
         const status = await pool.statusOf(insured.address);
 
-        if (status !== InsuredStatus.Accepted) {
+        if (status !== MemberStatus.Accepted) {
           continue;
         }
 

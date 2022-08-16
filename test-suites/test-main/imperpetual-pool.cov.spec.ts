@@ -34,7 +34,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
 
-  enum InsuredStatus {
+  enum MemberStatus {
     Unknown,
     JoinCancelled,
     JoinRejected,
@@ -62,7 +62,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
       await pool.approveNextJoin(riskWeightValue);
       await insured.joinPool(pool.address, { gasLimit: 1000000 });
       insuredTS.push(await currentTime());
-      expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
+      expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);

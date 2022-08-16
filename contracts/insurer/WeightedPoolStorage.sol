@@ -51,9 +51,9 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
     emit PremiumDistributorUpdated(premiumDistributor_);
   }
 
-  function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal override {
+  function internalAfterJoinOrLeave(address insured, MemberStatus status) internal override {
     if (address(_premiumDistributor) != address(0)) {
-      _premiumDistributor.registerPremiumSource(insured, status == InsuredStatus.Accepted);
+      _premiumDistributor.registerPremiumSource(insured, status == MemberStatus.Accepted);
     }
     super.internalAfterJoinOrLeave(insured, status);
   }

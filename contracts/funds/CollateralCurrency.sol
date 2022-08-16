@@ -31,7 +31,6 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
   event InsurerRegistered(address indexed account);
 
   function registerInsurer(address account) external aclHas(AccessFlags.INSURER_ADMIN) {
-    // TODO protect insurer from withdraw
     internalSetFlags(account, FLAG_TRANSFER_CALLBACK);
     emit InsurerRegistered(account);
     _registerStakeAsset(account, true);

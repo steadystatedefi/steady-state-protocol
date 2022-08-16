@@ -233,18 +233,18 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return true;
   }
 
-  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
+  function internalGetStatus(address account) internal view override returns (MemberStatus) {
     return internalGetInsuredStatus(account);
   }
 
-  function internalSetStatus(address account, InsuredStatus status) internal override {
+  function internalSetStatus(address account, MemberStatus status) internal override {
     return super.internalSetInsuredStatus(account, status);
   }
 
   /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function internalStatusOf(address account) internal view returns (InsuredStatus status) {
-    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
-      status = InsuredStatus.NotApplicable;
+  function internalStatusOf(address account) internal view returns (MemberStatus status) {
+    if ((status = internalGetStatus(account)) == MemberStatus.Unknown && internalIsInvestor(account)) {
+      status = MemberStatus.NotApplicable;
     }
     return status;
   }

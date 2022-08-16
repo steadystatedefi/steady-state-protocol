@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
-import '../interfaces/IPremiumCalculator.sol';
 import '../interfaces/ICoverageDistributor.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
@@ -16,7 +15,7 @@ import 'hardhat/console.sol';
 /// @notice Holds balances of how much Insured owes to each Insurer in terms of rate
 /// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
 /// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
-abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, IPremiumCalculator {
+abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
@@ -133,7 +132,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
   /// @notice Total Premium rate and accumulated
   /// @return rate The current rate paid by the insured
   /// @return accumulated The total amount of premium to be paid for the policy
-  function totalPremium() public view override returns (uint256 rate, uint256 accumulated) {
+  function totalPremium() public view returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = internalSyncTotals();
     return (totals.rate, totals.accum);
   }
@@ -221,9 +220,8 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
         diff = coverage.totalPremium - b.accum;
         diff += totals.accum;
         Value.require((totals.accum = uint128(diff)) == diff);
-        revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
-        totals.accum -= uint128(diff = b.accum - coverage.totalPremium); // TODO (Tyler)
+        totals.accum -= uint128(diff = b.accum - coverage.totalPremium);
       }
 
       b.accum = uint120(coverage.totalPremium);

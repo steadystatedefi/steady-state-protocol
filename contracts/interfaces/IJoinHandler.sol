@@ -4,5 +4,5 @@ pragma solidity ^0.8.4;
 import '../insurer/Rounds.sol';
 
 interface IJoinHandler {
-  function handleJoinRequest(address) external returns (InsuredStatus);
+  function handleJoinRequest(address) external returns (MemberStatus);
 }

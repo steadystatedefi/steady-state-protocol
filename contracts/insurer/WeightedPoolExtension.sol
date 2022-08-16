@@ -114,7 +114,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
       ? 0
       : _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
 
-    internalSetStatus(insured, InsuredStatus.Declined);
+    internalSetStatus(insured, MemberStatus.Declined);
 
     if (premiumDebt > 0) {
       unchecked {
