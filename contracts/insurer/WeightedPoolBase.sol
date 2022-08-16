@@ -31,7 +31,7 @@ abstract contract WeightedPoolBase is
   {
     // require(extension.accessController() == joinExtension.accessController());
     // require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
-    require(extension.collateral() == joinExtension.collateral());
+    Value.require(extension.collateral() == joinExtension.collateral());
     // TODO check for the same access controller
     _extension = address(extension);
     _joinExtension = address(joinExtension);
@@ -63,12 +63,16 @@ abstract contract WeightedPoolBase is
     _delegate(_joinExtension);
   }
 
+  function cancelJoin() external returns (InsuredStatus) {
+    _delegate(_joinExtension);
+  }
+
   function governor() public view returns (address) {
     return governorAccount();
   }
 
   function _onlyPremiumDistributor() private view {
-    require(msg.sender == premiumDistributor());
+    Access.require(msg.sender == premiumDistributor());
   }
 
   modifier onlyPremiumDistributor() virtual {
@@ -142,8 +146,8 @@ abstract contract WeightedPoolBase is
     uint256 amount,
     bytes calldata data
   ) internal override onlyCollateralCurrency onlyUnpaused {
-    require(data.length == 0);
-    require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
+    Access.require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
+    Value.require(data.length == 0);
 
     internalMintForCoverage(account, amount);
     internalOnCoveredUpdated();

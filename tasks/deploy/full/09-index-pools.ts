@@ -26,7 +26,7 @@ deployTask(`full:deploy-index-pools`, `Deploy index pools`, __dirname).setAction
         ...poolInfo.initParams,
       ]);
 
-      const poolAddr = await deployProxyFromCatalog(poolInfo.poolType, initFunctionData, `${index}`);
+      const poolAddr = await deployProxyFromCatalog(factory, poolInfo.poolType, initFunctionData, `${index}`);
       const pool = factory.attach(poolAddr);
 
       await mustWaitTx(pool.setPremiumDistributor(pf.address));

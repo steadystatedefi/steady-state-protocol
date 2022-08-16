@@ -170,7 +170,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     }
   }
 
-  function setAccess(bytes32[] calldata implNames, uint256[] calldata accessFlags) external {
+  function setAccess(bytes32[] calldata implNames, uint256[] calldata accessFlags) external onlyAdmin {
     Value.require(implNames.length == accessFlags.length || accessFlags.length == 1);
     for (uint256 i = implNames.length; i > 0; ) {
       i--;

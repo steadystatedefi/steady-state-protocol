@@ -107,6 +107,7 @@ task('verify:all-contracts', 'Verify contracts listed in DeployDB')
       if (!falsyOrZeroAddress(value)) {
         addEntry(value, {
           id: `ID_${key}`,
+          factory: '',
           verify: {
             args: '[]',
           },

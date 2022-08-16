@@ -23,7 +23,7 @@ deployTask(`full:deploy-approval-catalog`, `Deploy ${catalogName}`, __dirname).s
     }
 
     const initFunctionData = factory.interface.encodeFunctionData('initializeApprovalCatalog');
-    const addr = await deployProxyFromCatalog(catalogName, initFunctionData, '', zeroAddress());
+    const addr = await deployProxyFromCatalog(factory, catalogName, initFunctionData, '', zeroAddress());
 
     await waitForTx(await accessController.setAddress(accessFlag, addr));
   })

@@ -2,36 +2,17 @@
 pragma solidity ^0.8.4;
 
 import './IERC20WithPermit.sol';
+import './EIP712Base.sol';
 
-abstract contract ERC20PermitBase is IERC20WithPermit {
-  // solhint-disable-next-line var-name-mixedcase
-  bytes32 public DOMAIN_SEPARATOR;
-  bytes public constant EIP712_REVISION = bytes('1');
-  bytes32 internal constant EIP712_DOMAIN = keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)');
+abstract contract ERC20PermitBase is IERC20WithPermit, EIP712Base {
   bytes32 public constant PERMIT_TYPEHASH = keccak256('Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)');
-
-  /// @dev owner => next valid nonce to submit with permit()
-  /// keep public for backward compatibility
-  mapping(address => uint256) public _nonces;
 
   constructor() {
     _initializeDomainSeparator();
   }
 
-  /// @dev returns nonce, to comply with eip-2612
-  function nonces(address addr) external view returns (uint256) {
-    return _nonces[addr];
-  }
-
   function _initializeDomainSeparator() internal {
-    uint256 chainId;
-
-    // solhint-disable-next-line no-inline-assembly
-    assembly {
-      chainId := chainid()
-    }
-
-    DOMAIN_SEPARATOR = keccak256(abi.encode(EIP712_DOMAIN, keccak256(_getPermitDomainName()), keccak256(EIP712_REVISION), chainId, address(this)));
+    super._initializeDomainSeparator(_getPermitDomainName());
   }
 
   /**
@@ -54,15 +35,8 @@ abstract contract ERC20PermitBase is IERC20WithPermit {
     bytes32 r,
     bytes32 s
   ) external override {
-    require(owner != address(0), 'INVALID_OWNER');
-    require(block.timestamp <= deadline, 'INVALID_EXPIRATION');
-    uint256 currentValidNonce = _nonces[owner];
-    bytes32 digest = keccak256(
-      abi.encodePacked('\x19\x01', DOMAIN_SEPARATOR, keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, currentValidNonce, deadline)))
-    );
-
-    require(owner == ecrecover(digest, v, r, s), 'INVALID_SIGNATURE');
-    _nonces[owner] = currentValidNonce + 1;
+    Value.require(owner != address(0));
+    internalPermit(owner, spender, value, deadline, v, r, s, PERMIT_TYPEHASH);
     _approveByPermit(owner, spender, value);
   }
 

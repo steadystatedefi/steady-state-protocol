@@ -34,11 +34,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
     }
   }
 
-  function cancelJoin() external returns (InsuredStatus) {
-    return _cancelJoin(msg.sender);
-  }
-
-  function _cancelJoin(address insured) private returns (InsuredStatus status) {
+  function internalCancelJoin(address insured) internal returns (InsuredStatus status) {
     if ((status = internalGetStatus(insured)) == InsuredStatus.Joining) {
       status = InsuredStatus.JoinCancelled;
       internalSetStatus(insured, status);
