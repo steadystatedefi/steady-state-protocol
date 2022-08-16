@@ -135,8 +135,12 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
 
   state.insurer = insurerV1ref;
 
-  await state.controller.grantAnyRoles(deployer.address, AccessFlags.PRICE_ROUTER_ADMIN);
+  await state.controller.grantAnyRoles(
+    deployer.address,
+    AccessFlags.PRICE_ROUTER_ADMIN | AccessFlags.PRICE_ROUTER_ADMIN
+  );
   await state.oracle.setStaticPrices([state.premToken.address], [WAD]);
+  await state.oracle.configureSourceGroup(state.fund.address, state.fundFuses);
   await state.premToken.mint(state.insured.address, WAD);
 
   await state.controller.revokeAllRoles(deployer.address);

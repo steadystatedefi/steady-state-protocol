@@ -6,7 +6,7 @@ import { makeSuite, TestEnv } from '../setup/make-suite';
 
 import { deployAccessControlState, State } from './setup';
 
-makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
+makeSuite('access: Collateral Currency', (testEnv: TestEnv) => {
   let deployer: SignerWithAddress;
   let state: State;
 
