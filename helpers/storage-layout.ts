@@ -54,7 +54,7 @@ export function tabulateContractLayouts(contracts: ContractStorageLayout[]): Tab
   return p;
 }
 
-/* eslint-disable @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment */
 
 export async function extractContractLayout(
   env: HardhatRuntimeEnvironment,

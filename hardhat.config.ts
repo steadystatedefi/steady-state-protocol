@@ -14,10 +14,10 @@ import 'solidity-coverage';
 import fs from 'fs';
 import path from 'path';
 
-import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS, FORK_RPC_URL } from './helper-hardhat-config';
+import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS, FORK_URL } from './helper-hardhat-config';
 import { BUIDLEREVM_CHAINID, COVERAGE_CHAINID } from './helpers/buidler-constants';
+import { EAllNetworks, ENetwork } from './helpers/config-networks';
 import testWalletsData from './helpers/test-wallets.json';
-import { eEthereumNetwork, eNetwork, eOtherNetwork, ePolygonNetwork } from './helpers/types';
 import './tasks/plugins/storage-layout';
 
 dotenv.config();
@@ -27,9 +27,8 @@ const DEFAULT_BLOCK_GAS_LIMIT = 7000000;
 const DEFAULT_GAS_MUL = 2;
 const HARDFORK = 'istanbul';
 const MNEMONIC_PATH = "m/44'/60'/0'/0";
-const MNEMONIC = process.env.MNEMONIC || '';
-const BSC_FORK_URL = process.env.BSC_FORK_URL || '';
-const { FORK } = process.env;
+const MNEMONIC = process.env.MNEMONIC ?? '';
+const FORK = process.env.FORK ?? '';
 const IS_FORK = !!FORK;
 
 const KEY_SEL = process.env.KEY_SEL || '';
@@ -53,7 +52,7 @@ if (!SKIP_LOAD) {
   });
 }
 
-const getCommonNetworkConfig = (networkName: eNetwork, networkId: number, mnemonic?: string) => ({
+const getCommonNetworkConfig = (networkName: ENetwork, networkId: number, mnemonic?: string) => ({
   url: NETWORKS_RPC_URL[networkName],
   hardfork: HARDFORK,
   blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,
@@ -68,30 +67,8 @@ const getCommonNetworkConfig = (networkName: eNetwork, networkId: number, mnemon
   },
 });
 
-const FORK_URLS: Record<eNetwork, string> = {
-  [eOtherNetwork.bsc]: BSC_FORK_URL,
-  [eOtherNetwork.bsc_testnet]: '',
-  [eOtherNetwork.avalanche]: FORK_RPC_URL[eOtherNetwork.avalanche] || '',
-  [eOtherNetwork.avalanche_testnet]: '',
-  [eOtherNetwork.fantom]: '',
-  [eOtherNetwork.fantom_testnet]: '',
-  [eEthereumNetwork.kovan]: '',
-  [eEthereumNetwork.goerli]: '',
-  [eEthereumNetwork.ropsten]: '',
-  [eEthereumNetwork.rinkeby]: '',
-  [eEthereumNetwork.main]: '',
-  [eEthereumNetwork.coverage]: '',
-  [eEthereumNetwork.hardhat]: '',
-  [ePolygonNetwork.matic]: '',
-  [ePolygonNetwork.mumbai]: '',
-  [ePolygonNetwork.arbitrum_testnet]: '',
-  [ePolygonNetwork.arbitrum]: '',
-  [ePolygonNetwork.optimistic_testnet]: '',
-  [ePolygonNetwork.optimistic]: '',
-};
-
-const getForkConfig = (name: eNetwork) => ({
-  url: FORK_URLS[name] ?? '',
+const getForkConfig = (name: ENetwork) => ({
+  url: FORK_URL[name] ?? '',
   accounts: {
     mnemonic: MNEMONIC,
     path: MNEMONIC_PATH,
@@ -106,19 +83,19 @@ const mainnetFork = () => {
   if (!url) {
     throw new Error(`Unknown network to fork: ${FORK}`);
   }
-  if (FORK_RPC_URL[FORK]) {
-    url = FORK_RPC_URL[FORK] as string;
-  } else if (FORK === eOtherNetwork.bsc) {
+  if (FORK_URL[FORK]) {
+    url = FORK_URL[FORK] as string;
+  } else if (FORK in FORK_URL) {
     console.log('==================================================================================');
     console.log('==================================================================================');
-    console.log('WARNING!  Forking of BSC requires a 3rd party provider or a special workaround');
+    console.log('WARNING!  Forking requires a 3rd party provider or a special workaround');
     console.log('See here: https://github.com/nomiclabs/hardhat/issues/1236');
     console.log('==================================================================================');
     console.log('==================================================================================');
   }
 
   const blockNumbers = {
-    // [eEthereumNetwork.main]: 13283829, // 12914827
+    // [EAllNetworks.main]: 13283829, // 12914827
   };
 
   return {
@@ -170,27 +147,27 @@ const buidlerConfig: HardhatUserConfig = {
       url: 'http://localhost:8555',
       chainId: COVERAGE_CHAINID,
     },
-    bsc_fork: getForkConfig(eOtherNetwork.bsc),
-    avalanche_fork: getForkConfig(eOtherNetwork.avalanche),
-    avalanche_testnet_fork: getForkConfig(eOtherNetwork.avalanche_testnet),
+    bsc_fork: getForkConfig(EAllNetworks.bsc),
+    avalanche_fork: getForkConfig(EAllNetworks.avalanche),
+    avalanche_testnet_fork: getForkConfig(EAllNetworks.avalanche_testnet),
 
-    kovan: getCommonNetworkConfig(eEthereumNetwork.kovan, 42),
-    goerli: getCommonNetworkConfig(eEthereumNetwork.goerli, 5),
-    ropsten: getCommonNetworkConfig(eEthereumNetwork.ropsten, 3),
-    rinkeby: getCommonNetworkConfig(eEthereumNetwork.rinkeby, 4),
-    main: getCommonNetworkConfig(eEthereumNetwork.main, 1, MNEMONIC_MAIN),
-    bsc_testnet: getCommonNetworkConfig(eOtherNetwork.bsc_testnet, 97),
-    bsc: getCommonNetworkConfig(eOtherNetwork.bsc, 56, MNEMONIC_MAIN),
-    avalanche_testnet: getCommonNetworkConfig(eOtherNetwork.avalanche_testnet, 43113),
-    avalanche: getCommonNetworkConfig(eOtherNetwork.avalanche, 43114, MNEMONIC_MAIN),
-    fantom_testnet: getCommonNetworkConfig(eOtherNetwork.fantom_testnet, 4002),
-    fantom: getCommonNetworkConfig(eOtherNetwork.fantom, 250, MNEMONIC_MAIN),
-    arbitrum_testnet: getCommonNetworkConfig(ePolygonNetwork.arbitrum_testnet, 421611),
-    arbitrum: getCommonNetworkConfig(ePolygonNetwork.arbitrum, 42161, MNEMONIC_MAIN),
-    optimistic_testnet: getCommonNetworkConfig(ePolygonNetwork.optimistic_testnet, 69),
-    optimistic: getCommonNetworkConfig(ePolygonNetwork.optimistic, 10, MNEMONIC_MAIN),
-    matic: getCommonNetworkConfig(ePolygonNetwork.matic, 137, MNEMONIC_MAIN),
-    mumbai: getCommonNetworkConfig(ePolygonNetwork.mumbai, 80001),
+    kovan: getCommonNetworkConfig(EAllNetworks.kovan, 42),
+    goerli: getCommonNetworkConfig(EAllNetworks.goerli, 5),
+    ropsten: getCommonNetworkConfig(EAllNetworks.ropsten, 3),
+    rinkeby: getCommonNetworkConfig(EAllNetworks.rinkeby, 4),
+    main: getCommonNetworkConfig(EAllNetworks.main, 1, MNEMONIC_MAIN),
+    bsc_testnet: getCommonNetworkConfig(EAllNetworks.bsc_testnet, 97),
+    bsc: getCommonNetworkConfig(EAllNetworks.bsc, 56, MNEMONIC_MAIN),
+    avalanche_testnet: getCommonNetworkConfig(EAllNetworks.avalanche_testnet, 43113),
+    avalanche: getCommonNetworkConfig(EAllNetworks.avalanche, 43114, MNEMONIC_MAIN),
+    fantom_testnet: getCommonNetworkConfig(EAllNetworks.fantom_testnet, 4002),
+    fantom: getCommonNetworkConfig(EAllNetworks.fantom, 250, MNEMONIC_MAIN),
+    arbitrum_testnet: getCommonNetworkConfig(EAllNetworks.arbitrum_testnet, 421611),
+    arbitrum: getCommonNetworkConfig(EAllNetworks.arbitrum, 42161, MNEMONIC_MAIN),
+    optimistic_testnet: getCommonNetworkConfig(EAllNetworks.optimistic_testnet, 69),
+    optimistic: getCommonNetworkConfig(EAllNetworks.optimistic, 10, MNEMONIC_MAIN),
+    matic: getCommonNetworkConfig(EAllNetworks.matic, 137, MNEMONIC_MAIN),
+    mumbai: getCommonNetworkConfig(EAllNetworks.mumbai, 80001),
     hardhat: {
       hardfork: HARDFORK,
       blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,

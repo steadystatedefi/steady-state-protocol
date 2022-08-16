@@ -9,12 +9,13 @@ import './TokenDelegateBase.sol';
 contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDelegateBase {
   address private _borrowManager;
 
+  uint8 internal constant DECIMALS = 18;
+
   constructor(
     IAccessController acl,
     string memory name_,
-    string memory symbol_,
-    uint8 decimals_
-  ) AccessHelper(acl) ERC20Base(name_, symbol_, decimals_) {}
+    string memory symbol_
+  ) AccessHelper(acl) ERC20Base(name_, symbol_, DECIMALS) {}
 
   event LiquidityProviderRegistered(address indexed account);
 

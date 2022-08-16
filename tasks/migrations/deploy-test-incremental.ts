@@ -6,7 +6,7 @@ import { ConfigNames } from '../../helpers/config-loader';
 import { cleanupJsonDb, getInstanceCountFromJsonDb, printContracts } from '../../helpers/deploy-db';
 import { setDefaultDeployer } from '../../helpers/factory-wrapper';
 import { getFirstSigner, isForkNetwork } from '../../helpers/runtime-utils';
-import { tEthereumAddress } from '../../helpers/types';
+import { EthereumAddress } from '../../helpers/types';
 import { getDeploySteps } from '../deploy/deploy-steps';
 
 task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, DRE) => {
@@ -24,7 +24,7 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, D
   }
 
   try {
-    let lastEntryMap = new Map<string, tEthereumAddress>();
+    let lastEntryMap = new Map<string, EthereumAddress>();
     let lastInstanceCount = 0;
     let stop = false;
     const trackVerify = false;

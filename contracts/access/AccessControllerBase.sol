@@ -123,11 +123,11 @@ contract AccessControllerBase is SafeOwnable, IManagedAccessController {
   }
 
   function setAnyRoleMode(bool blockOrEnable) external onlyOwnerOrAdmin {
-    require(_anyRoleMode != ANY_ROLE_BLOCKED);
     if (blockOrEnable) {
+      require(_anyRoleMode != ANY_ROLE_BLOCKED);
       _anyRoleMode = ANY_ROLE_ENABLED;
       emit AnyRoleModeEnabled();
-    } else {
+    } else if (_anyRoleMode != ANY_ROLE_BLOCKED) {
       _anyRoleMode = ANY_ROLE_BLOCKED;
       emit AnyRoleModeBlocked();
     }

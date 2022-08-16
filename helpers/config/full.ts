@@ -1,19 +1,57 @@
-import { IConfiguration } from '../types';
+import { ENetwork } from '../config-networks';
+import { IConfiguration, INetworkConfiguration } from '../config-types';
+import { WAD } from '../constants';
 
-export enum EAccessRoles {
-  EMERGENCY_ADMIN = 2 ** 0,
-  TREASURY_ADMIN = 2 ** 1,
-  COLLATERAL_FUND_ADMIN = 2 ** 2,
-  INSURER_ADMIN = 2 ** 3,
-  INSURER_OPS = 2 ** 4,
-  PREMIUM_FUND_ADMIN = 2 ** 5,
-  SWEEP_ADMIN = 2 ** 6,
-  ORACLE_ADMIN = 2 ** 7,
-  UNDERWRITER_POLICY = 2 ** 8,
-  UNDERWRITER_CLAIM = 2 ** 9,
-}
+type FullTokens = 'USDC' | 'USD';
 
-export const FullConfig: IConfiguration = {
-  Owner: {},
-  DepositTokens: {},
+const configMain: INetworkConfiguration<FullTokens> = {
+  Assets: {
+    USDC: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  },
+  Commons: {
+    unitSize: WAD,
+  },
+  CollateralCurrency: {
+    name: 'USD-equivalent collateral',
+    symbol: '$CC',
+    quoteToken: 'USD',
+  },
+  CollateralFund: {
+    fuseMask: 1,
+  },
+  Dependencies: {},
+  PriceFeeds: {
+    USDC: {
+      decimals: 18,
+      value: WAD,
+    },
+  },
+  IndexPools: [
+    {
+      poolType: 'IMPERPETUAL_INDEX_POOL',
+      initializer: 'initializeWeighted',
+      initParams: [
+        'Index Pool Token',
+        '$PT',
+        {
+          maxAdvanceUnits: 10000,
+          minAdvanceUnits: 1000,
+          riskWeightTarget: 1000, // 10%
+          minInsuredSharePct: 100, // 1%
+          maxInsuredSharePct: 4000, // 40%
+          minUnitsPerRound: 20,
+          maxUnitsPerRound: 20,
+          overUnitsPerRound: 30,
+          coveragePrepayPct: 9000, // 90%
+          maxUserDrawdownPct: 1000, // 10%
+          unitsPerAutoPull: 0,
+        },
+      ],
+    },
+  ],
+};
+
+export const FullConfig: IConfiguration<ENetwork> = {
+  main: configMain,
+  hardhat: configMain,
 };

@@ -1,10 +1,10 @@
-import { Contract, ContractFactory } from '@ethersproject/contracts';
+import { Contract, ContractFactory, Overrides } from '@ethersproject/contracts';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { Signer } from 'ethers';
+import { Interface } from 'ethers/lib/utils';
 
-import { addContractToJsonDb, getFromJsonDb } from './deploy-db';
-import { falsyOrZeroAddress } from './runtime-utils';
-import { tEthereumAddress } from './types';
+import { addContractToJsonDb, getAddrFromJsonDb } from './deploy-db';
+import { falsyOrZeroAddress, waitForTx } from './runtime-utils';
 
 interface Deployable<TArgs extends unknown[] = unknown[], TResult extends Contract = Contract> extends ContractFactory {
   attach(address: string): TResult;
@@ -22,20 +22,32 @@ interface Named {
   isMock(): boolean;
 }
 
+class ContractInterface<I extends Interface> extends Contract {
+  readonly interface!: I;
+}
+
+interface InterfaceFactory {
+  createInterface(): Interface;
+}
+
+export type ExtractInterface<T extends ContractInterface<Interface>> = T extends ContractInterface<infer I> ? I : never;
+
 export interface UnnamedAttachable<TResult extends Contract = Contract> {
+  interface: ExtractInterface<TResult>;
   attach(address: string): TResult;
 }
 
 export interface NamedGettable<TResult extends Contract = Contract> extends Named {
+  interface: ExtractInterface<TResult>;
   attach(address: string): TResult;
-  get(signer?: Signer, name?: string): TResult;
+  get(signer?: Signer | null, name?: string): TResult;
   findInstance(name?: string): string | undefined;
 }
 
 export interface NamedDeployable<DeployArgs extends unknown[] = unknown[], TResult extends Contract = Contract>
   extends NamedGettable<TResult> {
   deploy(...args: DeployArgs): Promise<TResult>;
-  connectAndDeploy(deployer: Signer, deployName: string, args: DeployArgs): Promise<TResult>;
+  connectAndDeploy(deployer: Signer | null, deployName: string, args: DeployArgs): Promise<TResult>;
 }
 
 let deployer: SignerWithAddress;
@@ -53,22 +65,28 @@ export const wrapFactory = <TArgs extends unknown[], TResult extends Contract>(
   mock: boolean
 ): NamedDeployable<TArgs, TResult> =>
   new (class implements NamedDeployable<TArgs, TResult> {
+    readonly interface = (F as unknown as InterfaceFactory).createInterface() as ExtractInterface<TResult>;
+
     deploy(...args: TArgs): Promise<TResult> {
       return this.connectAndDeploy(deployer, '', args);
     }
 
-    async connectAndDeploy(d: Signer, deployName: string, args: TArgs): Promise<TResult> {
-      if (d === undefined) {
+    async connectAndDeploy(d: Signer | null, deployName: string, args: TArgs): Promise<TResult> {
+      const dd = d || deployer;
+      if (!dd) {
         throw new Error('deployer is required');
       }
       const name = deployName || this.name();
-      const c = await new F(d).deploy(...args);
+      const c = await new F(dd).deploy(...args);
       addContractToJsonDb(name || 'unknown', c, name !== undefined, args);
 
       return c;
     }
 
     attach(address: string): TResult {
+      if (falsyOrZeroAddress(address)) {
+        throw new Error(`Unable to attach ${this.toString()}: ${address}`);
+      }
       return new F(deployer).attach(address);
     }
 
@@ -80,25 +98,19 @@ export const wrapFactory = <TArgs extends unknown[], TResult extends Contract>(
       return nameByFactory.get(this);
     }
 
-    findInstance(name?: string): string | undefined {
-      // TODO: get rid of side effect
-      // eslint-disable-next-line no-param-reassign
-      name = name ?? this.name();
-
-      return name !== undefined ? getFromJsonDb<{ address: tEthereumAddress }>(name)?.address : undefined;
+    findInstance(n?: string): string | undefined {
+      const name = n ?? this.name();
+      return name !== undefined ? getAddrFromJsonDb(name) : undefined;
     }
 
-    get(signer?: Signer, name?: string): TResult {
-      // TODO: get rid of side effect
+    get(signer?: Signer | null, name?: string): TResult {
       // eslint-disable-next-line no-param-reassign
       name = name ?? this.name();
-
       if (name === undefined) {
         throw new Error('instance name is unknown');
       }
 
-      const address = getFromJsonDb<{ address: tEthereumAddress }>(name)?.address;
-
+      const address = getAddrFromJsonDb(name);
       if (falsyOrZeroAddress(address)) {
         throw new Error(`instance address is missing: ${name}`);
       }
@@ -122,3 +134,32 @@ export const mock = <TArgs extends unknown[], TResult extends Contract>(
 export const addNamedDeployable = (f: NamedDeployable, name: string): void => {
   nameByFactory.set(f, name);
 };
+
+export type ExcludeOverrides<T extends unknown[]> = T extends [...infer Head, Overrides?] ? Head : T;
+type DeployArgs<TArgs extends unknown[], T extends Contract> = {
+  args: TArgs;
+  post?: (contract: T) => Promise<void>;
+};
+
+export async function getOrDeploy<TArgs extends unknown[], T extends Contract>(
+  f: NamedDeployable<TArgs, T>,
+  n: string,
+  deployFn: () => Promise<DeployArgs<TArgs, T>> | DeployArgs<TArgs, T>
+): Promise<[T, boolean]> {
+  const pre = f.findInstance(n);
+  const logName = n || f.toString();
+  if (pre !== undefined) {
+    console.log(`Already deployed ${logName}:`, pre);
+    return [f.attach(pre), false];
+  }
+  const args = await deployFn();
+  const deployed = await f.connectAndDeploy(deployer, n, args.args);
+
+  await waitForTx(deployed.deployTransaction);
+  if (args.post) {
+    console.log(`Configuring ${logName}:`, deployed.address);
+    await args.post(deployed);
+  }
+  console.log(`${logName}:`, deployed.address);
+  return [deployed, true];
+}
