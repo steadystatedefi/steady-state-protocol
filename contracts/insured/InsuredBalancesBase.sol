@@ -28,7 +28,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
   uint32 private _cancelledAt; // TODO
 
   function _ensureHolder(uint16 flags) private view {
-    require(internalIsAllowedAsHolder(flags));
+    Access.require(internalIsAllowedAsHolder(flags));
   }
 
   function _ensureHolder(address account) internal view {
@@ -45,7 +45,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
     uint256 premiumRate
   ) internal virtual {
     rateAmount = rateAmount.wadMul(premiumRate);
-    require(rateAmount <= type(uint88).max);
+    Value.require(rateAmount <= type(uint88).max);
 
     Balances.RateAccWithUint16 memory b = _syncBalance(account);
     _ensureHolder(b.extra);
@@ -58,7 +58,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
     Balances.RateAcc memory totals = internalSyncTotals();
 
     rateAmount += totals.rate;
-    require((totals.rate = uint96(rateAmount)) == rateAmount);
+    Value.require((totals.rate = uint96(rateAmount)) == rateAmount);
 
     _totals = totals;
   }
@@ -81,7 +81,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
 
   /// @dev Cancel this policy
   function internalCancelRates() internal {
-    require(_cancelledAt == 0);
+    State.require(_cancelledAt == 0);
     _cancelledAt = uint32(block.timestamp);
   }
 
@@ -93,7 +93,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
 
   /// @dev Update premium paid of entire pool
   function internalExpectedTotals(uint32 at) internal view returns (Balances.RateAcc memory) {
-    require(at >= block.timestamp);
+    Value.require(at >= block.timestamp);
     uint32 ts = _cancelledAt;
     return _totals.sync(ts > 0 && ts <= at ? ts : at);
   }
@@ -139,9 +139,9 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
   }
 
   function internalSetServiceAccountStatus(address account, uint16 status) internal virtual {
-    require(status > 0);
+    Value.require(status > 0);
     if (_balances[account].extra == 0) {
-      require(Address.isContract(account));
+      Value.require(Address.isContract(account));
     }
     _balances[account].extra = status;
   }
@@ -181,7 +181,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
         updated = true;
       }
       uint88 prevRate = b.rate;
-      require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
+      Value.require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
       if (prevRate > b.rate) {
         totals.rate -= prevRate - b.rate;
       } else {
@@ -197,7 +197,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
 
   function internalCollateralReceived(address insurer, uint256 amount) internal virtual {
     insurer;
-    require((_receivedCollateral += uint224(amount)) >= amount);
+    Value.require((_receivedCollateral += uint224(amount)) >= amount);
   }
 
   function internalDecReceivedCollateral(uint256 amount) internal virtual {
@@ -220,7 +220,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
         // technical underpayment
         diff = coverage.totalPremium - b.accum;
         diff += totals.accum;
-        require((totals.accum = uint128(diff)) == diff);
+        Value.require((totals.accum = uint128(diff)) == diff);
         revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
         totals.accum -= uint128(diff = b.accum - coverage.totalPremium); // TODO (Tyler)
@@ -246,12 +246,12 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
     _ensureHolder(b.extra);
 
     (receivedCoverage, coverage) = insurer.receivableDemandedCoverage(address(this), 0);
-    require(b.updatedAt >= coverage.premiumUpdatedAt);
+    State.require(b.updatedAt >= coverage.premiumUpdatedAt);
 
     (totals, ) = _syncInsurerBalance(b, coverage);
 
     if (coverage.premiumRate != b.rate && (coverage.premiumRate > b.rate)) {
-      require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
+      Value.require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
     }
   }
 }

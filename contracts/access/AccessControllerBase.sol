@@ -384,7 +384,7 @@ contract AccessControllerBase is SafeOwnable, IManagedAccessController {
     uint256 flags,
     address addr,
     bytes calldata data
-  ) external override returns (bytes memory result) {
+  ) external override onlyOwnerOrAdmin returns (bytes memory result) {
     return _callWithRoles(flags, addr, _directCall, addr, data);
   }
 

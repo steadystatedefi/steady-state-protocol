@@ -1,11 +1,14 @@
 import { task } from 'hardhat/config';
 
+import { verifyContractMutableAccess, verifyProxyMutableAccess } from '../../../helpers/access-verify/method-checker';
 import { ConfigNamesAsString } from '../../../helpers/config-loader';
 import { EAllNetworks } from '../../../helpers/config-networks';
-import { getExternalsFromJsonDb, getInstancesFromJsonDb } from '../../../helpers/deploy-db';
-import { getNetworkName, getNthSigner, getSigner } from '../../../helpers/runtime-utils';
+import { Factories } from '../../../helpers/contract-types';
+import { getExternalsFromJsonDb, getFromJsonDbByAddr, getInstancesFromJsonDb } from '../../../helpers/deploy-db';
+import { NamedAttachable } from '../../../helpers/factory-wrapper';
+import { getNetworkName, getNthSigner } from '../../../helpers/runtime-utils';
 
-task(`full:access-test`, 'Smoke test')
+task(`full:access-test`, 'Check access to mutable methods of contracts')
   .addParam('cfg', `Configuration name: ${ConfigNamesAsString}`)
   .setAction(async () => {
     // await localBRE.run('set-DRE');
@@ -22,47 +25,54 @@ task(`full:access-test`, 'Smoke test')
     const estimateGas = true; // !isForkNetwork();
 
     const checkAll = true;
-    const user = (await getNthSigner(1))!;
+    const user = await getNthSigner(1);
+    if (!user) {
+      throw new Error('A separate user account is required');
+    }
 
     console.log('Check access to mutable methods');
 
-    const hasErorrs = false;
+    let hasErorrs = false;
     for (const [addr, entry] of getInstancesFromJsonDb()) {
       const name = `${entry.id} ${addr}`;
 
-      // const [contractId, getter] = getContractGetterById(entry.id);
-      // if (getter == undefined) {
-      //   hasErorrs = true;
-      //   console.log(`\tError: unknown getter ${name}`);
-      //   if (!checkAll) {
-      //     throw `Unable to check contract - unknown getter ${name}`;
-      //   }
-      //   continue;
-      // }
-      // const subj = (await getter(addr)) as Contract;
-      // console.log(`\tChecking: ${name}`);
-      // await verifyContractMutableAccess(user, subj, contractId, estimateGas, checkAll);
+      const factory = Factories[entry.factory] as NamedAttachable;
+      if (!factory) {
+        const msg = `Unable to find factory: ${entry.factory} for ${name}`;
+        hasErorrs = true;
+        console.log('\t', msg);
+        if (!checkAll) {
+          throw new Error(msg);
+        }
+        continue;
+      }
+
+      const subj = factory.attach(addr);
+      console.log(`\tChecking: ${name}`);
+      await verifyContractMutableAccess(user, subj, entry.factory, estimateGas, checkAll);
     }
 
-    for (const [addr, entry] of getExternalsFromJsonDb()) {
-      const implAddr = entry.verify?.impl;
+    for (const [addr, extEntry] of getExternalsFromJsonDb()) {
+      const implAddr = extEntry.verify?.impl;
       if (!implAddr) {
         continue;
       }
-      // const implId = getFromJsonDbByAddr(implAddr).id;
-      // const name = `${entry.id} ${addr} => ${implId} ${implAddr}`;
+      const entry = getFromJsonDbByAddr(implAddr);
+      const name = `${extEntry.id} ${addr} => ${entry.id} ${implAddr}`;
 
-      // const [contractId, getter] = getContractGetterById(implId);
-      // if (getter == undefined) {
-      //   console.log(`\tError: unknown getter ${name}`);
-      //   if (!checkAll) {
-      //     throw `Unable to check contract - unknown getter ${name}`;
-      //   }
-      //   continue;
-      // }
-      // const subj = (await getter(addr)) as Contract;
-      // console.log(`\tChecking: ${name}`);
-      // await verifyProxyMutableAccess(user, subj, contractId, estimateGas, checkAll);
+      const factory = Factories[entry.factory] as NamedAttachable;
+      if (!factory) {
+        const msg = `Unable to find factory: ${entry.factory} for ${name}`;
+        hasErorrs = true;
+        console.log('\t', msg);
+        if (!checkAll) {
+          throw new Error(msg);
+        }
+        continue;
+      }
+      const subj = factory.attach(addr);
+      console.log(`\tChecking: ${name}`);
+      await verifyProxyMutableAccess(user, subj, entry.factory, estimateGas, checkAll);
     }
 
     if (hasErorrs) {

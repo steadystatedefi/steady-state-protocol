@@ -21,11 +21,15 @@ contract JoinablePoolExtension is IJoinableBase, WeightedPoolStorage {
   }
 
   function requestJoin(address insured) external override {
-    require(msg.sender == insured);
+    Access.require(msg.sender == insured);
     internalRequestJoin(insured);
   }
 
   function approveJoiner(address insured, bool accepted) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
     internalProcessJoin(insured, accepted);
+  }
+
+  function cancelJoin() external returns (InsuredStatus) {
+    return internalCancelJoin(msg.sender);
   }
 }
