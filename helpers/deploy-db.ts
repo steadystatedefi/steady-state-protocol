@@ -232,3 +232,19 @@ export const printContracts = (deployer: string): [Map<string, EthereumAddress>,
 
   return [entryMap, logEntries.length, multiCount];
 };
+
+const getUiConfig = () => low(new FileSync('./ui-config.json'));
+
+export const cleanupUiConfig = (): void => {
+  const db = getUiConfig();
+  db.setState(null).write();
+};
+
+export const writeUiConfig = (network: string, accessController: string, dataHelper: string): void => {
+  const db = getUiConfig();
+  db.setState({
+    network,
+    accessController,
+    dataHelper,
+  }).write();
+};

@@ -4,7 +4,7 @@ import { task } from 'hardhat/config';
 import { exit } from 'process';
 
 import { ConfigNames } from '../../helpers/config-loader';
-import { cleanupJsonDb } from '../../helpers/deploy-db';
+import { cleanupJsonDb, cleanupUiConfig } from '../../helpers/deploy-db';
 import { DRE, dreAction } from '../../helpers/dre';
 import { getFirstSigner, getNetworkName } from '../../helpers/runtime-utils';
 import { getDeploySteps } from '../deploy/deploy-steps';
@@ -22,6 +22,7 @@ task('deploy-dev', 'Deploy dev enviroment').setAction(
     try {
       console.log('Deployer start balance: ', startBalance.div(1e12).toNumber() / 1e6);
 
+      cleanupUiConfig();
       cleanupJsonDb(getNetworkName());
 
       console.log('Deployment started\n');
