@@ -18,6 +18,7 @@ import { NETWORKS_RPC_URL, NETWORKS_DEFAULT_GAS, FORK_URL } from './helper-hardh
 import { BUIDLEREVM_CHAINID, COVERAGE_CHAINID } from './helpers/buidler-constants';
 import { EAllNetworks, ENetwork } from './helpers/config-networks';
 import testWalletsData from './helpers/test-wallets.json';
+import './tasks/plugins/set-dre';
 import './tasks/plugins/storage-layout';
 
 dotenv.config();

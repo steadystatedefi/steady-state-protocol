@@ -40,6 +40,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     totals = internalSyncTotals();
   }
 
+  // slither-disable-next-line costly-loop
   function _afterMintOrBurn(
     address account,
     Balances.RateAccWithUint16 memory b,
