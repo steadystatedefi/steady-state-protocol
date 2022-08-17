@@ -199,6 +199,12 @@ export const verifyContractMutableAccess = async (
   const isImpl = !!exceptions && !!exceptions.implOverride;
   const functions = isImpl ? { ...exceptions.functions, ...exceptions.implOverride } : exceptions?.functions;
   await verifyMutableAccess(signer, contract, name, isImpl, estimateGas, functions, exceptions?.reasons, checkAll);
+
+  for (const delegateFactory of exceptions?.delegatedContracts ?? []) {
+    console.log('\t\tChecking delegate:', delegateFactory.toString());
+    const delegate = delegateFactory.attach(contract.address);
+    await verifyContractMutableAccess(signer, delegate, delegateFactory.toString(), estimateGas, checkAll);
+  }
 };
 
 export const verifyProxyMutableAccess = async (
@@ -219,4 +225,10 @@ export const verifyProxyMutableAccess = async (
     exceptions?.reasons,
     checkAll
   );
+
+  for (const delegateFactory of exceptions?.delegatedContracts ?? []) {
+    console.log('\t\tChecking delegate:', delegateFactory.toString());
+    const delegate = delegateFactory.attach(contract.address);
+    await verifyProxyMutableAccess(signer, delegate, delegateFactory.toString(), estimateGas, checkAll);
+  }
 };
