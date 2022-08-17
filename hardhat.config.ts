@@ -45,11 +45,13 @@ const MNEMONIC_MAIN = IS_FORK ? MNEMONIC : keySelector('MNEMONIC_MAIN') || MNEMO
 if (!SKIP_LOAD) {
   ['tools', 'migrations', 'deploy', 'deploy/dev', 'deploy/full', 'subtasks'].forEach((folder) => {
     const tasksPath = path.join(__dirname, 'tasks', folder);
-    fs.readdirSync(tasksPath)
-      .filter((pth) => pth.includes('.ts'))
-      .forEach((task) => {
-        import(`${tasksPath}/${task}`);
-      });
+    if (fs.existsSync(tasksPath)) {
+      fs.readdirSync(tasksPath)
+        .filter((pth) => pth.includes('.ts'))
+        .forEach((task) => {
+          import(`${tasksPath}/${task}`);
+        });
+    }
   });
 }
 
