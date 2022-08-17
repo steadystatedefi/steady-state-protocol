@@ -32,7 +32,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
 
   /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
   /// @dev Mints to the appropriate insurer
-  // slither-disable-next-line calls-loop
+  // slither-disable-next-line costly-loop
   function internalCoverageDemandAdded(
     address target,
     uint256 amount,

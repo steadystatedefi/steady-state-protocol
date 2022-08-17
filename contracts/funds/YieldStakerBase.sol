@@ -441,11 +441,10 @@ abstract contract YieldStakerBase is ICollateralStakeManager, AccessHelper, Coll
           _userBalances[account].yieldBalance += (amount - availableYield).asUint128();
           amount = availableYield;
         }
-        if (amount == 0) {
-          return 0;
-        }
       }
-      cc.transferOnBehalf(account, to, amount);
+      if (amount != 0) {
+        cc.transferOnBehalf(account, to, amount);
+      }
     }
 
     emit YieldClaimed(account, amount);

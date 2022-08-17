@@ -24,7 +24,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   Balances.RateAcc private _totalAllocatedDemand;
 
   uint224 private _receivedCollateral;
-  uint32 private _cancelledAt; // TODO
+  uint32 private _cancelledAt;
 
   function _ensureHolder(uint16 flags) private view {
     Access.require(internalIsAllowedAsHolder(flags));
@@ -52,7 +52,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   /// @dev Mint the correct amount of tokens for the account (investor)
   /// @param account Account to mint to
   /// @param rateAmount Amount of rate
-  // slither-disable-next-line calls-loop
+  // slither-disable-next-line costly-loop
   function internalMintForDemandedCoverage(address account, uint256 rateAmount) internal {
     Value.require(rateAmount <= type(uint88).max);
     (Balances.RateAccWithUint16 memory b, Balances.RateAcc memory totals) = _beforeMintOrBurn(account);

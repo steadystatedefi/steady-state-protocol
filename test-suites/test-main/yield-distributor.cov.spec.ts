@@ -4,6 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber, BigNumberish } from 'ethers';
 
 import { MAX_UINT, RAY, WAD } from '../../helpers/constants';
+import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, increaseTime } from '../../helpers/runtime-utils';
 import { MockCollateralFund, MockCollateralCurrency, MockYieldDistributor, MockInsurerForYield } from '../../types';
@@ -223,8 +224,10 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
 
     const y1 = await dist.balanceOf(user1.address);
     // there are no tokens available to claim yet ...
-    await dist.connect(user1).claimYield(user1.address, testEnv.covGas());
-    // TODO add an event and check it here
+    await Events.YieldClaimed.waitOne(dist.connect(user1).claimYield(user1.address, testEnv.covGas()), (ev) => {
+      expect(ev.account).eq(user1.address);
+      expect(ev.amount).eq(0);
+    });
 
     if (!testEnv.underCoverage) {
       expect(await dist.balanceOf(user1.address)).eq(y1.add(rate.div(2)));
