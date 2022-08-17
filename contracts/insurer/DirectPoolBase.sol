@@ -88,8 +88,6 @@ abstract contract DirectPoolBase is
     _cancelledAt = uint32(block.timestamp);
   }
 
-  /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  /// @return excess The amount of coverage that is over the limit
   function internalMintForCoverage(address account, uint256 providedAmount) internal returns (uint256 excess) {
     require(account != address(0));
     require(_cancelledAt == 0);
@@ -110,8 +108,6 @@ abstract contract DirectPoolBase is
     _totalBalance += coverageAmount;
   }
 
-  /// @dev Burn all of a user's provided coverage
-  /// TODO: transfer event emitted without transferring
   function internalBurnAll(address account) internal returns (uint256 coverageAmount) {
     uint32 cancelledAt = _cancelledAt;
     require(cancelledAt != 0);
@@ -164,9 +160,9 @@ abstract contract DirectPoolBase is
   /// @notice Get the status of the insured account
   /// @param account The account to query
   /// @return status The status of the insured. NotApplicable if the caller is an investor
-  function statusOf(address account) external view returns (InsuredStatus status) {
-    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
-      status = InsuredStatus.NotApplicable;
+  function statusOf(address account) external view returns (MemberStatus status) {
+    if ((status = internalGetStatus(account)) == MemberStatus.Unknown && internalIsInvestor(account)) {
+      status = MemberStatus.NotApplicable;
     }
     return status;
   }
@@ -208,22 +204,22 @@ abstract contract DirectPoolBase is
     return true;
   }
 
-  function internalInitiateJoin(address account) internal override returns (InsuredStatus) {
+  function internalInitiateJoin(address account) internal override returns (MemberStatus) {
     address insured = _insured;
     if (insured == address(0)) {
       _insured = account;
     } else if (insured != account) {
-      return InsuredStatus.JoinRejected;
+      return MemberStatus.JoinRejected;
     }
 
-    return InsuredStatus.Accepted;
+    return MemberStatus.Accepted;
   }
 
-  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
-    return _insured == account ? (_cancelledAt == 0 ? InsuredStatus.Accepted : InsuredStatus.Declined) : InsuredStatus.Unknown;
+  function internalGetStatus(address account) internal view override returns (MemberStatus) {
+    return _insured == account ? (_cancelledAt == 0 ? MemberStatus.Accepted : MemberStatus.Declined) : MemberStatus.Unknown;
   }
 
-  function internalSetStatus(address account, InsuredStatus s) internal override {
+  function internalSetStatus(address account, MemberStatus s) internal override {
     // TODO check?
   }
 
@@ -243,7 +239,7 @@ abstract contract DirectPoolBase is
     bytes calldata data
   ) internal override onlyCollateralCurrency {
     require(data.length == 0);
-    if (internalGetStatus(operator) == InsuredStatus.Unknown) {
+    if (internalGetStatus(operator) == MemberStatus.Unknown) {
       uint256 excess = internalMintForCoverage(account, amount);
       if (excess > 0) {
         transferCollateral(account, amount);

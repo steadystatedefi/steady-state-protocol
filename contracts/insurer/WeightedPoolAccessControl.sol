@@ -16,11 +16,11 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
   bool private _governorIsContract;
 
   function _onlyActiveInsured(address insurer) internal view {
-    Access.require(internalGetStatus(insurer) == InsuredStatus.Accepted);
+    Access.require(internalGetStatus(insurer) == MemberStatus.Accepted);
   }
 
   function _onlyInsured(address insurer) private view {
-    Access.require(internalGetStatus(insurer) > InsuredStatus.Unknown);
+    Access.require(internalGetStatus(insurer) > MemberStatus.Unknown);
   }
 
   modifier onlyActiveInsured() {
@@ -52,12 +52,12 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     return _governorIsContract && IInsurerGovernor(governorAccount()).governerQueryAccessControlMask(account, flags) & flags != 0;
   }
 
-  function internalInitiateJoin(address insured) internal override returns (InsuredStatus) {
+  function internalInitiateJoin(address insured) internal override returns (MemberStatus) {
     IJoinHandler jh = governorContract();
     if (address(jh) == address(0)) {
       IApprovalCatalog c = approvalCatalog();
       Access.require(address(c) == address(0) || c.hasApprovedApplication(insured));
-      return InsuredStatus.Joining;
+      return MemberStatus.Joining;
     } else {
       return jh.handleJoinRequest(insured);
     }

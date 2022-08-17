@@ -40,7 +40,7 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
     });
   });
 
-  enum InsuredStatus {
+  enum MemberStatus {
     Unknown,
     JoinCancelled,
     JoinRejected,
@@ -65,9 +65,9 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
         minUnits * unitSize,
         premiumToken.address
       );
-      await pool.approveNextJoin(riskWeightValue);
+      await pool.approveNextJoin(riskWeightValue, premiumToken.address);
       const tx = await mustWaitTx(insured.joinPool(pool.address, { gasLimit: 1000000 }));
-      expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
+      expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);

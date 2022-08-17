@@ -96,11 +96,17 @@ abstract contract InsuredPoolBase is
     internalJoinPool(pool);
   }
 
-  /// @notice Add coverage demand to the desired insurer
-  /// @param target The insurer to add
-  /// @param amount The amount of coverage demand to request
-  function pushCoverageDemandTo(ICoverageDistributor target, uint256 amount) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
-    internalPushCoverageDemandTo(target, amount);
+  /// @notice Add coverage demand to the desired insurers
+  /// @param targets The insurers to add demand to
+  /// @param amounts The amount of coverage demand to request
+  function pushCoverageDemandTo(ICoverageDistributor[] calldata targets, uint256[] calldata amounts)
+    external
+    onlyGovernorOr(AccessFlags.INSURED_OPS)
+  {
+    Value.require(targets.length == amounts.length);
+    for (uint256 i = 0; i < targets.length; i++) {
+      internalPushCoverageDemandTo(targets[i], amounts[i]);
+    }
   }
 
   function setInsuredParams(InsuredParams calldata params) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
@@ -212,9 +218,7 @@ abstract contract InsuredPoolBase is
     return _reconcileWithInsurersView(startIndex, count > 0 ? count : type(uint256).max);
   }
 
-  // TODO cancelCoverageDemnad
-
-  event CoverageCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
+  event CoverageFullyCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
 
   /// @notice Cancel coverage and get paid out the coverage amount
   /// @param payoutReceiver The receiver of the collateral currency
@@ -240,13 +244,15 @@ abstract contract InsuredPoolBase is
       transferCollateral(payoutReceiver, totalPayout);
     }
 
-    emit CoverageCancelled(expectedPayout, totalPayout, payoutReceiver);
+    emit CoverageFullyCancelled(expectedPayout, totalPayout, payoutReceiver);
   }
 
   function internalCollateralReceived(address insurer, uint256 amount) internal override {
     super.internalCollateralReceived(insurer, amount);
     _receivedCollaterals[insurer] += amount;
   }
+
+  event CoverageCancelled(address indexed insurer, uint256 payoutRatio, uint256 actualPayout);
 
   /// @dev Goes through the insurers and cancels with the payout ratio
   /// @param insurers The insurers to cancel with
@@ -265,6 +271,7 @@ abstract contract InsuredPoolBase is
       require(t.approve(insurer, receivedCollateral));
 
       totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
+      emit CoverageCancelled(insurer, payoutRatio, totalPayout);
 
       internalDecReceivedCollateral(receivedCollateral - t.allowance(address(this), insurer));
       require(t.approve(insurer, 0));
@@ -280,7 +287,6 @@ abstract contract InsuredPoolBase is
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
-    // TODO use maxRate (demanded coverage)
     return internalExpectedTotals(uint32(atTimestamp)).accum;
   }
 

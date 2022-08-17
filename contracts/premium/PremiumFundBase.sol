@@ -582,7 +582,21 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
-  // TODO a function to get available token balance and the saturation point
+  function assetBalance(address actuary, address asset)
+    external
+    view
+    returns (
+      uint256 amount,
+      uint256 stravation,
+      uint256 price,
+      uint256 feeFactor
+    )
+  {
+    ActuaryConfig storage config = _configs[actuary];
+    if (config.state > ActuaryState.Unknown) {
+      (, amount, stravation, price, feeFactor) = _balancers[actuary].assetState(asset);
+    }
+  }
 
   function swapAsset(
     address actuary,

@@ -44,7 +44,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   function internalMintForCoverage(address account, uint256 value) internal override {
     (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
 
-    // TODO test adding coverage to an empty pool
+    // TODO:TEST test adding coverage to an empty pool
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
   }
 

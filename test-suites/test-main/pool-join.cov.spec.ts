@@ -27,7 +27,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
 
-  enum InsuredStatus {
+  enum MemberStatus {
     Unknown,
     JoinCancelled,
     JoinRejected,
@@ -52,10 +52,10 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         minUnits * unitSize,
         premiumToken.address
       );
-      await pool.approveNextJoin(riskWeightValue);
+      await pool.approveNextJoin(riskWeightValue, premiumToken.address);
       await insured.joinPool(pool.address, { gasLimit: 1000000 });
       insuredTS.push(await currentTime());
-      expect(await pool.statusOf(insured.address)).eq(InsuredStatus.Accepted);
+      expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
       expect(generic).eql([]);
       expect(chartered).eql([pool.address]);
@@ -340,7 +340,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
   it('Check unknown users', async () => {
     for (const address of [zeroAddress(), createRandomAddress()]) {
       expect(await pool.balanceOf(address)).eq(0);
-      expect(await pool.statusOf(address)).eq(InsuredStatus.Unknown);
+      expect(await pool.statusOf(address)).eq(MemberStatus.Unknown);
 
       {
         const interest = await pool.interestOf(address);

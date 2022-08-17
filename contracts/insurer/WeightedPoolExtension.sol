@@ -65,8 +65,6 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     if (unitCount > type(uint64).max) {
       unitCount = type(uint64).max;
     }
-
-    // TODO event
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
@@ -114,7 +112,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
       ? 0
       : _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
 
-    internalSetStatus(insured, InsuredStatus.Declined);
+    internalSetStatus(insured, MemberStatus.Declined);
 
     if (premiumDebt > 0) {
       unchecked {

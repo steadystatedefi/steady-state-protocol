@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
-import '../interfaces/IPremiumCalculator.sol';
 import '../interfaces/ICoverageDistributor.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../tools/math/WadRayMath.sol';
@@ -16,16 +15,16 @@ import 'hardhat/console.sol';
 /// @notice Holds balances of how much Insured owes to each Insurer in terms of rate
 /// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
 /// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
-abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, IPremiumCalculator {
+abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using Balances for Balances.RateAccWithUint16;
 
   mapping(address => Balances.RateAccWithUint16) private _balances;
-  Balances.RateAcc private _totals;
+  Balances.RateAcc private _totalAllocatedDemand;
 
   uint224 private _receivedCollateral;
-  uint32 private _cancelledAt; // TODO
+  uint32 private _cancelledAt;
 
   function _ensureHolder(uint16 flags) private view {
     Access.require(internalIsAllowedAsHolder(flags));
@@ -35,32 +34,46 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
     _ensureHolder(_balances[account].extra);
   }
 
+  function _beforeMintOrBurn(address account) internal view returns (Balances.RateAccWithUint16 memory b, Balances.RateAcc memory totals) {
+    b = _syncBalance(account);
+    _ensureHolder(b.extra);
+    totals = internalSyncTotals();
+  }
+
+  // slither-disable-next-line costly-loop
+  function _afterMintOrBurn(
+    address account,
+    Balances.RateAccWithUint16 memory b,
+    Balances.RateAcc memory totals
+  ) internal {
+    _balances[account] = b;
+    _totalAllocatedDemand = totals;
+  }
+
   /// @dev Mint the correct amount of tokens for the account (investor)
   /// @param account Account to mint to
-  /// @param rateAmount Amount of coverage provided
-  /// @param premiumRate Rate paid on the amount
-  function internalMintForCoverage(
-    address account,
-    uint256 rateAmount,
-    uint256 premiumRate
-  ) internal virtual {
-    rateAmount = rateAmount.wadMul(premiumRate);
+  /// @param rateAmount Amount of rate
+  // slither-disable-next-line costly-loop
+  function internalMintForDemandedCoverage(address account, uint256 rateAmount) internal {
     Value.require(rateAmount <= type(uint88).max);
-
-    Balances.RateAccWithUint16 memory b = _syncBalance(account);
-    _ensureHolder(b.extra);
-
-    emit Transfer(address(0), account, rateAmount);
+    (Balances.RateAccWithUint16 memory b, Balances.RateAcc memory totals) = _beforeMintOrBurn(account);
 
     b.rate += uint88(rateAmount);
-    _balances[account] = b;
-
-    Balances.RateAcc memory totals = internalSyncTotals();
-
     rateAmount += totals.rate;
     Value.require((totals.rate = uint96(rateAmount)) == rateAmount);
 
-    _totals = totals;
+    _afterMintOrBurn(account, b, totals);
+    emit Transfer(address(0), address(account), rateAmount);
+  }
+
+  function internalBurnForDemandedCoverage(address account, uint256 rateAmount) internal {
+    (Balances.RateAccWithUint16 memory b, Balances.RateAcc memory totals) = _beforeMintOrBurn(account);
+
+    b.rate = uint88(b.rate - rateAmount);
+    totals.rate = uint96(totals.rate - rateAmount);
+
+    _afterMintOrBurn(account, b, totals);
+    emit Transfer(address(account), address(0), rateAmount);
   }
 
   function transferBalance(
@@ -95,12 +108,12 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
   function internalExpectedTotals(uint32 at) internal view returns (Balances.RateAcc memory) {
     Value.require(at >= block.timestamp);
     uint32 ts = _cancelledAt;
-    return _totals.sync(ts > 0 && ts <= at ? ts : at);
+    return _totalAllocatedDemand.sync(ts > 0 && ts <= at ? ts : at);
   }
 
   /// @dev Update premium paid of entire pool
   function internalSyncTotals() internal view returns (Balances.RateAcc memory) {
-    return _totals.sync(_syncTimestamp());
+    return _totalAllocatedDemand.sync(_syncTimestamp());
   }
 
   /// @dev Update premium paid to an account
@@ -127,13 +140,13 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
   /// @notice Total Supply - also the current premium rate
   /// @return The total premium rate
   function totalSupply() public view override returns (uint256) {
-    return _totals.rate;
+    return _totalAllocatedDemand.rate;
   }
 
   /// @notice Total Premium rate and accumulated
   /// @return rate The current rate paid by the insured
   /// @return accumulated The total amount of premium to be paid for the policy
-  function totalPremium() public view override returns (uint256 rate, uint256 accumulated) {
+  function totalPremium() public view returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = internalSyncTotals();
     return (totals.rate, totals.accum);
   }
@@ -190,7 +203,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
     }
 
     if (updated) {
-      _totals = totals;
+      _totalAllocatedDemand = totals;
       _balances[address(insurer)] = b;
     }
   }
@@ -221,9 +234,8 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase, I
         diff = coverage.totalPremium - b.accum;
         diff += totals.accum;
         Value.require((totals.accum = uint128(diff)) == diff);
-        revert('technical underpayment'); // TODO this should not happen now, but remove it later
       } else {
-        totals.accum -= uint128(diff = b.accum - coverage.totalPremium); // TODO (Tyler)
+        totals.accum -= uint128(diff = b.accum - coverage.totalPremium);
       }
 
       b.accum = uint120(coverage.totalPremium);

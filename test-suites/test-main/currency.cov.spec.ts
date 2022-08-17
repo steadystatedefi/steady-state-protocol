@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { ProtocolErrors } from '../../helpers/contract-errors';
 import { Factories } from '../../helpers/contract-types';
 import { MockCollateralCurrency, MockPerpetualPool } from '../../types';
 
@@ -25,9 +26,11 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   });
 
   it('Fails to mint/burn without a permission', async () => {
-    await expect(cc.mint(user.address, unitSize * 400)).revertedWith(''); // TODO access denied error
-    await expect(cc.burn(user.address, unitSize * 400)).revertedWith(''); // TODO access denied error
-    await expect(cc.mintAndTransfer(user.address, pool.address, unitSize * 400, 0)).revertedWith(''); // TODO access denied error
+    await expect(cc.mint(user.address, unitSize * 400)).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
+    await expect(cc.burn(user.address, unitSize * 400)).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
+    await expect(cc.mintAndTransfer(user.address, pool.address, unitSize * 400, 0)).revertedWith(
+      testEnv.covReason(ProtocolErrors.AccessDenied)
+    );
   });
 
   it('Register a liquidity provider', async () => {
@@ -85,6 +88,6 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   it('Unregister', async () => {
     await cc.unregister(testEnv.deployer.address);
 
-    await expect(cc.mint(user.address, unitSize * 400)).revertedWith(''); // TODO access denied error
+    await expect(cc.mint(user.address, unitSize * 400)).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
   });
 });

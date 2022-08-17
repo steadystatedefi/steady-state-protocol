@@ -12,50 +12,50 @@ import 'hardhat/console.sol';
 /// @title InsurerJoinBase
 /// @notice Handles Insured's requests on joining this Insurer
 abstract contract InsurerJoinBase is IJoinEvents {
-  function internalGetStatus(address) internal view virtual returns (InsuredStatus);
+  function internalGetStatus(address) internal view virtual returns (MemberStatus);
 
-  function internalSetStatus(address, InsuredStatus) internal virtual;
+  function internalSetStatus(address, MemberStatus) internal virtual;
 
   function internalIsInvestor(address) internal view virtual returns (bool);
 
-  function internalRequestJoin(address insured) internal virtual returns (InsuredStatus status) {
+  function internalRequestJoin(address insured) internal virtual returns (MemberStatus status) {
     require(Address.isContract(insured));
-    if ((status = internalGetStatus(insured)) >= InsuredStatus.Joining) {
+    if ((status = internalGetStatus(insured)) >= MemberStatus.Joining) {
       return status;
     }
-    if (status == InsuredStatus.Unknown) {
+    if (status == MemberStatus.Unknown) {
       require(!internalIsInvestor(insured));
     }
-    internalSetStatus(insured, InsuredStatus.Joining);
+    internalSetStatus(insured, MemberStatus.Joining);
     emit JoinRequested(insured);
 
-    if ((status = internalInitiateJoin(insured)) != InsuredStatus.Joining) {
+    if ((status = internalInitiateJoin(insured)) != MemberStatus.Joining) {
       status = _updateInsuredStatus(insured, status);
     }
   }
 
-  function internalCancelJoin(address insured) internal returns (InsuredStatus status) {
-    if ((status = internalGetStatus(insured)) == InsuredStatus.Joining) {
-      status = InsuredStatus.JoinCancelled;
+  function internalCancelJoin(address insured) internal returns (MemberStatus status) {
+    if ((status = internalGetStatus(insured)) == MemberStatus.Joining) {
+      status = MemberStatus.JoinCancelled;
       internalSetStatus(insured, status);
       emit JoinCancelled(insured);
     }
   }
 
-  function _updateInsuredStatus(address insured, InsuredStatus status) private returns (InsuredStatus) {
-    require(status > InsuredStatus.Unknown);
+  function _updateInsuredStatus(address insured, MemberStatus status) private returns (MemberStatus) {
+    require(status > MemberStatus.Unknown);
 
-    InsuredStatus currentStatus = internalGetStatus(insured);
-    if (currentStatus == InsuredStatus.Joining) {
+    MemberStatus currentStatus = internalGetStatus(insured);
+    if (currentStatus == MemberStatus.Joining) {
       bool accepted;
-      if (status == InsuredStatus.Accepted) {
+      if (status == MemberStatus.Accepted) {
         if (internalPrepareJoin(insured)) {
           accepted = true;
         } else {
-          status = InsuredStatus.JoinRejected;
+          status = MemberStatus.JoinRejected;
         }
-      } else if (status != InsuredStatus.Banned) {
-        status = InsuredStatus.JoinRejected;
+      } else if (status != MemberStatus.Banned) {
+        status = MemberStatus.JoinRejected;
       }
       internalSetStatus(insured, status);
 
@@ -66,7 +66,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
         emit JoinProcessed(insured, accepted);
 
         status = internalGetStatus(insured);
-        if (accepted && status == InsuredStatus.Accepted) {
+        if (accepted && status == MemberStatus.Accepted) {
           internalAfterJoinOrLeave(insured, status);
         }
         return status;
@@ -77,12 +77,12 @@ abstract contract InsurerJoinBase is IJoinEvents {
         errReason = reason;
       }
       emit JoinFailed(insured, isPanic, errReason);
-      status = InsuredStatus.JoinFailed;
+      status = MemberStatus.JoinFailed;
     } else {
-      if (status == InsuredStatus.Declined) {
-        require(currentStatus != InsuredStatus.Banned);
+      if (status == MemberStatus.Declined) {
+        require(currentStatus != MemberStatus.Banned);
       }
-      if (currentStatus == InsuredStatus.Accepted && status != InsuredStatus.Accepted) {
+      if (currentStatus == MemberStatus.Accepted && status != MemberStatus.Accepted) {
         internalAfterJoinOrLeave(insured, status);
       }
     }
@@ -91,13 +91,13 @@ abstract contract InsurerJoinBase is IJoinEvents {
     return status;
   }
 
-  function internalAfterJoinOrLeave(address insured, InsuredStatus status) internal virtual {}
+  function internalAfterJoinOrLeave(address insured, MemberStatus status) internal virtual {}
 
   function internalProcessJoin(address insured, bool accepted) internal virtual {
-    _updateInsuredStatus(insured, accepted ? InsuredStatus.Accepted : InsuredStatus.JoinRejected);
+    _updateInsuredStatus(insured, accepted ? MemberStatus.Accepted : MemberStatus.JoinRejected);
   }
 
   function internalPrepareJoin(address) internal virtual returns (bool);
 
-  function internalInitiateJoin(address) internal virtual returns (InsuredStatus);
+  function internalInitiateJoin(address) internal virtual returns (MemberStatus);
 }

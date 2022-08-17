@@ -32,6 +32,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
 
   /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
   /// @dev Mints to the appropriate insurer
+  // slither-disable-next-line costly-loop
   function internalCoverageDemandAdded(
     address target,
     uint256 amount,
@@ -39,7 +40,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
   ) internal override {
     _requiredCoverage = uint96(_requiredCoverage - amount);
     _demandedCoverage += uint96(amount);
-    InsuredBalancesBase.internalMintForCoverage(target, amount, premiumRate);
+    InsuredBalancesBase.internalMintForDemandedCoverage(target, amount.wadMul(premiumRate));
   }
 
   function internalAllocateCoverageDemand(
@@ -73,7 +74,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
       acceptedAmount = offeredAmount;
     }
     rate = _premiumRate;
-    InsuredBalancesBase.internalMintForCoverage(account, acceptedAmount, rate);
+    InsuredBalancesBase.internalMintForDemandedCoverage(account, acceptedAmount.wadMul(rate));
   }
 
   function rateBands() external view override returns (InsuredRateBand[] memory bands, uint256) {
@@ -83,5 +84,45 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
       bands[0].coverageDemand = _requiredCoverage + _demandedCoverage;
     }
     return (bands, 1);
+  }
+
+  function cancelCoverageDemand(address[] calldata targets, uint256[] calldata amounts)
+    external
+    onlyGovernorOr(AccessFlags.INSURED_OPS)
+    returns (uint256 cancelledDemand)
+  {
+    Value.require(targets.length == amounts.length);
+    for (uint256 i = 0; i < targets.length; i++) {
+      cancelledDemand += _cancelDemand(targets[i], amounts[i]);
+    }
+  }
+
+  function cancelAllCoverageDemand() external onlyGovernorOr(AccessFlags.INSURED_OPS) returns (uint256 cancelledDemand) {
+    address[] storage targets = getCharteredInsurers();
+    for (uint256 i = targets.length; i > 0; ) {
+      i--;
+      cancelledDemand += _cancelDemand(targets[i], type(uint256).max);
+    }
+  }
+
+  event CoverageDemandCancelled(address indexed insurer, uint256 requested, uint256 cancelled);
+
+  // slither-disable-next-line calls-loop,costly-loop
+  function _cancelDemand(address insurer, uint256 requestedAmount) private returns (uint256 totalPayout) {
+    uint256 unitSize = ICancellableCoverageDemand(insurer).coverageUnitSize();
+    uint256 unitCount = requestedAmount.divUp(unitSize);
+    if (unitCount > 0) {
+      unitCount = ICancellableCoverageDemand(insurer).cancelCoverageDemand(address(this), unitCount, 0);
+    }
+
+    if (unitCount > 0) {
+      totalPayout = unitCount * unitSize;
+
+      _demandedCoverage = uint96(_demandedCoverage - totalPayout);
+      Value.require((_requiredCoverage += uint96(totalPayout)) >= totalPayout);
+      internalBurnForDemandedCoverage(insurer, totalPayout.wadMul(_premiumRate));
+    }
+
+    emit CoverageDemandCancelled(insurer, requestedAmount, totalPayout);
   }
 }

@@ -17,7 +17,7 @@ task('storage-layout', 'Print storage layout of contracts')
         table.printTable();
       }
     } catch (e) {
-      console.log(e); // TODO HRE error handler
+      console.error(e); // TODO HRE error handler
     }
   });
 
