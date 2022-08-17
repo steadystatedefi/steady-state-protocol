@@ -101,9 +101,11 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
   }
 
   uint16 private _riskWeightValue;
+  address private _expectedPremiumToken;
 
-  function approveNextJoin(uint16 riskWeightValue) external {
+  function approveNextJoin(uint16 riskWeightValue, address expectedPremiumToken) external {
     _riskWeightValue = riskWeightValue + 1;
+    _expectedPremiumToken = expectedPremiumToken;
   }
 
   function verifyPayoutRatio(address, uint256 payoutRatio) external pure override returns (uint256) {
@@ -115,6 +117,7 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     if (data.riskLevel > 0) {
       _riskWeightValue = 0;
       data.riskLevel--;
+      data.premiumToken = _expectedPremiumToken;
       ok = true;
     }
   }

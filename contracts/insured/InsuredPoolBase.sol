@@ -96,11 +96,17 @@ abstract contract InsuredPoolBase is
     internalJoinPool(pool);
   }
 
-  /// @notice Add coverage demand to the desired insurer
-  /// @param target The insurer to add
-  /// @param amount The amount of coverage demand to request
-  function pushCoverageDemandTo(ICoverageDistributor target, uint256 amount) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
-    internalPushCoverageDemandTo(target, amount);
+  /// @notice Add coverage demand to the desired insurers
+  /// @param targets The insurers to add demand to
+  /// @param amounts The amount of coverage demand to request
+  function pushCoverageDemandTo(ICoverageDistributor[] calldata targets, uint256[] calldata amounts)
+    external
+    onlyGovernorOr(AccessFlags.INSURED_OPS)
+  {
+    Value.require(targets.length == amounts.length);
+    for (uint256 i = 0; i < targets.length; i++) {
+      internalPushCoverageDemandTo(targets[i], amounts[i]);
+    }
   }
 
   function setInsuredParams(InsuredParams calldata params) external onlyGovernorOr(AccessFlags.INSURED_OPS) {

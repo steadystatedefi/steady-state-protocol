@@ -57,7 +57,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
         minUnits * unitSize,
         premiumToken.address
       );
-      await pool.approveNextJoin(riskWeightValue);
+      await pool.approveNextJoin(riskWeightValue, premiumToken.address);
       await insured.joinPool(pool.address, { gasLimit: 1000000 });
       insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
@@ -317,7 +317,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(totals0.total.openRounds).eq(0);
     expect(totals0.total.usableRounds).eq(0);
 
-    await insureds[1].pushCoverageDemandTo(pool.address, unitSize * 50);
+    await insureds[1].pushCoverageDemandTo([pool.address], [unitSize * 50]);
 
     const totals1 = await pool.getTotals();
     expect(totals1.total.openRounds).eq(50);
@@ -346,7 +346,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     await pool.setExcessCoverage(0);
 
     for (const insured of insureds) {
-      await insured.pushCoverageDemandTo(pool.address, poolDemand);
+      await insured.pushCoverageDemandTo([pool.address], [poolDemand]);
     }
     await pool.setExcessCoverage(excess);
 

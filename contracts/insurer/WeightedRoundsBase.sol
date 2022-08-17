@@ -140,9 +140,7 @@ abstract contract WeightedRoundsBase {
 
     (Rounds.Batch memory b, uint64 thisBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.nextBatchNo);
 
-    // TODO try to reuse the previous Demand slot from storage
     Rounds.Demand memory demand;
-
     uint32 openRounds = _openRounds - _partial.roundNo;
     bool updateBatch;
     for (;;) {
@@ -850,7 +848,7 @@ abstract contract WeightedRoundsBase {
   )
     internal
     returns (
-      uint256 remainingAmount, //TODO: Unused named return variables
+      uint256, /* remainingAmount */
       uint256 remainingLoopLimit,
       Rounds.Batch memory b
     )
@@ -1067,8 +1065,6 @@ abstract contract WeightedRoundsBase {
   /// @dev Try to cancel `unitCount` units of coverage demand
   /// @return The amount of units that were cancelled
   function internalCancelCoverageDemand(uint64 unitCount, CancelCoverageDemandParams memory params) internal returns (uint64) {
-    // TODO problems: consider zero-round batches when adding demand and coverage
-
     Rounds.InsuredEntry storage entry = _insureds[params.insured];
     Access.require(entry.status == MemberStatus.Accepted);
 
@@ -1451,7 +1447,6 @@ abstract contract WeightedRoundsBase {
       b.roundPremiumRateSum - uint56(d.premiumRate) * d.unitPerRound
     );
 
-    // TODO optimize gas
     if (b.unitPerRound == 0) {
       excessCoverage = part.roundCoverage;
       _partial.roundCoverage = part.roundCoverage = 0;
@@ -1491,10 +1486,6 @@ abstract contract WeightedRoundsBase {
       // avoid double-counting when premiuns are not synced
       poolPremium.coveragePremium -= uint96(premium.coveragePremiumRate) * (poolPremium.lastUpdatedAt - premium.lastUpdatedAt);
     }
-
-    // TODO store coveragePremium of cancelled coverages in a separate field
-    // _premiumOfCancelled += x
-    // poolPremium.coveragePremium -= x
 
     _poolPremium = poolPremium;
 

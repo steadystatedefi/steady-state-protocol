@@ -84,4 +84,16 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     }
     return (bands, 1);
   }
+
+  // /// @notice Add coverage demand to the desired insurers
+  // /// @param targets The insurers to add demand to
+  // /// @param amounts The amount of coverage demand to request
+  // function pushCoverageDemandTo(ICoverageDistributor[] calldata targets, uint256[] calldata amounts) external
+  //   onlyGovernorOr(AccessFlags.INSURED_OPS)
+  // {
+  //   Value.require(targets.length == amounts.length);
+  //   for (uint256 i = 0; i < targets.length; i++) {
+  //     internalPushCoverageDemandTo(targets[i], amounts[i]);
+  //   }
+  // }
 }
