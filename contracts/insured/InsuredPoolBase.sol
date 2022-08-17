@@ -220,7 +220,7 @@ abstract contract InsuredPoolBase is
 
   // TODO cancelCoverageDemnad
 
-  event CoverageCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
+  event CoverageFullyCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
 
   /// @notice Cancel coverage and get paid out the coverage amount
   /// @param payoutReceiver The receiver of the collateral currency
@@ -246,13 +246,15 @@ abstract contract InsuredPoolBase is
       transferCollateral(payoutReceiver, totalPayout);
     }
 
-    emit CoverageCancelled(expectedPayout, totalPayout, payoutReceiver);
+    emit CoverageFullyCancelled(expectedPayout, totalPayout, payoutReceiver);
   }
 
   function internalCollateralReceived(address insurer, uint256 amount) internal override {
     super.internalCollateralReceived(insurer, amount);
     _receivedCollaterals[insurer] += amount;
   }
+
+  event CoverageCancelled(address indexed insurer, uint256 payoutRatio, uint256 actualPayout);
 
   /// @dev Goes through the insurers and cancels with the payout ratio
   /// @param insurers The insurers to cancel with
@@ -271,6 +273,7 @@ abstract contract InsuredPoolBase is
       require(t.approve(insurer, receivedCollateral));
 
       totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
+      emit CoverageCancelled(insurer, payoutRatio, totalPayout);
 
       internalDecReceivedCollateral(receivedCollateral - t.allowance(address(this), insurer));
       require(t.approve(insurer, 0));

@@ -85,15 +85,35 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     return (bands, 1);
   }
 
-  // /// @notice Add coverage demand to the desired insurers
-  // /// @param targets The insurers to add demand to
-  // /// @param amounts The amount of coverage demand to request
-  // function pushCoverageDemandTo(ICoverageDistributor[] calldata targets, uint256[] calldata amounts) external
-  //   onlyGovernorOr(AccessFlags.INSURED_OPS)
-  // {
-  //   Value.require(targets.length == amounts.length);
-  //   for (uint256 i = 0; i < targets.length; i++) {
-  //     internalPushCoverageDemandTo(targets[i], amounts[i]);
-  //   }
-  // }
+  function cancelCoverageDemand(address[] calldata targets, uint256[] calldata amounts)
+    external
+    onlyGovernorOr(AccessFlags.INSURED_OPS)
+    returns (uint256 cancelledAmount)
+  {
+    Value.require(targets.length == amounts.length);
+    for (uint256 i = 0; i < targets.length; i++) {
+      cancelledAmount += _cancelDemand(targets[i], amounts[i]);
+    }
+  }
+
+  function cancelAllCoverageDemand() external onlyGovernorOr(AccessFlags.INSURED_OPS) returns (uint256 cancelledAmount) {
+    address[] storage targets = getCharteredInsurers();
+    for (uint256 i = targets.length; i > 0; ) {
+      i--;
+      cancelledAmount += _cancelDemand(targets[i], type(uint256).max);
+    }
+  }
+
+  event CoverageDemandCancelled(address indexed insurer, uint256 requested, uint256 cancelled);
+
+  function _cancelDemand(address insurer, uint256 requestedAmount) private returns (uint256 totalPayout) {
+    uint256 unitSize = ICancellableCoverageDemand(insurer).coverageUnitSize();
+    uint256 unitCount = requestedAmount.divUp(unitSize);
+    if (unitCount > 0) {
+      unitCount = ICancellableCoverageDemand(insurer).cancelCoverageDemand(address(this), unitCount, 0);
+    }
+
+    totalPayout = unitCount * unitSize;
+    emit CoverageDemandCancelled(insurer, requestedAmount, totalPayout);
+  }
 }

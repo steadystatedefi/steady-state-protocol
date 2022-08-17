@@ -65,8 +65,6 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     if (unitCount > type(uint64).max) {
       unitCount = type(uint64).max;
     }
-
-    // TODO event
     return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 

@@ -29,10 +29,10 @@ abstract contract WeightedPoolBase is
   constructor(WeightedPoolExtension extension, JoinablePoolExtension joinExtension)
     WeightedPoolConfig(joinExtension.accessController(), extension.coverageUnitSize(), extension.collateral())
   {
+    // TODO check for the same access controller
     // require(extension.accessController() == joinExtension.accessController());
     // require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
     Value.require(extension.collateral() == joinExtension.collateral());
-    // TODO check for the same access controller
     _extension = address(extension);
     _joinExtension = address(joinExtension);
   }
