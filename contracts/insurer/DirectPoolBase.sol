@@ -88,8 +88,6 @@ abstract contract DirectPoolBase is
     _cancelledAt = uint32(block.timestamp);
   }
 
-  /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  /// @return excess The amount of coverage that is over the limit
   function internalMintForCoverage(address account, uint256 providedAmount) internal returns (uint256 excess) {
     require(account != address(0));
     require(_cancelledAt == 0);
@@ -110,8 +108,6 @@ abstract contract DirectPoolBase is
     _totalBalance += coverageAmount;
   }
 
-  /// @dev Burn all of a user's provided coverage
-  /// TODO: transfer event emitted without transferring
   function internalBurnAll(address account) internal returns (uint256 coverageAmount) {
     uint32 cancelledAt = _cancelledAt;
     require(cancelledAt != 0);

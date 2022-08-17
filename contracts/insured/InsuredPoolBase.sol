@@ -218,8 +218,6 @@ abstract contract InsuredPoolBase is
     return _reconcileWithInsurersView(startIndex, count > 0 ? count : type(uint256).max);
   }
 
-  // TODO cancelCoverageDemnad
-
   event CoverageFullyCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
 
   /// @notice Cancel coverage and get paid out the coverage amount
@@ -289,7 +287,6 @@ abstract contract InsuredPoolBase is
   }
 
   function internalExpectedPrepay(uint256 atTimestamp) internal view override returns (uint256) {
-    // TODO use maxRate (demanded coverage)
     return internalExpectedTotals(uint32(atTimestamp)).accum;
   }
 

@@ -78,6 +78,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
   /// @param minAmount The desired min amount of demand to add (soft limit)
   /// @param maxAmount The max amount of demand to add (hard limit)
   /// @return True if there is more demand that can be added
+  // slither-disable-next-line calls-loop
   function _addCoverageDemandTo(
     ICoverageDistributor target,
     uint256 minAmount,
