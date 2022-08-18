@@ -86,6 +86,8 @@ makeSuite('access: Oracle Router', (testEnv: TestEnv) => {
     await state.proxyCatalog.setDefaultImplementation(version1.address);
     await state.proxyCatalog.addAuthenticImplementation(version2.address, implName, ctx);
     const validFlag = AccessFlags.LIQUIDITY_BORROWER;
+
+    await expect(state.proxyCatalog.connect(user3).setAccess([implName], [validFlag])).reverted;
     await state.proxyCatalog.setAccess([implName], [validFlag]);
     {
       await expect(makeProxy(user3.address, params)).reverted;
