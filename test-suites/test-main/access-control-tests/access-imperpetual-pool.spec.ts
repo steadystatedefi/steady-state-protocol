@@ -68,7 +68,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await state.insurer.approveJoiner(state.insured.address, true);
     await state.insurer.addSubrogation(user2.address, 0);
 
-    await state.insured.pushCoverageDemandTo(state.insurer.address, 11);
+    await state.insured.pushCoverageDemandTo([state.insurer.address], [11]);
 
     await state.controller.revokeRoles(deployer.address, AccessFlags.INSURER_OPS);
     await expect(ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT)).reverted;
@@ -116,7 +116,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
 
     await state.controller.revokeAllRoles(deployer.address);
     {
-      await expect(state.insured.pushCoverageDemandTo(state.insurer.address, 11)).reverted;
+      await expect(state.insured.pushCoverageDemandTo([state.insurer.address], [11])).reverted;
       await expect(ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT)).reverted;
       await expect(ext.receiveDemandedCoverage(state.insured.address, MAX_UINT)).reverted;
       await expect(ext.cancelCoverage(state.insured.address, 0)).reverted;
@@ -133,7 +133,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await state.approvalCatalog.approveClaim(state.insured.address, claim);
 
     await state.insurer.approveJoiner(state.insured.address, true);
-    await state.insured.pushCoverageDemandTo(state.insurer.address, 11);
+    await state.insured.pushCoverageDemandTo([state.insurer.address], [11]);
     await ext.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
     await state.insured.reconcileWithInsurers(0, 0);
     await state.insured.cancelCoverage(user2.address, 0);
