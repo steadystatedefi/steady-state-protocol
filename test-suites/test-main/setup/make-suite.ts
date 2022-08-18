@@ -12,6 +12,7 @@ import { almostEqual } from './almost-equal';
 chai.use(bignumberChai());
 chai.use(almostEqual());
 chai.use(solidity);
+chai.config.includeStack = true;
 
 export interface TestEnv {
   deployer: SignerWithAddress;

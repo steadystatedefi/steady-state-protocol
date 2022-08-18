@@ -68,18 +68,6 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, D
       console.log(`Incremental deploy cycle #${maxStep} started\n`);
       let step = maxStep;
 
-      // TODO: move function outside the loop
-      // eslint-disable-next-line no-loop-func
-      const isLastStep = () => {
-        if (step === 2) {
-          if (lastInstanceCount !== getInstanceCountFromJsonDb()) {
-            throw new Error(`unexpected contracts were deployed at step #${1 + maxStep - step}`);
-          }
-        }
-        // eslint-disable-next-line no-plusplus
-        return --step === 0;
-      };
-
       stop = true;
       for (const deployStep of steps) {
         const stepId = `0${deployStep.seqId}`;
@@ -88,7 +76,14 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, D
         console.log('======================================================================\n');
         await DRE.run(deployStep.taskName, deployStep.args);
 
-        if (isLastStep()) {
+        if (step === 2) {
+          if (lastInstanceCount !== getInstanceCountFromJsonDb()) {
+            throw new Error(`unexpected contracts were deployed at step #${1 + maxStep - step}`);
+          }
+        }
+
+        // eslint-disable-next-line no-plusplus
+        if (--step === 0) {
           stop = false;
           break;
         }

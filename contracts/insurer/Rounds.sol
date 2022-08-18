@@ -47,7 +47,7 @@ library Rounds {
     /// @dev see InsuredParams
     PackedInsuredParams params;
     /// @dev status of the insured pool
-    InsuredStatus status;
+    MemberStatus status;
   }
 
   struct Coverage {
@@ -156,8 +156,7 @@ library Rounds {
   }
 }
 
-// TODO rename to Join or Member Status
-enum InsuredStatus {
+enum MemberStatus {
   Unknown,
   JoinCancelled,
   JoinRejected,

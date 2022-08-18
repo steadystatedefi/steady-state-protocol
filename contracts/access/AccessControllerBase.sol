@@ -14,7 +14,7 @@ import './AccessCallHelper.sol';
 
 import 'hardhat/console.sol';
 
-contract AccessControllerBase is SafeOwnable, IManagedAccessController {
+abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController {
   using BitUtils for uint256;
   using EnumerableSet for EnumerableSet.AddressSet;
 

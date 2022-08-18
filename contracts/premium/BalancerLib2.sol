@@ -36,17 +36,18 @@ library BalancerLib2 {
 
   uint8 private constant FINISHED_OFFSET = 8;
 
-  uint16 internal constant BF_SPM_MASK = 3;
-  uint16 internal constant BF_SPM_F_MASK = BF_SPM_MASK << FINISHED_OFFSET;
-
   uint16 internal constant BF_SPM_GLOBAL = 1 << 0;
   uint16 internal constant BF_SPM_CONSTANT = 1 << 1;
+  uint16 internal constant BF_SPM_MAX_WITH_CONST = 1 << 2; // only applicable with BF_SPM_CONSTANT
 
   uint16 internal constant BF_AUTO_REPLENISH = 1 << 6; // pull a source at every swap
   uint16 internal constant BF_FINISHED = 1 << 7; // no more sources for this token
 
-  uint16 internal constant BF_SPM_F_GLOBAL = BF_SPM_GLOBAL << FINISHED_OFFSET;
-  uint16 internal constant BF_SPM_F_CONSTANT = BF_SPM_CONSTANT << FINISHED_OFFSET;
+  uint16 internal constant BF_SPM_MASK = BF_SPM_GLOBAL | BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST;
+  uint16 internal constant BF_SPM_F_MASK = BF_SPM_MASK << FINISHED_OFFSET;
+
+  // uint16 internal constant BF_SPM_F_GLOBAL = BF_SPM_GLOBAL << FINISHED_OFFSET;
+  // uint16 internal constant BF_SPM_F_CONSTANT = BF_SPM_CONSTANT << FINISHED_OFFSET;
 
   uint16 internal constant BF_SUSPENDED = 1 << 15; // token is suspended
 
@@ -119,6 +120,22 @@ library BalancerLib2 {
     }
   }
 
+  function assetState(AssetBalancer storage p, address token)
+    internal
+    view
+    returns (
+      uint256,
+      uint256 accum,
+      uint256 stravation,
+      uint256 price,
+      uint256 w
+    )
+  {
+    AssetBalance memory balance = p.balances[token];
+    (CalcParams memory c, uint256 flags) = _calcParams(p, token, balance.rateValue, false);
+    return (flags, balance.accumAmount, c.sA, c.vA, c.w);
+  }
+
   function swapAssetInBatch(
     AssetBalancer storage p,
     ReplenishParams memory params,
@@ -173,10 +190,26 @@ library BalancerLib2 {
         flags <<= FINISHED_OFFSET;
       }
 
-      if (flags & BF_SPM_CONSTANT == 0) {
-        c.sA = rateValue == 0 ? 0 : (rateValue * (flags & BF_SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
-      } else {
+      // if (flags & BF_SPM_CONSTANT == 0) {
+      //   c.sA = rateValue == 0 ? 0 : (rateValue * (flags & BF_SPM_GLOBAL == 0 ? config.n : p.spFactor)).wadDiv(c.vA);
+      // } else {
+      //   c.sA = flags & BF_SPM_GLOBAL == 0 ? config.spConst : p.spConst;
+      // }
+
+      if (flags & BF_SPM_CONSTANT != 0) {
         c.sA = flags & BF_SPM_GLOBAL == 0 ? config.spConst : p.spConst;
+      }
+
+      uint256 mode = flags & (BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST);
+      if (mode != BF_SPM_CONSTANT) {
+        uint256 v;
+        if (rateValue != 0) {
+          v = (flags & BF_SPM_GLOBAL == 0) == (mode != BF_SPM_MAX_WITH_CONST) ? config.n : p.spFactor;
+          v = (rateValue * v).wadDiv(c.vA);
+        }
+        if (flags & BF_SPM_MAX_WITH_CONST == 0 || v > c.sA) {
+          c.sA = v;
+        }
       }
     }
   }

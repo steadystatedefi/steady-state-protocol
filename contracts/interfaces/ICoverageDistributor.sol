@@ -14,6 +14,9 @@ interface ICancellableCoverage {
 }
 
 interface ICancellableCoverageDemand is ICancellableCoverage {
+  /// @dev size of collateral allocation chunk made by this pool
+  function coverageUnitSize() external view returns (uint256);
+
   /// @notice Cancel coverage that has been demanded, but not filled yet
   /// @dev can only be called by an accepted insured pool
   /// @param unitCount The number of units that wishes to be cancelled
@@ -26,9 +29,6 @@ interface ICancellableCoverageDemand is ICancellableCoverage {
 }
 
 interface ICoverageDistributor is ICancellableCoverageDemand {
-  /// @dev size of collateral allocation chunk made by this pool
-  function coverageUnitSize() external view returns (uint256);
-
   /// @notice Add demand for coverage
   /// @dev can only be called by an accepted insured pool
   /// @param unitCount Number of *units* of coverage demand to add

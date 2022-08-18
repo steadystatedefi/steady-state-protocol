@@ -29,7 +29,7 @@ contract JoinablePoolExtension is IJoinableBase, WeightedPoolStorage {
     internalProcessJoin(insured, accepted);
   }
 
-  function cancelJoin() external returns (InsuredStatus) {
+  function cancelJoin() external returns (MemberStatus) {
     return internalCancelJoin(msg.sender);
   }
 }

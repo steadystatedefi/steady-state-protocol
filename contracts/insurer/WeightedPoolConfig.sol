@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 import '../interfaces/IWeightedPool.sol';
+import '../interfaces/IPremiumSource.sol';
 import '../tools/math/PercentageMath.sol';
 import './WeightedRoundsBase.sol';
 import './WeightedPoolAccessControl.sol';
@@ -92,7 +93,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     } else {
       min *= unitCount;
     }
-    Sanity.require(min > 0); // TODO sanity check - remove later
+    Sanity.require(min > 0);
 
     return uint24(min);
   }
@@ -214,7 +215,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
       return false;
     }
 
-    // TODO State.require(IInsuredPool(insured).premiumToken() == approvedParams.premiumToken);
+    State.require(IPremiumSource(insured).premiumToken() == approvedParams.premiumToken);
 
     InsuredParams memory insuredSelfParams = IInsuredPool(insured).insuredParams();
 
@@ -233,18 +234,18 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return true;
   }
 
-  function internalGetStatus(address account) internal view override returns (InsuredStatus) {
+  function internalGetStatus(address account) internal view override returns (MemberStatus) {
     return internalGetInsuredStatus(account);
   }
 
-  function internalSetStatus(address account, InsuredStatus status) internal override {
+  function internalSetStatus(address account, MemberStatus status) internal override {
     return super.internalSetInsuredStatus(account, status);
   }
 
   /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function internalStatusOf(address account) internal view returns (InsuredStatus status) {
-    if ((status = internalGetStatus(account)) == InsuredStatus.Unknown && internalIsInvestor(account)) {
-      status = InsuredStatus.NotApplicable;
+  function internalStatusOf(address account) internal view returns (MemberStatus status) {
+    if ((status = internalGetStatus(account)) == MemberStatus.Unknown && internalIsInvestor(account)) {
+      status = MemberStatus.NotApplicable;
     }
     return status;
   }

@@ -220,16 +220,14 @@ export const printContracts = (deployer: string): [Map<string, EthereumAddress>,
   console.log('---------------------------------');
 
   const entries = getNamedFromJsonDb();
-  const logEntries = getInstancesFromJsonDb();
+  const instEntries = getInstancesFromJsonDb() ?? [];
+  const extrEntries = getExternalsFromJsonDb() ?? [];
+  const total = instEntries.length + extrEntries.length;
 
   let multiCount = 0;
   const entryMap = new Map<string, EthereumAddress>();
 
   entries.forEach(([key, value]: [string, DbNamedEntry]) => {
-    if (key.startsWith('~')) {
-      return;
-    }
-
     if (value.count > 1) {
       console.log(`\t${key}: N=${value.count}`);
       multiCount += 1;
@@ -240,9 +238,9 @@ export const printContracts = (deployer: string): [Map<string, EthereumAddress>,
   });
 
   console.log('---------------------------------');
-  console.log('N# Contracts:', entryMap.size + multiCount, '/', logEntries.length);
+  console.log('N# Contracts:', entryMap.size + multiCount, '/', total);
 
-  return [entryMap, logEntries.length, multiCount];
+  return [entryMap, total, multiCount];
 };
 
 const getUiConfig = () => low(new FileSync('./ui-config.json'));

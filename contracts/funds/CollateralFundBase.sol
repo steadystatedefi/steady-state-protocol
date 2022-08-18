@@ -12,7 +12,7 @@ import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
 import './Collateralized.sol';
 
-// TODO tests for zero return on price lockup
+// TODO:TEST tests for zero return on price lockup
 
 abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHelper {
   using SafeERC20 for IERC20;
@@ -33,7 +33,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
   }
 
   struct CollateralAsset {
-    uint8 flags; // TODO flags
+    uint8 assetFlags;
     address trustee;
   }
 
@@ -118,15 +118,15 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
 
   function internalSetTrustee(address token, address trustee) internal {
     CollateralAsset storage asset = _assets[token];
-    State.require(asset.flags & AF_ADDED != 0);
+    State.require(asset.assetFlags & AF_ADDED != 0);
     asset.trustee = trustee;
     emit TrusteeUpdated(token, trustee);
   }
 
   function internalSetFlags(address token, uint8 flags) internal {
     CollateralAsset storage asset = _assets[token];
-    State.require(asset.flags & AF_ADDED != 0 && _tokens.contains(token));
-    asset.flags = AF_ADDED | flags;
+    State.require(asset.assetFlags & AF_ADDED != 0 && _tokens.contains(token));
+    asset.assetFlags = AF_ADDED | flags;
   }
 
   event AssetAdded(address indexed token);
@@ -136,7 +136,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     Value.require(token != address(0));
     State.require(_tokens.add(token));
 
-    _assets[token] = CollateralAsset({flags: type(uint8).max, trustee: trustee});
+    _assets[token] = CollateralAsset({assetFlags: type(uint8).max, trustee: trustee});
     _attachSource(token, true);
 
     emit AssetAdded(token);
@@ -148,7 +148,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
   function internalRemoveAsset(address token) internal {
     if (token != address(0) && _tokens.remove(token)) {
       CollateralAsset storage asset = _assets[token];
-      asset.flags = AF_ADDED;
+      asset.assetFlags = AF_ADDED;
       _attachSource(token, false);
 
       emit AssetRemoved(token);
@@ -266,7 +266,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
 
   function _onlyActiveAsset(address token, uint8 accessFlags) private view returns (CollateralAsset storage asset) {
     asset = _assets[token];
-    uint8 flags = asset.flags;
+    uint8 flags = asset.assetFlags;
     State.require(flags & AF_ADDED != 0);
     if (flags & accessFlags != accessFlags) {
       if (_tokens.contains(token)) {
@@ -390,7 +390,7 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
   }
 
   function isPaused(address token) public view returns (bool) {
-    return _assets[token].flags == type(uint8).max;
+    return _assets[token].assetFlags == type(uint8).max;
   }
 
   function setTrustedOperator(address token, address trustee) external aclHas(AccessFlags.LP_DEPLOY) {
@@ -401,14 +401,21 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     internalSetSpecialApprovals(operator, accessFlags);
   }
 
+  function _attachToken(address token, bool attach) private {
+    IManagedPriceRouter pricer = getPricer();
+    if (address(pricer) != address(0)) {
+      pricer.attachSource(token, attach);
+    }
+  }
+
   function addAsset(address token, address trusted) external aclHas(AccessFlags.LP_DEPLOY) {
     internalAddAsset(token, trusted);
-    // TODO set fuses
+    _attachToken(token, true);
   }
 
   function removeAsset(address token) external aclHas(AccessFlags.LP_DEPLOY) {
     internalRemoveAsset(token);
-    // TODO set fuses
+    _attachToken(token, false);
   }
 
   function assets() external view override returns (address[] memory) {

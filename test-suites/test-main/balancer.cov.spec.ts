@@ -24,6 +24,10 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     GlobalRateFactor = 1 + 64, // + BF_AUTO_REPLENISH
     Constant = 2,
     GlobalConstant = 3,
+    MaxOfGlobalRateAndConst = 4, // TODO:TEST additional modes
+    MaxOfRateAndGlobalConst = 5,
+    MaxOfRateAndConst = 6,
+    MaxOfGlobalRateAndGlobalConst = 7,
   }
 
   const starvationPoint = 20;

@@ -1,12 +1,13 @@
 import { ProtocolErrors } from '../contract-errors';
 import { Factories } from '../contract-types';
-import { NamedDeployable } from '../factory-wrapper';
+import { NamedAttachable, NamedDeployable } from '../factory-wrapper';
 
 export type FunctionAccessExceptions = { [key: string]: string | true | { args: unknown[]; reason?: string } };
 export type ContractAccessExceptions = {
   implOverride?: FunctionAccessExceptions;
   functions: FunctionAccessExceptions;
   reasons?: string[];
+  delegatedContracts?: NamedAttachable[];
 };
 
 const catalog: Map<string, ContractAccessExceptions> = new Map();
@@ -14,7 +15,7 @@ const catalog: Map<string, ContractAccessExceptions> = new Map();
 export const getContractAccessExceptions = (name: string): ContractAccessExceptions =>
   catalog.get(name) as ContractAccessExceptions;
 
-function add(f: NamedDeployable, x: ContractAccessExceptions, implOverride?: FunctionAccessExceptions): void {
+function add(f: NamedDeployable, x: ContractAccessExceptions): void {
   const n = f.name();
   if (!n) {
     throw new Error('Unnamed factory');
@@ -23,14 +24,7 @@ function add(f: NamedDeployable, x: ContractAccessExceptions, implOverride?: Fun
     throw new Error(`Duplicate: ${n}`);
   }
 
-  if (implOverride) {
-    catalog.set(n, {
-      ...x,
-      implOverride,
-    });
-  } else {
-    catalog.set(n, x);
-  }
+  catalog.set(n, x);
 }
 
 add(Factories.AccessController, {
@@ -187,4 +181,6 @@ add(Factories.ImperpetualPoolV1, {
   implOverride: {
     initializeWeighted: ProtocolErrors.InitializerBlockedOff,
   },
+
+  delegatedContracts: [Factories.ImperpetualPoolExtension, Factories.JoinablePoolExtension],
 });

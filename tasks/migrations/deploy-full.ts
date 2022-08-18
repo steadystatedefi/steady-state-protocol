@@ -7,7 +7,7 @@ import { ConfigNames } from '../../helpers/config-loader';
 import { Factories } from '../../helpers/contract-types';
 import { cleanupJsonDb, cleanupUiConfig, printContracts, writeUiConfig } from '../../helpers/deploy-db';
 import { dreAction } from '../../helpers/dre';
-import { getDefaultDeployer } from '../../helpers/factory-wrapper';
+import { getDefaultDeployer, setBlockMocks } from '../../helpers/factory-wrapper';
 import { falsyOrZeroAddress, getFirstSigner, getNetworkName, notFalsyOrZeroAddress } from '../../helpers/runtime-utils';
 import { getDeploySteps } from '../deploy/deploy-steps';
 
@@ -33,6 +33,8 @@ task('deploy-full', 'Deploy full enviroment')
 
       let renounce = false;
       let success = false;
+
+      setBlockMocks(true);
 
       try {
         cleanupUiConfig();
@@ -92,7 +94,7 @@ task('deploy-full', 'Deploy full enviroment')
           }
 
           entryMap.forEach((_, key) => {
-            if (key.startsWith('Mock')) {
+            if (key.includes('Mock')) {
               console.error('WARNING: mock contract detected:', key);
               hasWarn = true;
             }

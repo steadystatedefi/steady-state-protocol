@@ -29,8 +29,8 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
 
   function getRevision() internal pure override returns (uint256) {}
 
-  function handleJoinRequest(address) external pure override returns (InsuredStatus) {
-    return InsuredStatus.Accepted;
+  function handleJoinRequest(address) external pure override returns (MemberStatus) {
+    return MemberStatus.Accepted;
   }
 
   function governerQueryAccessControlMask(address, uint256 filterMask) external pure override returns (uint256) {
@@ -84,9 +84,11 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   }
 
   uint16 private _riskWeightValue;
+  address private _expectedPremiumToken;
 
-  function approveNextJoin(uint16 riskWeightValue) external {
+  function approveNextJoin(uint16 riskWeightValue, address expectedPremiumToken) external {
     _riskWeightValue = riskWeightValue + 1;
+    _expectedPremiumToken = expectedPremiumToken;
   }
 
   function verifyPayoutRatio(address, uint256 payoutRatio) external pure override returns (uint256) {
@@ -98,6 +100,7 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     if (data.riskLevel > 0) {
       _riskWeightValue = 0;
       data.riskLevel--;
+      data.premiumToken = _expectedPremiumToken;
       ok = true;
     }
   }

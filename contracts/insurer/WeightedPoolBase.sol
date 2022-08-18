@@ -29,10 +29,10 @@ abstract contract WeightedPoolBase is
   constructor(WeightedPoolExtension extension, JoinablePoolExtension joinExtension)
     WeightedPoolConfig(joinExtension.accessController(), extension.coverageUnitSize(), extension.collateral())
   {
+    // TODO check for the same access controller
     // require(extension.accessController() == joinExtension.accessController());
     // require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
     Value.require(extension.collateral() == joinExtension.collateral());
-    // TODO check for the same access controller
     _extension = address(extension);
     _joinExtension = address(joinExtension);
   }
@@ -63,7 +63,7 @@ abstract contract WeightedPoolBase is
     _delegate(_joinExtension);
   }
 
-  function cancelJoin() external returns (InsuredStatus) {
+  function cancelJoin() external returns (MemberStatus) {
     _delegate(_joinExtension);
   }
 
@@ -132,7 +132,7 @@ abstract contract WeightedPoolBase is
   // }
 
   /// @return status The status of the account, NotApplicable if unknown about this address or account is an investor
-  function statusOf(address account) external view returns (InsuredStatus status) {
+  function statusOf(address account) external view returns (MemberStatus status) {
     return internalStatusOf(account);
   }
 
@@ -146,7 +146,7 @@ abstract contract WeightedPoolBase is
     uint256 amount,
     bytes calldata data
   ) internal override onlyCollateralCurrency onlyUnpaused {
-    Access.require(operator != address(this) && account != address(this) && internalGetStatus(account) == InsuredStatus.Unknown);
+    Access.require(operator != address(this) && account != address(this) && internalGetStatus(account) == MemberStatus.Unknown);
     Value.require(data.length == 0);
 
     internalMintForCoverage(account, amount);
