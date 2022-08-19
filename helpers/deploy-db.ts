@@ -196,7 +196,7 @@ export const getNamedFromJsonDb = (): [string, DbNamedEntry][] => {
   return Object.entries<DbNamedEntry>(value || []);
 };
 
-export const getFromJsonDb = <T>(id: string): T => {
+export const getFromJsonDb = <T = DbNamedEntry>(id: string): T => {
   const db = getDb();
   const collection = db.get(`${DRE.network.name}.named.${id}`);
 
