@@ -9,6 +9,7 @@ contract AccessCallHelper {
 
   constructor(address owner) {
     Value.require(owner != address(0));
+    // slither-disable-next-line missing-zero-check
     _owner = owner;
   }
 
