@@ -29,7 +29,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     params.insured = msg.sender;
     Arithmetic.require(premiumRate == (params.premiumRate = uint40(premiumRate)));
     params.loopLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemand, loopLimit);
-    //    params.hasMore = hasMore;
+    params.hasMore = hasMore;
     Arithmetic.require(unitCount <= type(uint64).max);
 
     addedCount = unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
