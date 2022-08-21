@@ -19,12 +19,12 @@ abstract contract InsurerJoinBase is IJoinEvents {
   function internalIsInvestor(address) internal view virtual returns (bool);
 
   function internalRequestJoin(address insured) internal virtual returns (MemberStatus status) {
-    require(Address.isContract(insured));
+    Value.requireContract(insured);
     if ((status = internalGetStatus(insured)) >= MemberStatus.Joining) {
       return status;
     }
     if (status == MemberStatus.Unknown) {
-      require(!internalIsInvestor(insured));
+      State.require(!internalIsInvestor(insured));
     }
     internalSetStatus(insured, MemberStatus.Joining);
     emit JoinRequested(insured);
@@ -43,7 +43,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
   }
 
   function _updateInsuredStatus(address insured, MemberStatus status) private returns (MemberStatus) {
-    require(status > MemberStatus.Unknown);
+    State.require(status > MemberStatus.Unknown);
 
     MemberStatus currentStatus = internalGetStatus(insured);
     if (currentStatus == MemberStatus.Joining) {
@@ -80,7 +80,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
       status = MemberStatus.JoinFailed;
     } else {
       if (status == MemberStatus.Declined) {
-        require(currentStatus != MemberStatus.Banned);
+        State.require(currentStatus != MemberStatus.Banned);
       }
       if (currentStatus == MemberStatus.Accepted && status != MemberStatus.Accepted) {
         internalAfterJoinOrLeave(insured, status);

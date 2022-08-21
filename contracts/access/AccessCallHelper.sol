@@ -8,7 +8,7 @@ contract AccessCallHelper {
   address private immutable _owner;
 
   constructor(address owner) {
-    require(owner != address(0));
+    Value.require(owner != address(0));
     _owner = owner;
   }
 

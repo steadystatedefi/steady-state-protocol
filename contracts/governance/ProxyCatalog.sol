@@ -97,7 +97,7 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   }
 
   function _ensureNewRevision(address prevImpl, address newImpl) internal view {
-    require(IVersioned(newImpl).REVISION() > (prevImpl == address(0) ? 0 : IVersioned(prevImpl).REVISION()));
+    Value.require(IVersioned(newImpl).REVISION() > (prevImpl == address(0) ? 0 : IVersioned(prevImpl).REVISION()));
   }
 
   function _setDefaultImplementation(

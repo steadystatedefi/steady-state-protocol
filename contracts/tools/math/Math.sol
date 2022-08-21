@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.10;
+
+import '../Errors.sol';
 
 library Math {
   function boundedSub(uint256 x, uint256 y) internal pure returns (uint256) {
@@ -22,34 +24,67 @@ library Math {
     return y > z ? x + y - z : x + z - y;
   }
 
-  function asUint224(uint256 x) internal pure returns (uint224) {
-    require(x <= type(uint224).max);
-    return uint224(x);
+  function checkAssign(uint256 v, uint256 ref) internal pure {
+    if (v != ref) {
+      Errors.overflow();
+    }
   }
 
-  function asUint216(uint256 x) internal pure returns (uint216) {
-    require(x <= type(uint216).max);
-    return uint216(x);
+  function asUint224(uint256 x) internal pure returns (uint224 v) {
+    checkAssign(v = uint224(x), x);
+    return v;
   }
 
-  function asUint128(uint256 x) internal pure returns (uint128) {
-    require(x <= type(uint128).max);
-    return uint128(x);
+  function asUint216(uint256 x) internal pure returns (uint216 v) {
+    checkAssign(v = uint216(x), x);
+    return v;
   }
 
-  function asUint112(uint256 x) internal pure returns (uint112) {
-    require(x <= type(uint112).max);
-    return uint112(x);
+  function asUint128(uint256 x) internal pure returns (uint128 v) {
+    checkAssign(v = uint128(x), x);
+    return v;
   }
 
-  function asUint96(uint256 x) internal pure returns (uint96) {
-    require(x <= type(uint96).max);
-    return uint96(x);
+  function asUint112(uint256 x) internal pure returns (uint112 v) {
+    checkAssign(v = uint112(x), x);
+    return v;
   }
 
-  function asInt128(uint256 v) internal pure returns (int128) {
-    require(v <= type(uint128).max);
-    return int128(uint128(v));
+  function asUint96(uint256 x) internal pure returns (uint96 v) {
+    checkAssign(v = uint96(x), x);
+    return v;
+  }
+
+  function asUint88(uint256 x) internal pure returns (uint88 v) {
+    checkAssign(v = uint88(x), x);
+    return v;
+  }
+
+  function asUint64(uint256 x) internal pure returns (uint64 v) {
+    checkAssign(v = uint64(x), x);
+    return v;
+  }
+
+  function asUint32(uint256 x) internal pure returns (uint32 v) {
+    checkAssign(v = uint32(x), x);
+    return v;
+  }
+
+  function asInt128(uint256 x) internal pure returns (int128 v) {
+    checkAssign(uint128(v = int128(uint128(x))), x);
+    return v;
+  }
+
+  function checkAdd(uint256 result, uint256 added) internal pure {
+    if (result < added) {
+      Errors.overflow();
+    }
+  }
+
+  function overflowBits(uint256 value, uint256 bits) internal pure {
+    if (value >> bits != 0) {
+      Errors.overflow();
+    }
   }
 
   function sqrt(uint256 y) internal pure returns (uint256 z) {
@@ -93,7 +128,7 @@ library Math {
 
     // Handle non-overflow cases, 256 by 256 division
     if (prod1 == 0) {
-      require(denominator > 0);
+      Arithmetic.require(denominator > 0);
       assembly {
         result := div(prod0, denominator)
       }
@@ -102,7 +137,7 @@ library Math {
 
     // Make sure the result is less than 2**256.
     // Also prevents denominator == 0
-    require(denominator > prod1);
+    Arithmetic.require(denominator > prod1);
 
     ///////////////////////////////////////////////
     // 512 by 256 division.

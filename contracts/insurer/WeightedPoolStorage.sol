@@ -29,7 +29,7 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
   event ExcessCoverageUpdated(uint256 coverageExcess);
 
   function internalSetExcess(uint256 excess) internal {
-    Value.require((_excessCoverage = uint192(excess)) == excess);
+    Arithmetic.require((_excessCoverage = uint192(excess)) == excess);
     emit ExcessCoverageUpdated(excess);
   }
 

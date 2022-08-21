@@ -664,7 +664,7 @@ abstract contract WeightedRoundsBase {
       // roundup is aggresive here to ensure that this pools is guaranteed to pay not less that it pays out
       v += (pendingCovered * premiumRate + (_unitSize - 1)) / _unitSize;
     }
-    Value.require((coveragePremiumRate = uint64(v)) == v);
+    Arithmetic.require((coveragePremiumRate = uint64(v)) == v);
     // console.log('premiumAfter', coveragePremium, coveragePremiumRate);
   }
 

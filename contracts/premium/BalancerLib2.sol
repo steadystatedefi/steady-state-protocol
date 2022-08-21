@@ -98,7 +98,7 @@ library BalancerLib2 {
     // NB!!!!! value and amount are the same for this case
     c.vA = WadRayMath.WAD;
 
-    require((total.accum += uint128(assetAmount)) >= assetAmount);
+    Arithmetic.require((total.accum += uint128(assetAmount)) >= assetAmount);
     balance.accumAmount = uint128(assetAmount);
 
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
@@ -414,7 +414,7 @@ library BalancerLib2 {
       unchecked {
         newRate = newRate - lastRate;
       }
-      require((balance.rateValue += newRate) >= newRate);
+      balance.rateValue += newRate;
       total.rate += newRate;
     } else {
       unchecked {
@@ -434,7 +434,7 @@ library BalancerLib2 {
     AssetBalance memory assetBalance,
     Balances.RateAcc memory total
   ) private returns (uint256) {
-    require(total.updatedAt == block.timestamp);
+    Sanity.require(total.updatedAt == block.timestamp);
 
     (uint256 receivedAmount, uint256 receivedValue, uint256 expectedValue) = params.replenishFn(params, c.extraTotal);
     if (receivedAmount == 0) {
@@ -447,8 +447,8 @@ library BalancerLib2 {
     uint256 v = receivedValue * WadRayMath.WAD + uint256(assetBalance.accumAmount) * c.vA;
     {
       total.accum = uint128(total.accum - expectedValue);
-      require((total.accum += uint128(receivedValue)) >= receivedValue);
-      require((assetBalance.accumAmount += uint128(receivedAmount)) >= receivedAmount);
+      Arithmetic.require((total.accum += uint128(receivedValue)) >= receivedValue);
+      Arithmetic.require((assetBalance.accumAmount += uint128(receivedAmount)) >= receivedAmount);
     }
 
     if (assetBalance.accumAmount == 0) {
@@ -457,7 +457,7 @@ library BalancerLib2 {
       v = v.divUp(assetBalance.accumAmount);
     }
     if (v != c.vA) {
-      require((c.vA = p.configs[params.token].price = uint152(v)) == v);
+      Arithmetic.require((c.vA = p.configs[params.token].price = uint152(v)) == v);
     }
 
     _applyRateFromBalanceUpdate(expectedValue, assetBalance, total);
