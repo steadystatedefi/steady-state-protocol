@@ -232,7 +232,7 @@ abstract contract InsuredPoolBase is
     } else if (payoutRatio > 0) {
       payoutRatio = expectedPayout.rayDiv(payoutRatio);
     } else {
-      require(expectedPayout == 0);
+      Value.require(expectedPayout == 0);
     }
 
     uint256 totalPayout = internalCancelInsurers(getCharteredInsurers(), payoutRatio);
@@ -240,7 +240,7 @@ abstract contract InsuredPoolBase is
 
     // NB! it is possible for totalPayout < expectedPayout when drawdown takes place
     if (totalPayout > 0) {
-      require(payoutReceiver != address(0));
+      Value.require(payoutReceiver != address(0));
       transferCollateral(payoutReceiver, totalPayout);
     }
 
@@ -268,13 +268,13 @@ abstract contract InsuredPoolBase is
       uint256 receivedCollateral = _receivedCollaterals[insurer];
       _receivedCollaterals[insurer] = 0;
 
-      require(t.approve(insurer, receivedCollateral));
+      State.require(t.approve(insurer, receivedCollateral));
 
       totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
       emit CoverageCancelled(insurer, payoutRatio, totalPayout);
 
       internalDecReceivedCollateral(receivedCollateral - t.allowance(address(this), insurer));
-      require(t.approve(insurer, 0));
+      State.require(t.approve(insurer, 0));
     }
   }
 

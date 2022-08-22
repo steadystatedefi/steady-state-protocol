@@ -22,6 +22,24 @@ library Errors {
     }
   }
 
+  function panic(uint256 code) internal pure {
+    // solhint-disable no-inline-assembly
+    assembly {
+      mstore(0x00, 0x4e487b71)
+      mstore(0x20, code)
+      revert(0x1C, 0x24)
+    }
+  }
+
+  function overflow() internal pure {
+    // solhint-disable no-inline-assembly
+    assembly {
+      mstore(0x00, 0x4e487b71)
+      mstore(0x20, 0x11)
+      revert(0x1C, 0x24)
+    }
+  }
+
   function _mutable() private returns (bool) {}
 
   function notImplemented() internal {
@@ -55,6 +73,7 @@ library Errors {
   error ImplementationRequired();
 
   error UnknownPriceAsset(address asset);
+  error PriceExpired(address asset);
 }
 
 library Sanity {
@@ -96,6 +115,15 @@ library Access {
   function require(bool ok) internal pure {
     if (!ok) {
       revert Errors.AccessDenied();
+    }
+  }
+}
+
+library Arithmetic {
+  // slither-disable-next-line shadowing-builtin
+  function require(bool ok) internal pure {
+    if (!ok) {
+      Errors.overflow();
     }
   }
 }

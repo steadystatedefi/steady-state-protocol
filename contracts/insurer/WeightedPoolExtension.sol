@@ -27,10 +27,10 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   ) external override onlyActiveInsured returns (uint256 addedCount) {
     AddCoverageDemandParams memory params;
     params.insured = msg.sender;
-    require(premiumRate == (params.premiumRate = uint40(premiumRate)));
+    Arithmetic.require(premiumRate == (params.premiumRate = uint40(premiumRate)));
     params.loopLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemand, loopLimit);
-    hasMore;
-    require(unitCount <= type(uint64).max);
+    params.hasMore = hasMore;
+    Arithmetic.require(unitCount <= type(uint64).max);
 
     addedCount = unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
     //If there was excess coverage before adding this demand, immediately assign it

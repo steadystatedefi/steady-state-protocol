@@ -38,7 +38,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     emit Transfer(address(0), account, coverageValue);
 
     uint256 amount = coverageValue.rayDiv(exchangeRate()) + b.balance;
-    require(amount == (b.balance = uint128(amount)));
+    Arithmetic.require(amount == (b.balance = uint128(amount)));
     _balances[account] = b;
   }
 
@@ -197,7 +197,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[sender] = b;
 
     b = _syncBalance(recipient, totals);
-    require((b.balance += uint128(amount)) >= amount);
+    Arithmetic.require((b.balance += uint128(amount)) >= amount);
     _balances[recipient] = b;
   }
 
@@ -239,7 +239,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   function internalCollectDrawdownPremium() internal override returns (uint256) {}
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    require(params.coveragePrepayPct == PercentageMath.ONE);
+    Value.require(params.coveragePrepayPct == PercentageMath.ONE);
 
     super.internalSetPoolParams(params);
   }

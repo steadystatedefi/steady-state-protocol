@@ -70,9 +70,11 @@ const verifyMutableAccess = async (
 
   let hasErrors = false;
 
-  const reportError = (error: object, fnName: string, args: unknown) => {
-    console.log(`${name}.${fnName}`, args);
-    console.error(error);
+  const reportError = (error: object, fnName: string, args: unknown, message?: string) => {
+    console.log(`\tMethod call: ${name}.${fnName}`, args);
+    if (message) {
+      console.log(`\t\tError message:`, message);
+    }
     hasErrors = true;
     if (!checkAll) {
       throw error;
@@ -102,7 +104,7 @@ const verifyMutableAccess = async (
     const reasonUnknown = '<<MISSING>>';
     const handleError = (error: object, m: string | undefined, hasReason: boolean) => {
       if (m === undefined) {
-        reportError(error, fnName, args);
+        reportError(error, fnName, args, m);
         return;
       }
 
@@ -119,7 +121,7 @@ const verifyMutableAccess = async (
           return;
         }
       }
-      reportError(error, fnName, args);
+      reportError(error, fnName, args, message);
     };
 
     const substringAfter = (s: string, m: string, doUnquote?: boolean): string | undefined => {
@@ -137,23 +139,24 @@ const verifyMutableAccess = async (
       await contract.callStatic[fnName](...args, {
         gasLimit: estimateGas ? (await contract.estimateGas[fnName](...args)).add(100000) : undefined,
       });
-    } catch (err) {
-      const error = err as SomeError;
-      if (error.method === 'estimateGas') {
+    } catch (err: unknown) {
+      const topError = err as SomeError;
+      const isEstimateGas = topError.method === 'estimateGas';
+
+      const error = isEstimateGas && topError.error ? topError.error : topError;
+      const message = getErrorMessage(error);
+
+      if (isEstimateGas) {
         const prefixProviderReverted = 'execution reverted: ';
         const prefixProviderRevertedNoReason = 'execution reverted';
 
-        const message = getErrorMessage(error.error);
         const reason = substringAfter(message, prefixProviderReverted);
         if (reason !== undefined) {
           handleError(error, reason, true);
-        } else if (message && message.indexOf(prefixProviderRevertedNoReason) !== 0) {
+        } else if (message && message.indexOf(prefixProviderRevertedNoReason) === 0) {
           handleError(error, reasonUnknown, false);
         }
-        continue;
       }
-
-      const message: string = getErrorMessage(error);
 
       const prefixReasonStr = "VM Exception while processing transaction: reverted with reason string '";
       const prefixReasonStr2 = 'VM Exception while processing transaction: revert with reason "';
