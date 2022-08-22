@@ -2,12 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { BigNumber, BigNumberish } from 'ethers';
 
-import {
-  BORROWER_ADMIN,
-  INSURER_ADMIN,
-  LIQUIDITY_BORROWER,
-  LP_DEPLOY,
-} from '../../../helpers/access-control-constants';
+import { AccessFlags } from '../../../helpers/access-flags';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
 import { deployAccessControlState, State } from './setup';
@@ -30,7 +25,7 @@ makeSuite('access: Yield Distributor', (testEnv: TestEnv) => {
     user3 = testEnv.users[3];
     state = await deployAccessControlState(deployer);
 
-    await state.controller.grantRoles(deployer.address, INSURER_ADMIN.or(LP_DEPLOY));
+    await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN | AccessFlags.LP_DEPLOY);
   });
 
   const grantRoles = async (...roles: BigNumberish[]) => {
@@ -43,12 +38,12 @@ makeSuite('access: Yield Distributor', (testEnv: TestEnv) => {
 
   it('Role: Borrower Admin', async () => {
     await expect(state.dist.addYieldSource(user2.address, YieldSourceType.Passive)).to.be.reverted;
-    await grantRoles(BORROWER_ADMIN);
+    await grantRoles(AccessFlags.BORROWER_ADMIN);
     await state.dist.addYieldSource(user2.address, YieldSourceType.Passive);
     await state.dist.addYieldSource(user3.address, YieldSourceType.Passive);
 
     await state.dist.removeYieldSource(user2.address);
-    await state.controller.revokeRoles(deployer.address, BORROWER_ADMIN);
+    await state.controller.revokeRoles(deployer.address, AccessFlags.BORROWER_ADMIN);
     await expect(state.dist.removeYieldSource(user3.address)).to.be.reverted;
   });
 
@@ -58,19 +53,22 @@ makeSuite('access: Yield Distributor', (testEnv: TestEnv) => {
   });
 
   it('Role: Liquidity Provider + Trusted Borrower', async () => {
-    await grantRoles(BORROWER_ADMIN);
+    await grantRoles(AccessFlags.BORROWER_ADMIN);
 
     // The sender of the calls must be a liquidity provider
     // The account modified must be a trusted borrower
     await expect(state.dist.verifyBorrowUnderlying(user2.address, 0)).to.be.reverted;
     await expect(state.dist.verifyRepayUnderlying(user2.address, 0)).to.be.reverted;
+
     await state.cc.registerLiquidityProvider(deployer.address);
     await expect(state.dist.verifyBorrowUnderlying(user2.address, 0)).to.be.reverted;
     await expect(state.dist.verifyRepayUnderlying(user2.address, 0)).to.be.reverted;
+
     await state.dist.addYieldSource(user2.address, YieldSourceType.Passive);
     await expect(state.dist.verifyBorrowUnderlying(user2.address, 0)).to.be.reverted;
     await expect(state.dist.verifyRepayUnderlying(user2.address, 0)).to.be.reverted;
-    await state.controller.grantRoles(user2.address, LIQUIDITY_BORROWER);
+
+    await state.controller.grantRoles(user2.address, AccessFlags.LIQUIDITY_BORROWER);
     await state.dist.verifyBorrowUnderlying(user2.address, 0);
     await state.dist.verifyRepayUnderlying(user2.address, 0);
   });

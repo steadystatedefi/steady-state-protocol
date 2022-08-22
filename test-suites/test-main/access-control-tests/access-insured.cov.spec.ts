@@ -2,7 +2,6 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { formatBytes32String } from 'ethers/lib/utils';
 
-import { INSURER_ADMIN, TREASURY } from '../../../helpers/access-control-constants';
 import { AccessFlags } from '../../../helpers/access-flags';
 import { WAD } from '../../../helpers/constants';
 import { Events } from '../../../helpers/contract-events';
