@@ -92,7 +92,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
       _revokeAllRoles(_tempAdmin);
     }
     if ((_tempAdmin = admin) != address(0)) {
-      require((_expiresAt = uint32(expiryTime += block.timestamp)) >= block.timestamp);
+      Arithmetic.require((_expiresAt = uint32(expiryTime += block.timestamp)) >= block.timestamp);
     } else {
       _expiresAt = 0;
       expiryTime = 0;
@@ -124,7 +124,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
 
   function setAnyRoleMode(bool blockOrEnable) external onlyOwnerOrAdmin {
     if (blockOrEnable) {
-      require(_anyRoleMode != ANY_ROLE_BLOCKED);
+      State.require(_anyRoleMode != ANY_ROLE_BLOCKED);
       _anyRoleMode = ANY_ROLE_ENABLED;
       emit AnyRoleModeEnabled();
     } else if (_anyRoleMode != ANY_ROLE_BLOCKED) {

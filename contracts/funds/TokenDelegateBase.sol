@@ -55,12 +55,12 @@ abstract contract TokenDelegateBase is ERC20Base {
   }
 
   function internalSetFlags(address account, uint256 flags) internal {
-    require(account != address(0));
+    Value.require(account != address(0));
     _flags[account] |= flags;
   }
 
   function internalUnsetFlags(address account, uint256 flags) internal {
-    require(account != address(0));
+    Value.require(account != address(0));
     _flags[account] &= ~flags;
   }
 

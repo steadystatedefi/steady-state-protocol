@@ -221,10 +221,10 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 
     uint256 unitSize = internalUnitSize();
     uint256 minUnits = (insuredSelfParams.minPerInsurer + unitSize - 1) / unitSize;
-    State.require(minUnits <= type(uint24).max);
+    Arithmetic.require(minUnits <= type(uint24).max);
 
     uint256 baseRate = (approvedParams.basePremiumRate + unitSize - 1) / unitSize;
-    State.require(baseRate <= type(uint40).max);
+    Arithmetic.require(baseRate <= type(uint40).max);
 
     super.internalSetInsuredParams(
       insured,

@@ -61,7 +61,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 premiumDebt
   ) external onlySelf returns (uint256) {
     uint256 givenOutValue = _insuredBalances[insured];
-    require(givenOutValue <= advanceValue);
+    Value.require(givenOutValue <= advanceValue);
 
     delete _insuredBalances[insured];
     uint256 givenValue = givenOutValue + premiumDebt;
@@ -231,7 +231,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 value,
     DemandedCoverage memory coverage
   ) internal returns (uint256 burntAmount) {
-    require(coverage.totalPremium >= _burntPremium + value);
+    Value.require(coverage.totalPremium >= _burntPremium + value);
     burntAmount = _burnValue(account, value, coverage);
     _burntPremium += value.asUint128();
   }
