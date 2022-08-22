@@ -90,6 +90,7 @@ makeSuite('access: Insured', (testEnv: TestEnv) => {
       await expect(insured.cancelCoverage(user2.address, 0)).reverted;
       await expect(insured.withdrawPrepay(user2.address, 0)).reverted;
       await expect(insured.setGovernor(deployer.address)).reverted;
+      await expect(insured.setCoverageDemand(WAD, WAD)).reverted;
     }
 
     {
@@ -99,6 +100,7 @@ makeSuite('access: Insured', (testEnv: TestEnv) => {
       await insured.connect(user2).cancelCoverage(user2.address, 0);
       await insured.connect(user2).withdrawPrepay(user2.address, 0);
       await insured.connect(user2).setGovernor(deployer.address);
+      await insured.setCoverageDemand(WAD, WAD);
     }
   });
 
