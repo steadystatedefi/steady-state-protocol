@@ -42,10 +42,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
   }
 
   function _onlyActiveInsuredOrOps(address insured) private view {
-    if (insured != msg.sender) {
-      _onlyGovernorOr(AccessFlags.INSURER_OPS);
-    }
-    _onlyActiveInsured(insured);
+    insured != msg.sender ? _onlyGovernorOr(AccessFlags.INSURER_OPS) : _onlyActiveInsured(insured);
   }
 
   modifier onlyActiveInsuredOrOps(address insured) {
