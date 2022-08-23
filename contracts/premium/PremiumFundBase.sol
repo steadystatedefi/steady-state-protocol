@@ -100,6 +100,10 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
+  function getActuaryState(address actuary) external view returns (ActuaryState) {
+    return _configs[actuary].state;
+  }
+
   event ActuaryPaused(address indexed actuary, bool paused);
   event ActuaryTokenPaused(address indexed actuary, address indexed token, bool paused);
   event TokenPaused(address indexed token, bool paused);

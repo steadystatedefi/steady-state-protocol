@@ -36,6 +36,10 @@ contract CollateralCurrency is IManagedCollateralCurrency, AccessHelper, TokenDe
     _registerStakeAsset(account, true);
   }
 
+  function isRegistered(address account) external view override returns (bool) {
+    return internalGetFlags(account) != 0;
+  }
+
   function _registerStakeAsset(address account, bool register) private {
     address bm = borrowManager();
     if (bm != address(0)) {

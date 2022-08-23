@@ -1,13 +1,14 @@
 import { zeroAddress } from 'ethereumjs-util';
 
+import { AccessFlags } from '../../../helpers/access-flags';
 import { loadNetworkConfig } from '../../../helpers/config-loader';
 import { getAssetAddress } from '../../../helpers/config-types';
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
-import { mustWaitTx } from '../../../helpers/runtime-utils';
+import { falsyOrZeroAddress, mustWaitTx } from '../../../helpers/runtime-utils';
 import { deployTask } from '../deploy-steps';
-import { deployProxyFromCatalog } from '../templates';
+import { findOrDeployProxyFromCatalog } from '../templates';
 
 const catalogName = ProxyTypes.COLLATERAL_FUND;
 
@@ -15,22 +16,25 @@ deployTask(`full:deploy-collateral-fund`, `Deploy ${catalogName}`, __dirname).se
   dreAction(async ({ cfg: configName }) => {
     const cfg = loadNetworkConfig(configName as string);
 
+    const ac = Factories.AccessController.get();
+
     const factory = Factories.CollateralFundV1;
     const cc = Factories.CollateralCurrency.get();
     const initFunctionData = factory.interface.encodeFunctionData('initializeCollateralFund');
 
-    const collateralFundAddr = await deployProxyFromCatalog(factory, catalogName, initFunctionData);
+    const [collateralFund, newDeploy] = await findOrDeployProxyFromCatalog(factory, catalogName, initFunctionData);
 
-    if (!(await cc.isLiquidityProvider(collateralFundAddr))) {
-      await mustWaitTx(cc.registerLiquidityProvider(collateralFundAddr));
+    if (newDeploy || !(await cc.isLiquidityProvider(collateralFund.address))) {
+      await mustWaitTx(ac.grantRoles(collateralFund.address, AccessFlags.COLLATERAL_FUND_LISTING));
+      await mustWaitTx(cc.registerLiquidityProvider(collateralFund.address));
     }
-
-    const collateralFund = factory.attach(collateralFundAddr);
 
     if (cfg.CollateralFund.assets) {
       const cfgAssets = Object.entries(cfg.CollateralFund.assets);
-      const addedAssets: Set<string> = new Set();
-      (await collateralFund.assets()).forEach((addr) => addedAssets.add(addr));
+      const knownAssets: Set<string> = new Set();
+      if (!newDeploy) {
+        (await collateralFund.assets()).forEach((addr) => knownAssets.add(addr.toUpperCase()));
+      }
 
       const assetNames: string[] = [];
       const assetAddrs: string[] = [];
@@ -40,7 +44,12 @@ deployTask(`full:deploy-collateral-fund`, `Deploy ${catalogName}`, __dirname).se
         if (!assetInfo) {
           return;
         }
-        assetAddrs.push(getAssetAddress(cfg, assetName));
+        const assetAddr = getAssetAddress(cfg, assetName);
+        if (falsyOrZeroAddress(assetAddr) || knownAssets.has(assetAddr.toUpperCase())) {
+          return;
+        }
+
+        assetAddrs.push(assetAddr);
         assetNames.push(assetName);
         assetTrustees.push(assetInfo.trustee ?? zeroAddress());
       });

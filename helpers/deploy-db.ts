@@ -212,6 +212,7 @@ export const hasInJsonDb = (id: string): boolean =>
   !falsyOrZeroAddress(getFromJsonDb<{ address: EthereumAddress }>(id)?.address);
 
 export const getInstanceCountFromJsonDb = (): number => getInstancesFromJsonDb().length;
+export const getExternalCountFromJsonDb = (): number => getExternalsFromJsonDb().length;
 
 export const printContracts = (deployer: string): [Map<string, EthereumAddress>, number, number] => {
   const currentNetwork = DRE.network.name;

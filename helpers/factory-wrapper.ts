@@ -113,7 +113,7 @@ export const wrapContractFactory = <TArgs extends unknown[], TResult extends Con
         return undefined;
       }
 
-      const name = n ?? this.name();
+      const name = n || this.name();
       return name !== undefined ? getAddrFromJsonDb(name) : undefined;
     }
 
@@ -150,15 +150,11 @@ function getNameByFactory(f: Named): string | undefined {
 }
 
 export type ExcludeOverrides<T extends unknown[]> = T extends [...infer Head, Overrides?] ? Head : T;
-type DeployArgs<TArgs extends unknown[], T extends Contract> = {
-  args: TArgs;
-  post?: (contract: T) => Promise<void>;
-};
 
 export async function getOrDeploy<TArgs extends unknown[], T extends Contract>(
   f: NamedDeployable<TArgs, T>,
   n: string,
-  deployFn: () => Promise<DeployArgs<TArgs, T>> | DeployArgs<TArgs, T>
+  deployArgs: TArgs
 ): Promise<[T, boolean]> {
   const pre = f.findInstance(n);
   const logName = n || f.toString();
@@ -166,14 +162,9 @@ export async function getOrDeploy<TArgs extends unknown[], T extends Contract>(
     console.log(`Already deployed ${logName}:`, pre);
     return [f.attach(pre), false];
   }
-  const args = await deployFn();
-  const deployed = await f.connectAndDeploy(deployer, n, args.args);
+  const deployed = await f.connectAndDeploy(deployer, n, deployArgs);
 
   await waitForTx(deployed.deployTransaction);
-  if (args.post) {
-    console.log(`Configuring ${logName}:`, deployed.address);
-    await args.post(deployed);
-  }
   console.log(`${logName}:`, deployed.address);
   return [deployed, true];
 }
