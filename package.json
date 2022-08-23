@@ -54,6 +54,7 @@
     "hardhat:optimistic": "KEY_SEL=OPT hardhat --network optimistic",
     "hardhat:opt-test": "KEY_SEL=OPT hardhat --network optimistic_testnet",
     "test-deploy:hardhat": "hardhat deploy-full",
+    "test-deploy:hardhat:incremental": "hardhat deploy:test-incremental",
     "test-deploy:fork": "FORK=main hardhat deploy-full",
     "test-deploy:fork:incremental": "FORK=main hardhat deploy:test-incremental",
     "deploy:fork": "npm run compile && FORK=main hardhat deploy-full",

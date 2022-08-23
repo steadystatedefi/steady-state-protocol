@@ -12,13 +12,9 @@ deployTask(`full:deploy-collateral-currency`, `Deploy ${factory.toString()}`, __
   dreAction(async ({ cfg: configName }) => {
     const cfg = loadNetworkConfig(configName as string);
 
-    await getOrDeploy(factory, '', () => {
-      const accessController = Factories.AccessController.get();
-      const ccDetails = cfg.CollateralCurrency;
+    const accessController = Factories.AccessController.get();
+    const ccDetails = cfg.CollateralCurrency;
 
-      return {
-        args: [accessController.address, ccDetails.name, ccDetails.symbol] as [string, string, string],
-      };
-    });
+    await getOrDeploy(factory, '', [accessController.address, ccDetails.name, ccDetails.symbol]);
   })
 );

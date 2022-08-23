@@ -3,7 +3,7 @@ import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { mustWaitTx, notFalsyOrZeroAddress } from '../../../helpers/runtime-utils';
 import { deployTask } from '../deploy-steps';
-import { deployProxyFromCatalog } from '../templates';
+import { findOrDeployProxyFromCatalog } from '../templates';
 
 const catalogName = ProxyTypes.YIELD_DISTRIBUTOR;
 
@@ -20,8 +20,8 @@ deployTask(`full:deploy-yield-distributor`, `Deploy ${catalogName}`, __dirname).
     const factory = Factories.YieldDistributorV1;
     const initFunctionData = factory.interface.encodeFunctionData('initializeYieldDistributor');
 
-    const addr = await deployProxyFromCatalog(factory, catalogName, initFunctionData);
+    const [yd] = await findOrDeployProxyFromCatalog(factory, catalogName, initFunctionData);
 
-    await mustWaitTx(cc.setBorrowManager(addr));
+    await mustWaitTx(cc.setBorrowManager(yd.address));
   })
 );

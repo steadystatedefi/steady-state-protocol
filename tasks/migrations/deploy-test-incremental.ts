@@ -3,9 +3,14 @@ import { task } from 'hardhat/config';
 import { exit } from 'process';
 
 import { ConfigNames } from '../../helpers/config-loader';
-import { cleanupJsonDb, getInstanceCountFromJsonDb, printContracts } from '../../helpers/deploy-db';
+import {
+  cleanupJsonDb,
+  getExternalCountFromJsonDb,
+  getInstanceCountFromJsonDb,
+  printContracts,
+} from '../../helpers/deploy-db';
 import { setDefaultDeployer } from '../../helpers/factory-wrapper';
-import { getFirstSigner, isForkNetwork } from '../../helpers/runtime-utils';
+import { getFirstSigner } from '../../helpers/runtime-utils';
 import { EthereumAddress } from '../../helpers/types';
 import { getDeploySteps } from '../deploy/deploy-steps';
 
@@ -13,15 +18,14 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, D
   const CONFIG_NAME = ConfigNames.Full;
   await DRE.run('set-DRE');
   cleanupJsonDb(DRE.network.name);
-  // cleanupUiConfig();
 
   const deployer = await getFirstSigner();
   setDefaultDeployer(deployer);
 
-  if (!isForkNetwork()) {
-    console.log('Can only run on fork');
-    exit(1);
-  }
+  // if (!isForkNetwork()) {
+  //   console.log('Can only run on fork');
+  //   exit(1);
+  // }
 
   try {
     let lastEntryMap = new Map<string, EthereumAddress>();
@@ -36,7 +40,7 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, D
 
     for (let maxStep = 1; ; maxStep++) {
       if (maxStep > 1) {
-        const [entryMap, instanceCount, multiCount] = printContracts((await getFirstSigner()).address);
+        const [entryMap, instanceCount, multiCount] = printContracts(deployer.address);
 
         if (multiCount > 0) {
           throw new Error(`illegal multi-deployment detected after step ${maxStep}`);
@@ -77,7 +81,10 @@ task('deploy:test-incremental', 'Test incremental deploy').setAction(async (_, D
         await DRE.run(deployStep.taskName, deployStep.args);
 
         if (step === 2) {
-          if (lastInstanceCount !== getInstanceCountFromJsonDb()) {
+          const instanceCount = getInstanceCountFromJsonDb() + getExternalCountFromJsonDb();
+          if (lastInstanceCount !== instanceCount) {
+            console.log('Unexpected contracts were deployed', lastInstanceCount, instanceCount);
+            printContracts(deployer.address);
             throw new Error(`unexpected contracts were deployed at step #${1 + maxStep - step}`);
           }
         }

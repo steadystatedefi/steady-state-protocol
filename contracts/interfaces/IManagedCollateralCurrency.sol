@@ -26,5 +26,7 @@ interface IManagedCollateralCurrency is IERC20 {
 
   function isLiquidityProvider(address account) external view returns (bool);
 
+  function isRegistered(address account) external view returns (bool);
+
   function borrowManager() external view returns (address); // ICollateralStakeManager
 }
