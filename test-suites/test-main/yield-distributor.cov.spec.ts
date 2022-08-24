@@ -388,4 +388,23 @@ makeSuite('Yield distributor', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(dist.address)).eq(0);
     expect(await cc.balanceOf(user1.address)).eq(paidOut0.add(paidOut1));
   });
+
+  it('Borrow and Repay', async () => {
+    await insurer.connect(user1).approve(dist.address, MAX_UINT);
+    await token0.approve(fund.address, MAX_UINT);
+    await dist.connect(user1).stake(insurer.address, MAX_UINT, user1.address);
+
+    await dist.addYieldSource(user0.address, YieldSourceType.Passive);
+    await token0.mint(fund.address, WAD.mul(2));
+    await fund.borrow(token0.address, WAD.div(2), user0.address);
+
+    expect(await token0.balanceOf(user0.address)).eq(WAD.div(2));
+    expect(await token0.balanceOf(fund.address)).eq(WAD.mul(2).sub(WAD.div(2)));
+    expect(await dist.totalBorrowedCollateral()).eq(WAD.div(2));
+    await expect(fund.borrow(token0.address, WAD, token0.address)).to.be.reverted;
+
+    await fund.repay(token0.address, WAD.div(2));
+    expect(await dist.totalBorrowedCollateral()).eq(0);
+    expect(await token0.balanceOf(fund.address)).eq(WAD.mul(2));
+  });
 });
