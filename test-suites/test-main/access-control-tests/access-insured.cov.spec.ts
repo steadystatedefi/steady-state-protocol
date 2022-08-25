@@ -7,7 +7,7 @@ import { WAD } from '../../../helpers/constants';
 import { Events } from '../../../helpers/contract-events';
 import { Factories } from '../../../helpers/contract-types';
 import { currentTime } from '../../../helpers/runtime-utils';
-import { IApprovalCatalog, InsuredPoolV1 } from '../../../types';
+import { IApprovalCatalog } from '../../../types';
 import { InsuredParamsStruct } from '../../../types/contracts/insured/InsuredJoinBase';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 

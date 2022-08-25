@@ -107,7 +107,7 @@ makeSuite('access: Proxy Catalog', (testEnv: TestEnv) => {
     await state.proxyCatalog.addAuthenticImplementation(version2.address, implName, ctx);
 
     const proxy = await makeProxy(user3.address, params);
-    const proxy2 = await makeProxy(user3.address, params);
+    //    const proxy2 = await makeProxy(user3.address, params);
 
     await state.proxyCatalog.connect(user3).upgradeProxy(proxy, params);
   });
