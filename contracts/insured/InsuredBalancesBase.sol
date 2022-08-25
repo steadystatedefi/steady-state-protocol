@@ -55,12 +55,10 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   /// @param rateAmount Amount of rate
   // slither-disable-next-line costly-loop
   function internalMintForDemandedCoverage(address account, uint256 rateAmount) internal {
-    Value.require(rateAmount <= type(uint88).max);
     (Balances.RateAccWithUint16 memory b, Balances.RateAcc memory totals) = _beforeMintOrBurn(account);
 
-    b.rate += uint88(rateAmount);
-    rateAmount += totals.rate;
-    Value.require((totals.rate = uint96(rateAmount)) == rateAmount);
+    Arithmetic.require((b.rate += uint88(rateAmount)) >= rateAmount);
+    Arithmetic.require((totals.rate += uint96(rateAmount)) >= rateAmount);
 
     _afterMintOrBurn(account, b, totals);
     emit Transfer(address(0), address(account), rateAmount);
@@ -194,7 +192,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
         updated = true;
       }
       uint88 prevRate = b.rate;
-      Value.require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
+      Arithmetic.require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
       if (prevRate > b.rate) {
         totals.rate -= prevRate - b.rate;
       } else {
@@ -210,7 +208,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
 
   function internalCollateralReceived(address insurer, uint256 amount) internal virtual {
     insurer;
-    Value.require((_receivedCollateral += uint224(amount)) >= amount);
+    Arithmetic.require((_receivedCollateral += uint224(amount)) >= amount);
   }
 
   function internalDecReceivedCollateral(uint256 amount) internal virtual {
@@ -233,7 +231,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
         // technical underpayment
         diff = coverage.totalPremium - b.accum;
         diff += totals.accum;
-        Value.require((totals.accum = uint128(diff)) == diff);
+        Arithmetic.require((totals.accum = uint128(diff)) == diff);
       } else {
         totals.accum -= uint128(diff = b.accum - coverage.totalPremium);
       }
@@ -263,7 +261,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     (totals, ) = _syncInsurerBalance(b, coverage);
 
     if (coverage.premiumRate != b.rate && (coverage.premiumRate > b.rate)) {
-      Value.require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
+      Arithmetic.require((b.rate = uint88(coverage.premiumRate)) == coverage.premiumRate);
     }
   }
 }

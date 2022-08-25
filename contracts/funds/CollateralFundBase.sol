@@ -439,8 +439,8 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     State.require(bm.verifyBorrowUnderlying(msg.sender, value));
 
     BorrowBalance storage balance = _borrowedBalances[token][msg.sender];
-    require((balance.amount += uint128(amount)) >= amount);
-    require((balance.value += uint128(value)) >= value);
+    Arithmetic.require((balance.amount += uint128(amount)) >= amount);
+    Arithmetic.require((balance.value += uint128(value)) >= value);
 
     SafeERC20.safeTransfer(IERC20(token), to, amount);
 

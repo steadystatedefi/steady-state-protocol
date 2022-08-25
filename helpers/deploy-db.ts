@@ -4,7 +4,7 @@ import FileSync from 'lowdb/adapters/FileSync';
 
 import { stringifyArgs } from './contract-verification';
 import { DRE } from './dre';
-import { falsyOrZeroAddress, isForkNetwork } from './runtime-utils';
+import { isForkNetwork, notFalsyOrZeroAddress } from './runtime-utils';
 import { EthereumAddress } from './types';
 
 const getDb = () => low(new FileSync('./deployed-contracts.json'));
@@ -17,6 +17,7 @@ export interface DbNamedEntry {
 export interface DbInstanceEntry {
   id: string;
   factory: string;
+  needsSync?: boolean;
   verify?: {
     args?: string;
     impl?: string;
@@ -120,6 +121,39 @@ export const addProxyToJsonDb = (
   db.set(`${currentNetwork}.external.${proxyAddress}`, logEntry).write();
 };
 
+const setNeedsSync = (section: string, contractAddr: EthereumAddress, needsSync: boolean): void => {
+  const db = getDb();
+  const path = `${DRE.network.name}.${section}.${contractAddr}`;
+  const entry = db.get(path).value() as DbInstanceEntry;
+
+  if (!entry?.id) {
+    throw new Error(`Unknown ${section}: ${contractAddr}`);
+  }
+  entry.needsSync = needsSync;
+  db.set(path, entry).write();
+};
+
+const isSyncNeeded = (section: string, contractAddr: EthereumAddress): boolean => {
+  const db = getDb();
+  const path = `${DRE.network.name}.${section}.${contractAddr}`;
+  const entry = db.get(path).value() as DbInstanceEntry;
+
+  if (!entry?.id) {
+    throw new Error(`Unknown ${section}: ${contractAddr}`);
+  }
+  return !!entry.needsSync;
+};
+
+export const setInstanceNeedsSync = (contractAddr: EthereumAddress, needsSync: boolean): void =>
+  setNeedsSync('instance', contractAddr, needsSync);
+
+export const setExternalNeedsSync = (contractAddr: EthereumAddress, needsSync: boolean): void =>
+  setNeedsSync('external', contractAddr, needsSync);
+
+export const isInstanceNeedsSync = (contractAddr: EthereumAddress): boolean => isSyncNeeded('instance', contractAddr);
+
+export const isExternalNeedsSync = (contractAddr: EthereumAddress): boolean => isSyncNeeded('external', contractAddr);
+
 export const addExternalToJsonDb = (
   id: string,
   address: EthereumAddress,
@@ -203,15 +237,12 @@ export const getFromJsonDb = <T = DbNamedEntry>(id: string): T => {
   return collection.value() as T;
 };
 
-export const getAddrFromJsonDb = (id: string): string => getFromJsonDb<{ address: EthereumAddress }>(id)?.address;
+export const getAddrFromJsonDb = (id: string): string => getFromJsonDb<DbNamedEntry>(id)?.address;
 
-export const getFromJsonDbByAddr = (id: string): DbInstanceEntry =>
-  getDb().get(`${DRE.network.name}.instance.${id}`).value() as DbInstanceEntry;
-
-export const hasInJsonDb = (id: string): boolean =>
-  !falsyOrZeroAddress(getFromJsonDb<{ address: EthereumAddress }>(id)?.address);
+export const hasInJsonDb = (id: string): boolean => notFalsyOrZeroAddress(getAddrFromJsonDb(id));
 
 export const getInstanceCountFromJsonDb = (): number => getInstancesFromJsonDb().length;
+export const getExternalCountFromJsonDb = (): number => getExternalsFromJsonDb().length;
 
 export const printContracts = (deployer: string): [Map<string, EthereumAddress>, number, number] => {
   const currentNetwork = DRE.network.name;

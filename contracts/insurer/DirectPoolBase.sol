@@ -40,7 +40,7 @@ abstract contract DirectPoolBase is
   }
 
   function _onlyActiveInsured() private view {
-    require(msg.sender == _insured && _cancelledAt == 0);
+    Access.require(msg.sender == _insured && _cancelledAt == 0);
   }
 
   modifier onlyActiveInsured() {
@@ -49,7 +49,7 @@ abstract contract DirectPoolBase is
   }
 
   function _onlyInsured() private view {
-    require(msg.sender == _insured);
+    Access.require(msg.sender == _insured);
   }
 
   modifier onlyInsured() {
@@ -70,7 +70,7 @@ abstract contract DirectPoolBase is
   }
 
   function cancelCoverage(address insured, uint256 payoutRatio) external override onlyActiveInsured returns (uint256 payoutValue) {
-    require(insured == msg.sender);
+    Value.require(insured == msg.sender);
 
     uint256 total = _totalBalance.rayMul(exchangeRate());
 
@@ -89,8 +89,8 @@ abstract contract DirectPoolBase is
   }
 
   function internalMintForCoverage(address account, uint256 providedAmount) internal returns (uint256 excess) {
-    require(account != address(0));
-    require(_cancelledAt == 0);
+    Value.require(account != address(0));
+    Value.require(_cancelledAt == 0);
 
     (uint256 coverageAmount, uint256 ratePoints) = IInsuredPool(_insured).offerCoverage(providedAmount);
     if (providedAmount > coverageAmount) {
@@ -98,7 +98,7 @@ abstract contract DirectPoolBase is
     }
 
     Balances.RateAcc memory b = _beforeBalanceUpdate(account);
-    require((b.rate = uint96(ratePoints + b.rate)) >= ratePoints);
+    Arithmetic.require((b.rate = uint96(ratePoints + b.rate)) >= ratePoints);
     _premiums[account] = b;
 
     emit Transfer(address(0), account, coverageAmount);
@@ -110,7 +110,7 @@ abstract contract DirectPoolBase is
 
   function internalBurnAll(address account) internal returns (uint256 coverageAmount) {
     uint32 cancelledAt = _cancelledAt;
-    require(cancelledAt != 0);
+    State.require(cancelledAt != 0);
 
     coverageAmount = _balances[account];
     delete _balances[account];
@@ -238,7 +238,7 @@ abstract contract DirectPoolBase is
     uint256 amount,
     bytes calldata data
   ) internal override onlyCollateralCurrency {
-    require(data.length == 0);
+    Value.require(data.length == 0);
     if (internalGetStatus(operator) == MemberStatus.Unknown) {
       uint256 excess = internalMintForCoverage(account, amount);
       if (excess > 0) {

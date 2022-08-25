@@ -20,8 +20,8 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
   function _initializeCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) internal {
     State.require(_premiumRate == 0);
     Value.require(premiumRate != 0);
-    Value.require((_requiredCoverage = uint96(requiredCoverage)) == requiredCoverage);
-    Value.require((_premiumRate = uint64(premiumRate)) == premiumRate);
+    Arithmetic.require((_requiredCoverage = uint96(requiredCoverage)) == requiredCoverage);
+    Arithmetic.require((_premiumRate = uint64(premiumRate)) == premiumRate);
     emit CoverageDemandUpdated(requiredCoverage, premiumRate);
   }
 
@@ -119,7 +119,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
       totalPayout = unitCount * unitSize;
 
       _demandedCoverage = uint96(_demandedCoverage - totalPayout);
-      Value.require((_requiredCoverage += uint96(totalPayout)) >= totalPayout);
+      Arithmetic.require((_requiredCoverage += uint96(totalPayout)) >= totalPayout);
       internalBurnForDemandedCoverage(insurer, totalPayout.wadMul(_premiumRate));
     }
 

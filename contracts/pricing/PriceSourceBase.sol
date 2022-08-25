@@ -86,7 +86,9 @@ abstract contract PriceSourceBase {
     (uint256 v, uint32 t) = callType != 0 ? _callSource(callType, encoded, token) : _callStatic(encoded);
 
     uint8 maxValidity = uint8(encoded >> VALIDITY_OFS);
-    require(maxValidity == 0 || t == 0 || t + maxValidity * 1 minutes >= block.timestamp);
+    if (!(maxValidity == 0 || t == 0 || t + maxValidity * 1 minutes >= block.timestamp)) {
+      revert Errors.PriceExpired(token);
+    }
 
     resultFlags = uint8((encoded >> FLAGS_OFS) & FLAGS_MASK);
     uint8 decimals = uint8(((encoded >> DECIMALS_OFS) + 18) & DECIMALS_MASK);
@@ -150,7 +152,7 @@ abstract contract PriceSourceBase {
     uint32 since
   ) internal {
     uint256 encoded = _encodedSources[token];
-    require(value <= MAX_STATIC_VALUE);
+    Value.require(value <= MAX_STATIC_VALUE);
 
     if (value == 0) {
       since = 0;

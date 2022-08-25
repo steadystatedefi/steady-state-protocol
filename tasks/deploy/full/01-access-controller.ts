@@ -1,5 +1,4 @@
 import { isZeroAddress } from 'ethereumjs-util';
-import { BigNumberish } from 'ethers';
 
 import { AccessFlags } from '../../../helpers/access-flags';
 import { loadNetworkConfig } from '../../../helpers/config-loader';
@@ -14,11 +13,11 @@ const factory = Factories.AccessController;
 deployTask(`full:deploy-access-controller`, `Deploy ${factory.toString()}`, __dirname).setAction(
   dreAction(async ({ cfg: configName }) => {
     const cfg = loadNetworkConfig(configName as string);
-    const [ac] = await getOrDeploy(factory, '', () => ({ args: [0] as [BigNumberish] }));
+    const [ac, newDeploy] = await getOrDeploy(factory, '', [0]);
     await mustWaitTx(ac.setAnyRoleMode(false));
 
     const deployer = getDefaultDeployer();
-    if (deployer.address !== (await ac.getTemporaryAdmin()).admin) {
+    if (newDeploy || deployer.address !== (await ac.getTemporaryAdmin()).admin) {
       console.log('Grant temporary admin:', deployer.address);
       await mustWaitTx(ac.setTemporaryAdmin(deployer.address, 3600));
       await mustWaitTx(

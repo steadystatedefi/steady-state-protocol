@@ -11,8 +11,8 @@ import { dreAction } from '../../../helpers/dre';
 import { getOrDeploy, NamedDeployable } from '../../../helpers/factory-wrapper';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { falsyOrZeroAddress, mustWaitTx } from '../../../helpers/runtime-utils';
-import { ProxyCatalog } from '../../../types';
 import { deployTask } from '../deploy-steps';
+import { assignRole } from '../templates';
 
 const factory = Factories.ProxyCatalog;
 
@@ -27,12 +27,9 @@ deployTask(
     const accessController = Factories.AccessController.get();
     const cc = Factories.CollateralCurrency.get();
 
-    const [proxyCatalog, newDeploy] = await getOrDeploy(factory, '', () => ({
-      args: [accessController.address] as [string],
-      post: async (pc: ProxyCatalog) => {
-        await mustWaitTx(accessController.setAddress(AccessFlags.PROXY_FACTORY, pc.address));
-      },
-    }));
+    const [proxyCatalog, newDeploy] = await getOrDeploy(factory, '', [accessController.address]);
+
+    await assignRole(AccessFlags.PROXY_FACTORY, proxyCatalog.address, newDeploy, accessController);
 
     const accessNamesList: string[] = [];
     const accessTypesList: string[] = [];
@@ -49,7 +46,7 @@ deployTask(
       const foundImpl = newDeploy ? '' : await proxyCatalog.getDefaultImplementation(implType, ctx);
 
       if (falsyOrZeroAddress(foundImpl)) {
-        const [impl] = await getOrDeploy(f, '', () => ({ args: deployArgs }));
+        const [impl] = await getOrDeploy(f, '', deployArgs);
         await mustWaitTx(proxyCatalog.addAuthenticImplementation(impl.address, implType, ctx));
         await mustWaitTx(proxyCatalog.setDefaultImplementation(impl.address));
         console.log('Default implementation added:', typeName, '=', impl.address);
@@ -97,10 +94,10 @@ deployTask(
 
     {
       const unitSize = cfg.Commons.unitSize;
-      const args = { args: [accessController.address, unitSize, cc.address] as [string, BigNumberish, string] };
+      const args = [accessController.address, unitSize, cc.address] as [string, BigNumberish, string];
 
-      const [ext0] = await getOrDeploy(Factories.ImperpetualPoolExtension, '', () => args);
-      const [ext1] = await getOrDeploy(Factories.JoinablePoolExtension, '', () => args);
+      const [ext0] = await getOrDeploy(Factories.ImperpetualPoolExtension, '', args);
+      const [ext1] = await getOrDeploy(Factories.JoinablePoolExtension, '', args);
 
       await addImpl(
         ProxyTypes.IMPERPETUAL_INDEX_POOL,

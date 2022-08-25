@@ -100,6 +100,10 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
+  function getActuaryState(address actuary) external view returns (ActuaryState) {
+    return _configs[actuary].state;
+  }
+
   event ActuaryPaused(address indexed actuary, bool paused);
   event ActuaryTokenPaused(address indexed actuary, address indexed token, bool paused);
   event TokenPaused(address indexed token, bool paused);
@@ -169,7 +173,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     if (register) {
       Value.require(source != address(0) && source != collateral());
       // NB! a source will actually be added on non-zero rate only
-      require(config.sourceToken[source] == address(0));
+      State.require(config.sourceToken[source] == address(0));
 
       address targetToken = IPremiumSource(source).premiumToken();
       _ensureNonCollateral(actuary, targetToken);
@@ -193,7 +197,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   }
 
   function _markTokenAsPresent(address token) private returns (bool) {
-    require(token != address(0));
+    Value.require(token != address(0));
     TokenState storage state = _tokens[token];
     uint8 flags = state.flags;
     if (flags & TS_PRESENT == 0) {
@@ -217,7 +221,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     if (activeSources.length() == 1) {
       BalancerLib2.AssetBalance storage balance = balancer.balances[source];
 
-      require(balance.rateValue == 0);
+      Sanity.require(balance.rateValue == 0);
       // re-activation should keep price
       uint152 price = balance.accumAmount == 0 ? 0 : balancer.configs[targetToken].price;
       balancer.configs[targetToken] = config.defaultConfig;
@@ -243,7 +247,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       delete config.sourceBalances[source];
 
       if (activeSources.length() == 0) {
-        require(rate == 0);
+        Sanity.require(rate == 0);
         balancerConfig.flags |= BalancerLib2.BF_FINISHED;
 
         allRemoved = true;
@@ -322,7 +326,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       // the source failed to keep the promised premium rate, stop the rate to avoid false inflow
       sBalance.rate = 0;
     } else if (lastRate != rate) {
-      Value.require((sBalance.rate = uint96(rate)) == rate);
+      Arithmetic.require((sBalance.rate = uint96(rate)) == rate);
     }
     sBalance.updatedAt = uint32(block.timestamp);
   }
@@ -398,7 +402,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
         expectedValue = uint256(cur - balance.updatedAt) * balance.rate;
         balance.updatedAt = cur;
       } else {
-        require(cur == balance.updatedAt);
+        Sanity.require(cur == balance.updatedAt);
         return (0, 0, 0);
       }
     }
@@ -416,7 +420,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
 
       if (debtValue != missingValue) {
-        require((balance.debt = uint128(missingValue)) == missingValue);
+        Arithmetic.require((balance.debt = uint128(missingValue)) == missingValue);
       }
 
       replenishedValue = replenishedAmount.wadMul(price);
@@ -620,7 +624,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       if (tokenAmount > 0) {
         if (fee == 0) {
           // use a direct transfer when no fees
-          require(tokenAmount == valueToSwap);
+          State.require(tokenAmount == valueToSwap);
           burnReceiver = recipient;
         } else {
           burnReceiver = address(this);
@@ -647,7 +651,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     address targetToken,
     uint256 fee
   ) private {
-    require((_tokens[targetToken].collectedFees += uint128(fee)) >= fee);
+    Arithmetic.require((_tokens[targetToken].collectedFees += uint128(fee)) >= fee);
   }
 
   function availableFee(address targetToken) external view returns (uint256) {
@@ -806,7 +810,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       unchecked {
         v = v - vOrig;
       }
-      require((v = vSum + v) <= max);
+      Arithmetic.require((v = vSum + v) <= max);
     }
     return v;
   }

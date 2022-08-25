@@ -8,11 +8,11 @@ import { ZERO } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
 import { dreAction } from '../../../helpers/dre';
 import { PriceFeedType, ProxyTypes } from '../../../helpers/proxy-types';
-import { falsyOrZeroAddress, mustWaitTx, notFalsyOrZeroAddress, waitForTx } from '../../../helpers/runtime-utils';
+import { falsyOrZeroAddress, mustWaitTx } from '../../../helpers/runtime-utils';
 import { EthereumAddress } from '../../../helpers/types';
 import { PriceSourceStruct } from '../../../types/contracts/pricing/OracleRouterBase';
 import { deployTask } from '../deploy-steps';
-import { deployProxyFromCatalog } from '../templates';
+import { assignRole, findOrDeployProxyFromCatalog } from '../templates';
 
 const catalogName = ProxyTypes.ORACLE_ROUTER;
 
@@ -21,19 +21,16 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
     const cfg = loadNetworkConfig(configName as string);
     const factory = Factories.OracleRouterV1;
 
-    const accessController = Factories.AccessController.get();
-    const accessFlag = AccessFlags.PRICE_ROUTER;
-
-    const found = await accessController.getAddress(accessFlag);
-    if (notFalsyOrZeroAddress(found)) {
-      console.log(`Already deployed: ${found}`);
-      return;
-    }
-
     const initFunctionData = factory.interface.encodeFunctionData('initializePriceOracle');
-    const addr = await deployProxyFromCatalog(factory, catalogName, initFunctionData, '', zeroAddress());
+    const [router, newDeploy] = await findOrDeployProxyFromCatalog(
+      factory,
+      catalogName,
+      initFunctionData,
+      '',
+      zeroAddress()
+    );
 
-    await waitForTx(await accessController.setAddress(accessFlag, addr));
+    await assignRole(AccessFlags.PRICE_ROUTER, router.address, newDeploy);
 
     const assetNames: string[] = [];
     const assetAddrs: string[] = [];
@@ -97,50 +94,46 @@ deployTask(`full:deploy-price-oracle`, `Deploy ${catalogName}`, __dirname).setAc
       });
     }
 
-    if (assetAddrs.length === 0) {
-      return;
-    }
+    if (assetAddrs.length > 0) {
+      console.log('Checking price sources:', assetNames.length, assetNames);
 
-    console.log('Checking price sources:', assetNames.length, assetNames);
+      const filteredAssetAddrs: string[] = [];
+      const filteredAssetInfos: PriceSourceStruct[] = [];
 
-    const router = Factories.OracleRouterV1.attach(addr);
-
-    const filteredAssetAddrs: string[] = [];
-    const filteredAssetInfos: PriceSourceStruct[] = [];
-
-    (await router.getPriceSources(assetAddrs)).forEach((v, i) => {
-      if (v.feedType === 0 && ZERO.eq(v.feedConstValue)) {
-        filteredAssetAddrs.push(assetAddrs[i]);
-        filteredAssetInfos.push(assetInfos[i]);
-      }
-    });
-
-    if (filteredAssetAddrs.length > 0) {
-      console.log('Adding price sources:', filteredAssetAddrs.length, filteredAssetAddrs);
-      await mustWaitTx(router.setPriceSources(filteredAssetAddrs, filteredAssetInfos));
-    }
-
-    {
-      const rangeAssets: string[] = [];
-      const rangeTargets: BigNumber[] = [];
-      const rangeTolerances: number[] = [];
-
-      let i = 0;
-      for (const [, feedInfo] of configPriceFeeds) {
-        if (!feedInfo) {
-          continue;
+      (await router.getPriceSources(assetAddrs)).forEach((v, i) => {
+        if (v.feedType === 0 && ZERO.eq(v.feedConstValue)) {
+          filteredAssetAddrs.push(assetAddrs[i]);
+          filteredAssetInfos.push(assetInfos[i]);
         }
-        if (feedInfo.priceRange) {
-          rangeAssets.push(assetAddrs[i]);
-          rangeTargets.push(feedInfo.priceRange.target);
-          rangeTolerances.push(feedInfo.priceRange.tolerance);
-        }
-        i += 1;
+      });
+
+      if (filteredAssetAddrs.length > 0) {
+        console.log('Adding price sources:', filteredAssetAddrs.length, filteredAssetAddrs);
+        await mustWaitTx(router.setPriceSources(filteredAssetAddrs, filteredAssetInfos));
       }
 
-      if (rangeAssets.length > 0) {
-        console.log('Configuring price ranges:', rangeAssets.length);
-        await mustWaitTx(router.setSafePriceRanges(rangeAssets, rangeTargets, rangeTolerances));
+      {
+        const rangeAssets: string[] = [];
+        const rangeTargets: BigNumber[] = [];
+        const rangeTolerances: number[] = [];
+
+        let i = 0;
+        for (const [, feedInfo] of configPriceFeeds) {
+          if (!feedInfo) {
+            continue;
+          }
+          if (feedInfo.priceRange) {
+            rangeAssets.push(assetAddrs[i]);
+            rangeTargets.push(feedInfo.priceRange.target);
+            rangeTolerances.push(feedInfo.priceRange.tolerance);
+          }
+          i += 1;
+        }
+
+        if (rangeAssets.length > 0) {
+          console.log('Configuring price ranges:', rangeAssets.length);
+          await mustWaitTx(router.setSafePriceRanges(rangeAssets, rangeTargets, rangeTolerances));
+        }
       }
     }
   })

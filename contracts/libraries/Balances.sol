@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '../tools/Errors.sol';
+
 library Balances {
   struct RateAcc {
     uint128 accum;
@@ -12,7 +14,7 @@ library Balances {
     uint256 adjustment = at - b.updatedAt;
     if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
       adjustment += b.accum;
-      require(adjustment == (b.accum = uint128(adjustment)));
+      Arithmetic.require(adjustment == (b.accum = uint128(adjustment)));
     }
     b.updatedAt = at;
     return b;
@@ -22,7 +24,7 @@ library Balances {
   //   uint256 adjustment = at - b.updatedAt;
   //   if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
   //     adjustment += b.accum;
-  //     require(adjustment == (b.accum = uint128(adjustment)));
+  //     Arithmetic.require(adjustment == (b.accum = uint128(adjustment)));
   //   }
   //   b.updatedAt = at;
   // }
@@ -33,7 +35,7 @@ library Balances {
   //   uint256 rate
   // ) internal {
   //   syncStorage(b, at);
-  //   require(rate == (b.rate = uint96(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint96(rate)));
   // }
 
   // function setRate(
@@ -42,13 +44,13 @@ library Balances {
   //   uint256 rate
   // ) internal pure returns (RateAcc memory) {
   //   b = sync(b, at);
-  //   require(rate == (b.rate = uint96(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint96(rate)));
   //   return b;
   // }
 
   function setRateAfterSync(RateAcc memory b, uint256 rate) internal view returns (RateAcc memory) {
-    require(b.updatedAt == block.timestamp);
-    require(rate == (b.rate = uint96(rate)));
+    Value.require(b.updatedAt == block.timestamp);
+    Arithmetic.require(rate == (b.rate = uint96(rate)));
     return b;
   }
 
@@ -79,7 +81,7 @@ library Balances {
   //   uint256 adjustment = at - b.updatedAt;
   //   if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
   //     adjustment += b.accum;
-  //     require(adjustment == (b.accum = uint120(adjustment)));
+  //     Arithmetic.require(adjustment == (b.accum = uint120(adjustment)));
   //   }
   //   b.updatedAt = at;
   //   return b;
@@ -89,7 +91,7 @@ library Balances {
   //   uint256 adjustment = at - b.updatedAt;
   //   if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
   //     adjustment += b.accum;
-  //     require(adjustment == (b.accum = uint120(adjustment)));
+  //     Arithmetic.require(adjustment == (b.accum = uint120(adjustment)));
   //   }
   //   b.updatedAt = at;
   // }
@@ -100,7 +102,7 @@ library Balances {
   //   uint256 rate
   // ) internal {
   //   syncStorage(b, at);
-  //   require(rate == (b.rate = uint96(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint96(rate)));
   // }
 
   // function setRate(
@@ -109,7 +111,7 @@ library Balances {
   //   uint256 rate
   // ) internal pure returns (RateAccWithUint8 memory) {
   //   b = sync(b, at);
-  //   require(rate == (b.rate = uint96(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint96(rate)));
   //   return b;
   // }
 
@@ -140,7 +142,7 @@ library Balances {
     uint256 adjustment = at - b.updatedAt;
     if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
       adjustment += b.accum;
-      require(adjustment == (b.accum = uint120(adjustment)));
+      Arithmetic.require(adjustment == (b.accum = uint120(adjustment)));
     }
     b.updatedAt = at;
     return b;
@@ -150,7 +152,7 @@ library Balances {
   //   uint256 adjustment = at - b.updatedAt;
   //   if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
   //     adjustment += b.accum;
-  //     require(adjustment == (b.accum = uint120(adjustment)));
+  //     Arithmetic.require(adjustment == (b.accum = uint120(adjustment)));
   //   }
   //   b.updatedAt = at;
   // }
@@ -161,7 +163,7 @@ library Balances {
   //   uint256 rate
   // ) internal {
   //   syncStorage(b, at);
-  //   require(rate == (b.rate = uint88(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint88(rate)));
   // }
 
   // function setRate(
@@ -170,7 +172,7 @@ library Balances {
   //   uint256 rate
   // ) internal pure returns (RateAccWithUint16 memory) {
   //   b = sync(b, at);
-  //   require(rate == (b.rate = uint88(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint88(rate)));
   //   return b;
   // }
 
@@ -201,7 +203,7 @@ library Balances {
   //   uint256 adjustment = at - b.updatedAt;
   //   if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
   //     adjustment += b.accum;
-  //     require(adjustment == (b.accum = uint112(adjustment)));
+  //     Arithmetic.require(adjustment == (b.accum = uint112(adjustment)));
   //   }
   //   b.updatedAt = at;
   //   return b;
@@ -211,7 +213,7 @@ library Balances {
   //   uint256 adjustment = at - b.updatedAt;
   //   if (adjustment > 0 && (adjustment = adjustment * b.rate) > 0) {
   //     adjustment += b.accum;
-  //     require(adjustment == (b.accum = uint112(adjustment)));
+  //    Arithmetic.require(adjustment == (b.accum = uint112(adjustment)));
   //   }
   //   b.updatedAt = at;
   // }
@@ -222,7 +224,7 @@ library Balances {
   //   uint256 rate
   // ) internal {
   //   syncStorage(b, at);
-  //   require(rate == (b.rate = uint80(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint80(rate)));
   // }
 
   // function setRate(
@@ -231,7 +233,7 @@ library Balances {
   //   uint256 rate
   // ) internal pure returns (RateAccWithUint32 memory) {
   //   b = sync(b, at);
-  //   require(rate == (b.rate = uint80(rate)));
+  //   Arithmetic.require(rate == (b.rate = uint80(rate)));
   //   return b;
   // }
 

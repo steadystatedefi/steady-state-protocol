@@ -1,6 +1,7 @@
 import { defaultAbiCoder } from '@ethersproject/abi';
 import { Signer } from '@ethersproject/abstract-signer';
 import { Contract } from '@ethersproject/contracts';
+import { BigNumber } from 'ethers';
 
 import { ProtocolErrors } from '../contract-errors';
 
@@ -20,6 +21,8 @@ interface SomeError {
   message: string;
   reason: string;
   error: SomeError;
+  errorSignature: string;
+  errorName: string;
   toString(): string;
 }
 
@@ -31,10 +34,15 @@ function getErrorMessage(err: SomeError): string {
   // - error.address - the contract address
   // - error.args - [ BigNumber(1), BigNumber(2), BigNumber(3) ] in this case
   // - error.method - "someMethod()" in this case
+  // - error.errorName
   // - error.errorSignature - "Error(string)" (the EIP 838 sighash; supports future custom errors)
   // - error.errorArgs - The arguments passed into the error (more relevant post EIP 838 custom errors)
   // - error.transaction - The call transaction used
   // console.log('>>>>>>>>>>>>>  ', error.reason, error.address, error.args, error.errorSignature, error.errorArgs, error.error)
+
+  if (err.errorSignature && err.errorName !== 'Error') {
+    return err.errorSignature;
+  }
 
   let message = err.reason ?? err.message;
   if (message !== undefined) {
@@ -55,7 +63,7 @@ const verifyMutableAccess = async (
   c: Contract,
   name: string,
   isImpl: boolean,
-  estimateGas: boolean,
+  estimateGas: boolean | number,
   exceptions?: FunctionAccessExceptions,
   expected?: string[],
   checkAll?: boolean
@@ -70,9 +78,11 @@ const verifyMutableAccess = async (
 
   let hasErrors = false;
 
-  const reportError = (error: object, fnName: string, args: unknown) => {
-    console.log(`${name}.${fnName}`, args);
-    console.error(error);
+  const reportError = (error: object, fnName: string, args: unknown, message?: string | null) => {
+    console.log(`\tMethod call: ${name}.${fnName}`, args);
+    if ((message ?? null) !== null) {
+      console.log(`\t\tError message:`, message);
+    }
     hasErrors = true;
     if (!checkAll) {
       throw error;
@@ -99,87 +109,78 @@ const verifyMutableAccess = async (
       continue;
     }
 
-    const reasonUnknown = '<<MISSING>>';
-    const handleError = (error: object, m: string | undefined, hasReason: boolean) => {
-      if (m === undefined) {
-        reportError(error, fnName, args);
-        return;
+    const isExpectedError = (hasReason: boolean, m?: string | null): boolean => {
+      if ((m ?? null) === null) {
+        return false;
       }
 
-      const message = m.trim();
+      const message = m ? m.trim() : '';
       const reasonNullCall = 'function call to a non-contract account';
       const reasonBrokenRedirect = "function selector was not recognized and there's no fallback function";
 
       if (hasReason) {
         if ((exception === undefined && expectedReverts.has(message)) || exception === message) {
-          return;
+          return true;
         }
       } else if (isImpl) {
-        if (message === reasonNullCall || message === reasonBrokenRedirect || message === reasonUnknown) {
-          return;
+        if (message === reasonNullCall || message === reasonBrokenRedirect) {
+          return true;
         }
       }
-      reportError(error, fnName, args);
+      return false;
     };
 
-    const substringAfter = (s: string, m: string, doUnquote?: boolean): string | undefined => {
-      const pos = (s ?? '').indexOf(m);
-      if (pos < 0) {
-        return undefined;
+    const handleError = (error: object, hasReason: boolean, m?: string | null) => {
+      if (!isExpectedError(hasReason, m)) {
+        if ((m ?? null) === null) {
+          reportError(error, fnName, args, m);
+        } else {
+          reportError(error, fnName, args, m || getErrorMessage(error as SomeError));
+        }
       }
-      if (doUnquote) {
-        return unquote(s.substring(pos + m.length - 1));
-      }
-      return s.substring(pos + m.length);
     };
+
+    let gasEstimate: BigNumber | null = null;
+
+    if (typeof estimateGas === 'number' && estimateGas > 0) {
+      gasEstimate = BigNumber.from(estimateGas);
+    } else if (estimateGas === true || estimateGas === 0) {
+      try {
+        gasEstimate = (await contract.estimateGas[fnName](...args)).add(100_000);
+      } catch (err: unknown) {
+        const topError = err as SomeError;
+        if (topError.method === 'estimateGas') {
+          const error = topError.error ? topError.error : topError;
+          const message = getErrorMessage(error);
+
+          const prefixProviderReverted = 'execution reverted: ';
+          const prefixProviderRevertedNoReason = 'execution reverted';
+
+          if (message && message.indexOf(prefixProviderRevertedNoReason) !== 0) {
+            const reason = substringAfter(message, prefixProviderReverted);
+            if (isExpectedError(true, reason)) {
+              handleError(error, true, reason);
+              continue;
+            }
+          }
+        }
+        gasEstimate = BigNumber.from(1_000_000);
+      }
+    }
 
     try {
-      await contract.callStatic[fnName](...args, {
-        gasLimit: estimateGas ? (await contract.estimateGas[fnName](...args)).add(100000) : undefined,
-      });
-    } catch (err) {
-      const error = err as SomeError;
-      if (error.method === 'estimateGas') {
-        const prefixProviderReverted = 'execution reverted: ';
-        const prefixProviderRevertedNoReason = 'execution reverted';
-
-        const message = getErrorMessage(error.error);
-        const reason = substringAfter(message, prefixProviderReverted);
-        if (reason !== undefined) {
-          handleError(error, reason, true);
-        } else if (message && message.indexOf(prefixProviderRevertedNoReason) !== 0) {
-          handleError(error, reasonUnknown, false);
-        }
-        continue;
-      }
-
-      const message: string = getErrorMessage(error);
-
-      const prefixReasonStr = "VM Exception while processing transaction: reverted with reason string '";
-      const prefixReasonStr2 = 'VM Exception while processing transaction: revert with reason "';
-      const prefixReasonStr3 = "VM Exception while processing transaction: reverted with custom error '";
-      const prefixNoReason = 'Transaction reverted without a reason string';
-      const prefixReverted = 'Transaction reverted: ';
-
-      if (message === prefixNoReason) {
-        // console.log('1');
-        handleError(error, '', true);
-        continue;
-      }
-
-      let reason = substringAfter(message, prefixReverted);
-      if (isImpl && reason !== undefined) {
-        handleError(error, reason, false);
+      if (gasEstimate === null) {
+        await contract.callStatic[fnName](...args);
       } else {
-        reason =
-          substringAfter(message, prefixReasonStr, true) ??
-          substringAfter(message, prefixReasonStr2, true) ??
-          substringAfter(message, prefixReasonStr3, true);
-
-        handleError(error, reason, true);
+        await contract.callStatic[fnName](...args, { gasLimit: gasEstimate });
       }
+    } catch (err: unknown) {
+      const topError = err as SomeError;
+      const [reason, hasReason] = extractReason(topError, isImpl);
+      handleError(topError, hasReason, reason);
       continue;
     }
+
     reportError(new Error(`Mutable function is accessible: ${name}.${fnName}`), fnName, args);
   }
 
@@ -187,6 +188,46 @@ const verifyMutableAccess = async (
     throw new Error(`Access errors were found for ${name}`);
   }
 };
+
+function substringAfter(s: string, m: string, doUnquote?: boolean): string | null {
+  const pos = (s ?? '').indexOf(m);
+  if (pos < 0) {
+    return null;
+  }
+  if (doUnquote) {
+    return unquote(s.substring(pos + m.length - 1));
+  }
+  return s.substring(pos + m.length);
+}
+
+function extractReason(error: SomeError, isImpl: boolean): [string, boolean] {
+  const message = getErrorMessage(error);
+
+  const prefixReasonStr = "VM Exception while processing transaction: reverted with reason string '";
+  const prefixReasonStr2 = 'VM Exception while processing transaction: revert with reason "';
+  const prefixReasonStr3 = "VM Exception while processing transaction: reverted with custom error '";
+  const prefixNoReason = 'Transaction reverted without a reason string';
+  const prefixReverted = 'Transaction reverted: ';
+
+  if (message === prefixNoReason) {
+    return ['', false];
+  }
+
+  let reason = substringAfter(message, prefixReverted);
+  if (isImpl && reason !== null) {
+    return [reason, false];
+  }
+
+  reason =
+    substringAfter(message, prefixReasonStr, true) ??
+    substringAfter(message, prefixReasonStr2, true) ??
+    substringAfter(message, prefixReasonStr3, true);
+
+  if (reason !== null) {
+    return [reason, true];
+  }
+  return [message ?? '', !!message];
+}
 
 export const verifyContractMutableAccess = async (
   signer: Signer,
