@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
+import { BigNumber } from 'ethers';
 
 import { HALF_RAY, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
@@ -505,4 +506,49 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const adj1 = await pool.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
   });
+
+  it('Drawdown User Premium', async () => {
+    const premFund = await Factories.MockPremiumFund.deploy(cc.address);
+    await premFund.registerPremiumActuary(pool.address, true);
+
+    let drawdown = await pool.callStatic.collectDrawdownPremium();
+    let balance = await pool.balanceOf(user.address);
+    let ccbalance = await cc.balanceOf(user.address);
+    let amtSwap = BigNumber.from(10000);
+    const exchangeRate = await pool.exchangeRate();
+    let tokenSwap = exchangeRate.mul(amtSwap).div(RAY);
+
+    await premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap);
+    {
+      expect(await pool.callStatic.collectDrawdownPremium()).eq(drawdown.sub(amtSwap));
+      expect(await pool.balanceOf(user.address)).lte(balance.sub(tokenSwap));
+      expect(await cc.balanceOf(user.address)).eq(ccbalance.add(amtSwap));
+    }
+
+    drawdown = await pool.callStatic.collectDrawdownPremium();
+    amtSwap = drawdown.add(1);
+    await expect(premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap)).reverted;
+
+    amtSwap = drawdown;
+    tokenSwap = exchangeRate.mul(amtSwap).div(RAY);
+    await premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap);
+    {
+      expect(await pool.callStatic.collectDrawdownPremium()).eq(0);
+      expect(await pool.balanceOf(user.address)).lte(balance.sub(tokenSwap));
+    }
+
+    balance = await pool.balanceOf(user.address);
+    ccbalance = await cc.balanceOf(user.address);
+    await premFund.swapAsset(pool.address, user.address, user.address, 1000, cc.address, 0);
+    {
+      expect(await pool.balanceOf(user.address)).eq(balance);
+      expect(await cc.balanceOf(user.address)).eq(ccbalance);
+    }
+
+    const amtMinted = BigNumber.from(100).mul(unitSize);
+    await cc.mintAndTransfer(user.address, pool.address, amtMinted, 0);
+    expect(await pool.callStatic.collectDrawdownPremium()).eq(amtMinted.mul(drawdownPct).div(100));
+  });
+
+  // TODO: Effects of MCD on insureds for claims (and test when there aren't enough funds when all claim)
 });
