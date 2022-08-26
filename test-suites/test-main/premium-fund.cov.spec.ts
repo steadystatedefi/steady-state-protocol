@@ -60,6 +60,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       StarvationPointMode.Constant,
       20
     );
+    await fund.connect(user).setApprovalsFor(testEnv.deployer.address, 1, true);
   });
 
   const setupTestEnv = async (rates: BigNumber[], token2rate: BigNumber) => {

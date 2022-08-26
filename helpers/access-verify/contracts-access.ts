@@ -132,6 +132,7 @@ add(Factories.YieldDistributorV1, {
 
 add(Factories.PremiumFundV1, {
   functions: {
+    setApprovalsFor: true,
     swapAsset: true,
     swapAssets: true,
     syncAsset: true,

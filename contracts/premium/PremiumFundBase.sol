@@ -28,6 +28,9 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   using Balances for Balances.RateAcc;
   using EnumerableSet for EnumerableSet.AddressSet;
 
+  uint256 internal constant APPROVE_SWAP = 1 << 0;
+  mapping(address => mapping(address => uint256)) private _approvals; // [account][operator]
+
   mapping(address => BalancerLib2.AssetBalancer) internal _balancers; // [actuary]
 
   enum ActuaryState {
@@ -609,7 +612,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     uint256 valueToSwap,
     address targetToken,
     uint256 minAmount
-  ) public returns (uint256 tokenAmount) {
+  ) public onlyApprovedFor(account, APPROVE_SWAP) returns (uint256 tokenAmount) {
     _ensureActiveActuary(actuary);
     _ensureToken(targetToken);
     Value.require(recipient != address(0));
@@ -693,7 +696,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     address account,
     address defaultRecepient,
     SwapInstruction[] calldata instructions
-  ) external returns (uint256[] memory tokenAmounts) {
+  ) external onlyApprovedFor(account, APPROVE_SWAP) returns (uint256[] memory tokenAmounts) {
     if (instructions.length <= 1) {
       // _ensureActiveActuary is applied inside swapToken invoked via _swapTokensOne
       return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuary, account, defaultRecepient, instructions[0]);
@@ -859,5 +862,35 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
 
   function activeSourcesOf(address actuary, address token) external view returns (address[] memory) {
     return _configs[actuary].tokens[token].activeSources.values();
+  }
+
+  function setApprovalsFor(
+    address operator,
+    uint256 access,
+    bool approved
+  ) external {
+    Value.require(operator != address(0));
+    if (approved) {
+      _approvals[msg.sender][operator] |= access;
+    } else {
+      _approvals[msg.sender][operator] &= ~access;
+    }
+  }
+
+  function isApprovedFor(
+    address account,
+    address operator,
+    uint256 access
+  ) public view returns (bool) {
+    return _approvals[account][operator] & access == access;
+  }
+
+  function _onlyApprovedFor(address account, uint256 access) private view {
+    Access.require(account == msg.sender || isApprovedFor(account, msg.sender, access));
+  }
+
+  modifier onlyApprovedFor(address account, uint256 access) {
+    _onlyApprovedFor(account, access);
+    _;
   }
 }
