@@ -5,6 +5,7 @@ import { solidity } from 'ethereum-waffle';
 import { BigNumberish, CallOverrides } from 'ethers';
 
 import { evmRevert, evmSnapshot, getSigners } from '../../../helpers/runtime-utils';
+import { improveStackTrace } from '../../../helpers/stacktraces';
 
 import { almostEqual } from './almost-equal';
 
@@ -77,6 +78,8 @@ interface IMakeSuite extends SuiteFunction {
 
 function isolatedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (this: Mocha.Suite) => void {
   return function isolatedStateFn(this: Mocha.Suite): void {
+    improveStackTrace();
+
     this.beforeEach(async () => {
       await setSuiteState();
     });
@@ -91,6 +94,8 @@ function isolatedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (t
 
 function sharedState(tests: (this: Mocha.Suite, testEnv: TestEnv) => void): (this: Mocha.Suite) => void {
   return function sharedStateFn(this: Mocha.Suite): void {
+    improveStackTrace();
+
     before(async () => {
       await setSuiteState();
     });
