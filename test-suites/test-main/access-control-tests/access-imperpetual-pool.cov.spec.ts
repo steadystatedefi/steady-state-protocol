@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { formatBytes32String } from 'ethers/lib/utils';
 
 import { AccessFlags } from '../../../helpers/access-flags';
-import { MAX_UINT, WAD } from '../../../helpers/constants';
+import { MAX_UINT } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
 import { IApprovalCatalog, ImperpetualPoolExtension } from '../../../types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';

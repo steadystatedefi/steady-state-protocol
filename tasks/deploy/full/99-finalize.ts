@@ -6,7 +6,7 @@ import { dreAction } from '../../../helpers/dre';
 import { falsyOrZeroAddress, mustWaitTx } from '../../../helpers/runtime-utils';
 
 task(`full:deploy-finalize`, 'Finalize deploy')
-  .addParam('cfg', `Configuration name: ${ConfigNamesAsString}`)
+  .addOptionalParam('cfg', `Configuration name: ${ConfigNamesAsString}`)
   .addFlag('register', `Register access controller`)
   .setAction(
     dreAction(async () => {
