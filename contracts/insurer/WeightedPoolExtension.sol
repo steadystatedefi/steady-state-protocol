@@ -7,7 +7,7 @@ import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
-abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolStorage {
+abstract contract WeightedPoolExtension is IAddableCoverageDistributor, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -18,7 +18,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return internalUnitSize();
   }
 
-  /// @inheritdoc ICoverageDistributor
+  /// @inheritdoc IAddableCoverageDistributor
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
@@ -39,33 +39,6 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
       WeightedPoolBase(address(this)).pushCoverageExcess();
     }
     return addedCount;
-  }
-
-  function _onlyActiveInsuredOrOps(address insured) private view {
-    if (insured != msg.sender) {
-      _onlyGovernorOr(AccessFlags.INSURER_OPS);
-    }
-    _onlyActiveInsured(insured);
-  }
-
-  modifier onlyActiveInsuredOrOps(address insured) {
-    _onlyActiveInsuredOrOps(insured);
-    _;
-  }
-
-  function cancelCoverageDemand(
-    address insured,
-    uint256 unitCount,
-    uint256 loopLimit
-  ) external override onlyActiveInsuredOrOps(insured) returns (uint256 cancelledUnits) {
-    CancelCoverageDemandParams memory params;
-    params.insured = insured;
-    params.loopLimit = defaultLoopLimit(LoopLimitType.CancelCoverageDemand, loopLimit);
-
-    if (unitCount > type(uint64).max) {
-      unitCount = type(uint64).max;
-    }
-    return internalCancelCoverageDemand(uint64(unitCount), params);
   }
 
   function cancelCoverage(address insured, uint256 payoutRatio)
@@ -145,7 +118,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     uint256 premiumDebt
   ) internal virtual returns (uint256);
 
-  /// @inheritdoc ICoverageDistributor
+  /// @inheritdoc IAddableCoverageDistributor
   function receivableDemandedCoverage(address insured, uint256 loopLimit)
     external
     view
@@ -160,7 +133,7 @@ abstract contract WeightedPoolExtension is ICoverageDistributor, WeightedPoolSto
     return (params.receivedCoverage, coverage);
   }
 
-  /// @inheritdoc ICoverageDistributor
+  /// @inheritdoc IAddableCoverageDistributor
   function receiveDemandedCoverage(address insured, uint256 loopLimit)
     external
     override

@@ -33,6 +33,18 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     _;
   }
 
+  function _onlyActiveInsuredOrOps(address insured) private view {
+    if (insured != msg.sender) {
+      _onlyGovernorOr(AccessFlags.INSURER_OPS);
+    }
+    _onlyActiveInsured(insured);
+  }
+
+  modifier onlyActiveInsuredOrOps(address insured) {
+    _onlyActiveInsuredOrOps(insured);
+    _;
+  }
+
   function internalSetTypedGovernor(IInsurerGovernor addr) internal {
     _governorIsContract = true;
     _setGovernor(address(addr));
