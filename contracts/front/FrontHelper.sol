@@ -160,6 +160,7 @@ contract FrontHelper is AccessHelper {
     MemberStatus[] memory result = new MemberStatus[](insurers.length);
     for (uint256 i = insurers.length; i > 0; ) {
       i--;
+      // slither-disable-next-line calls-loop
       result[i] = IInsurerPool(insurers[i]).statusOf(insured);
     }
     return result;
