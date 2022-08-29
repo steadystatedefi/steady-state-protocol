@@ -9,7 +9,7 @@ import '../interfaces/IJoinable.sol';
 import './WeightedPoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
-contract JoinablePoolExtension is IJoinableBase, WeightedPoolStorage {
+contract JoinablePoolExtension is IJoinableBase, ICancellableCoverageDemand, WeightedPoolStorage {
   constructor(
     IAccessController acl,
     uint256 unitSize,
@@ -31,5 +31,25 @@ contract JoinablePoolExtension is IJoinableBase, WeightedPoolStorage {
 
   function cancelJoin() external returns (MemberStatus) {
     return internalCancelJoin(msg.sender);
+  }
+
+  function coverageUnitSize() external view override returns (uint256) {
+    return internalUnitSize();
+  }
+
+  function cancelCoverageDemand(
+    address insured,
+    uint256 unitCount,
+    uint256 loopLimit
+  ) external override onlyActiveInsuredOrOps(insured) returns (uint256 cancelledUnits, uint256[] memory) {
+    CancelCoverageDemandParams memory params;
+    params.insured = insured;
+    params.loopLimit = defaultLoopLimit(LoopLimitType.CancelCoverageDemand, loopLimit);
+
+    if (unitCount > type(uint64).max) {
+      unitCount = type(uint64).max;
+    }
+    cancelledUnits = internalCancelCoverageDemand(uint64(unitCount), params);
+    return (cancelledUnits, params.rateBands);
   }
 }

@@ -4,7 +4,26 @@ pragma solidity ^0.8.4;
 import './ICollateralized.sol';
 import './ICharterable.sol';
 
+interface ICancellableCoverageDemand {
+  /// @dev size of collateral allocation chunk made by this pool
+  function coverageUnitSize() external view returns (uint256);
+
+  /// @notice Cancel coverage that has been demanded, but not filled yet
+  /// @dev can only be called by an accepted insured pool
+  /// @param unitCount The number of units that wishes to be cancelled
+  /// @return cancelledUnits The amount of units that were cancelled
+  /// @return rateBands Distribution of cancelled uints by rate-bands, each aeeay value has higher 40 bits as rate, and the rest as number of units
+  function cancelCoverageDemand(
+    address insured,
+    uint256 unitCount,
+    uint256 loopLimit
+  ) external returns (uint256 cancelledUnits, uint256[] memory rateBands);
+}
+
 interface ICancellableCoverage {
+  /// @dev size of collateral allocation chunk made by this pool
+  function coverageUnitSize() external view returns (uint256);
+
   /// @notice Cancel coverage for the sender
   /// @dev Called by insureds
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
@@ -13,22 +32,7 @@ interface ICancellableCoverage {
   function cancelCoverage(address insured, uint256 payoutRatio) external returns (uint256 payoutValue);
 }
 
-interface ICancellableCoverageDemand is ICancellableCoverage {
-  /// @dev size of collateral allocation chunk made by this pool
-  function coverageUnitSize() external view returns (uint256);
-
-  /// @notice Cancel coverage that has been demanded, but not filled yet
-  /// @dev can only be called by an accepted insured pool
-  /// @param unitCount The number of units that wishes to be cancelled
-  /// @return cancelledUnits The amount of units that were cancelled
-  function cancelCoverageDemand(
-    address insured,
-    uint256 unitCount,
-    uint256 loopLimit
-  ) external returns (uint256 cancelledUnits);
-}
-
-interface ICoverageDistributor is ICancellableCoverageDemand {
+interface IAddableCoverageDistributor is ICancellableCoverage {
   /// @notice Add demand for coverage
   /// @dev can only be called by an accepted insured pool
   /// @param unitCount Number of *units* of coverage demand to add
@@ -65,6 +69,10 @@ interface ICoverageDistributor is ICancellableCoverageDemand {
       uint256 receivedCollateral,
       DemandedCoverage memory
     );
+}
+
+interface ICoverageDistributor is ICancellableCoverageDemand, IAddableCoverageDistributor {
+  function coverageUnitSize() external view override(ICancellableCoverage, ICancellableCoverageDemand) returns (uint256);
 }
 
 struct DemandedCoverage {
