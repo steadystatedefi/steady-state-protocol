@@ -53,6 +53,11 @@ const configMain: INetworkConfiguration<FullTokens> = {
 
 export const FullConfig: IConfiguration<ENetwork> = {
   main: configMain,
-  goerli: configMain,
+  goerli: {
+    ...configMain,
+    Assets: {
+      USDC: '0x2f3A40A3db8a7e3D09B0adfEfbCe4f6F81927557',
+    },
+  },
   hardhat: configMain,
 };
