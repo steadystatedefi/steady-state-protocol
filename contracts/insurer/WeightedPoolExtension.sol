@@ -164,4 +164,8 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
     uint256 receivedCoverage,
     DemandedCoverage memory coverage
   ) internal virtual returns (uint256);
+
+  function getCoveredRateBands(address insured, bool ignoreRecent) external view returns (uint256[] memory) {
+    return internalGetCoveredRateBands(insured, ignoreRecent);
+  }
 }
