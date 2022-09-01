@@ -6,6 +6,7 @@ export const YEAR = 365 * DAY;
 
 export const WAD_NUM = 10 ** 18;
 export const WAD = BigNumber.from(10).pow(18);
+export const USD = BigNumber.from(10).pow(6);
 export const HALF_WAD = WAD.div(2);
 export const RAY = BigNumber.from(10).pow(27);
 export const HALF_RAY = RAY.div(2);

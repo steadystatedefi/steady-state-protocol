@@ -1,6 +1,6 @@
 import { ENetwork } from '../config-networks';
 import { IConfiguration, INetworkConfiguration } from '../config-types';
-import { WAD } from '../constants';
+import { USD, WAD } from '../constants';
 
 type FullTokens = 'USDC' | 'USD';
 
@@ -25,8 +25,8 @@ const configMain: INetworkConfiguration<FullTokens> = {
   Dependencies: {},
   PriceFeeds: {
     USDC: {
-      decimals: 18,
-      value: WAD,
+      decimals: 6,
+      value: USD,
     },
   },
   IndexPools: [
