@@ -18,6 +18,9 @@ const configMain: INetworkConfiguration<FullTokens> = {
   },
   CollateralFund: {
     fuseMask: 1,
+    assets: {
+      USDC: {},
+    },
   },
   Dependencies: {},
   PriceFeeds: {
@@ -56,7 +59,7 @@ export const FullConfig: IConfiguration<ENetwork> = {
   goerli: {
     ...configMain,
     Assets: {
-      USDC: '0x2f3A40A3db8a7e3D09B0adfEfbCe4f6F81927557',
+      USDC: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F',
     },
   },
   hardhat: configMain,
