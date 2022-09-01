@@ -81,6 +81,9 @@ task('deploy-full', 'Deploy full enviroment')
         console.log('======================================================================\n');
         await DRE.run('full:smoke-test', { cfg: CONFIG_NAME });
 
+        console.log('\n======================================================================');
+        console.log('-- Contract Summary --');
+        console.log('======================================================================\n');
         {
           const [entryMap, instanceCount, multiCount] = printContracts((await getFirstSigner()).address);
 
