@@ -6,7 +6,12 @@ import { AccessFlag, AccessFlags } from '../../helpers/access-flags';
 import { ZERO, ZERO_ADDRESS } from '../../helpers/constants';
 import { Factories, getFactory } from '../../helpers/contract-types';
 import { stringifyArgs } from '../../helpers/contract-verification';
-import { getExternalsFromJsonDb, getFromJsonDb, getInstanceFromJsonDb } from '../../helpers/deploy-db';
+import {
+  getExternalFromJsonDb,
+  getExternalsFromJsonDb,
+  getFromJsonDb,
+  getInstanceFromJsonDb,
+} from '../../helpers/deploy-db';
 import { falsyOrZeroAddress } from '../../helpers/runtime-utils';
 import { AccessController } from '../../types';
 
@@ -211,9 +216,15 @@ async function findObject(ac: AccessController, objName: string): Promise<Contra
   if (bracketPos < 0) {
     const objEntry = getFromJsonDb(objName);
     if (objEntry) {
-      const instEntry = getInstanceFromJsonDb(objEntry.address);
-      const factory = getFactory(instEntry.factory);
-      return factory.attach(objEntry.address);
+      let instEntry = getInstanceFromJsonDb(objEntry.address);
+      if (!instEntry) {
+        instEntry = getExternalFromJsonDb(objEntry.address);
+      }
+
+      if (instEntry) {
+        const factory = getFactory(instEntry.factory);
+        return factory.attach(objEntry.address);
+      }
     }
 
     const found = getExternalsFromJsonDb().filter(

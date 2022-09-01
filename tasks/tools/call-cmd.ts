@@ -90,10 +90,20 @@ function prepareArgs(
       cmd = cmd.substring(pos + 1);
     }
 
+    const cmdArgs: unknown[] = [];
+
+    for (const arg of args.slice(j + 1, i)) {
+      if (arg[0] === '[') {
+        cmdArgs.push(JSON.parse(arg) as unknown[]);
+      } else {
+        cmdArgs.push(arg);
+      }
+    }
+
     cmds.push({
       roles,
       cmd,
-      args: args.slice(j + 1, i),
+      args: cmdArgs,
     });
     j = i + 1;
   }
