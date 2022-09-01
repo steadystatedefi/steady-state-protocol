@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
 import './ICoverageDistributor.sol';
+import '../insurer/Rounds.sol';
 
 interface IInsurerPoolBase is ICollateralized, ICharterable {
   /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY)
@@ -26,4 +27,6 @@ interface IPerpetualInsurerPool is IInsurerPoolBase {
   function withdrawAll() external returns (uint256);
 }
 
-interface IInsurerPool is IERC20, IInsurerPoolBase, ICoverageDistributor {}
+interface IInsurerPool is IERC20, IInsurerPoolBase, ICoverageDistributor {
+  function statusOf(address) external view returns (MemberStatus);
+}

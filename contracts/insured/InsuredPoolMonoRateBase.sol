@@ -112,7 +112,9 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     uint256 unitSize = ICancellableCoverageDemand(insurer).coverageUnitSize();
     uint256 unitCount = requestedAmount.divUp(unitSize);
     if (unitCount > 0) {
-      unitCount = ICancellableCoverageDemand(insurer).cancelCoverageDemand(address(this), unitCount, 0);
+      uint256[] memory canceledBands;
+      (unitCount, canceledBands) = ICancellableCoverageDemand(insurer).cancelCoverageDemand(address(this), unitCount, 0);
+      Sanity.require(canceledBands.length <= 1);
     }
 
     if (unitCount > 0) {

@@ -1060,6 +1060,8 @@ abstract contract WeightedRoundsBase {
     bool done;
     // temp var
     uint80 totalUnitsBeforeBatch;
+    // result
+    uint256[] rateBands;
   }
 
   /// @dev Try to cancel `unitCount` units of coverage demand
@@ -1103,17 +1105,48 @@ abstract contract WeightedRoundsBase {
 
     _adjustUncoveredSlots(batchNo, uint80(cancelFirstSlotRounds) * demand.unitPerRound, demands, index + 1, params);
 
-    for (uint256 i = demands.length - index; i > 1; i--) {
+    uint256 bandCount = 0;
+    for (uint256 i = demands.length - 1; i > index; i--) {
+      bandCount = _addToRateBand(params, bandCount, demands[i]);
       demands.pop();
     }
 
     if (demand.rounds == 0) {
+      bandCount = _addToRateBand(params, bandCount, demands[index]);
       demands.pop();
     } else {
+      bandCount = _addToRateBand(params, bandCount, demand.premiumRate, uint64(demands[index].rounds - demand.rounds) * demand.unitPerRound);
       demands[index] = demand;
     }
+    Sanity.require(bandCount == params.rateBands.length);
 
     return cancelledUnits;
+  }
+
+  function _addToRateBand(
+    CancelCoverageDemandParams memory params,
+    uint256 bandCount,
+    Rounds.Demand storage d
+  ) private view returns (uint256) {
+    return _addToRateBand(params, bandCount, d.premiumRate, uint64(d.unitPerRound) * d.rounds);
+  }
+
+  function _addToRateBand(
+    CancelCoverageDemandParams memory params,
+    uint256 bandCount,
+    uint40 rate,
+    uint64 units
+  ) private pure returns (uint256) {
+    if (bandCount > 0) {
+      uint256 bandRate = params.rateBands[bandCount - 1] >> (256 - Rounds.DEMAND_RATE_BITS);
+      if (bandRate == rate) {
+        params.rateBands[bandCount - 1] += units;
+        return bandCount;
+      }
+    }
+
+    params.rateBands[bandCount] = (uint256(rate) << (256 - Rounds.DEMAND_RATE_BITS)) + units;
+    return bandCount + 1;
   }
 
   /// @dev Remove coverage demand from batches
@@ -1132,12 +1165,16 @@ abstract contract WeightedRoundsBase {
     )
   {
     PartialState memory part = _partial;
+    uint256 rateBands;
 
     for (index = demands.length; index > 0 && params.loopLimit > 0; params.loopLimit--) {
       index--;
 
       Rounds.Demand memory prev = demand;
       demand = demands[index];
+      if (prev.premiumRate != demand.premiumRate) {
+        rateBands++;
+      }
 
       uint64 cancelUnits;
       (params.done, batchNo, cancelUnits, skippedRounds) = _findUncoveredBatch(part, demand, unitCount - cancelledUnits);
@@ -1157,6 +1194,8 @@ abstract contract WeightedRoundsBase {
 
       Sanity.require(skippedRounds == 0);
     }
+
+    params.rateBands = new uint256[](rateBands);
   }
 
   /// @dev Find the batch to remove coverage demand from
