@@ -4,10 +4,7 @@ import { WAD } from '../constants';
 
 type FullTokens = 'USDC' | 'USD';
 
-const configMain: INetworkConfiguration<FullTokens> = {
-  Assets: {
-    USDC: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  },
+const configTemplate: Omit<INetworkConfiguration<FullTokens>, 'Assets' | 'PriceFeeds'> = {
   Commons: {
     unitSize: WAD,
   },
@@ -23,12 +20,6 @@ const configMain: INetworkConfiguration<FullTokens> = {
     },
   },
   Dependencies: {},
-  PriceFeeds: {
-    USDC: {
-      decimals: 18,
-      value: WAD,
-    },
-  },
   IndexPools: [
     {
       poolType: 'IMPERPETUAL_INDEX_POOL',
@@ -55,12 +46,28 @@ const configMain: INetworkConfiguration<FullTokens> = {
 };
 
 export const FullConfig: IConfiguration<ENetwork> = {
-  main: configMain,
   goerli: {
-    ...configMain,
+    ...configTemplate,
     Assets: {
       USDC: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F',
     },
+    PriceFeeds: {
+      USDC: {
+        decimals: 6,
+        value: WAD,
+      },
+    },
   },
-  hardhat: configMain,
+  hardhat: {
+    ...configTemplate,
+    Assets: {
+      USDC: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F',
+    },
+    PriceFeeds: {
+      USDC: {
+        decimals: 6,
+        value: WAD,
+      },
+    },
+  },
 };
