@@ -157,7 +157,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
     v = coverage.totalCovered - _burntDrawdown;
-    v = (v + coverage.pendingCovered) - added;
+    v += coverage.pendingCovered + _excessCoverage;
+    v = v - added;
 
     {
       int256 va = _valueAdjustment;
@@ -168,7 +169,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
       }
     }
     v += coverage.totalPremium - _burntPremium;
-    v += _excessCoverage;
   }
 
   function totalSupplyValue() public view returns (uint256) {
