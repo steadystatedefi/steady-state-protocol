@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import '../tools/Errors.sol';
 import '../tools/tokens/IERC20Details.sol';
 import '../interfaces/IProxyFactory.sol';
+import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
@@ -183,5 +184,23 @@ contract FrontHelper is AccessHelper {
       // slither-disable-next-line calls-loop
       (values[i], balances[i], swappables[i]) = IInsurerPool(insurers[i]).balancesOf(account);
     }
+  }
+
+  function batchCharteredReceivableByInsured(address insured, address[] memory insurers)
+    external
+    view
+    returns (address[] memory, ReceivableByReconcile[] memory c)
+  {
+    if (insurers.length == 0) {
+      (, insurers) = IInsuredPool(insured).getInsurers();
+    }
+
+    c = new ReceivableByReconcile[](insurers.length);
+    for (uint256 i = insurers.length; i > 0; ) {
+      i--;
+      // slither-disable-next-line calls-loop
+      c[i] = IReconcilableInsuredPool(insured).receivableByReconcileWithInsurer(insurers[i]);
+    }
+    return (insurers, c);
   }
 }

@@ -24,6 +24,20 @@ interface IInsuredPool is ICollateralized {
   function offerCoverage(uint256 offeredAmount) external returns (uint256 acceptedAmount, uint256 rate);
 
   function rateBands() external view returns (InsuredRateBand[] memory bands, uint256 maxBands);
+
+  function getInsurers() external view returns (address[] memory, address[] memory);
+}
+
+interface IReconcilableInsuredPool is IInsuredPool {
+  function receivableByReconcileWithInsurer(address insurer) external view returns (ReceivableByReconcile memory);
+}
+
+struct ReceivableByReconcile {
+  uint256 receivableCoverage;
+  uint256 demandedCoverage;
+  uint256 providedCoverage;
+  uint256 rate;
+  uint256 accumulated;
 }
 
 struct InsuredParams {
