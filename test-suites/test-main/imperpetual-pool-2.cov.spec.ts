@@ -10,15 +10,10 @@ import { MockCollateralCurrency, IInsurerPool, MockInsuredPool, MockImperpetualP
 import { makeSuite, TestEnv } from './setup/make-suite';
 
 makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
-  const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
-  const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
-  const poolDemand = 100000 * unitSize;
-  const drawdownPct = 10; // 10% constant inside MockImperpetualPool
   let pool: MockImperpetualPool;
   let poolIntf: IInsurerPool;
   const insureds: MockInsuredPool[] = [];
-  const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
   let cc: MockCollateralCurrency;
   let user: SignerWithAddress;
