@@ -207,50 +207,58 @@ async function callQualifiedFunc(
   callContract(ac, roles, contract, funcName, args, callParams);
 }
 
-async function findObject(ac: AccessController, objName: string): Promise<Contract> {
+function findObjectByName(ac: AccessController, objName: string): Contract {
   if (objName === 'AC' || objName === 'ACCESS_CONTROLLER') {
     return ac;
   }
 
+  const objEntry = getFromJsonDb(objName);
+  if (objEntry) {
+    let instEntry = getInstanceFromJsonDb(objEntry.address);
+    if (!instEntry) {
+      instEntry = getExternalFromJsonDb(objEntry.address);
+    }
+
+    if (instEntry) {
+      const factory = getFactory(instEntry.factory);
+      return factory.attach(objEntry.address);
+    }
+  }
+
+  const found = getExternalsFromJsonDb().filter(
+    ([, desc]) => desc.id === objName && !falsyOrZeroAddress(desc.verify?.impl)
+  );
+
+  if (found.length === 0) {
+    throw new Error(`Unknown object name: ${objName}`);
+  } else if (found.length > 1) {
+    throw new Error(`Ambigous object name: ${objName}, ${JSON.stringify(found)}`);
+  }
+  const [addr, desc] = found[0];
+
+  const factory = getFactory(desc.factory);
+  return factory.attach(addr);
+}
+
+async function findObject(ac: AccessController, objName: string): Promise<Contract> {
   const bracketPos = objName.indexOf('@');
   if (bracketPos < 0) {
-    const objEntry = getFromJsonDb(objName);
-    if (objEntry) {
-      let instEntry = getInstanceFromJsonDb(objEntry.address);
-      if (!instEntry) {
-        instEntry = getExternalFromJsonDb(objEntry.address);
-      }
-
-      if (instEntry) {
-        const factory = getFactory(instEntry.factory);
-        return factory.attach(objEntry.address);
-      }
-    }
-
-    const found = getExternalsFromJsonDb().filter(
-      ([, desc]) => desc.id === objName && !falsyOrZeroAddress(desc.verify?.impl)
-    );
-
-    if (found.length === 0) {
-      throw new Error(`Unknown object name: ${objName}`);
-    } else if (found.length > 1) {
-      throw new Error(`Ambigous object name: ${objName}, ${JSON.stringify(found)}`);
-    }
-    const [addr, desc] = found[0];
-
-    const factory = getFactory(desc.factory);
-    return factory.attach(addr);
+    return findObjectByName(ac, objName);
   }
 
   const typeName = objName.substring(0, bracketPos);
   let addrName = objName.substring(bracketPos + 1);
 
   if (addrName.substring(0, 2) !== '0x') {
-    const roleId = AccessFlags[addrName] as AccessFlag;
-    if (!roleId) {
-      throw new Error(`Unknown role: ${typeName}`);
+    if (addrName[0] !== '@') {
+      addrName = findObjectByName(ac, addrName).address;
+    } else {
+      const roleId = AccessFlags[addrName.substring(1)] as AccessFlag;
+      if (!roleId) {
+        throw new Error(`Unknown role: ${typeName}`);
+      }
+      addrName = await ac.getAddress(roleId);
     }
-    addrName = await ac.getAddress(roleId);
   }
 
   if (falsyOrZeroAddress(addrName)) {
