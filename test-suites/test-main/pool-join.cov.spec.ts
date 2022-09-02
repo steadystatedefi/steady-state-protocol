@@ -350,9 +350,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
       {
         const balances = await pool.balancesOf(address);
-        expect(balances.coverage).eq(0);
-        expect(balances.scaled).eq(0);
-        expect(balances.premium).eq(0);
+        expect(balances.value).eq(0);
+        expect(balances.balance).eq(0);
+        expect(balances.swappable).eq(0);
       }
     }
   });

@@ -195,14 +195,13 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     public
     view
     returns (
-      uint256 coverage,
-      uint256 scaled,
-      uint256 premium
+      uint256 value,
+      uint256 balance,
+      uint256 swappable
     )
   {
-    scaled = balanceOf(account);
-    coverage = scaled.rayMul(exchangeRate());
-    premium;
+    balance = balanceOf(account);
+    swappable = value = balance.rayMul(exchangeRate());
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer

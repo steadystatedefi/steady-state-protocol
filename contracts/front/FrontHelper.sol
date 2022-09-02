@@ -165,4 +165,23 @@ contract FrontHelper is AccessHelper {
     }
     return result;
   }
+
+  function batchBalancesOf(address account, address[] calldata insurers)
+    external
+    view
+    returns (
+      uint256[] memory values,
+      uint256[] memory balances,
+      uint256[] memory swappables
+    )
+  {
+    values = new uint256[](insurers.length);
+    balances = new uint256[](insurers.length);
+    swappables = new uint256[](insurers.length);
+    for (uint256 i = insurers.length; i > 0; ) {
+      i--;
+      // slither-disable-next-line calls-loop
+      (values[i], balances[i], swappables[i]) = IInsurerPool(insurers[i]).balancesOf(account);
+    }
+  }
 }
