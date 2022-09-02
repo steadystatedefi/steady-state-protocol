@@ -101,7 +101,7 @@
     "test-weighted": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/weighted-rounds.cov.spec.ts",
     "test-join": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/pool-join.cov.spec.ts",
     "test-cancel": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/coverage-cancel.cov.spec.ts",
-    "test-imperpetual": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/imperpetual-pool.cov.spec.ts",
+    "test-imperpetual": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/imperpetual-pool*.cov.spec.ts",
     "test-currency": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/currency.cov.spec.ts",
     "test-balancer": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/balancer.cov.spec.ts",
     "test-premium": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/premium-fund.cov.spec.ts",
