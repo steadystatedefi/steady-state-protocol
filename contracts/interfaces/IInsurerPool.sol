@@ -29,4 +29,17 @@ interface IPerpetualInsurerPool is IInsurerPoolBase {
 
 interface IInsurerPool is IERC20, IInsurerPoolBase, ICoverageDistributor {
   function statusOf(address) external view returns (MemberStatus);
+
+  /// @dev returns balances of a user
+  /// @return value The value of the pool share tokens (and provided coverage)
+  /// @return balance The number of the pool share tokens
+  /// @return swappable The amount of user's value which can be swapped to tokens (e.g. premium earned)
+  function balancesOf(address account)
+    external
+    view
+    returns (
+      uint256 value,
+      uint256 balance,
+      uint256 swappable
+    );
 }

@@ -164,7 +164,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     // console.log('\n>>>>', totalRatetOfUsers.toString(), totalInterestOfUsers.toString());
     for (const testUser of testEnv.users) {
-      const { coverage: value, scaled: balance, premium } = await pool.balancesOf(testUser.address);
+      const { value, balance, swappable: premium } = await pool.balancesOf(testUser.address);
       total = total.sub(balance);
       totalValue = totalValue.sub(value);
 

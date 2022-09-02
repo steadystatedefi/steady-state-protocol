@@ -173,6 +173,15 @@ abstract contract InsuredPoolBase is
     }
   }
 
+  function receivableByReconcileWithInsurer(address insurer) external view returns (ReceivableByReconcile memory r) {
+    Balances.RateAcc memory totals = internalSyncTotals();
+    (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(ICoverageDistributor(insurer), totals);
+    r.demandedCoverage = cov.totalDemand;
+    r.providedCoverage = cov.totalCovered;
+    r.receivableCoverage = c;
+    (r.rate, r.accumulated) = (totals.rate, totals.accum);
+  }
+
   /// @dev Get the values if reconciliation were to occur with the desired Insurers
   /// @dev DOES sync the rate (for the view)
   function _reconcileWithInsurersView(uint256 startIndex, uint256 count)

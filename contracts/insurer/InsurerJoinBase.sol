@@ -84,6 +84,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
       }
       if (currentStatus == MemberStatus.Accepted && status != MemberStatus.Accepted) {
         internalAfterJoinOrLeave(insured, status);
+        emit MemberLeft(insured);
       }
     }
 
