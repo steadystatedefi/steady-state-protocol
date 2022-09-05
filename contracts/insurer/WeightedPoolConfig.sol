@@ -58,11 +58,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   }
 
   ///@return The number of rounds to initialize a new batch
-  function internalBatchAppend(
-    uint80,
-    uint32 openRounds,
-    uint64 unitCount
-  ) internal view override returns (uint24) {
+  function internalBatchAppend(uint32 openRounds, uint64 unitCount) internal view override returns (uint24) {
     uint256 max = _params.maxUnitsPerRound;
     uint256 min = _params.minAdvanceUnits / max;
     max = _params.maxAdvanceUnits / max;

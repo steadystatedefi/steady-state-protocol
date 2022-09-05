@@ -113,6 +113,7 @@ abstract contract WeightedRoundsBase {
     bool hasMore;
     // temporary variables
     uint64 prevPullBatch;
+    uint32 partialRounds;
     bool takeNext;
   }
 
@@ -141,7 +142,13 @@ abstract contract WeightedRoundsBase {
     (Rounds.Batch memory b, uint64 thisBatch, bool isFirstOfOpen) = _findBatchToAppend(entry.nextBatchNo);
 
     Rounds.Demand memory demand;
-    uint32 openRounds = _openRounds - _partial.roundNo;
+
+    uint32 openRounds = _partial.roundNo;
+    if (_partial.roundCoverage > 0) {
+      openRounds++;
+    }
+    openRounds = _openRounds - (params.partialRounds = openRounds);
+
     bool updateBatch;
     for (;;) {
       // console.log('addDemandLoop', thisBatch, isFirstOfOpen, b.totalUnitsBeforeBatch);
@@ -151,15 +158,18 @@ abstract contract WeightedRoundsBase {
       if (b.rounds == 0) {
         // NB! empty batches can also be produced by cancellation
 
-        b.rounds = internalBatchAppend(_adjustedTotalUnits(b.totalUnitsBeforeBatch), openRounds, unitCount);
-        // console.log('addDemandToEmpty', b.rounds, openRounds - _partial.roundNo);
+        b.rounds = internalBatchAppend(openRounds, unitCount);
+        // console.log('addDemandToEmpty', b.rounds, openRounds);
 
         if (b.rounds == 0) {
           break;
         }
 
         openRounds += b.rounds;
-        _initTimeMark(_latestBatchNo = b.nextBatchNo = ++_batchCount);
+        if (b.nextBatchNo == 0) {
+          // only add a new batch for when the empty one is the last one
+          _initTimeMark(_latestBatchNo = b.nextBatchNo = ++_batchCount);
+        }
         updateBatch = true;
       }
 
@@ -217,7 +227,7 @@ abstract contract WeightedRoundsBase {
     if (updateBatch) {
       _batches[thisBatch] = b;
     }
-    _openRounds = openRounds + _partial.roundNo;
+    _openRounds = openRounds + params.partialRounds;
 
     _setPullBatch(params, params.hasMore || internalIsEnoughForMore(entry, unitCount) ? thisBatch : 0);
     _insureds[params.insured] = entry;
@@ -421,11 +431,7 @@ abstract contract WeightedRoundsBase {
     uint24 remainingUnits
   ) internal virtual returns (uint24 splitRounds);
 
-  function internalBatchAppend(
-    uint80 totalUnitsBeforeBatch,
-    uint32 openRounds,
-    uint64 unitCount
-  ) internal virtual returns (uint24 rounds);
+  function internalBatchAppend(uint32 openRounds, uint64 unitCount) internal virtual returns (uint24 rounds);
 
   /// @dev Reduces the current batch's rounds and adds the leftover rounds to a new batch.
   /// @dev Checks if this is the new latest batch
@@ -871,7 +877,10 @@ abstract contract WeightedRoundsBase {
       part.roundNo++;
       amount -= vacant;
     } else if (!b.isReady()) {
-      return (amount, loopLimit - 1, b);
+      if (b.rounds > 0 || b.nextBatchNo == 0) {
+        return (amount, loopLimit - 1, b);
+      }
+      // NB! interim empty rounds (caused by cancel) can be closed at any status
     }
 
     /// @dev != 0 also indicates that at least one round was added
@@ -1241,8 +1250,8 @@ abstract contract WeightedRoundsBase {
     if (demand.rounds <= skippedRounds + partialRounds + neededRounds) {
       // we should cancel all demands of this slot
       if (partialRounds > 0) {
-        // the partial batch can alway be split
-        batchNo = _splitBatch(uint24(partialRounds), batchNo);
+        // the partial batch can always be split
+        batchNo = _splitBatch(uint24(partialRounds), batchNo); // TODO split and collapse batch
         skippedRounds += partialRounds;
       }
       neededRounds = demand.rounds - skippedRounds;
@@ -1263,7 +1272,7 @@ abstract contract WeightedRoundsBase {
           }
           if (batchNo == part.batchNo || internalCanSplitBatchOnCancel(batchNo, remainingRounds)) {
             // partial batch can always be split, otherwise the policy decides
-            batchNo = _splitBatch(remainingRounds, batchNo);
+            batchNo = _splitBatch(remainingRounds, batchNo); // TODO split and collapse batch
           } else {
             // cancel more than actually requested to avoid fragmentation of batches
             neededRounds += remainingRounds;

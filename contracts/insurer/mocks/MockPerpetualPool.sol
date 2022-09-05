@@ -55,6 +55,10 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     return _dump();
   }
 
+  function dumpInsured(address insured) external view returns (Rounds.InsuredEntry memory entry, Rounds.Demand[] memory demands) {
+    (entry, demands, , ) = _dumpInsured(insured);
+  }
+
   function getPendingAdjustments()
     external
     view
