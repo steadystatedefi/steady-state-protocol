@@ -12,7 +12,8 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
   const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
   const premiumPerUnit = 10;
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
-  const poolDemand = 100000 * unitSize;
+  const poolDemandUnits = 100000;
+  const poolDemand = poolDemandUnits * unitSize;
   let pool: MockPerpetualPool;
   let poolIntf: IInsurerPool;
   const insureds: MockInsuredPool[] = [];
@@ -44,31 +45,33 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     NotApplicable,
   }
 
+  const addInsured = async (minUnits: number, riskWeightValue: number, poolDemandValue: number) => {
+    const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+    const insured = await Factories.MockInsuredPool.deploy(
+      cc.address,
+      poolDemandValue,
+      RATE,
+      minUnits * unitSize,
+      premiumToken.address
+    );
+    await pool.approveNextJoin(riskWeightValue, premiumToken.address);
+    await insured.joinPool(pool.address, { gasLimit: 1000000 });
+    insuredTS.push(await currentTime());
+    expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
+    const { 0: generic, 1: chartered } = await insured.getInsurers();
+    expect(generic).eql([]);
+    expect(chartered).eql([pool.address]);
+
+    const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
+    insureds.push(insured);
+    return stats.coverage;
+  };
+
   it('Insurer and insured pools', async () => {
     const minUnits = 10;
     const riskWeight = 1000; // 10%
 
-    const joinPool = async (riskWeightValue: number) => {
-      const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
-      const insured = await Factories.MockInsuredPool.deploy(
-        cc.address,
-        poolDemand,
-        RATE,
-        minUnits * unitSize,
-        premiumToken.address
-      );
-      await pool.approveNextJoin(riskWeightValue, premiumToken.address);
-      await insured.joinPool(pool.address, { gasLimit: 1000000 });
-      insuredTS.push(await currentTime());
-      expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
-      const { 0: generic, 1: chartered } = await insured.getInsurers();
-      expect(generic).eql([]);
-      expect(chartered).eql([pool.address]);
-
-      const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
-      insureds.push(insured);
-      return stats.coverage;
-    };
+    const joinPool = async (riskWeightValue: number) => addInsured(minUnits, riskWeightValue, poolDemand);
 
     {
       const coverage = await joinPool(riskWeight);
@@ -81,21 +84,21 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       const coverage = await joinPool(riskWeight * 10);
       expect(coverage.totalCovered).eq(0);
       expect(coverage.totalDemand).eq(1000 * unitSize); // higher risk, lower share
-      insuredUnits.push(1000);
+      insuredUnits.push(coverage.totalDemand.div(unitSize).toNumber());
     }
 
     for (let i = 2; i > 0; i--) {
       const coverage = await joinPool(riskWeight);
       expect(coverage.totalCovered).eq(0);
       expect(coverage.totalDemand).eq(4000 * unitSize);
-      insuredUnits.push(4000);
+      insuredUnits.push(coverage.totalDemand.div(unitSize).toNumber());
     }
 
     for (let i = 1; i > 0; i--) {
       const coverage = await joinPool(riskWeight);
       expect(coverage.totalCovered).eq(0);
       expect(coverage.totalDemand).eq(0); // pool limit for uncovered demand is reached
-      insuredUnits.push(0);
+      insuredUnits.push(coverage.totalDemand.div(unitSize).toNumber());
     }
   });
 
@@ -579,6 +582,9 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(dump.batches[1].unitPerRound).eq(0);
     expect(dump.batches[2].unitPerRound).gt(0);
 
+    expect(dump.batches[0].rounds).gt(0);
+    expect(dump.batches[2].rounds).gt(0);
+
     expect(dump.batches[1].rounds).eq(0);
     expect(dump.batches[1].roundPremiumRateSum).eq(0);
     expect(dump.batches[1].state).eq(1); // this zero round MUST remain "ready to use" to avoid lockup
@@ -588,9 +594,59 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(adj0.pendingCovered).gt(0);
   });
 
+  it('Re-add from insured[1] and cancel it again to ensure that a zero batch behaves correctly', async () => {
+    const insured = insureds[1];
+
+    const { coverage: totals0 } = await pool.getTotals();
+    const dump0 = await pool.dump();
+
+    expect(dump0.batches[1].unitPerRound).eq(0);
+
+    const excessCoverage = await pool.getExcessCoverage();
+    await pool.setExcessCoverage(0);
+
+    await insured.pushCoverageDemandTo([pool.address], [poolDemand]);
+
+    await pool.setExcessCoverage(excessCoverage);
+
+    const { coverage: totals1 } = await pool.getTotals();
+    expect(totals1.totalDemand).gt(totals0.totalDemand);
+
+    {
+      const dump1 = await pool.dump();
+      expect(dump1.batches[1].unitPerRound).gt(0);
+
+      expect(dump1.batchCount).eq(dump0.batchCount);
+      expect(dump1.batches.length).eq(dump0.batches.length);
+      dump0.batches.forEach((b0, index) => {
+        const b1 = dump1.batches[index];
+        // make sure that batch chain remains unchanged
+        expect(b0.nextBatchNo).eq(b1.nextBatchNo);
+      });
+    }
+
+    await insured.testCancelCoverageDemand(pool.address, poolDemandUnits);
+
+    {
+      const dump1 = await pool.dump();
+
+      dump0.batches.forEach((b0, index) => {
+        const b1 = dump1.batches[index];
+        expect(b0.nextBatchNo).eq(b1.nextBatchNo);
+        expect(b0.roundPremiumRateSum).eq(b1.roundPremiumRateSum);
+        expect(b0.rounds).eq(b1.rounds);
+        expect(b0.unitPerRound).eq(b1.unitPerRound);
+        expect(b0.state).eq(b1.state);
+        // totalUnitsBeforeBatch is lazy for non-covered demand and cant be compared
+        // expect(b0.totalUnitsBeforeBatch).eq(b1.totalUnitsBeforeBatch);
+      });
+    }
+  });
+
   it('Push the excess released by cancellations', async () => {
     const { coverage: totals0 } = await pool.getTotals();
     const excessCoverage = await pool.getExcessCoverage();
+    expect(excessCoverage).gt(0);
 
     await pool.pushCoverageExcess();
 

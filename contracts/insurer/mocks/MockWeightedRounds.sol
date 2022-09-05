@@ -76,11 +76,7 @@ contract MockWeightedRounds is WeightedRoundsBase {
     return _splitRounds <= type(uint24).max ? uint24(_splitRounds) : remainingUnits;
   }
 
-  function internalBatchAppend(
-    uint80,
-    uint32,
-    uint64 unitCount
-  ) internal pure override returns (uint24) {
+  function internalBatchAppend(uint32, uint64 unitCount) internal pure override returns (uint24) {
     return unitCount > type(uint24).max ? type(uint24).max : uint24(unitCount);
   }
 
