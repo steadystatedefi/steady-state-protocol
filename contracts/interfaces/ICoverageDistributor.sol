@@ -4,9 +4,22 @@ pragma solidity ^0.8.4;
 import './ICollateralized.sol';
 import './ICharterable.sol';
 
-interface ICancellableCoverageDemand {
+interface IDemandableCoverage {
   /// @dev size of collateral allocation chunk made by this pool
   function coverageUnitSize() external view returns (uint256);
+
+  /// @notice Add demand for coverage
+  /// @dev can only be called by an accepted insured pool
+  /// @param unitCount Number of *units* of coverage demand to add
+  /// @param premiumRate The rate paid on the coverage
+  /// @param hasMore Whether the insured has more demand it would like to request after this
+  /// @return addedCount Number of units of demand that were actually added
+  function addCoverageDemand(
+    uint256 unitCount,
+    uint256 premiumRate,
+    bool hasMore,
+    uint256 loopLimit
+  ) external returns (uint256 addedCount);
 
   /// @notice Cancel coverage that has been demanded, but not filled yet
   /// @dev can only be called by an accepted insured pool
@@ -32,20 +45,7 @@ interface ICancellableCoverage {
   function cancelCoverage(address insured, uint256 payoutRatio) external returns (uint256 payoutValue);
 }
 
-interface IAddableCoverageDistributor is ICancellableCoverage {
-  /// @notice Add demand for coverage
-  /// @dev can only be called by an accepted insured pool
-  /// @param unitCount Number of *units* of coverage demand to add
-  /// @param premiumRate The rate paid on the coverage
-  /// @param hasMore Whether the insured has more demand it would like to request after this
-  /// @return addedCount Number of units of demand that were actually added
-  function addCoverageDemand(
-    uint256 unitCount,
-    uint256 premiumRate,
-    bool hasMore,
-    uint256 loopLimit
-  ) external returns (uint256 addedCount);
-
+interface IReceivableCoverage is ICancellableCoverage {
   ///@notice Get the amount of coverage demanded and filled, and the total premium rate and premium charged
   ///@param insured The insured pool
   ///@return availableCoverage The amount coverage in terms of $CC
@@ -71,8 +71,8 @@ interface IAddableCoverageDistributor is ICancellableCoverage {
     );
 }
 
-interface ICoverageDistributor is ICancellableCoverageDemand, IAddableCoverageDistributor {
-  function coverageUnitSize() external view override(ICancellableCoverage, ICancellableCoverageDemand) returns (uint256);
+interface ICoverageDistributor is IDemandableCoverage, IReceivableCoverage {
+  function coverageUnitSize() external view override(ICancellableCoverage, IDemandableCoverage) returns (uint256);
 }
 
 struct DemandedCoverage {
