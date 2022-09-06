@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../ImperpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
+import './IMockInsurer.sol';
 
 contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
   constructor(ImperpetualPoolExtension extension, JoinablePoolExtension joinExtension)
@@ -35,10 +36,6 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
 
   function governerQueryAccessControlMask(address, uint256 filterMask) external pure override returns (uint256) {
     return filterMask;
-  }
-
-  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
-    return internalGetTotals(type(uint256).max);
   }
 
   function getExcessCoverage() external view returns (uint256) {
@@ -121,4 +118,12 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
       ok = true;
     }
   }
+
+  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+    return IMockInsurer(address(this)).getTotals(0);
+  }
+
+  // function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+  //   return internalGetTotals(type(uint256).max);
+  // }
 }

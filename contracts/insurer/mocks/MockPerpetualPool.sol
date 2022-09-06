@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../PerpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
+import './IMockInsurer.sol';
 
 contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   constructor(PerpetualPoolExtension extension, JoinablePoolExtension joinExtension)
@@ -37,10 +38,6 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     return filterMask;
   }
 
-  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
-    return internalGetTotals(type(uint256).max);
-  }
-
   function getExcessCoverage() external view returns (uint256) {
     return _excessCoverage;
   }
@@ -53,10 +50,6 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
 
   function dump() external view returns (Dump memory) {
     return _dump();
-  }
-
-  function dumpInsured(address insured) external view returns (Rounds.InsuredEntry memory entry, Rounds.Demand[] memory demands) {
-    (entry, demands, , ) = _dumpInsured(insured);
   }
 
   function getPendingAdjustments()
@@ -107,5 +100,9 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
       data.premiumToken = _expectedPremiumToken;
       ok = true;
     }
+  }
+
+  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+    return IMockInsurer(address(this)).getTotals(0);
   }
 }
