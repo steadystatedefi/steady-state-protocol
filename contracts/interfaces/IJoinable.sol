@@ -18,4 +18,5 @@ interface IJoinEvents {
   event JoinCancelled(address indexed insured);
   event JoinProcessed(address indexed insured, bool accepted);
   event JoinFailed(address indexed insured, bool isPanic, bytes reason);
+  event MemberLeft(address indexed insured);
 }

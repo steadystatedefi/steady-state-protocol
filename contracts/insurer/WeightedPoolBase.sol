@@ -31,15 +31,15 @@ abstract contract WeightedPoolBase is
   {
     // TODO check for the same access controller
     // Value.require(extension.accessController() == joinExtension.accessController());
-    // Value.require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
     Value.require(extension.collateral() == joinExtension.collateral());
+    Value.require(extension.coverageUnitSize() == joinExtension.coverageUnitSize());
     _extension = address(extension);
     _joinExtension = address(joinExtension);
   }
 
   // solhint-disable-next-line payable-fallback
   fallback() external {
-    // all ICoverageDistributor etc functions should be delegated to the extension
+    // all IAddableCoverageDistributor etc functions should be delegated to the extension
     _delegate(_extension);
   }
 
@@ -64,6 +64,14 @@ abstract contract WeightedPoolBase is
   }
 
   function cancelJoin() external returns (MemberStatus) {
+    _delegate(_joinExtension);
+  }
+
+  function cancelCoverageDemand(
+    address,
+    uint256,
+    uint256
+  ) external returns (uint256) {
     _delegate(_joinExtension);
   }
 

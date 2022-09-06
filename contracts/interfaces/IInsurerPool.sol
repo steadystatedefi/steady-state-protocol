@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../tools/tokens/IERC20.sol';
 import './ICoverageDistributor.sol';
+import '../insurer/Rounds.sol';
 
 interface IInsurerPoolBase is ICollateralized, ICharterable {
   /// @dev returns ratio of $IC to $CC, this starts as 1 (RAY)
@@ -26,4 +27,19 @@ interface IPerpetualInsurerPool is IInsurerPoolBase {
   function withdrawAll() external returns (uint256);
 }
 
-interface IInsurerPool is IERC20, IInsurerPoolBase, ICoverageDistributor {}
+interface IInsurerPool is IERC20, IInsurerPoolBase, ICoverageDistributor {
+  function statusOf(address) external view returns (MemberStatus);
+
+  /// @dev returns balances of a user
+  /// @return value The value of the pool share tokens (and provided coverage)
+  /// @return balance The number of the pool share tokens
+  /// @return swappable The amount of user's value which can be swapped to tokens (e.g. premium earned)
+  function balancesOf(address account)
+    external
+    view
+    returns (
+      uint256 value,
+      uint256 balance,
+      uint256 swappable
+    );
+}

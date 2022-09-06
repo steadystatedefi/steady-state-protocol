@@ -214,6 +214,9 @@ export const getInstancesFromJsonDb = (): [string, DbInstanceEntry][] => {
   return Object.entries<DbInstanceEntry>(value || []);
 };
 
+export const getExternalFromJsonDb = (address: EthereumAddress): DbInstanceEntry =>
+  <DbInstanceEntry>getDb().get(`${DRE.network.name}.external.${address}`).value();
+
 export const getExternalsFromJsonDb = (): [string, DbInstanceEntry][] => {
   const db = getDb();
   const collection = db.get(`${DRE.network.name}.external`);
@@ -230,7 +233,7 @@ export const getNamedFromJsonDb = (): [string, DbNamedEntry][] => {
   return Object.entries<DbNamedEntry>(value || []);
 };
 
-export const getFromJsonDb = <T>(id: string): T => {
+export const getFromJsonDb = <T = DbNamedEntry>(id: string): T => {
   const db = getDb();
   const collection = db.get(`${DRE.network.name}.named.${id}`);
 

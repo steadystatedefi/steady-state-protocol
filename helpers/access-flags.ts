@@ -1,5 +1,7 @@
 import { BigNumber } from 'ethers';
 
+export type AccessFlag = number | BigNumber;
+
 export const AccessFlags = {
   // roles that can be assigned to multiple addresses - use range [0..15]
   EMERGENCY_ADMIN: 1 << 0,

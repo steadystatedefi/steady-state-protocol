@@ -84,6 +84,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
       }
       if (currentStatus == MemberStatus.Accepted && status != MemberStatus.Accepted) {
         internalAfterJoinOrLeave(insured, status);
+        emit MemberLeft(insured);
       }
     }
 
@@ -91,7 +92,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
     return status;
   }
 
-  function internalAfterJoinOrLeave(address insured, MemberStatus status) internal virtual {}
+  function internalAfterJoinOrLeave(address insured, MemberStatus status) internal virtual;
 
   function internalProcessJoin(address insured, bool accepted) internal virtual {
     _updateInsuredStatus(insured, accepted ? MemberStatus.Accepted : MemberStatus.JoinRejected);

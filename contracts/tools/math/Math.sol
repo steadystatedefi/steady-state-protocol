@@ -6,7 +6,7 @@ import '../Errors.sol';
 library Math {
   function boundedSub(uint256 x, uint256 y) internal pure returns (uint256) {
     unchecked {
-      return x < y ? 0 : x - y;
+      return x <= y ? 0 : x - y;
     }
   }
 

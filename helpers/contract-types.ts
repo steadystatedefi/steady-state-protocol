@@ -1,6 +1,6 @@
 import * as types from '../types';
 
-import { wrap, mock, iface, loadFactories } from './factory-wrapper';
+import { wrap, mock, iface, loadFactories, NamedAttachable } from './factory-wrapper';
 
 export const Factories = {
   IERC20: iface(types.IERC20Detailed__factory),
@@ -46,3 +46,15 @@ export const Factories = {
 };
 
 loadFactories(Factories);
+
+export function findFactory(name: string): NamedAttachable {
+  return Factories[name] as NamedAttachable;
+}
+
+export function getFactory(name: string): NamedAttachable {
+  const factory = Factories[name] as NamedAttachable;
+  if (!factory) {
+    throw new Error(`Unknown type factory name: ${name}`);
+  }
+  return factory;
+}

@@ -157,7 +157,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
     v = coverage.totalCovered - _burntDrawdown;
-    v = (v + coverage.pendingCovered) - added;
+    v += coverage.pendingCovered + _excessCoverage;
+    v = v - added;
 
     {
       int256 va = _valueAdjustment;
@@ -168,7 +169,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
       }
     }
     v += coverage.totalPremium - _burntPremium;
-    v += _excessCoverage;
   }
 
   function totalSupplyValue() public view returns (uint256) {
@@ -195,14 +195,13 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     public
     view
     returns (
-      uint256 coverage,
-      uint256 scaled,
-      uint256 premium
+      uint256 value,
+      uint256 balance,
+      uint256 swappable
     )
   {
-    scaled = balanceOf(account);
-    coverage = scaled.rayMul(exchangeRate());
-    premium;
+    balance = balanceOf(account);
+    swappable = value = balance.rayMul(exchangeRate());
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
