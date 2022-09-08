@@ -119,22 +119,18 @@ makeSuite('Imperpetual Index Pool MCD', (testEnv: TestEnv) => {
   });
 
   it('Cancel all coverage (MCD will cause not entire coverage to be paid out)', async () => {
+    await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
+
     for (let i = 0; i < insureds.length; i++) {
       const insured = insureds[i];
-      if ((await pool.statusOf(insured.address)) < 6) {
-        continue;
-      }
       await insured.reconcileWithInsurers(0, 0);
       const receiver = createRandomAddress();
       const payoutAmount = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
-      if (payoutAmount.eq(0)) {
-        continue;
-      }
 
       await insured.cancelCoverage(receiver, payoutAmount);
       {
         const bal = await cc.balanceOf(receiver);
-        expect(bal).lt(payoutAmount);
+        expect(bal).lte(payoutAmount);
         expect(bal).gte(payoutAmount.mul(100 - drawdownPct).div(100));
       }
     }
