@@ -9,7 +9,7 @@ import '../interfaces/IJoinable.sol';
 import './WeightedPoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
-contract JoinablePoolExtension is IJoinableBase, ICancellableCoverageDemand, WeightedPoolStorage {
+contract JoinablePoolExtension is IJoinableBase, IDemandableCoverage, WeightedPoolStorage {
   constructor(
     IAccessController acl,
     uint256 unitSize,
@@ -35,6 +35,28 @@ contract JoinablePoolExtension is IJoinableBase, ICancellableCoverageDemand, Wei
 
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
+  }
+
+  function addCoverageDemand(
+    uint256 unitCount,
+    uint256 premiumRate,
+    bool hasMore,
+    uint256 loopLimit
+  ) external override onlyActiveInsured returns (uint256 addedCount) {
+    AddCoverageDemandParams memory params;
+    params.insured = msg.sender;
+    Arithmetic.require(premiumRate == (params.premiumRate = uint40(premiumRate)));
+    params.loopLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemand, loopLimit);
+    params.hasMore = hasMore;
+    Arithmetic.require(unitCount <= type(uint64).max);
+
+    addedCount = unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
+    //If there was excess coverage before adding this demand, immediately assign it
+    if (_excessCoverage > 0 && internalCanAddCoverage()) {
+      // avoid addCoverage code to be duplicated within WeightedPoolExtension to reduce contract size
+      WeightedPoolBase(address(this)).pushCoverageExcess();
+    }
+    return addedCount;
   }
 
   function cancelCoverageDemand(

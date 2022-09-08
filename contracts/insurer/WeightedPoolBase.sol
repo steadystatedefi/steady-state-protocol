@@ -18,6 +18,7 @@ abstract contract WeightedPoolBase is
   IInsurerPoolBase,
   IPremiumActuary,
   IYieldStakeAsset,
+  IDemandableCoverage,
   Delegator,
   ERC1363ReceiverBase,
   WeightedPoolStorage,
@@ -39,8 +40,14 @@ abstract contract WeightedPoolBase is
 
   // solhint-disable-next-line payable-fallback
   fallback() external {
-    // all IAddableCoverageDistributor etc functions should be delegated to the extension
+    // all IReceivableCoverage etc functions should be delegated to the extension
     _delegate(_extension);
+  }
+
+  /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
+  /// @return The coverage unit size
+  function coverageUnitSize() external view override returns (uint256) {
+    return internalUnitSize();
   }
 
   function charteredDemand() external pure override returns (bool) {
@@ -67,11 +74,20 @@ abstract contract WeightedPoolBase is
     _delegate(_joinExtension);
   }
 
+  function addCoverageDemand(
+    uint256,
+    uint256,
+    bool,
+    uint256
+  ) external override returns (uint256) {
+    _delegate(_joinExtension);
+  }
+
   function cancelCoverageDemand(
     address,
     uint256,
     uint256
-  ) external returns (uint256) {
+  ) external override returns (uint256, uint256[] memory) {
     _delegate(_joinExtension);
   }
 
