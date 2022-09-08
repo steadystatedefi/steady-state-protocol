@@ -508,7 +508,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
   });
 
   it('Drawdown User Premium', async () => {
-    const premFund = await Factories.MockPremiumFund.deploy(cc.address);
+    const premFund = (await Factories.MockPremiumFund.deploy(cc.address)).connect(user);
     await premFund.registerPremiumActuary(pool.address, true);
 
     let drawdown = await pool.callStatic.collectDrawdownPremium();
@@ -550,5 +550,25 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     expect(await pool.callStatic.collectDrawdownPremium()).eq(amtMinted.mul(drawdownPct).div(100));
   });
 
-  // TODO: Effects of MCD on insureds for claims (and test when there aren't enough funds when all claim)
+  it('Cancel all coverage (MCD will cause not entire coverage to be paid out)', async () => {
+    for (let i = 0; i < insureds.length; i++) {
+      const insured = insureds[i];
+      if ((await pool.statusOf(insured.address)) < 6) {
+        continue;
+      }
+      await insured.reconcileWithInsurers(0, 0);
+      const receiver = createRandomAddress();
+      const payoutAmount = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
+      if (payoutAmount.eq(0)) {
+        continue;
+      }
+
+      await insured.cancelCoverage(receiver, payoutAmount);
+      {
+        const bal = await cc.balanceOf(receiver);
+        expect(bal).lt(payoutAmount);
+        expect(bal).gte(payoutAmount.mul(100 - drawdownPct).div(100));
+      }
+    }
+  });
 });
