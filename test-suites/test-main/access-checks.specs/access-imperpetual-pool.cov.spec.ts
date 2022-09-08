@@ -5,7 +5,7 @@ import { formatBytes32String } from 'ethers/lib/utils';
 import { AccessFlags } from '../../../helpers/access-flags';
 import { MAX_UINT } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
-import { IApprovalCatalog, ImperpetualPoolExtension } from '../../../types';
+import { IApprovalCatalog, ICancellableCoverage, ICoverageDistributor } from '../../../types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
@@ -18,7 +18,8 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
   let user2: SignerWithAddress;
   let user3: SignerWithAddress;
 
-  let ext: ImperpetualPoolExtension;
+  let cancellableCoverage: ICancellableCoverage;
+  let coverageDistributor: ICoverageDistributor;
 
   const params: WeightedPoolParamsStruct = {
     maxAdvanceUnits: 100_000_000,
@@ -41,7 +42,8 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     state = await deployAccessControlState(deployer);
 
     await setInsurer(state, deployer, user2.address);
-    ext = Factories.ImperpetualPoolExtension.attach(state.insurer.address);
+    cancellableCoverage = Factories.ICancellableCoverage.attach(state.insurer.address);
+    coverageDistributor = Factories.ICoverageDistributor.attach(state.insurer.address);
 
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN | AccessFlags.LP_DEPLOY);
     await state.cc.registerInsurer(state.insurer.address);
@@ -72,11 +74,11 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
 
     await state.controller.revokeRoles(deployer.address, AccessFlags.INSURER_OPS);
     await expect(state.insurer.cancelCoverageDemand(state.insured.address, 1, MAX_UINT)).reverted;
-    await expect(ext.cancelCoverage(state.insured.address, 0)).reverted;
+    await expect(cancellableCoverage.cancelCoverage(state.insured.address, 0)).reverted;
 
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_OPS);
     await state.insurer.cancelCoverageDemand(state.insured.address, 1, MAX_UINT);
-    await ext.cancelCoverage(state.insured.address, 0);
+    await cancellableCoverage.cancelCoverage(state.insured.address, 0);
   });
 
   it('ROLE: Insurer Admin', async () => {
@@ -107,7 +109,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await expect(state.insurer.updateCoverageOnReconcile(state.insured.address, 0, 0)).reverted;
 
     await state.insured.reconcileWithInsurers(0, 0);
-    await ext.cancelCoverage(state.insured.address, 0);
+    await cancellableCoverage.cancelCoverage(state.insured.address, 0);
   });
 
   it('ROLE: onlyActiveInsureds', async () => {
@@ -118,8 +120,8 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     {
       await expect(state.insured.pushCoverageDemandTo([state.insurer.address], [11])).reverted;
       await expect(state.insurer.cancelCoverageDemand(state.insured.address, 1, MAX_UINT)).reverted;
-      await expect(ext.receiveDemandedCoverage(state.insured.address, MAX_UINT)).reverted;
-      await expect(ext.cancelCoverage(state.insured.address, 0)).reverted;
+      await expect(coverageDistributor.receiveDemandedCoverage(state.insured.address, MAX_UINT)).reverted;
+      await expect(cancellableCoverage.cancelCoverage(state.insured.address, 0)).reverted;
     }
 
     const claim: IApprovalCatalog.ApprovedClaimStruct = {
