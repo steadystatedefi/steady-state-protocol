@@ -5,13 +5,12 @@ import { BigNumber, BigNumberish } from 'ethers';
 
 import { HALF_RAY, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
-import { DRE } from '../../helpers/dre';
 import { advanceTimeAndBlock } from '../../helpers/runtime-utils';
 import { IInsurerPool, MockCollateralCurrency, MockImperpetualPool, MockInsuredPool } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-makeSuite.only('Imperpetual Index Pool MCD', (testEnv: TestEnv) => {
+makeSuite('Imperpetual Index Pool MCD', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const drawdownPct = 10; // 10% constant inside MockImperpetualPool
   let demanded: BigNumberish;
