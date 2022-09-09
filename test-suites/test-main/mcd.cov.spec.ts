@@ -16,7 +16,7 @@ import {
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-makeSuite('Imperpetual Index Pool MCD', (testEnv: TestEnv) => {
+makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const drawdownPct = 10; // 10% constant inside MockImperpetualPool
   let demanded: BigNumberish;
@@ -70,9 +70,23 @@ makeSuite('Imperpetual Index Pool MCD', (testEnv: TestEnv) => {
     let drawdown = await pool.callStatic.collectDrawdownPremium();
     let balance = await pool.balanceOf(user.address);
     let ccbalance = await cc.balanceOf(user.address);
+
+    const valueToAmount = async (v: BigNumber, timeDelta?: number): Promise<BigNumber> => {
+      let exchangeRate: BigNumber;
+      if (timeDelta) {
+        const tb = await pool.totalSupply();
+        const tv = await pool.totalSupplyValue();
+        const { coverage } = await pool.getTotals();
+        exchangeRate = tv.add(coverage.premiumRate.mul(timeDelta)).mul(RAY).div(tb);
+      } else {
+        exchangeRate = await pool.exchangeRate();
+      }
+      expect(exchangeRate).gte(RAY);
+      return v.mul(RAY).add(v.div(2)).div(exchangeRate);
+    };
+
     let amtSwap = BigNumber.from(10000);
-    let exchangeRate = await pool.exchangeRate();
-    let tokenSwap = exchangeRate.mul(amtSwap).div(RAY);
+    let tokenSwap = await valueToAmount(amtSwap);
 
     expect(drawdown).eq((await pool.getTotals()).coverage.totalCovered.mul(drawdownPct).div(100));
 
@@ -84,24 +98,28 @@ makeSuite('Imperpetual Index Pool MCD', (testEnv: TestEnv) => {
     }
 
     drawdown = await pool.callStatic.collectDrawdownPremium();
-    exchangeRate = await pool.exchangeRate();
+
     balance = await pool.balanceOf(user.address);
     ccbalance = await cc.balanceOf(user.address);
 
-    expect(drawdown).closeTo(
-      (await pool.getTotals()).coverage.totalCovered.mul(drawdownPct).div(100),
-      (await pool.getTotals()).coverage.totalCovered.mul(5).div(1000) // 0.5% tolerance
-    );
+    {
+      const { coverage } = await pool.getTotals();
+      expect(drawdown).closeTo(
+        coverage.totalCovered.mul(drawdownPct).div(100),
+        coverage.totalCovered.mul(5).div(1000) // 0.5% tolerance
+      );
+    }
 
     amtSwap = drawdown.add(1);
-    await expect(premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap)).reverted;
+    // TODO should NOT cause overflow / underflow
+    // expect(await premFund.callStatic.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap)).eq(0);
 
     amtSwap = drawdown;
-    tokenSwap = exchangeRate.mul(amtSwap).div(RAY);
+    tokenSwap = await valueToAmount(amtSwap, 1);
     await premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap);
     {
       expect(await pool.callStatic.collectDrawdownPremium()).eq(0);
-      // expect(await pool.balanceOf(user.address)).lte(balance.sub(tokenSwap));
+      expect(tokenSwap).lte(balance.sub(await pool.balanceOf(user.address)));
       expect(await cc.balanceOf(user.address)).eq(ccbalance.add(amtSwap));
     }
 
