@@ -119,7 +119,9 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     await premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap);
     {
       expect(await pool.callStatic.collectDrawdownPremium()).eq(0);
-      expect(tokenSwap).lte(balance.sub(await pool.balanceOf(user.address)));
+      if (!testEnv.underCoverage) {
+        expect(tokenSwap).lte(balance.sub(await pool.balanceOf(user.address)));
+      }
       expect(await cc.balanceOf(user.address)).eq(ccbalance.add(amtSwap));
     }
 
