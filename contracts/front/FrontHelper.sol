@@ -7,6 +7,7 @@ import '../interfaces/IProxyFactory.sol';
 import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IPremiumActuary.sol';
+import '../interfaces/IPremiumSource.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../funds/interfaces/ICollateralFund.sol';
 import '../premium/interfaces/IPremiumFund.sol';
@@ -186,21 +187,36 @@ contract FrontHelper is AccessHelper {
     }
   }
 
-  function batchCharteredReceivableByInsured(address insured, address[] memory insurers)
+  function getInsuredReconcileInfo(address[] calldata insureds)
     external
     view
-    returns (address[] memory, ReceivableByReconcile[] memory c)
+    returns (
+      address[] memory premiumTokens,
+      address[][] memory chartered,
+      ReceivableByReconcile[][] memory receivables
+    )
   {
-    if (insurers.length == 0) {
-      (, insurers) = IInsuredPool(insured).getInsurers();
-    }
+    premiumTokens = new address[](insureds.length);
+    chartered = new address[][](insureds.length);
+    receivables = new ReceivableByReconcile[][](insureds.length);
 
-    c = new ReceivableByReconcile[](insurers.length);
-    for (uint256 i = insurers.length; i > 0; ) {
+    for (uint256 i = insureds.length; i > 0; ) {
       i--;
+      address insured = insureds[i];
       // slither-disable-next-line calls-loop
-      c[i] = IReconcilableInsuredPool(insured).receivableByReconcileWithInsurer(insurers[i]);
+      premiumTokens[i] = IPremiumSource(insured).premiumToken();
+
+      // slither-disable-next-line calls-loop
+      (, chartered[i]) = IInsuredPool(insured).getInsurers();
+
+      address[] memory insurers = chartered[i];
+      ReceivableByReconcile[] memory c = receivables[i] = new ReceivableByReconcile[](insurers.length);
+
+      for (uint256 j = insurers.length; j > 0; ) {
+        j--;
+        // slither-disable-next-line calls-loop
+        c[j] = IReconcilableInsuredPool(insured).receivableByReconcileWithInsurer(insurers[j]);
+      }
     }
-    return (insurers, c);
   }
 }
