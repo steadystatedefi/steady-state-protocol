@@ -118,11 +118,11 @@ abstract contract WeightedPoolBase is
     address drawdownRecepient
   ) internal virtual;
 
-  function collectDrawdownPremium() external override onlyPremiumDistributor returns (uint256) {
+  function collectDrawdownPremium() external override onlyPremiumDistributor returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
     return internalCollectDrawdownPremium();
   }
 
-  function internalCollectDrawdownPremium() internal virtual returns (uint256);
+  function internalCollectDrawdownPremium() internal virtual returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue);
 
   event SubrogationAdded(uint256 value);
 

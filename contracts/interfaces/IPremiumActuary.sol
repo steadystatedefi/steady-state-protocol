@@ -6,7 +6,7 @@ import './ICollateralized.sol';
 interface IPremiumActuary is ICollateralized {
   function premiumDistributor() external view returns (address);
 
-  function collectDrawdownPremium() external returns (uint256 availablePremiumValue);
+  function collectDrawdownPremium() external returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue);
 
   function burnPremium(
     address account,

@@ -90,7 +90,13 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       State.require(config.state < ActuaryState.Active);
       Value.require(IPremiumActuary(actuary).collateral() == cc);
       if (_markTokenAsPresent(cc)) {
-        _balancers[actuary].configs[cc].price = uint152(WadRayMath.WAD);
+        _balancers[actuary].configs[cc] = BalancerLib2.AssetConfig({
+          price: uint152(WadRayMath.WAD),
+          w: 0, // flat rare
+          n: 1, // TODO BalancerLib2.SP_EXTERNAL_N_BASE,
+          flags: BalancerLib2.BF_EXTERNAL,
+          spConst: 0
+        });
       }
 
       config.state = ActuaryState.Active;
@@ -453,22 +459,6 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     collectedAmount = _collectPremiumCall(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredValue);
     if (collectedAmount < requiredAmount) {
       missingValue = (requiredAmount - collectedAmount).wadMul(price);
-
-      /*
-
-      // This section of code enables use of CC as an additional way of premium payment
-
-      if (missingValue > 0) {
-        // assert(params.token != collateral());
-        uint256 collectedValue = _collectPremiumCall(params.actuary, params.source, IERC20(collateral()), missingValue, missingValue);
-
-        if (collectedValue > 0) {
-          missingValue -= collectedValue;
-          collectedAmount += collectedValue.wadDiv(price);
-        }
-      }
-
-      */
     }
   }
 
@@ -605,6 +595,15 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
+  function _drawdownFlatLimit(
+    address actuary,
+    address account,
+    uint256 maxDrawdown
+  ) private view returns (uint256) {
+    uint256 total = IERC20(actuary).totalSupply();
+    return total == 0 ? maxDrawdown : (maxDrawdown * IERC20(actuary).balanceOf(account)).divUp(total);
+  }
+
   function swapAsset(
     address actuary,
     address account,
@@ -619,11 +618,10 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
 
     uint256 fee;
     address burnReceiver;
-    uint256 drawdownValue = IPremiumActuary(actuary).collectDrawdownPremium();
-    BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
 
     if (collateral() == targetToken) {
-      (tokenAmount, fee) = balancer.swapExternalAsset(targetToken, valueToSwap, minAmount, drawdownValue);
+      (tokenAmount, fee) = _swapExtAsset(actuary, account, valueToSwap, minAmount);
+
       if (tokenAmount > 0) {
         if (fee == 0) {
           // use a direct transfer when no fees
@@ -634,7 +632,8 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
         }
       }
     } else {
-      (tokenAmount, fee) = balancer.swapAsset(_replenishParams(actuary, targetToken), valueToSwap, minAmount, drawdownValue);
+      BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
+      (tokenAmount, fee) = balancer.swapAsset(_replenishParams(actuary, targetToken), valueToSwap, minAmount);
     }
 
     if (tokenAmount > 0) {
@@ -649,12 +648,15 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
+  event FeeCollected(address indexed token, uint256 amount);
+
   function _addFee(
     ActuaryConfig storage,
     address targetToken,
     uint256 fee
   ) private {
     Arithmetic.require((_tokens[targetToken].collectedFees += uint128(fee)) >= fee);
+    emit FeeCollected(targetToken, fee);
   }
 
   function availableFee(address targetToken) external view returns (uint256) {
@@ -705,7 +707,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     _ensureActiveActuary(actuary);
 
     uint256[] memory fees;
-    (tokenAmounts, fees) = _swapTokens(actuary, account, instructions, IPremiumActuary(actuary).collectDrawdownPremium());
+    (tokenAmounts, fees) = _swapTokens(actuary, account, instructions);
     ActuaryConfig storage config = _configs[actuary];
 
     for (uint256 i = 0; i < instructions.length; i++) {
@@ -723,12 +725,9 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   function _swapTokens(
     address actuary,
     address account,
-    SwapInstruction[] calldata instructions,
-    uint256 drawdownValue
+    SwapInstruction[] calldata instructions
   ) private returns (uint256[] memory tokenAmounts, uint256[] memory fees) {
     BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
-
-    uint256 drawdownBalance = drawdownValue;
 
     tokenAmounts = new uint256[](instructions.length);
     fees = new uint256[](instructions.length);
@@ -747,14 +746,18 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       (total.accum, total.rate, total.updatedAt) = (totalOrig.accum, totalOrig.rate, totalOrig.updatedAt);
 
       if (collateral() == instructions[i].targetToken) {
-        (tokenAmounts[i], fees[i]) = _swapExtTokenInBatch(balancer, instructions[i], drawdownBalance, total);
+        // drawdown is only handled once per batch to incease cost of multiple drawdowns
+        if (totalExtValue > 0) {
+          continue;
+        }
+
+        (tokenAmounts[i], fees[i]) = _swapExtTokenInBatch(instructions[i], actuary, account, total);
 
         if (tokenAmounts[i] > 0) {
           totalExtValue += instructions[i].valueToSwap;
-          drawdownBalance -= tokenAmounts[i];
         }
       } else {
-        (tokenAmounts[i], fees[i]) = _swapTokenInBatch(balancer, instructions[i], drawdownValue, params, total);
+        (tokenAmounts[i], fees[i]) = _swapTokenInBatch(balancer, instructions[i], params, total);
 
         if (tokenAmounts[i] > 0) {
           _mergeTotals(totalSum, totalOrig, total);
@@ -781,21 +784,50 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   function _swapTokenInBatch(
     BalancerLib2.AssetBalancer storage balancer,
     SwapInstruction calldata instruction,
-    uint256 drawdownValue,
     BalancerLib2.ReplenishParams memory params,
     Balances.RateAcc memory total
   ) private returns (uint256 tokenAmount, uint256 fee) {
     params.token = instruction.targetToken;
-    (tokenAmount, fee, ) = balancer.swapAssetInBatch(params, instruction.valueToSwap, instruction.minAmount, drawdownValue, total);
+    (tokenAmount, fee, ) = balancer.swapAssetInBatch(params, instruction.valueToSwap, instruction.minAmount, total);
   }
 
   function _swapExtTokenInBatch(
-    BalancerLib2.AssetBalancer storage balancer,
     SwapInstruction calldata instruction,
-    uint256 drawdownBalance,
+    address actuary,
+    address account,
     Balances.RateAcc memory total
-  ) private view returns (uint256 tokenAmount, uint256 fee) {
-    return balancer.swapExternalAssetInBatch(instruction.targetToken, instruction.valueToSwap, instruction.minAmount, drawdownBalance, total);
+  ) private returns (uint256 tokenAmount, uint256 fee) {
+    (, uint256 drawdownBalance) = IPremiumActuary(actuary).collectDrawdownPremium();
+    if (drawdownBalance > 0) {
+      uint256 drawdownLimit = _drawdownFlatLimit(actuary, account, drawdownBalance);
+      BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
+
+      (tokenAmount, fee) = balancer.swapExternalAssetInBatch(
+        instruction.targetToken,
+        instruction.valueToSwap,
+        instruction.minAmount,
+        drawdownBalance,
+        drawdownLimit,
+        total
+      );
+
+      Sanity.require(drawdownBalance >= tokenAmount);
+    }
+  }
+
+  function _swapExtAsset(
+    address actuary,
+    address account,
+    uint256 valueToSwap,
+    uint256 minAmount
+  ) private returns (uint256 tokenAmount, uint256 fee) {
+    (, uint256 availDrawdown) = IPremiumActuary(actuary).collectDrawdownPremium();
+    if (availDrawdown > 0) {
+      uint256 drawdownLimit = _drawdownFlatLimit(actuary, account, availDrawdown);
+      BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
+
+      (tokenAmount, fee) = balancer.swapExternalAsset(collateral(), valueToSwap, minAmount, availDrawdown, drawdownLimit);
+    }
   }
 
   function _mergeValue(

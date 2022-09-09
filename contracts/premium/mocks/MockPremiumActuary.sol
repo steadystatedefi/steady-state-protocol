@@ -30,8 +30,8 @@ contract MockPremiumActuary is IPremiumActuary {
     drawdown = amount;
   }
 
-  function collectDrawdownPremium() external view override returns (uint256 availablePremiumValue) {
-    return drawdown;
+  function collectDrawdownPremium() external view override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
+    return (drawdown, drawdown);
   }
 
   function burnPremium(
@@ -61,5 +61,13 @@ contract MockPremiumActuary is IPremiumActuary {
 
   function setRate(address insured, uint256 rate) external {
     IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, 0, 0, rate);
+  }
+
+  function totalSupply() external view returns (uint256) {
+    return drawdown;
+  }
+
+  function balanceOf(address) external view returns (uint256) {
+    return drawdown;
   }
 }

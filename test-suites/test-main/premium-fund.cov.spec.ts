@@ -482,6 +482,8 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       minAmount: swapAmtMin,
       recipient: user.address,
     });
+
+    // 2nd drawdown instruction will be ignored
     swapInstructions.push({
       valueToSwap: swapAmt,
       targetToken: cc.address,
@@ -493,8 +495,8 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     {
       const userBal = await cc.balanceOf(user.address);
-      expect(userBal).gte(bal.add(swapAmtMin.mul(2)));
-      expect(userBal).lte(bal.add(swapAmt * 2));
+      expect(userBal).gte(bal.add(swapAmtMin));
+      expect(userBal).lte(bal.add(swapAmt));
     }
   });
 

@@ -78,8 +78,7 @@ contract MockBalancerLib2 {
     (amount, fee) = _poolBalance.swapAsset(
       BalancerLib2.ReplenishParams({actuary: address(0), source: address(0), token: token, replenishFn: _replenishFn}),
       value,
-      minAmount,
-      0
+      minAmount
     );
     emit TokenSwapped(amount, fee);
   }
