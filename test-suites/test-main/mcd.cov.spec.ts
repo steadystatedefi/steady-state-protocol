@@ -33,7 +33,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
     const insured = await Factories.MockInsuredPool.deploy(
       cc.address,
-      100000 * unitSize,
+      4000 * unitSize,
       1e12,
       10 * unitSize,
       premiumToken.address
@@ -141,6 +141,9 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
   it('Cancel all coverage (MCD will cause not entire coverage to be paid out)', async () => {
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
 
+    const drawdown = await pool.callStatic.collectDrawdownPremium();
+    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, drawdown);
+
     for (let i = 0; i < insureds.length; i++) {
       const insured = insureds[i];
       await insured.reconcileWithInsurers(0, 0);
@@ -150,6 +153,8 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       await insured.cancelCoverage(receiver, payoutAmount);
       {
         const bal = await cc.balanceOf(receiver);
+        console.log('payoutAmt', payoutAmount);
+        console.log('bal', bal);
         expect(bal).lte(payoutAmount);
         expect(bal).gte(payoutAmount.mul(100 - drawdownPct).div(100));
       }
