@@ -153,11 +153,15 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       await insured.cancelCoverage(receiver, payoutAmount);
       {
         const bal = await cc.balanceOf(receiver);
-        console.log('payoutAmt', payoutAmount);
-        console.log('bal', bal);
-        expect(bal).lte(payoutAmount);
-        expect(bal).gte(payoutAmount.mul(100 - drawdownPct).div(100));
+        // expect(bal).lte(payoutAmount);
+        // expect(bal).gte(payoutAmount.mul(100 - drawdownPct).div(100));
+        expect(bal).eq(payoutAmount.mul(100 - drawdownPct).div(100));
       }
     }
+
+    const { coverage } = await pool.getTotals();
+    expect(coverage.totalDemand).eq(0);
+    expect(coverage.totalCovered).eq(0);
+    expect(await pool.callStatic.collectDrawdownPremium()).eq(0);
   });
 });
