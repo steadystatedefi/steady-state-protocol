@@ -5,7 +5,7 @@ import { BigNumber } from 'ethers';
 import { WAD, ZERO_ADDRESS } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
-import { MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20, PremiumFundBase } from '../../types';
+import { MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20, IPremiumFund } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
@@ -306,7 +306,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     amt2 = BigNumber.from(200);
     minAmt1 = amt1.mul(95).div(100);
     minAmt2 = amt2.mul(2).mul(95).div(100);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: amt1,
       targetToken: token1.address,
@@ -382,7 +382,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     const amt1 = BigNumber.from(1500);
     const minAmt1 = amt1.mul(95).div(100);
     const token1bal = await token1.balanceOf(user.address);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: amt1,
       targetToken: token1.address,
@@ -414,7 +414,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     const amt1 = BigNumber.from(1500);
     const minAmt1 = amt1.mul(95).div(100);
     const token1bal = await token1.balanceOf(user.address);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: amt1,
       targetToken: token1.address,
@@ -467,7 +467,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     swapAmt = 400;
     swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: swapAmt,
       targetToken: cc.address,
@@ -523,7 +523,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await fund.syncAsset(actuary.address, 0, token1.address);
 
     {
-      const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+      const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
       swapInstructions.push({
         valueToSwap: amt1,
         targetToken: cc.address,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.10;
 
 import '../tools/math/Math.sol';
 import '../tools/math/WadRayMath.sol';
@@ -12,6 +12,7 @@ library BalancerLib2 {
   using Math for uint256;
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
+  using CalcConfig for CalcConfigValue;
 
   struct AssetBalance {
     uint128 accumAmount; // amount of asset
@@ -20,40 +21,17 @@ library BalancerLib2 {
   }
 
   struct AssetBalancer {
-    mapping(address => AssetBalance) balances; // [token] total balance and rate of all sources using this token
     Balances.RateAcc totalBalance; // total VALUE balance and VALUE rate of all sources
+    mapping(address => AssetBalance) balances; // [token] total balance and rate of all sources using this token
     mapping(address => AssetConfig) configs; // [token] token balancing configuration
     uint160 spConst; // value, for (BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
     uint32 spFactor; // rate multiplier, for (BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
   }
 
   struct AssetConfig {
-    uint144 price; // target price, wad-multiplier
-    uint64 w; // [0..1] wad, fee control, uint64
-    uint32 n; // rate multiplier, for (!BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
-    uint16 flags; // starvation point modes and asset states
+    CalcConfigValue calc;
     uint160 spConst; // value, for (!BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
   }
-
-  uint8 private constant FINISHED_OFFSET = 8;
-
-  uint16 internal constant BF_SPM_GLOBAL = 1 << 0;
-  uint16 internal constant BF_SPM_CONSTANT = 1 << 1;
-  uint16 internal constant BF_SPM_MAX_WITH_CONST = 1 << 2; // only applicable with BF_SPM_CONSTANT
-
-  uint16 internal constant BF_AUTO_REPLENISH = 1 << 6; // pull a source at every swap
-  uint16 internal constant BF_FINISHED = 1 << 7; // no more sources for this token
-
-  uint16 internal constant BF_SPM_MASK = BF_SPM_GLOBAL | BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST;
-  uint16 internal constant BF_SPM_F_MASK = BF_SPM_MASK << FINISHED_OFFSET;
-
-  // uint16 internal constant BF_SPM_F_GLOBAL = BF_SPM_GLOBAL << FINISHED_OFFSET;
-  // uint16 internal constant BF_SPM_F_CONSTANT = BF_SPM_CONSTANT << FINISHED_OFFSET;
-
-  uint32 internal constant SP_EXTERNAL_N_BASE = 1_00_00;
-
-  uint16 internal constant BF_EXTERNAL = 1 << 14;
-  uint16 internal constant BF_SUSPENDED = 1 << 15; // token is suspended
 
   struct CalcParams {
     uint256 sA; // amount of an asset at starvation
@@ -101,9 +79,8 @@ library BalancerLib2 {
     Arithmetic.require((total.accum += uint128(assetAmount)) >= assetAmount);
 
     // amount EQUALS value
-    (CalcParams memory c, uint256 flags) = _calcParams(p, assetAmount.boundedSub(assetLimit), true, p.configs[token], WadRayMath.WAD);
-    State.require(flags & BF_EXTERNAL != 0);
-    // TODO c.sA >>= SP_EXTERNAL_N_SHIFT;
+    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, assetAmount.boundedSub(assetLimit), true, p.configs[token], WadRayMath.WAD);
+    State.require(flags.isExternal());
 
     AssetBalance memory balance;
     balance.accumAmount = uint128(assetAmount);
@@ -134,12 +111,14 @@ library BalancerLib2 {
       uint256 accum,
       uint256 stravation,
       uint256 price,
-      uint256 w
+      uint256 w,
+      uint256 valueRate,
+      uint32 since
     )
   {
     AssetBalance memory balance = p.balances[token];
-    (CalcParams memory c, uint256 flags) = _calcParams(p, token, balance.rateValue, false);
-    return (flags, balance.accumAmount, c.sA, c.vA, c.w);
+    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, token, balance.rateValue, false);
+    return (flags.flags(), balance.accumAmount, c.sA, c.vA, c.w, balance.rateValue, balance.applyFrom);
   }
 
   function swapAssetInBatch(
@@ -159,9 +138,9 @@ library BalancerLib2 {
     AssetBalance memory balance = p.balances[params.token];
     total.sync(uint32(block.timestamp));
 
-    (CalcParams memory c, uint256 flags) = _calcParams(p, params.token, balance.rateValue, true);
+    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, params.token, balance.rateValue, true);
 
-    if (flags & BF_AUTO_REPLENISH != 0 || (balance.rateValue > 0 && balance.accumAmount <= c.sA)) {
+    if (flags.isAutoReplenish() || (balance.rateValue > 0 && balance.accumAmount <= c.sA)) {
       _replenishAsset(p, params, c, balance, total, 0);
       updateTotal = true;
     }
@@ -178,45 +157,44 @@ library BalancerLib2 {
     address token,
     uint256 starvationBaseValue,
     bool checkSuspended
-  ) private view returns (CalcParams memory c, uint256 flags) {
+  ) private view returns (CalcParams memory c, CalcConfigValue flags) {
     AssetConfig storage config = p.configs[token];
-    (c, flags) = _calcParams(p, starvationBaseValue, checkSuspended, config, config.price);
-    State.require(flags & BF_EXTERNAL == 0);
+    (c, flags) = _calcParams(p, starvationBaseValue, checkSuspended, config, config.calc.price());
+    State.require(!flags.isExternal());
   }
 
   function _calcParams(
     AssetBalancer storage p,
     uint256 starvationBaseValue,
     bool checkSuspended,
-    AssetConfig storage config,
+    AssetConfig storage ac,
     uint256 price
-  ) private view returns (CalcParams memory c, uint256 flags) {
-    c.w = config.w;
+  ) private view returns (CalcParams memory c, CalcConfigValue calc) {
+    calc = ac.calc;
+    c.w = calc.w();
     c.vA = price;
 
-    flags = config.flags;
-    if (flags & BF_SUSPENDED != 0 && checkSuspended) {
+    if (checkSuspended && calc.isSuspended()) {
       revert Errors.OperationPaused();
     }
-    if (flags & BF_FINISHED != 0) {
-      flags <<= FINISHED_OFFSET;
-    }
 
-    uint256 mode = flags & (BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST);
+    uint8 flags = calc.calcFlags();
+
+    uint256 mode = flags & (CalcConfig.BF_SPM_CONSTANT | CalcConfig.BF_SPM_MAX_WITH_CONST);
     if (mode != 0) {
-      c.sA = flags & BF_SPM_GLOBAL == 0 ? config.spConst : p.spConst;
+      c.sA = flags & CalcConfig.BF_SPM_GLOBAL == 0 ? ac.spConst : p.spConst;
     }
 
-    if (mode != BF_SPM_CONSTANT) {
+    if (mode != CalcConfig.BF_SPM_CONSTANT) {
       uint256 v;
       if (starvationBaseValue != 0 && c.vA != 0) {
-        v = (flags & BF_SPM_GLOBAL == 0) == (mode != BF_SPM_MAX_WITH_CONST) ? config.n : p.spFactor;
+        v = (flags & CalcConfig.BF_SPM_GLOBAL == 0) == (mode != CalcConfig.BF_SPM_MAX_WITH_CONST) ? calc.n() : p.spFactor;
         v = (starvationBaseValue * v).wadDiv(c.vA);
-        if (flags & BF_EXTERNAL != 0) {
-          v /= SP_EXTERNAL_N_BASE;
+        if (calc.isExternal()) {
+          v /= CalcConfig.SP_EXTERNAL_N_BASE;
         }
       }
-      if (flags & BF_SPM_MAX_WITH_CONST == 0 || v > c.sA) {
+      if (flags & CalcConfig.BF_SPM_MAX_WITH_CONST == 0 || v > c.sA) {
         c.sA = v;
       }
     }
@@ -471,7 +449,10 @@ library BalancerLib2 {
       v = v.divUp(assetBalance.accumAmount);
     }
     if (v != c.vA) {
-      Arithmetic.require((c.vA = p.configs[params.token].price = uint144(v)) == v);
+      Arithmetic.require((c.vA = uint144(v)) == v);
+
+      AssetConfig storage ac = p.configs[params.token];
+      ac.calc = ac.calc.setPrice(uint144(v));
     }
 
     _applyRateFromBalanceUpdate(expectedValue, assetBalance, total);
@@ -522,5 +503,118 @@ library BalancerLib2 {
       (lastRate, rate) = (rate, rate - lastRate);
       (balance.rateValue, balance.applyFrom) = (rate, _applyRateFrom(lastRate, rate, balance.applyFrom, total.updatedAt));
     }
+  }
+}
+
+type CalcConfigValue is uint256;
+
+library CalcConfig {
+  uint8 private constant FINISHED_OFFSET = 8;
+
+  uint16 internal constant BF_SPM_GLOBAL = 1 << 0;
+  uint16 internal constant BF_SPM_CONSTANT = 1 << 1;
+  uint16 internal constant BF_SPM_MAX_WITH_CONST = 1 << 2; // only applicable with BF_SPM_CONSTANT
+
+  uint16 internal constant BF_AUTO_REPLENISH = 1 << 6; // pull a source at every swap
+  uint16 internal constant BF_FINISHED = 1 << 7; // no more sources for this token
+
+  uint16 private constant BF_SPM_MASK = BF_SPM_GLOBAL | BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST;
+
+  uint32 internal constant SP_EXTERNAL_N_BASE = 1_00_00;
+
+  uint16 internal constant BF_EXTERNAL = 1 << 14;
+  uint16 internal constant BF_SUSPENDED = 1 << 15; // token is suspended
+
+  // target price, wad-multiplier
+  function price(CalcConfigValue v) internal pure returns (uint144) {
+    return uint144(CalcConfigValue.unwrap(v));
+  }
+
+  uint8 private constant OFS_W = 144;
+
+  // [0..1] wad, fee control, uint64
+  function w(CalcConfigValue v) internal pure returns (uint64) {
+    return uint64(CalcConfigValue.unwrap(v) >> OFS_W);
+  }
+
+  uint8 private constant OFS_N = OFS_W + 64;
+
+  // rate multiplier, for (!BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
+  function n(CalcConfigValue v) internal pure returns (uint32) {
+    return uint32(CalcConfigValue.unwrap(v) >> OFS_N);
+  }
+
+  uint8 private constant OFS_FLAGS = OFS_N + 32;
+
+  // starvation point modes and asset states
+  function flags(CalcConfigValue v) internal pure returns (uint16) {
+    return uint16(CalcConfigValue.unwrap(v) >> OFS_FLAGS);
+  }
+
+  function calcFlags(CalcConfigValue v) internal pure returns (uint8) {
+    uint256 u = flags(v);
+    if (u & BF_FINISHED != 0) {
+      u >>= FINISHED_OFFSET;
+    }
+    return uint8(u & BF_SPM_MASK);
+  }
+
+  function isZero(CalcConfigValue v) internal pure returns (bool) {
+    return CalcConfigValue.unwrap(v) == 0;
+  }
+
+  function newValue(
+    uint144 price_,
+    uint64 w_,
+    uint32 n_,
+    uint16 flags_
+  ) internal pure returns (CalcConfigValue) {
+    return CalcConfigValue.wrap(price_ | (uint256(w_) << OFS_W) | (uint256(n_) << OFS_N) | (uint256(flags_) << OFS_FLAGS));
+  }
+
+  function setPrice(CalcConfigValue v, uint144 price_) internal pure returns (CalcConfigValue) {
+    uint256 u = CalcConfigValue.unwrap(v) >> OFS_W;
+    return CalcConfigValue.wrap((u << OFS_W) | price_);
+  }
+
+  function _setFlag(
+    CalcConfigValue v,
+    uint256 flag,
+    bool set
+  ) private pure returns (CalcConfigValue) {
+    uint256 u = CalcConfigValue.unwrap(v);
+    return CalcConfigValue.wrap(set ? u | flag : u & ~flag);
+  }
+
+  uint256 private constant FLAG_BF_SUSPENDED = uint256(BF_SUSPENDED) << OFS_FLAGS;
+
+  function setSuspended(CalcConfigValue v, bool suspended) internal pure returns (CalcConfigValue) {
+    return _setFlag(v, FLAG_BF_SUSPENDED, suspended);
+  }
+
+  function isSuspended(CalcConfigValue v) internal pure returns (bool) {
+    return CalcConfigValue.unwrap(v) & FLAG_BF_SUSPENDED != 0;
+  }
+
+  uint256 private constant FLAG_BF_FINISHED = uint256(BF_FINISHED) << OFS_FLAGS;
+
+  function setFinished(CalcConfigValue v) internal pure returns (CalcConfigValue) {
+    return CalcConfigValue.wrap(CalcConfigValue.unwrap(v) | FLAG_BF_FINISHED);
+  }
+
+  uint256 private constant FLAG_BF_AUTO_REPLENISH = uint256(BF_AUTO_REPLENISH) << OFS_FLAGS;
+
+  function setAutoReplenish(CalcConfigValue v, bool autoReplenish) internal pure returns (CalcConfigValue) {
+    return _setFlag(v, FLAG_BF_AUTO_REPLENISH, autoReplenish);
+  }
+
+  function isAutoReplenish(CalcConfigValue v) internal pure returns (bool) {
+    return CalcConfigValue.unwrap(v) & FLAG_BF_AUTO_REPLENISH != 0;
+  }
+
+  uint256 private constant FLAG_BF_EXTERNAL = uint256(BF_EXTERNAL) << OFS_FLAGS;
+
+  function isExternal(CalcConfigValue v) internal pure returns (bool) {
+    return CalcConfigValue.unwrap(v) & FLAG_BF_EXTERNAL != 0;
   }
 }

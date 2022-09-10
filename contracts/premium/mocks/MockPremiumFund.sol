@@ -5,6 +5,7 @@ import '../PremiumFundBase.sol';
 
 contract MockPremiumFund is PremiumFundBase {
   using EnumerableSet for EnumerableSet.AddressSet;
+  using CalcConfig for CalcConfigValue;
 
   mapping(address => uint256) private _prices;
 
@@ -23,7 +24,8 @@ contract MockPremiumFund is PremiumFundBase {
   }
 
   function setAutoReplenish(address actuary, address asset) external {
-    _balancers[actuary].configs[asset].flags |= BalancerLib2.BF_AUTO_REPLENISH;
+    BalancerLib2.AssetConfig storage ac = _balancers[actuary].configs[asset];
+    ac.calc = ac.calc.setAutoReplenish(true);
   }
 
   function balancesOf(address actuary, address source) external view returns (SourceBalance memory) {

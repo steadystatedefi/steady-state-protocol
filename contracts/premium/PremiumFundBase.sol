@@ -13,6 +13,7 @@ import '../access/AccessHelper.sol';
 import '../pricing/PricingHelper.sol';
 import '../funds/Collateralized.sol';
 import '../interfaces/IPremiumDistributor.sol';
+import './interfaces/IPremiumFund.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IPremiumSource.sol';
 import '../interfaces/IInsuredPool.sol';
@@ -21,12 +22,13 @@ import './BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
-contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Collateralized {
+contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, PricingHelper, Collateralized {
   using WadRayMath for uint256;
   using SafeERC20 for IERC20;
   using BalancerLib2 for BalancerLib2.AssetBalancer;
   using Balances for Balances.RateAcc;
   using EnumerableSet for EnumerableSet.AddressSet;
+  using CalcConfig for CalcConfigValue;
 
   uint256 internal constant APPROVE_SWAP = 1 << 0;
   mapping(address => mapping(address => uint256)) private _approvals; // [account][operator]
@@ -90,13 +92,18 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       Value.require(IPremiumActuary(actuary).collateral() == cc);
       _markTokenAsPresent(cc);
 
-      BalancerLib2.AssetConfig memory cdc = _balancers[address(0)].configs[cc];
-      if (cdc.flags == 0) {
-        cdc.flags = BalancerLib2.BF_EXTERNAL;
-        cdc.n = BalancerLib2.SP_EXTERNAL_N_BASE;
-        cdc.price = uint144(WadRayMath.WAD);
+      BalancerLib2.AssetConfig memory tac = _balancers[address(0)].configs[cc];
+      if (tac.calc.isZero()) {
+        tac.calc = CalcConfig.newValue(
+          uint144(WadRayMath.WAD),
+          0,
+          // by default a user can swap for free 1/5 (20%) of availableDrawdown * user's share in the insurer
+          CalcConfig.SP_EXTERNAL_N_BASE / 5,
+          CalcConfig.BF_EXTERNAL
+        );
       }
-      _balancers[actuary].configs[cc] = cdc;
+      _balancers[actuary].configs[cc] = tac;
+      _balancers[actuary].configs[address(0)] = _balancers[address(0)].configs[address(0)];
 
       config.state = ActuaryState.Active;
       _tokenActuaries[cc].add(actuary);
@@ -106,6 +113,14 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       _tokenActuaries[cc].remove(actuary);
       emit ActuaryRemoved(actuary);
     }
+  }
+
+  function _setAssetConfig(
+    address actuary,
+    address token,
+    BalancerLib2.AssetConfig memory ac
+  ) private {
+    _balancers[actuary].configs[token] = ac;
   }
 
   function setActuaryGlobals(
@@ -126,18 +141,31 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   function setAssetConfig(
     address actuary,
     address asset,
-    BalancerLib2.AssetConfig memory c
+    BalancerLib2.AssetConfig memory ac
   ) external aclHas(AccessFlags.INSURER_ADMIN) {
-    if (actuary == address(0)) {
-      Value.require(asset == collateral());
-      Value.require(c.flags & (BalancerLib2.BF_FINISHED | BalancerLib2.BF_EXTERNAL) == BalancerLib2.BF_EXTERNAL);
-      Value.require(c.price == WadRayMath.WAD);
+    CalcConfigValue c = ac.calc;
+    uint16 flags = c.flags() & (CalcConfig.BF_FINISHED | CalcConfig.BF_EXTERNAL);
+    Value.require(c.price() == 0);
+
+    uint144 price;
+    if (asset == collateral()) {
+      Value.require(flags == CalcConfig.BF_EXTERNAL);
+      price = uint144(WadRayMath.WAD);
     } else {
-      _ensureActuary(actuary);
-      Value.require(c.flags & (BalancerLib2.BF_FINISHED | BalancerLib2.BF_EXTERNAL) == 0);
-      Value.require((c.price == 0) == (asset == address(0))); // TODO
+      Value.require(flags == 0);
+      if (actuary == address(0)) {
+        Value.require(asset == address(0));
+      } else {
+        _ensureActuary(actuary);
+
+        CalcConfigValue cv = _balancers[actuary].configs[asset].calc;
+        Value.require(ac.calc.isSuspended() == cv.isSuspended());
+        price = cv.price();
+      }
     }
-    _balancers[actuary].configs[asset] = c;
+    ac.calc = ac.calc.setPrice(price);
+
+    _balancers[actuary].configs[asset] = ac;
   }
 
   function getAssetConfig(address actuary, address asset) external view returns (BalancerLib2.AssetConfig memory) {
@@ -169,9 +197,8 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       } else {
         State.require(config.state > ActuaryState.Unknown);
 
-        BalancerLib2.AssetConfig storage assetConfig = _balancers[actuary].configs[token];
-        uint16 flags = assetConfig.flags;
-        assetConfig.flags = paused ? flags | BalancerLib2.BF_SUSPENDED : flags & ~BalancerLib2.BF_SUSPENDED;
+        BalancerLib2.AssetConfig storage ac = _balancers[actuary].configs[token];
+        ac.calc = ac.calc.setSuspended(paused);
       }
     }
     emit ActuaryTokenPaused(actuary, token, paused);
@@ -183,7 +210,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
 
     ActuaryState state = _configs[actuary].state;
-    return state == ActuaryState.Paused || _balancers[actuary].configs[token].flags & BalancerLib2.BF_SUSPENDED != 0;
+    return state == ActuaryState.Paused || _balancers[actuary].configs[token].calc.isSuspended();
   }
 
   event ActuarySourceAdded(address indexed actuary, address indexed source, address indexed token);
@@ -205,6 +232,14 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
       _markTokenAsPresent(targetToken);
       config.sourceToken[source] = targetToken;
       _tokenActuaries[targetToken].add(actuary);
+
+      BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
+      BalancerLib2.AssetConfig memory ac = balancer.configs[address(0)];
+
+      // re-activation should keep the price
+      ac.calc = ac.calc.setPrice(balancer.configs[targetToken].calc.price());
+      balancer.configs[targetToken] = ac;
+
       emit ActuarySourceAdded(actuary, source, targetToken);
     } else {
       address targetToken = config.sourceToken[source];
@@ -239,16 +274,9 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   ) private {
     EnumerableSet.AddressSet storage activeSources = config.tokens[targetToken].activeSources;
 
-    State.require(activeSources.add(source));
-
-    if (activeSources.length() == 1) {
+    if (activeSources.add(source) && activeSources.length() == 1) {
       BalancerLib2.AssetBalance storage balance = balancer.balances[source];
-
       Sanity.require(balance.rateValue == 0);
-      // re-activation should keep price
-      uint144 price = balance.accumAmount == 0 ? 0 : balancer.configs[targetToken].price;
-      balancer.configs[targetToken] = balancer.configs[address(0)];
-      balancer.configs[targetToken].price = price;
     }
   }
 
@@ -271,7 +299,7 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
 
       if (activeSources.length() == 0) {
         Sanity.require(rate == 0);
-        balancerConfig.flags |= BalancerLib2.BF_FINISHED;
+        balancerConfig.calc = balancerConfig.calc.setFinished();
 
         allRemoved = true;
       }
@@ -593,19 +621,10 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
-  function assetBalance(address actuary, address asset)
-    external
-    view
-    returns (
-      uint256 amount,
-      uint256 stravation,
-      uint256 price,
-      uint256 feeFactor
-    )
-  {
+  function assetBalance(address actuary, address asset) external view returns (AssetBalanceInfo memory r) {
     ActuaryConfig storage config = _configs[actuary];
     if (config.state > ActuaryState.Unknown) {
-      (, amount, stravation, price, feeFactor) = _balancers[actuary].assetState(asset);
+      (, r.amount, r.stravation, r.price, r.feeFactor, r.valueRate, r.since) = _balancers[actuary].assetState(asset);
     }
   }
 
@@ -698,13 +717,6 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
         IERC20(tokens[i]).safeTransfer(recipient, fees[i] = fee);
       }
     }
-  }
-
-  struct SwapInstruction {
-    uint256 valueToSwap;
-    address targetToken;
-    uint256 minAmount;
-    address recipient;
   }
 
   function swapAssets(

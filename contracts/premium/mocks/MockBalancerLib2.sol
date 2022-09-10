@@ -29,7 +29,7 @@ contract MockBalancerLib2 {
     uint16 flags,
     uint160 spConst
   ) external {
-    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(price, w, n, flags, spConst);
+    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(CalcConfig.newValue(price, w, n, flags), spConst);
   }
 
   function setBalance(
