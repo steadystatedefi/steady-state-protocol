@@ -55,16 +55,15 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
   uint8 private constant TS_SUSPENDED = 1 << 1;
 
   struct TokenState {
-    uint128 collectedFees;
     uint8 flags;
+    uint128 collectedFees;
   }
 
   struct ActuaryConfig {
+    ActuaryState state;
     mapping(address => TokenInfo) tokens; // [token]
     mapping(address => address) sourceToken; // [source] => token
     mapping(address => SourceBalance) sourceBalances; // [source] - to support shared tokens among different sources
-    BalancerLib2.AssetConfig defaultConfig;
-    ActuaryState state;
   }
 
   mapping(address => ActuaryConfig) internal _configs; // [actuary]
@@ -89,15 +88,15 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     if (register) {
       State.require(config.state < ActuaryState.Active);
       Value.require(IPremiumActuary(actuary).collateral() == cc);
-      if (_markTokenAsPresent(cc)) {
-        _balancers[actuary].configs[cc] = BalancerLib2.AssetConfig({
-          price: uint152(WadRayMath.WAD),
-          w: 0, // flat rare
-          n: 1, // TODO BalancerLib2.SP_EXTERNAL_N_BASE,
-          flags: BalancerLib2.BF_EXTERNAL,
-          spConst: 0
-        });
+      _markTokenAsPresent(cc);
+
+      BalancerLib2.AssetConfig memory cdc = _balancers[address(0)].configs[cc];
+      if (cdc.flags == 0) {
+        cdc.flags = BalancerLib2.BF_EXTERNAL;
+        cdc.n = BalancerLib2.SP_EXTERNAL_N_BASE;
+        cdc.price = uint144(WadRayMath.WAD);
       }
+      _balancers[actuary].configs[cc] = cdc;
 
       config.state = ActuaryState.Active;
       _tokenActuaries[cc].add(actuary);
@@ -109,66 +108,83 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     }
   }
 
+  function setActuaryGlobals(
+    address actuary,
+    uint160 spConst,
+    uint32 spFactor
+  ) external aclHas(AccessFlags.INSURER_ADMIN) {
+    BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
+    balancer.spConst = spConst;
+    balancer.spFactor = spFactor;
+  }
+
+  function getActuaryGlobals(address actuary) external view returns (uint256, uint32) {
+    BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
+    return (balancer.spConst, balancer.spFactor);
+  }
+
+  function setAssetConfig(
+    address actuary,
+    address asset,
+    BalancerLib2.AssetConfig memory c
+  ) external aclHas(AccessFlags.INSURER_ADMIN) {
+    if (actuary == address(0)) {
+      Value.require(asset == collateral());
+      Value.require(c.flags & (BalancerLib2.BF_FINISHED | BalancerLib2.BF_EXTERNAL) == BalancerLib2.BF_EXTERNAL);
+      Value.require(c.price == WadRayMath.WAD);
+    } else {
+      _ensureActuary(actuary);
+      Value.require(c.flags & (BalancerLib2.BF_FINISHED | BalancerLib2.BF_EXTERNAL) == 0);
+      Value.require((c.price == 0) == (asset == address(0))); // TODO
+    }
+    _balancers[actuary].configs[asset] = c;
+  }
+
+  function getAssetConfig(address actuary, address asset) external view returns (BalancerLib2.AssetConfig memory) {
+    return _balancers[actuary].configs[asset];
+  }
+
   function getActuaryState(address actuary) external view returns (ActuaryState) {
     return _configs[actuary].state;
   }
 
-  event ActuaryPaused(address indexed actuary, bool paused);
   event ActuaryTokenPaused(address indexed actuary, address indexed token, bool paused);
-  event TokenPaused(address indexed token, bool paused);
-
-  function setPaused(address actuary, bool paused) external onlyEmergencyAdmin {
-    ActuaryConfig storage config = _configs[actuary];
-    State.require(config.state >= ActuaryState.Active);
-
-    config.state = paused ? ActuaryState.Paused : ActuaryState.Active;
-    emit ActuaryPaused(actuary, paused);
-  }
-
-  function isPaused(address actuary) public view returns (bool) {
-    return _configs[actuary].state == ActuaryState.Paused;
-  }
 
   function setPaused(
     address actuary,
     address token,
     bool paused
   ) external onlyEmergencyAdmin {
-    ActuaryConfig storage config = _configs[actuary];
-    State.require(config.state > ActuaryState.Unknown);
-    Value.require(token != address(0));
+    if (actuary == address(0)) {
+      TokenState storage state = _tokens[token];
+      uint8 flags = state.flags;
+      state.flags = paused ? flags | TS_SUSPENDED : flags & ~TS_SUSPENDED;
+    } else {
+      ActuaryConfig storage config = _configs[actuary];
 
-    BalancerLib2.AssetConfig storage assetConfig = _balancers[actuary].configs[token];
-    uint16 flags = assetConfig.flags;
-    assetConfig.flags = paused ? flags | BalancerLib2.BF_SUSPENDED : flags & ~BalancerLib2.BF_SUSPENDED;
+      if (token == address(0)) {
+        State.require(config.state >= ActuaryState.Active);
+
+        config.state = paused ? ActuaryState.Paused : ActuaryState.Active;
+      } else {
+        State.require(config.state > ActuaryState.Unknown);
+
+        BalancerLib2.AssetConfig storage assetConfig = _balancers[actuary].configs[token];
+        uint16 flags = assetConfig.flags;
+        assetConfig.flags = paused ? flags | BalancerLib2.BF_SUSPENDED : flags & ~BalancerLib2.BF_SUSPENDED;
+      }
+    }
     emit ActuaryTokenPaused(actuary, token, paused);
   }
 
   function isPaused(address actuary, address token) public view returns (bool) {
-    ActuaryState state = _configs[actuary].state;
-    if (state == ActuaryState.Active) {
-      return _balancers[actuary].configs[token].flags & BalancerLib2.BF_SUSPENDED != 0;
+    if (_tokens[token].flags & TS_SUSPENDED != 0) {
+      return true;
     }
-    return state == ActuaryState.Paused;
+
+    ActuaryState state = _configs[actuary].state;
+    return state == ActuaryState.Paused || _balancers[actuary].configs[token].flags & BalancerLib2.BF_SUSPENDED != 0;
   }
-
-  function setPausedToken(address token, bool paused) external onlyEmergencyAdmin {
-    Value.require(token != address(0));
-
-    TokenState storage state = _tokens[token];
-    uint8 flags = state.flags;
-    state.flags = paused ? flags | TS_SUSPENDED : flags & ~TS_SUSPENDED;
-    emit TokenPaused(token, paused);
-  }
-
-  function isPausedToken(address token) public view returns (bool) {
-    return _tokens[token].flags & TS_SUSPENDED != 0;
-  }
-
-  uint8 private constant SOURCE_MULTI_MODE_MASK = 3;
-  uint8 private constant SMM_SOLO = 0;
-  uint8 private constant SMM_MANY_NO_LIST = 1;
-  uint8 private constant SMM_LIST = 2;
 
   event ActuarySourceAdded(address indexed actuary, address indexed source, address indexed token);
   event ActuarySourceRemoved(address indexed actuary, address indexed source, address indexed token);
@@ -205,16 +221,14 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
     Value.require(token != IPremiumActuary(actuary).collateral());
   }
 
-  function _markTokenAsPresent(address token) private returns (bool) {
+  function _markTokenAsPresent(address token) private {
     Value.require(token != address(0));
     TokenState storage state = _tokens[token];
     uint8 flags = state.flags;
     if (flags & TS_PRESENT == 0) {
       state.flags = flags | TS_PRESENT;
       _knownTokens.push(token);
-      return true;
     }
-    return false;
   }
 
   function _addPremiumSource(
@@ -232,8 +246,8 @@ contract PremiumFundBase is IPremiumDistributor, AccessHelper, PricingHelper, Co
 
       Sanity.require(balance.rateValue == 0);
       // re-activation should keep price
-      uint152 price = balance.accumAmount == 0 ? 0 : balancer.configs[targetToken].price;
-      balancer.configs[targetToken] = config.defaultConfig;
+      uint144 price = balance.accumAmount == 0 ? 0 : balancer.configs[targetToken].price;
+      balancer.configs[targetToken] = balancer.configs[address(0)];
       balancer.configs[targetToken].price = price;
     }
   }

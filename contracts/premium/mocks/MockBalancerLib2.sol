@@ -23,7 +23,7 @@ contract MockBalancerLib2 {
 
   function setConfig(
     address asset,
-    uint152 price,
+    uint144 price,
     uint64 w,
     uint32 n,
     uint16 flags,

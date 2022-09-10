@@ -28,8 +28,8 @@ library BalancerLib2 {
   }
 
   struct AssetConfig {
-    uint152 price; // target price, wad-multiplier, uint192
-    uint64 w; // [0..1] fee control, uint64
+    uint144 price; // target price, wad-multiplier
+    uint64 w; // [0..1] wad, fee control, uint64
     uint32 n; // rate multiplier, for (!BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
     uint16 flags; // starvation point modes and asset states
     uint160 spConst; // value, for (!BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
@@ -50,8 +50,7 @@ library BalancerLib2 {
   // uint16 internal constant BF_SPM_F_GLOBAL = BF_SPM_GLOBAL << FINISHED_OFFSET;
   // uint16 internal constant BF_SPM_F_CONSTANT = BF_SPM_CONSTANT << FINISHED_OFFSET;
 
-  uint16 private constant SP_EXTERNAL_N_SHIFT = 16;
-  uint32 internal constant SP_EXTERNAL_N_BASE = uint32(1) << SP_EXTERNAL_N_SHIFT;
+  uint32 internal constant SP_EXTERNAL_N_BASE = 1_00_00;
 
   uint16 internal constant BF_EXTERNAL = 1 << 14;
   uint16 internal constant BF_SUSPENDED = 1 << 15; // token is suspended
@@ -203,16 +202,19 @@ library BalancerLib2 {
       flags <<= FINISHED_OFFSET;
     }
 
-    if (flags & BF_SPM_CONSTANT != 0) {
+    uint256 mode = flags & (BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST);
+    if (mode != 0) {
       c.sA = flags & BF_SPM_GLOBAL == 0 ? config.spConst : p.spConst;
     }
 
-    uint256 mode = flags & (BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST);
     if (mode != BF_SPM_CONSTANT) {
       uint256 v;
-      if (starvationBaseValue != 0) {
+      if (starvationBaseValue != 0 && c.vA != 0) {
         v = (flags & BF_SPM_GLOBAL == 0) == (mode != BF_SPM_MAX_WITH_CONST) ? config.n : p.spFactor;
         v = (starvationBaseValue * v).wadDiv(c.vA);
+        if (flags & BF_EXTERNAL != 0) {
+          v /= SP_EXTERNAL_N_BASE;
+        }
       }
       if (flags & BF_SPM_MAX_WITH_CONST == 0 || v > c.sA) {
         c.sA = v;
@@ -469,7 +471,7 @@ library BalancerLib2 {
       v = v.divUp(assetBalance.accumAmount);
     }
     if (v != c.vA) {
-      Arithmetic.require((c.vA = p.configs[params.token].price = uint152(v)) == v);
+      Arithmetic.require((c.vA = p.configs[params.token].price = uint144(v)) == v);
     }
 
     _applyRateFromBalanceUpdate(expectedValue, assetBalance, total);

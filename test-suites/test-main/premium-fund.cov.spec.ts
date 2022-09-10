@@ -2,7 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
-import { WAD } from '../../helpers/constants';
+import { WAD, ZERO_ADDRESS } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
 import { MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20, PremiumFundBase } from '../../types';
@@ -51,15 +51,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     token2Source = await Factories.MockPremiumSource.deploy(token2.address, cc.address);
     await token2.mint(token2Source.address, WAD.mul(100));
 
-    await fund.setDefaultConfig(
-      actuary.address,
-      0,
-      // WAD,
-      0,
-      0,
-      StarvationPointMode.Constant,
-      20
-    );
     await fund.connect(user).setApprovalsFor(testEnv.deployer.address, 1, true);
   });
 
@@ -94,6 +85,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   const registerActuaryAndSource = async () => {
     await fund.registerPremiumActuary(actuary.address, true);
+
     await actuary.addSource(sources[0].address);
     await fund.setPrice(token1.address, WAD);
     await actuary.setRate(sources[0].address, 10);
@@ -121,16 +113,16 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   it('Cant sync while token is paused GLOBALLY', async () => {
     await registerActuaryAndSource();
 
-    await fund.setPausedToken(token1.address, true);
+    await fund.setPaused(ZERO_ADDRESS, token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
-    await fund.setPausedToken(token1.address, false);
+    await fund.setPaused(ZERO_ADDRESS, token1.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
   });
 
   it('Can update/finish while token is paused GLOBALLY', async () => {
     await registerActuaryAndSource();
 
-    await fund.setPausedToken(token1.address, true);
+    await fund.setPaused(ZERO_ADDRESS, token1.address, true);
     await actuary.setRate(sources[0].address, 100);
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(100);
 
@@ -143,22 +135,22 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   it('Cant sync/swap while token is paused IN BALANCER', async () => {
     await registerActuaryAndSource();
 
-    await fund['setPaused(address,address,bool)'](actuary.address, token1.address, true);
+    await fund.setPaused(actuary.address, token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await expect(fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9)).to.be.reverted;
-    await fund['setPaused(address,address,bool)'](actuary.address, token1.address, false);
+    await fund.setPaused(actuary.address, token1.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
   });
 
   it('Cant sync/swap while actuary is paused', async () => {
     await registerActuaryAndSource();
 
-    await fund['setPaused(address,bool)'](actuary.address, true);
+    await fund.setPaused(actuary.address, ZERO_ADDRESS, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await expect(
       fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9, testEnv.covGas(30000000))
     ).to.be.reverted;
-    await fund['setPaused(address,bool)'](actuary.address, false);
+    await fund.setPaused(actuary.address, ZERO_ADDRESS, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
     await actuary.removeSource(sources[0].address);
   });
