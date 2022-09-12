@@ -10,6 +10,7 @@ contract MockPremiumActuary is IPremiumActuary {
   address public override premiumDistributor;
   address public override collateral;
   uint256 public drawdown;
+  uint256 public userShare;
 
   mapping(address => uint256) public premiumBurnt;
 
@@ -28,6 +29,11 @@ contract MockPremiumActuary is IPremiumActuary {
 
   function setDrawdown(uint256 amount) external {
     drawdown = amount;
+    userShare = amount;
+  }
+
+  function setUserShare(uint256 amount) external {
+    userShare = amount;
   }
 
   function collectDrawdownPremium() external view override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
@@ -68,6 +74,6 @@ contract MockPremiumActuary is IPremiumActuary {
   }
 
   function balanceOf(address) external view returns (uint256) {
-    return drawdown;
+    return userShare;
   }
 }

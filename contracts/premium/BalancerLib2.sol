@@ -77,9 +77,12 @@ library BalancerLib2 {
     total.sync(uint32(block.timestamp));
 
     Arithmetic.require((total.accum += uint128(assetAmount)) >= assetAmount);
+    if (assetLimit > assetAmount) {
+      assetLimit = assetAmount;
+    }
 
     // amount EQUALS value
-    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, assetAmount.boundedSub(assetLimit), true, p.configs[token], WadRayMath.WAD);
+    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, assetLimit, true, p.configs[token], WadRayMath.WAD, assetAmount);
     State.require(flags.isExternal());
 
     AssetBalance memory balance;
@@ -159,7 +162,7 @@ library BalancerLib2 {
     bool checkSuspended
   ) private view returns (CalcParams memory c, CalcConfigValue flags) {
     AssetConfig storage config = p.configs[token];
-    (c, flags) = _calcParams(p, starvationBaseValue, checkSuspended, config, config.calc.price());
+    (c, flags) = _calcParams(p, starvationBaseValue, checkSuspended, config, config.calc.price(), 0);
     State.require(!flags.isExternal());
   }
 
@@ -168,7 +171,8 @@ library BalancerLib2 {
     uint256 starvationBaseValue,
     bool checkSuspended,
     AssetConfig storage ac,
-    uint256 price
+    uint256 price,
+    uint256 extBase
   ) private view returns (CalcParams memory c, CalcConfigValue calc) {
     calc = ac.calc;
     c.w = calc.w();
@@ -187,12 +191,14 @@ library BalancerLib2 {
 
     if (mode != CalcConfig.BF_SPM_CONSTANT) {
       uint256 v;
-      if (starvationBaseValue != 0 && c.vA != 0) {
-        v = (flags & CalcConfig.BF_SPM_GLOBAL == 0) == (mode != CalcConfig.BF_SPM_MAX_WITH_CONST) ? calc.n() : p.spFactor;
-        v = (starvationBaseValue * v).wadDiv(c.vA);
-        if (calc.isExternal()) {
-          v /= CalcConfig.SP_EXTERNAL_N_BASE;
+      if (c.vA != 0) {
+        if (starvationBaseValue != 0) {
+          v = starvationBaseValue * ((flags & CalcConfig.BF_SPM_GLOBAL == 0) == (mode != CalcConfig.BF_SPM_MAX_WITH_CONST) ? calc.n() : p.spFactor);
         }
+        if (extBase > 0) {
+          v = extBase.boundedSub(v / CalcConfig.SP_EXTERNAL_N_BASE);
+        }
+        v = v.wadDiv(c.vA);
       }
       if (flags & CalcConfig.BF_SPM_MAX_WITH_CONST == 0 || v > c.sA) {
         c.sA = v;

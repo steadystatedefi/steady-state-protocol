@@ -430,7 +430,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     }
   });
 
-  it('Collateral currency', async () => {
+  it('Drawdown flat', async () => {
     const rates: BigNumber[] = [];
     for (let i = 0; i < numSources; i++) {
       const x = BigNumber.from(1000);
@@ -441,6 +441,14 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await cc.mint(actuary.address, 10000);
     await actuary.setDrawdown(drawdownAmt);
 
+    const flatPct = 1_00_00; // 100%
+    await fund.setAssetConfig(actuary.address, cc.address, {
+      spConst: 0,
+      calc: BigNumber.from(flatPct)
+        .shl(144 + 64)
+        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 20%; calc.flags = BF_EXTERNAL
+    });
+
     await advanceBlock((await currentTime()) + 10);
     await fund.syncAsset(actuary.address, 0, cc.address, testEnv.covGas(30000000));
 
@@ -450,28 +458,26 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(actuary.address)).eq(10000);
 
     let swapAmt = 200;
-    let swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
     await fund.swapAsset(
       actuary.address,
       user.address,
       user.address,
       swapAmt,
       cc.address,
-      swapAmtMin,
+      swapAmt,
       testEnv.covGas(30000000)
     );
     const bal = await cc.balanceOf(user.address);
-    expect(bal).gte(swapAmtMin);
+    expect(bal).eq(swapAmt);
     expect(await cc.balanceOf(fund.address)).eq(0);
     expect(bal.add(await cc.balanceOf(actuary.address))).eq(10000);
 
     swapAmt = 400;
-    swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
     const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: swapAmt,
       targetToken: cc.address,
-      minAmount: swapAmtMin,
+      minAmount: 0,
       recipient: user.address,
     });
 
@@ -479,17 +485,71 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     swapInstructions.push({
       valueToSwap: swapAmt,
       targetToken: cc.address,
-      minAmount: swapAmtMin,
+      minAmount: 0,
       recipient: user.address,
     });
 
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
 
-    {
-      const userBal = await cc.balanceOf(user.address);
-      expect(userBal).gte(bal.add(swapAmtMin));
-      expect(userBal).lte(bal.add(swapAmt));
+    expect(await cc.balanceOf(user.address)).eq(bal.add(swapAmt));
+    expect(await fund.availableFee(cc.address)).eq(0);
+  });
+
+  it('Drawdown curve', async () => {
+    const rates: BigNumber[] = [];
+    for (let i = 0; i < numSources; i++) {
+      const x = BigNumber.from(1000);
+      rates.push(x);
     }
+    const drawdownAmt = 1000;
+    await setupTestEnv(rates, BigNumber.from(100));
+    await cc.mint(actuary.address, 10000);
+    await actuary.setDrawdown(drawdownAmt);
+    const userDrawdownAmt = 1000 / 10;
+    await actuary.setUserShare(userDrawdownAmt);
+
+    const flatPct = 20_00; // 20%
+    await fund.setAssetConfig(actuary.address, cc.address, {
+      spConst: 0,
+      calc: BigNumber.from(flatPct)
+        .shl(144 + 64)
+        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 20%; calc.flags = BF_EXTERNAL
+    });
+
+    await advanceBlock((await currentTime()) + 10);
+    await fund.syncAsset(actuary.address, 0, cc.address, testEnv.covGas(30000000));
+
+    // NB! CC is an exeption - it is not transferred on sync, but stays on actuary's balance
+    // this simplifies claim logic for an Index Pool
+    expect(await cc.balanceOf(fund.address)).eq(0);
+    expect(await cc.balanceOf(actuary.address)).eq(10000);
+
+    const flatAmt = (userDrawdownAmt * flatPct) / 1_00_00;
+    {
+      // flat portion
+      const amount = await fund.callStatic.swapAsset(
+        actuary.address,
+        user.address,
+        user.address,
+        flatAmt,
+        cc.address,
+        0,
+        testEnv.covGas(30000000)
+      );
+      expect(amount).eq(flatAmt);
+    }
+
+    // flat + curve
+    const swapAmt = 4 * flatAmt;
+    await fund.swapAsset(actuary.address, user.address, user.address, swapAmt, cc.address, 0, testEnv.covGas(30000000));
+
+    const bal = await cc.balanceOf(user.address);
+    expect(bal).gt(flatAmt);
+    expect(bal).lt(swapAmt);
+    const fee = await fund.availableFee(cc.address);
+    expect(fee).gt(0);
+    expect(await cc.balanceOf(fund.address)).eq(fee);
+    expect(bal.add(await cc.balanceOf(actuary.address)).add(fee)).eq(10000);
   });
 
   it('Swap above balance to collect fee', async () => {
