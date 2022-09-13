@@ -337,20 +337,32 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const insured = insureds[0];
     expect(await cc.balanceOf(insured.address)).eq(0);
 
-    const { availableCoverage: expectedCollateral } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
+    const {
+      availableCoverage: expectedCollateral,
+      coverage: { totalCovered: expectedCoverage },
+    } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
     expect(expectedCollateral).gt(0);
 
     await insured.reconcileWithInsurers(0, 0); // required to cancel
 
     const receivedCollateral = await cc.balanceOf(insured.address);
     expect(receivedCollateral).eq(expectedCollateral.mul(100 - drawdownPct).div(100)); // drawdown withholded
-    expect(receivedCollateral).eq(await insured.totalReceivedCollateral());
     expect(receivedCollateral.add(await cc.balanceOf(pool.address))).eq(totalInvested);
+
+    {
+      const totalReceived = await insured.totalReceived();
+      expect(expectedCoverage).eq(totalReceived.receivedCoverage);
+      expect(receivedCollateral).eq(totalReceived.receivedCollateral);
+    }
 
     await insured.reconcileWithInsurers(0, 0); // repeated call should do nothing
 
     expect(receivedCollateral).eq(await cc.balanceOf(insured.address));
-    expect(receivedCollateral).eq(await insured.totalReceivedCollateral());
+    {
+      const totalReceived = await insured.totalReceived();
+      expect(expectedCoverage).eq(totalReceived.receivedCoverage);
+      expect(receivedCollateral).eq(totalReceived.receivedCollateral);
+    }
 
     givenOutCollateral += receivedCollateral.toNumber();
   });

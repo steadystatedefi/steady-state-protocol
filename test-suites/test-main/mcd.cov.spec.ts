@@ -199,9 +199,9 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     }
   };
 
-  it.skip('Claim slightly below the forepay', async () => claim(false, -5_00)); // -5%
-  it.skip('Claim slightly above the forepay', async () => claim(false, 5_00)); // +5%
+  it('Claim slightly below the forepay', async () => claim(false, -5_00)); // -5%
+  it('Claim slightly above the forepay', async () => claim(false, 5_00)); // +5%
 
-  it.skip('Claim slightly below the forepay, MCD depleted', async () => claim(true, -5_00)); // -5%
+  it('Claim slightly below the forepay, MCD depleted', async () => claim(true, -5_00)); // -5%
   it('Claim slightly above the forepay, MCD depleted', async () => claim(true, 5_00)); // +5%
 });

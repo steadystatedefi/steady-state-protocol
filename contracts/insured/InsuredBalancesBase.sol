@@ -23,7 +23,6 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   mapping(address => Balances.RateAccWithUint16) private _balances;
   Balances.RateAcc private _totalAllocatedDemand;
 
-  uint224 private _receivedCollateral;
   uint32 private _cancelledAt;
 
   function _ensureHolder(uint16 flags) private view {
@@ -180,8 +179,8 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
 
     (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this), 0);
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
-    if (receivedCollateral > 0) {
-      internalCollateralReceived(address(insurer), receivedCollateral);
+    if (receivedCoverage != 0 || receivedCollateral != 0) {
+      internalCoverageReceived(address(insurer), receivedCoverage, receivedCollateral);
     }
 
     (Balances.RateAcc memory totals, bool updated) = _syncInsurerBalance(b, coverage);
@@ -206,18 +205,11 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     }
   }
 
-  function internalCollateralReceived(address insurer, uint256 amount) internal virtual {
-    insurer;
-    Arithmetic.require((_receivedCollateral += uint224(amount)) >= amount);
-  }
-
-  function internalDecReceivedCollateral(uint256 amount) internal virtual {
-    _receivedCollateral = uint224(_receivedCollateral - amount);
-  }
-
-  function totalReceivedCollateral() public view returns (uint256) {
-    return _receivedCollateral;
-  }
+  function internalCoverageReceived(
+    address insurer,
+    uint256 receivedCoverage,
+    uint256 receivedCollateral
+  ) internal virtual;
 
   function _syncInsurerBalance(Balances.RateAccWithUint16 memory b, DemandedCoverage memory coverage)
     private

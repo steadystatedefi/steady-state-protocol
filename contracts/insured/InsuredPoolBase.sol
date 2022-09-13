@@ -27,7 +27,13 @@ abstract contract InsuredPoolBase is
   using Math for uint256;
 
   InsuredParams private _params;
-  mapping(address => uint256) private _receivedCollaterals; // [insurer]
+
+  struct InsurerBalance {
+    uint128 coverage;
+    uint128 collateral;
+  }
+  InsurerBalance private _totalReceived;
+  mapping(address => InsurerBalance) private _received; // [insurer]
 
   uint8 internal constant DECIMALS = 18;
 
@@ -235,7 +241,7 @@ abstract contract InsuredPoolBase is
   function cancelCoverage(address payoutReceiver, uint256 expectedPayout) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalCancelRates();
 
-    uint256 payoutRatio = super.totalReceivedCollateral();
+    uint256 payoutRatio = _totalReceived.coverage;
     if (payoutRatio <= expectedPayout) {
       payoutRatio = WadRayMath.RAY;
     } else if (payoutRatio > 0) {
@@ -256,11 +262,6 @@ abstract contract InsuredPoolBase is
     emit CoverageFullyCancelled(expectedPayout, totalPayout, payoutReceiver);
   }
 
-  function internalCollateralReceived(address insurer, uint256 amount) internal override {
-    super.internalCollateralReceived(insurer, amount);
-    _receivedCollaterals[insurer] += amount;
-  }
-
   event CoverageCancelled(address indexed insurer, uint256 payoutRatio, uint256 actualPayout);
 
   /// @dev Goes through the insurers and cancels with the payout ratio
@@ -274,17 +275,38 @@ abstract contract InsuredPoolBase is
     for (uint256 i = insurers.length; i > 0; ) {
       address insurer = insurers[--i];
 
-      uint256 receivedCollateral = _receivedCollaterals[insurer];
-      _receivedCollaterals[insurer] = 0;
+      InsurerBalance memory received = _received[insurer];
+      delete _received[insurer];
 
-      State.require(t.approve(insurer, receivedCollateral));
+      State.require(t.approve(insurer, received.collateral));
 
-      totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
-      emit CoverageCancelled(insurer, payoutRatio, totalPayout);
+      uint256 payout = ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
+      totalPayout += payout;
+      emit CoverageCancelled(insurer, payoutRatio, payout);
 
-      internalDecReceivedCollateral(receivedCollateral - t.allowance(address(this), insurer));
+      _totalReceived.coverage -= received.coverage;
+      _totalReceived.collateral -= uint128(received.collateral - t.allowance(address(this), insurer));
+
       State.require(t.approve(insurer, 0));
     }
+  }
+
+  function internalCoverageReceived(
+    address insurer,
+    uint256 receivedCoverage,
+    uint256 receivedCollateral
+  ) internal override {
+    InsurerBalance storage received = _received[insurer];
+
+    Arithmetic.require((received.coverage += uint128(receivedCoverage)) >= receivedCoverage);
+    Arithmetic.require((received.collateral += uint128(receivedCollateral)) >= receivedCollateral);
+
+    _totalReceived.coverage += uint128(receivedCoverage);
+    _totalReceived.collateral += uint128(receivedCollateral);
+  }
+
+  function totalReceived() public view returns (uint256 receivedCoverage, uint256 receivedCollateral) {
+    return (_totalReceived.coverage, _totalReceived.collateral);
   }
 
   function internalPriceOf(address asset) internal view virtual override returns (uint256) {
@@ -311,7 +333,7 @@ abstract contract InsuredPoolBase is
   }
 
   function internalReservedCollateral() internal view override returns (uint256) {
-    return super.totalReceivedCollateral();
+    return _totalReceived.collateral;
   }
 
   event PrepayWithdrawn(uint256 amount, address indexed recipient);
