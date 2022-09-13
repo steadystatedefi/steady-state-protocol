@@ -167,4 +167,41 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     expect(coverage.totalCovered).eq(0);
     expect(await pool.callStatic.collectDrawdownPremium()).eq(0);
   });
+
+  const claim = async (flushMCD: boolean, payoutVariance: number) => {
+    await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
+    expect(await cc.balanceOf(user.address)).eq(0);
+
+    const drawdown = await pool.callStatic.collectDrawdownPremium();
+    expect(drawdown).gt(0);
+
+    if (flushMCD) {
+      await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
+      expect(await cc.balanceOf(user.address)).eq(drawdown);
+    }
+
+    const insured = insureds[0];
+    await insured.reconcileWithInsurers(0, 0);
+    const receiver = createRandomAddress();
+    const {
+      coverage: { totalCovered },
+    } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
+
+    const poolDefaultForepay = 90_00; // 90%
+    const payoutAmount = totalCovered.mul(poolDefaultForepay + payoutVariance).div(1_00_00);
+
+    await insured.cancelCoverage(receiver, payoutAmount);
+    {
+      const bal = await cc.balanceOf(receiver);
+      expect(bal).eq(
+        flushMCD && payoutVariance >= 0 ? totalCovered.mul(poolDefaultForepay).div(1_00_00) : payoutAmount
+      );
+    }
+  };
+
+  it.skip('Claim slightly below the forepay', async () => claim(false, -5_00)); // -5%
+  it.skip('Claim slightly above the forepay', async () => claim(false, 5_00)); // +5%
+
+  it.skip('Claim slightly below the forepay, MCD depleted', async () => claim(true, -5_00)); // -5%
+  it('Claim slightly above the forepay, MCD depleted', async () => claim(true, 5_00)); // +5%
 });
