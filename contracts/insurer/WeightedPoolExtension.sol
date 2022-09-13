@@ -46,13 +46,12 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
 
+    payoutValue = providedCoverage.rayMul(payoutRatio);
+
     // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc
     // and the actual amount of protocol tokens made available during last sync
     // so this is a sanity check - insurance must be sync'ed before cancellation
     // otherwise there will be premium without actual supply of protocol tokens
-
-    payoutValue = providedCoverage.rayMul(payoutRatio);
-
     require(
       enforcedCancel || ((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage)),
       'must be reconciled'

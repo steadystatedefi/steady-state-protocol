@@ -1386,7 +1386,7 @@ abstract contract WeightedRoundsBase {
   /// @dev Cancel ALL coverage for the insured, including in the partial state
   /// @dev Deletes the coverage information and demands of the insured
   /// @return coverage The coverage info of the insured. IS FINALIZED
-  /// @return excessCoverage The new amount of excess coverage
+  /// @return excessCoverage The amount of coverage from the partial round
   /// @return providedCoverage Amount of coverage provided before cancellation
   /// @return receivedCoverage Amount of coverage received from the sync before cancelling
   function internalCancelCoverage(address insured)

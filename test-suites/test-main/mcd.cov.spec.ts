@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber, BigNumberish } from 'ethers';
 
-import { RAY } from '../../helpers/constants';
+import { MAX_UINT, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress } from '../../helpers/runtime-utils';
 import {
@@ -140,9 +140,12 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
   it('Cancel all coverage (MCD will cause not entire coverage to be paid out)', async () => {
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
+    expect(await cc.balanceOf(user.address)).eq(0);
 
     const drawdown = await pool.callStatic.collectDrawdownPremium();
-    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, drawdown);
+    expect(drawdown).gt(0);
+    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
+    expect(await cc.balanceOf(user.address)).eq(drawdown);
 
     for (let i = 0; i < insureds.length; i++) {
       const insured = insureds[i];
@@ -150,7 +153,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       const receiver = createRandomAddress();
       const payoutAmount = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
 
-      await insured.cancelCoverage(receiver, payoutAmount);
+      await insured.cancelCoverage(receiver, MAX_UINT);
       {
         const bal = await cc.balanceOf(receiver);
         // expect(bal).lte(payoutAmount);
