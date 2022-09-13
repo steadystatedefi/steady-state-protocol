@@ -259,26 +259,20 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
 
-  function __calcAvailableDrawdown(uint256 totalCovered, uint16 maxDrawdown) internal view returns (uint256) {
-    uint256 burntDrawdown = _burntDrawdown;
-    totalCovered += _excessCoverage;
-    totalCovered = totalCovered.percentMul(maxDrawdown);
-    return totalCovered.boundedSub(burntDrawdown);
+  function __calcDrawdown(uint256 totalCovered, uint16 maxDrawdownPct) internal view returns (uint256 max, uint256 avail) {
+    max = (totalCovered + _excessCoverage).percentMul(maxDrawdownPct);
+    avail = max.boundedSub(_burntDrawdown);
   }
 
-  function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256) {
-    return __calcAvailableDrawdown(_coveredTotal() + extra, PercentageMath.ONE - _params.coveragePrepayPct);
+  function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256 avail) {
+    (, avail) = __calcDrawdown(_coveredTotal() + extra, PercentageMath.ONE - _params.coveragePrepayPct);
   }
 
-  function _calcAvailableUserDrawdown() internal view returns (uint256) {
+  function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256 max, uint256 avail) {
+    return __calcDrawdown(totalCovered, _params.maxUserDrawdownPct);
+  }
+
+  function internalCollectDrawdownPremium() internal view override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
     return _calcAvailableUserDrawdown(_coveredTotal());
-  }
-
-  function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256) {
-    return __calcAvailableDrawdown(totalCovered, _params.maxUserDrawdownPct);
-  }
-
-  function internalCollectDrawdownPremium() internal view override returns (uint256) {
-    return _calcAvailableUserDrawdown();
   }
 }

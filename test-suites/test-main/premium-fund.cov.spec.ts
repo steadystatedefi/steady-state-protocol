@@ -2,10 +2,10 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
-import { WAD } from '../../helpers/constants';
+import { WAD, ZERO_ADDRESS } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
-import { MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20, PremiumFundBase } from '../../types';
+import { MockPremiumActuary, MockPremiumSource, MockPremiumFund, MockERC20, IPremiumFund } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
@@ -51,15 +51,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     token2Source = await Factories.MockPremiumSource.deploy(token2.address, cc.address);
     await token2.mint(token2Source.address, WAD.mul(100));
 
-    await fund.setDefaultConfig(
-      actuary.address,
-      0,
-      // WAD,
-      0,
-      0,
-      StarvationPointMode.Constant,
-      20
-    );
     await fund.connect(user).setApprovalsFor(testEnv.deployer.address, 1, true);
   });
 
@@ -94,6 +85,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   const registerActuaryAndSource = async () => {
     await fund.registerPremiumActuary(actuary.address, true);
+
     await actuary.addSource(sources[0].address);
     await fund.setPrice(token1.address, WAD);
     await actuary.setRate(sources[0].address, 10);
@@ -121,16 +113,16 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   it('Cant sync while token is paused GLOBALLY', async () => {
     await registerActuaryAndSource();
 
-    await fund.setPausedToken(token1.address, true);
+    await fund.setPaused(ZERO_ADDRESS, token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
-    await fund.setPausedToken(token1.address, false);
+    await fund.setPaused(ZERO_ADDRESS, token1.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
   });
 
   it('Can update/finish while token is paused GLOBALLY', async () => {
     await registerActuaryAndSource();
 
-    await fund.setPausedToken(token1.address, true);
+    await fund.setPaused(ZERO_ADDRESS, token1.address, true);
     await actuary.setRate(sources[0].address, 100);
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(100);
 
@@ -143,22 +135,22 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   it('Cant sync/swap while token is paused IN BALANCER', async () => {
     await registerActuaryAndSource();
 
-    await fund['setPaused(address,address,bool)'](actuary.address, token1.address, true);
+    await fund.setPaused(actuary.address, token1.address, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await expect(fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9)).to.be.reverted;
-    await fund['setPaused(address,address,bool)'](actuary.address, token1.address, false);
+    await fund.setPaused(actuary.address, token1.address, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
   });
 
   it('Cant sync/swap while actuary is paused', async () => {
     await registerActuaryAndSource();
 
-    await fund['setPaused(address,bool)'](actuary.address, true);
+    await fund.setPaused(actuary.address, ZERO_ADDRESS, true);
     await expect(fund.syncAsset(actuary.address, 0, token1.address)).to.be.reverted;
     await expect(
       fund.swapAsset(actuary.address, user.address, user.address, 10, token1.address, 9, testEnv.covGas(30000000))
     ).to.be.reverted;
-    await fund['setPaused(address,bool)'](actuary.address, false);
+    await fund.setPaused(actuary.address, ZERO_ADDRESS, false);
     await fund.syncAsset(actuary.address, 0, token1.address, testEnv.covGas(30000000));
     await actuary.removeSource(sources[0].address);
   });
@@ -314,7 +306,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     amt2 = BigNumber.from(200);
     minAmt1 = amt1.mul(95).div(100);
     minAmt2 = amt2.mul(2).mul(95).div(100);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: amt1,
       targetToken: token1.address,
@@ -390,7 +382,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     const amt1 = BigNumber.from(1500);
     const minAmt1 = amt1.mul(95).div(100);
     const token1bal = await token1.balanceOf(user.address);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: amt1,
       targetToken: token1.address,
@@ -422,7 +414,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     const amt1 = BigNumber.from(1500);
     const minAmt1 = amt1.mul(95).div(100);
     const token1bal = await token1.balanceOf(user.address);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: amt1,
       targetToken: token1.address,
@@ -438,7 +430,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     }
   });
 
-  it('Collateral currency', async () => {
+  it('Drawdown flat', async () => {
     const rates: BigNumber[] = [];
     for (let i = 0; i < numSources; i++) {
       const x = BigNumber.from(1000);
@@ -449,6 +441,14 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await cc.mint(actuary.address, 10000);
     await actuary.setDrawdown(drawdownAmt);
 
+    const flatPct = 1_00_00; // 100%
+    await fund.setAssetConfig(actuary.address, cc.address, {
+      spConst: 0,
+      calc: BigNumber.from(flatPct)
+        .shl(144 + 64)
+        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 20%; calc.flags = BF_EXTERNAL
+    });
+
     await advanceBlock((await currentTime()) + 10);
     await fund.syncAsset(actuary.address, 0, cc.address, testEnv.covGas(30000000));
 
@@ -458,44 +458,98 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(actuary.address)).eq(10000);
 
     let swapAmt = 200;
-    let swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
     await fund.swapAsset(
       actuary.address,
       user.address,
       user.address,
       swapAmt,
       cc.address,
-      swapAmtMin,
+      swapAmt,
       testEnv.covGas(30000000)
     );
     const bal = await cc.balanceOf(user.address);
-    expect(bal).gte(swapAmtMin);
+    expect(bal).eq(swapAmt);
     expect(await cc.balanceOf(fund.address)).eq(0);
     expect(bal.add(await cc.balanceOf(actuary.address))).eq(10000);
 
     swapAmt = 400;
-    swapAmtMin = BigNumber.from(swapAmt).mul(95).div(100);
-    const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+    const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
     swapInstructions.push({
       valueToSwap: swapAmt,
       targetToken: cc.address,
-      minAmount: swapAmtMin,
+      minAmount: 0,
       recipient: user.address,
     });
+
+    // 2nd drawdown instruction will be ignored
     swapInstructions.push({
       valueToSwap: swapAmt,
       targetToken: cc.address,
-      minAmount: swapAmtMin,
+      minAmount: 0,
       recipient: user.address,
     });
 
     await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
 
-    {
-      const userBal = await cc.balanceOf(user.address);
-      expect(userBal).gte(bal.add(swapAmtMin.mul(2)));
-      expect(userBal).lte(bal.add(swapAmt * 2));
+    expect(await cc.balanceOf(user.address)).eq(bal.add(swapAmt));
+    expect(await fund.availableFee(cc.address)).eq(0);
+  });
+
+  it('Drawdown curve', async () => {
+    const rates: BigNumber[] = [];
+    for (let i = 0; i < numSources; i++) {
+      const x = BigNumber.from(1000);
+      rates.push(x);
     }
+    const drawdownAmt = 1000;
+    await setupTestEnv(rates, BigNumber.from(100));
+    await cc.mint(actuary.address, 10000);
+    await actuary.setDrawdown(drawdownAmt);
+    const userDrawdownAmt = 1000 / 10;
+    await actuary.setUserShare(userDrawdownAmt);
+
+    const flatPct = 20_00; // 20%
+    await fund.setAssetConfig(actuary.address, cc.address, {
+      spConst: 0,
+      calc: BigNumber.from(flatPct)
+        .shl(144 + 64)
+        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 20%; calc.flags = BF_EXTERNAL
+    });
+
+    await advanceBlock((await currentTime()) + 10);
+    await fund.syncAsset(actuary.address, 0, cc.address, testEnv.covGas(30000000));
+
+    // NB! CC is an exeption - it is not transferred on sync, but stays on actuary's balance
+    // this simplifies claim logic for an Index Pool
+    expect(await cc.balanceOf(fund.address)).eq(0);
+    expect(await cc.balanceOf(actuary.address)).eq(10000);
+
+    const flatAmt = (userDrawdownAmt * flatPct) / 1_00_00;
+    {
+      // flat portion
+      const amount = await fund.callStatic.swapAsset(
+        actuary.address,
+        user.address,
+        user.address,
+        flatAmt,
+        cc.address,
+        0,
+        testEnv.covGas(30000000)
+      );
+      expect(amount).eq(flatAmt);
+    }
+
+    // flat + curve
+    const swapAmt = 4 * flatAmt;
+    await fund.swapAsset(actuary.address, user.address, user.address, swapAmt, cc.address, 0, testEnv.covGas(30000000));
+
+    const bal = await cc.balanceOf(user.address);
+    expect(bal).gt(flatAmt);
+    expect(bal).lt(swapAmt);
+    const fee = await fund.availableFee(cc.address);
+    expect(fee).gt(0);
+    expect(await cc.balanceOf(fund.address)).eq(fee);
+    expect(bal.add(await cc.balanceOf(actuary.address)).add(fee)).eq(10000);
   });
 
   it('Swap above balance to collect fee', async () => {
@@ -529,7 +583,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await fund.syncAsset(actuary.address, 0, token1.address);
 
     {
-      const swapInstructions: PremiumFundBase.SwapInstructionStruct[] = [];
+      const swapInstructions: IPremiumFund.SwapInstructionStruct[] = [];
       swapInstructions.push({
         valueToSwap: amt1,
         targetToken: cc.address,

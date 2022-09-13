@@ -23,13 +23,13 @@ contract MockBalancerLib2 {
 
   function setConfig(
     address asset,
-    uint152 price,
+    uint144 price,
     uint64 w,
     uint32 n,
     uint16 flags,
     uint160 spConst
   ) external {
-    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(price, w, n, flags, spConst);
+    _poolBalance.configs[asset] = BalancerLib2.AssetConfig(CalcConfig.newValue(price, w, n, flags), spConst);
   }
 
   function setBalance(
@@ -78,8 +78,7 @@ contract MockBalancerLib2 {
     (amount, fee) = _poolBalance.swapAsset(
       BalancerLib2.ReplenishParams({actuary: address(0), source: address(0), token: token, replenishFn: _replenishFn}),
       value,
-      minAmount,
-      0
+      minAmount
     );
     emit TokenSwapped(amount, fee);
   }
