@@ -58,16 +58,29 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     premFund = (await Factories.MockPremiumFund.deploy(cc.address)).connect(user);
     await premFund.registerPremiumActuary(pool.address, true);
 
+    // enable drawdown with flat curve / zero fee
+    await premFund.setAssetConfig(pool.address, cc.address, {
+      spConst: 0,
+      calc: BigNumber.from(1_00_00)
+        .shl(144 + 64)
+        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 100%; calc.flags = BF_EXTERNAL
+    });
+
     demanded = BigNumber.from(0);
     demanded = demanded.add((await joinPool(10 * 100)).totalDemand);
     demanded = demanded.add((await joinPool(10 * 100)).totalDemand);
     demanded = demanded.add((await joinPool(10 * 100)).totalDemand);
   });
 
+  const collectAvailableDrawdown = async (): Promise<BigNumber> => {
+    const { availableDrawdownValue: drawdown } = await pool.callStatic.collectDrawdownPremium();
+    return drawdown;
+  };
+
   it('Drawdown User Premium', async () => {
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
 
-    let drawdown = await pool.callStatic.collectDrawdownPremium();
+    let drawdown = await collectAvailableDrawdown();
     let balance = await pool.balanceOf(user.address);
     let ccbalance = await cc.balanceOf(user.address);
 
@@ -92,12 +105,12 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     await premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap);
     {
-      expect(await pool.callStatic.collectDrawdownPremium()).eq(drawdown.sub(amtSwap));
+      expect(await collectAvailableDrawdown()).eq(drawdown.sub(amtSwap));
       expect(await pool.balanceOf(user.address)).lte(balance.sub(tokenSwap));
       expect(await cc.balanceOf(user.address)).eq(ccbalance.add(amtSwap));
     }
 
-    drawdown = await pool.callStatic.collectDrawdownPremium();
+    drawdown = await collectAvailableDrawdown();
 
     balance = await pool.balanceOf(user.address);
     ccbalance = await cc.balanceOf(user.address);
@@ -116,9 +129,9 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     amtSwap = drawdown;
     tokenSwap = await valueToAmount(amtSwap, 1);
-    await premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap);
+    await premFund.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, 0);
     {
-      expect(await pool.callStatic.collectDrawdownPremium()).eq(0);
+      expect(await collectAvailableDrawdown()).eq(0);
       if (!testEnv.underCoverage) {
         expect(tokenSwap).lte(balance.sub(await pool.balanceOf(user.address)));
       }
@@ -135,14 +148,14 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     const amtMinted = BigNumber.from(100).mul(unitSize);
     await cc.mintAndTransfer(user.address, pool.address, amtMinted, 0);
-    expect(await pool.callStatic.collectDrawdownPremium()).eq(amtMinted.mul(drawdownPct).div(100));
+    expect(await collectAvailableDrawdown()).eq(amtMinted.mul(drawdownPct).div(100));
   });
 
   it('Cancel all coverage (MCD will cause not entire coverage to be paid out)', async () => {
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
     expect(await cc.balanceOf(user.address)).eq(0);
 
-    const drawdown = await pool.callStatic.collectDrawdownPremium();
+    const drawdown = await collectAvailableDrawdown();
     expect(drawdown).gt(0);
     await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
     expect(await cc.balanceOf(user.address)).eq(drawdown);
@@ -165,14 +178,14 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     const { coverage } = await pool.getTotals();
     expect(coverage.totalDemand).eq(0);
     expect(coverage.totalCovered).eq(0);
-    expect(await pool.callStatic.collectDrawdownPremium()).eq(0);
+    expect(await collectAvailableDrawdown()).eq(0);
   });
 
   const claim = async (flushMCD: boolean, payoutVariance: number) => {
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
     expect(await cc.balanceOf(user.address)).eq(0);
 
-    const drawdown = await pool.callStatic.collectDrawdownPremium();
+    const drawdown = await collectAvailableDrawdown();
     expect(drawdown).gt(0);
 
     if (flushMCD) {

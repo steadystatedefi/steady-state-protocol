@@ -26,13 +26,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     sources.push(source);
   };
 
-  enum StarvationPointMode {
-    RateFactor = 0 + 64, // + BF_AUTO_REPLENISH
-    GlobalRateFactor = 1 + 64, // + BF_AUTO_REPLENISH
-    Constant = 2,
-    GlobalConstant = 3,
-  }
-
   before(async () => {
     user = testEnv.users[0];
     cc = await Factories.MockERC20.deploy('Collateral', '$CC', 18);
@@ -446,7 +439,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       spConst: 0,
       calc: BigNumber.from(flatPct)
         .shl(144 + 64)
-        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 20%; calc.flags = BF_EXTERNAL
+        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 100%; calc.flags = BF_EXTERNAL
     });
 
     await advanceBlock((await currentTime()) + 10);
