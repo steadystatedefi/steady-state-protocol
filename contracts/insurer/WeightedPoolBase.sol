@@ -150,6 +150,10 @@ abstract contract WeightedPoolBase is
     internalSetPoolParams(params);
   }
 
+  function getPoolParams() external view returns (WeightedPoolParams memory) {
+    return _params;
+  }
+
   // TODO setLoopLimits
   // function setLoopLimits(uint16[] calldata limits) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
   //   internalSetLoopLimits(limits);

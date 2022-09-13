@@ -21,7 +21,7 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
         overUnitsPerRound: 30,
-        coveragePrepayPct: 9000, // 90%
+        coverageForepayPct: 9000, // 90%
         maxUserDrawdownPct: 1000, // 10%
         unitsPerAutoPull: 0
       })

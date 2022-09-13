@@ -30,14 +30,14 @@ const configTemplate: Omit<INetworkConfiguration<FullTokens>, 'Assets' | 'PriceF
         {
           maxAdvanceUnits: 10000,
           minAdvanceUnits: 1000,
-          riskWeightTarget: 1000, // 10%
-          minInsuredSharePct: 100, // 1%
-          maxInsuredSharePct: 4000, // 40%
+          riskWeightTarget: 10_00, // 10%
+          minInsuredSharePct: 1_00, // 1%
+          maxInsuredSharePct: 40_00, // 40%
           minUnitsPerRound: 20,
           maxUnitsPerRound: 20,
           overUnitsPerRound: 30,
-          coveragePrepayPct: 9000, // 90%
-          maxUserDrawdownPct: 1000, // 10%
+          coverageForepayPct: 90_00, // 90%
+          maxUserDrawdownPct: 10_00, // 10%
           unitsPerAutoPull: 0,
         },
       ],
