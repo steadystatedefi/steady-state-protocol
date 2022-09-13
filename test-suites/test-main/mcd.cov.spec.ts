@@ -124,8 +124,10 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     }
 
     amtSwap = drawdown.add(1);
-    // TODO should NOT cause overflow / underflow
-    // expect(await premFund.callStatic.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap)).eq(0);
+    // should NOT cause overflow / underflow
+    expect(
+      await premFund.callStatic.swapAsset(pool.address, user.address, user.address, amtSwap, cc.address, amtSwap)
+    ).eq(0);
 
     amtSwap = drawdown;
     tokenSwap = await valueToAmount(amtSwap, 1);
