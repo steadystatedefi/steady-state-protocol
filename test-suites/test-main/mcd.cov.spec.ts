@@ -1,7 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
-import { BigNumber, BigNumberish } from 'ethers';
+import { BigNumber } from 'ethers';
 
 import { MAX_UINT, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
@@ -19,7 +19,7 @@ import { makeSuite, TestEnv } from './setup/make-suite';
 makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const drawdownPct = 10; // 10% constant inside MockImperpetualPool
-  let demanded: BigNumberish;
+  let demanded: BigNumber;
 
   let pool: MockImperpetualPool;
   let poolIntf: IInsurerPool;
@@ -153,34 +153,24 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     expect(await collectAvailableDrawdown()).eq(amtMinted.mul(drawdownPct).div(100));
   });
 
-  it('Cancel all coverage (MCD will cause not entire coverage to be paid out)', async () => {
-    await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
-    expect(await cc.balanceOf(user.address)).eq(0);
-
-    const drawdown = await collectAvailableDrawdown();
-    expect(drawdown).gt(0);
-    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
-    expect(await cc.balanceOf(user.address)).eq(drawdown);
+  const checkForepay = async () => {
+    const coverageForepayPct = (await pool.getPoolParams()).coverageForepayPct;
 
     for (let i = 0; i < insureds.length; i++) {
       const insured = insureds[i];
       await insured.reconcileWithInsurers(0, 0);
-      const receiver = createRandomAddress();
-      const payoutAmount = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
-
-      await insured.cancelCoverage(receiver, MAX_UINT);
-      {
-        const bal = await cc.balanceOf(receiver);
-        // expect(bal).lte(payoutAmount);
-        // expect(bal).gte(payoutAmount.mul(100 - drawdownPct).div(100));
-        expect(bal).eq(payoutAmount.mul(100 - drawdownPct).div(100));
-      }
+      const coverage = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
+      expect(await cc.balanceOf(insured.address)).eq(coverage.mul(coverageForepayPct).div(10000));
     }
+  };
 
-    const { coverage } = await pool.getTotals();
-    expect(coverage.totalDemand).eq(0);
-    expect(coverage.totalCovered).eq(0);
-    expect(await collectAvailableDrawdown()).eq(0);
+  it('Forepay reconciliation', async () => {
+    await pool.setCoverageForepayPct(60_00);
+    await checkForepay();
+    await pool.setCoverageForepayPct(80_00);
+    await checkForepay();
+    await pool.setCoverageForepayPct(90_00);
+    await checkForepay();
   });
 
   const claim = async (flushMCD: boolean, increment: boolean) => {
@@ -223,4 +213,79 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
   it('Claim slightly below the forepay, MCD depleted', async () => claim(true, false));
   it('Claim slightly above the forepay, MCD depleted', async () => claim(true, true));
+
+  // TODO: Replace above claim method
+  const claim2 = async (claimPct: number, flushMCD: boolean) => {
+    const forepayPct = (await pool.getPoolParams()).coverageForepayPct / 100;
+    await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
+    expect(await cc.balanceOf(user.address)).eq(0);
+
+    const drawdown = await collectAvailableDrawdown();
+    expect(drawdown).eq(demanded.mul(drawdownPct).div(100)).gt(0);
+
+    if (flushMCD) {
+      await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
+      expect(await cc.balanceOf(user.address)).eq(drawdown);
+    }
+
+    for (let i = 0; i < insureds.length; i++) {
+      await insureds[i].reconcileWithInsurers(0, 0);
+    }
+    let availableCC = await cc.balanceOf(pool.address);
+    expect(availableCC).eq(demanded.mul(100 - ((flushMCD ? drawdownPct : 0) + forepayPct)).div(100));
+
+    let lockedFromClaim = BigNumber.from(0);
+    for (let i = 0; i < insureds.length; i++) {
+      const insured = insureds[i];
+      const receiver = createRandomAddress();
+      const totalCovered = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
+      availableCC = (await cc.balanceOf(pool.address)).sub(lockedFromClaim);
+      availableCC = availableCC.gt(0) ? availableCC : BigNumber.from(0);
+
+      const missing = claimPct >= forepayPct ? totalCovered.mul(claimPct - forepayPct).div(100) : 0;
+      const extra = availableCC.gt(missing) ? missing : availableCC;
+      const expectedPayout = totalCovered.mul(forepayPct).div(100).add(extra);
+
+      const requestAmount = claimPct === 100 ? MAX_UINT : totalCovered.mul(claimPct).div(100);
+      await insured.cancelCoverage(receiver, requestAmount);
+      {
+        expect(await cc.balanceOf(receiver)).eq(expectedPayout);
+      }
+
+      lockedFromClaim = lockedFromClaim.add(totalCovered.mul(100 - claimPct).div(100));
+    }
+
+    const { coverage } = await pool.getTotals();
+    expect(coverage.totalDemand).eq(0);
+    expect(coverage.totalCovered).eq(0);
+    expect(await collectAvailableDrawdown()).eq(0);
+  };
+
+  const makeTest = (claimPct: number, forepayPct: number, flushMCD: boolean) => {
+    const title = `Claim ${claimPct}%, forepay ${forepayPct}%${flushMCD ? ', MCD depleted' : ''}`;
+    return it(title, async () => {
+      await pool.setCoverageForepayPct(forepayPct * 100);
+      await claim2(claimPct, flushMCD);
+    });
+  };
+
+  // Claim 100%
+  for (let i = 0; i < 3; i++) {
+    makeTest(100, 90 - i * 10, true);
+  }
+
+  // Claim 90%
+  for (let i = 0; i < 3; i++) {
+    makeTest(90, 90 - i * 10, true);
+  }
+
+  // Claim 100%, no MCD
+  for (let i = 0; i < 3; i++) {
+    makeTest(100, 90 - i * 10, false);
+  }
+
+  // Claim 90%, no MCD
+  for (let i = 0; i < 3; i++) {
+    makeTest(90, 90 - i * 10, false);
+  }
 });

@@ -28,6 +28,10 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     );
   }
 
+  function setCoverageForepayPct(uint16 pct) external {
+    _params.coverageForepayPct = pct;
+  }
+
   function getRevision() internal pure override returns (uint256) {}
 
   function handleJoinRequest(address) external pure override returns (MemberStatus) {
