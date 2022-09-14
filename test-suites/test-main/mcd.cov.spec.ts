@@ -173,49 +173,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     await checkForepay();
   });
 
-  const claim = async (flushMCD: boolean, increment: boolean) => {
-    await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
-    expect(await cc.balanceOf(user.address)).eq(0);
-
-    const drawdown = await collectAvailableDrawdown();
-    expect(drawdown).gt(0);
-
-    if (flushMCD) {
-      await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
-      expect(await cc.balanceOf(user.address)).eq(drawdown);
-    }
-
-    const insured = insureds[0];
-    await insured.reconcileWithInsurers(0, 0);
-    const receiver = createRandomAddress();
-    const {
-      coverage: { totalCovered },
-    } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
-
-    const coverageForepayPct = (await pool.getPoolParams()).coverageForepayPct;
-    expect(coverageForepayPct).gte(50_00);
-    const payoutVariance = Math.round((100_00 - coverageForepayPct) / 2);
-    expect(payoutVariance).gt(0);
-
-    const payoutAmount = totalCovered
-      .mul(coverageForepayPct + (increment ? payoutVariance : -payoutVariance))
-      .div(1_00_00);
-
-    await insured.cancelCoverage(receiver, payoutAmount);
-    {
-      const bal = await cc.balanceOf(receiver);
-      expect(bal).eq(flushMCD && increment ? totalCovered.mul(coverageForepayPct).div(1_00_00) : payoutAmount);
-    }
-  };
-
-  it('Claim slightly below the forepay', async () => claim(false, false));
-  it('Claim slightly above the forepay', async () => claim(false, true));
-
-  it('Claim slightly below the forepay, MCD depleted', async () => claim(true, false));
-  it('Claim slightly above the forepay, MCD depleted', async () => claim(true, true));
-
-  // TODO: Replace above claim method
-  const claim2 = async (claimPct: number, flushMCD: boolean) => {
+  const claim = async (claimPct: number, flushMCD: boolean) => {
     const forepayPct = (await pool.getPoolParams()).coverageForepayPct / 100;
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
     expect(await cc.balanceOf(user.address)).eq(0);
@@ -226,6 +184,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     if (flushMCD) {
       await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
       expect(await cc.balanceOf(user.address)).eq(drawdown);
+      expect(await collectAvailableDrawdown()).eq(0);
     }
 
     for (let i = 0; i < insureds.length; i++) {
@@ -242,7 +201,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       availableCC = (await cc.balanceOf(pool.address)).sub(lockedFromClaim);
       availableCC = availableCC.gt(0) ? availableCC : BigNumber.from(0);
 
-      const missing = claimPct >= forepayPct ? totalCovered.mul(claimPct - forepayPct).div(100) : 0;
+      const missing = totalCovered.mul(claimPct - forepayPct).div(100);
       const extra = availableCC.gt(missing) ? missing : availableCC;
       const expectedPayout = totalCovered.mul(forepayPct).div(100).add(extra);
 
@@ -258,34 +217,20 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     const { coverage } = await pool.getTotals();
     expect(coverage.totalDemand).eq(0);
     expect(coverage.totalCovered).eq(0);
-    expect(await collectAvailableDrawdown()).eq(0);
   };
 
   const makeTest = (claimPct: number, forepayPct: number, flushMCD: boolean) => {
     const title = `Claim ${claimPct}%, forepay ${forepayPct}%${flushMCD ? ', MCD depleted' : ''}`;
     return it(title, async () => {
       await pool.setCoverageForepayPct(forepayPct * 100);
-      await claim2(claimPct, flushMCD);
+      await claim(claimPct, flushMCD);
     });
   };
 
-  // Claim 100%
-  for (let i = 0; i < 3; i++) {
-    makeTest(100, 90 - i * 10, true);
-  }
-
-  // Claim 90%
-  for (let i = 0; i < 3; i++) {
-    makeTest(90, 90 - i * 10, true);
-  }
-
-  // Claim 100%, no MCD
-  for (let i = 0; i < 3; i++) {
-    makeTest(100, 90 - i * 10, false);
-  }
-
-  // Claim 90%, no MCD
-  for (let i = 0; i < 3; i++) {
-    makeTest(90, 90 - i * 10, false);
+  for (let claimAmt = 100; claimAmt > 60; claimAmt -= 10) {
+    for (let forepay = 90; forepay > 70; forepay -= 10) {
+      makeTest(claimAmt, forepay, true);
+      makeTest(claimAmt, forepay, false);
+    }
   }
 });
