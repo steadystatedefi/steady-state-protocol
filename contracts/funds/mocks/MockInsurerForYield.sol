@@ -20,7 +20,7 @@ contract MockInsurerForYield is IYieldStakeAsset, Collateralized, ERC20Base {
     _collateralSupplyFactor = collateralSupplyFactor;
   }
 
-  function totalSupply() public view override(IERC20, IYieldStakeAsset) returns (uint256) {
+  function totalSupply() public view override(ERC20Base, IYieldStakeAsset) returns (uint256) {
     return super.totalSupply();
   }
 

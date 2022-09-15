@@ -37,6 +37,8 @@ abstract contract BorrowManagerBase {
     // rate
     // since
 
+    // TODO customBalance
+
     EnumerableSet.AddressSet lenders;
   }
 
