@@ -37,7 +37,6 @@ interface IPremiumFund is ICollateralized {
   function swapAssets(
     address actuary,
     address account,
-    address defaultRecepient,
     SwapInstruction[] calldata instructions
   ) external returns (uint256[] memory tokenAmounts);
 
