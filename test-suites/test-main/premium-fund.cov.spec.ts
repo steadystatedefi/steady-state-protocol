@@ -320,10 +320,10 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       recipient: user.address,
     });
 
-    const res = await fund.callStatic.swapAssets(actuary.address, user.address, user.address, swapInstructions);
+    const res = await fund.callStatic.swapAssets(actuary.address, user.address, swapInstructions);
     expect(res[0]).gte(minAmt1);
     expect(res[1]).gte(minAmt2);
-    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    await fund.swapAssets(actuary.address, user.address, swapInstructions, testEnv.covGas(30000000));
     {
       const userBal = await token1.balanceOf(user.address);
       expect(userBal).gte(token1bal.add(res[0]));
@@ -390,7 +390,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       recipient: user.address,
     });
 
-    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    await fund.swapAssets(actuary.address, user.address, swapInstructions, testEnv.covGas(30000000));
     {
       const userBal = await token1.balanceOf(user.address);
       expect(userBal).gte(token1bal.add(minAmt1));
@@ -422,7 +422,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       recipient: user.address,
     });
 
-    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    await fund.swapAssets(actuary.address, user.address, swapInstructions, testEnv.covGas(30000000));
     {
       const userBal = await token1.balanceOf(user.address);
       expect(userBal).gte(token1bal.add(minAmt1));
@@ -489,7 +489,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       recipient: user.address,
     });
 
-    await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+    await fund.swapAssets(actuary.address, user.address, swapInstructions, testEnv.covGas(30000000));
 
     expect(await cc.balanceOf(user.address)).eq(bal.add(swapAmt));
     expect(await fund.availableFee(cc.address)).eq(0);
@@ -591,7 +591,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
         recipient: user.address,
       });
 
-      await fund.swapAssets(actuary.address, user.address, user.address, swapInstructions, testEnv.covGas(30000000));
+      await fund.swapAssets(actuary.address, user.address, swapInstructions, testEnv.covGas(30000000));
     }
     const fee1 = await fund.availableFee(token1.address);
     expect(fee1).eq(fee.add(amt1.sub(await token1.balanceOf(user.address)).sub(diff)));
