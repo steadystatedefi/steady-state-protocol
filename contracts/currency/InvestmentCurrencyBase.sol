@@ -4,9 +4,8 @@ pragma solidity ^0.8.10;
 import '../tools/math/Math.sol';
 import '../tools/tokens/ERC20MintableBalancelessBase.sol';
 import '../tools/tokens/IERC1363.sol';
-import '../access/AccessHelper.sol';
 
-abstract contract InvestmentCurrencyBase is AccessHelper, ERC20MintableBalancelessBase {
+abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
   using InvestAccount for InvestAccount.Balance;
   using Math for uint256;
 
@@ -58,9 +57,12 @@ abstract contract InvestmentCurrencyBase is AccessHelper, ERC20MintableBalancele
     }
   }
 
+  function internalIsSelfAllowed(address) internal view virtual returns (bool) {}
+
   function incrementBalance(address account, uint256 amount) internal override {
+    // TODO: fund to this - yield inbound
     InvestAccount.Balance to = _accounts[account];
-    requireSafeOp(to.isNotLocked());
+    requireSafeOp(to.isNotLocked() || internalIsSelfAllowed(account));
     if (amount > 0) {
       _incBalance(account, to, amount);
     }
@@ -82,6 +84,8 @@ abstract contract InvestmentCurrencyBase is AccessHelper, ERC20MintableBalancele
     InvestAccount.Balance from = _accounts[sender];
     InvestAccount.Balance to = _accounts[recipient];
 
+    requireSafeOp(recipient != address(this));
+
     if (to.flags() & FLAG_MANAGED == 0) {
       // user to user
       // insurer to user (mcd)
@@ -90,9 +94,10 @@ abstract contract InvestmentCurrencyBase is AccessHelper, ERC20MintableBalancele
       requireSafeOp(from.flags() & FLAG_MANAGED != 0 || to.isNotLocked());
     } else {
       // user to insurer
-      // insured to insurer (transferFrom only)
+      // any to insurer (transferFrom only)
+      // this to insurer - yield outbound
       requireSafeOp(to.isNotLocked());
-      requireSafeOp(from.isNotInvested() || recipient == msg.sender);
+      requireSafeOp(from.isNotInvested() || recipient == msg.sender || internalIsSelfAllowed(sender));
     }
 
     if (amount > 0) {
@@ -168,14 +173,36 @@ abstract contract InvestmentCurrencyBase is AccessHelper, ERC20MintableBalancele
     InvestAccount.Balance accBefore,
     InvestAccount.Balance accAfter
   ) private {
-    _accounts[account] = accAfter;
-
     uint256 bBefore = accBefore.isNotInvested() ? accBefore.balance() : 0;
     uint256 bAfter = accAfter.isNotInvested() ? accAfter.balance() : 0;
+
+    if (bBefore != bAfter && bBefore != 0) {
+      uint104 beforeBase = accBefore.yieldBase();
+      uint104 afterBase = internalGetCurrentYieldBase();
+      if (beforeBase < afterBase) {
+        accAfter = accAfter.setYieldBase(afterBase);
+        internalAddAccountYield(account, bBefore, beforeBase, afterBase);
+      }
+    }
+
+    _accounts[account] = accAfter;
 
     if (bBefore != bAfter) {
       updateNonInvestSupply(bBefore, bAfter);
     }
+  }
+
+  function internalGetCurrentYieldBase() internal view virtual returns (uint104);
+
+  function internalAddAccountYield(
+    address account,
+    uint256 balance,
+    uint256 baseBefore,
+    uint256 baseAfter
+  ) internal virtual;
+
+  function internalPullYield(address account) internal returns (uint256) {
+    // InvestAccount.Balance acc = _accounts[account];
   }
 
   function internalGetFlags(address account) internal view returns (uint256 flags) {
@@ -211,7 +238,13 @@ library InvestAccount {
     return uint128(Balance.unwrap(v));
   }
 
-  uint8 private constant OFS_LOCK_COUNT = 128;
+  uint8 private constant OFS_YIELD_BASE = 128;
+
+  function yieldBase(Balance v) internal pure returns (uint104) {
+    return uint104(Balance.unwrap(v) >> OFS_YIELD_BASE);
+  }
+
+  uint8 private constant OFS_LOCK_COUNT = OFS_YIELD_BASE + 104;
 
   function eq(Balance v0, Balance v1) internal pure returns (bool) {
     return Balance.unwrap(v0) == Balance.unwrap(v1);
@@ -248,10 +281,23 @@ library InvestAccount {
   }
 
   function setBalance(Balance v, uint128 b) internal pure returns (Balance) {
-    return Balance.wrap((Balance.unwrap(v) & ~uint256(type(uint128).max)) | b);
+    return Balance.wrap((Balance.unwrap(v) & (type(uint256).max << 128)) | b);
+  }
+
+  function setYieldBase(Balance v, uint104 b) internal pure returns (Balance) {
+    return setMasked(v, b, type(uint104).max, OFS_YIELD_BASE);
   }
 
   function setFlags(Balance v, uint8 f) internal pure returns (Balance) {
-    return Balance.wrap((Balance.unwrap(v) & (type(uint256).max << OFS_FLAGS)) | (uint256(f) << OFS_FLAGS));
+    return setMasked(v, f, type(uint8).max, OFS_FLAGS);
+  }
+
+  function setMasked(
+    Balance v,
+    uint256 value,
+    uint256 mask,
+    uint8 shift
+  ) private pure returns (Balance) {
+    return Balance.wrap((Balance.unwrap(v) & ~(mask << shift)) | (value << shift));
   }
 }
