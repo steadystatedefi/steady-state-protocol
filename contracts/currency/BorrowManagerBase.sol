@@ -7,6 +7,7 @@ import '../tools/Errors.sol';
 import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import './interfaces/ILender.sol';
+import './interfaces/IReinvestStrategy.sol';
 
 abstract contract BorrowManagerBase {
   using WadRayMath for uint256;
@@ -47,8 +48,8 @@ abstract contract BorrowManagerBase {
 
   function pushTo(
     address token,
-    address fund,
-    address strategy,
+    address fromFund,
+    address toStrategy,
     uint256 amount
   ) external {
     // TODO onlyApprovedStrategy(strategy)
@@ -56,19 +57,19 @@ abstract contract BorrowManagerBase {
 
     // ILender(fund).approveBorrow(token, amount, address(strategy));
 
-    TokenBorrow storage borr = _borrowings[token][strategy];
+    TokenBorrow storage borr = _borrowings[token][toStrategy];
     uint96 accumRate = borr.accumRate;
 
-    TokenLend storage lend = _lendings[token][fund];
-    LendedBalance storage lendBalance = lend.balances[strategy];
+    TokenLend storage lend = _lendings[token][fromFund];
+    LendedBalance storage lendBalance = lend.balances[toStrategy];
 
     uint256 index = lendBalance.borrowerIndex;
     if (index == 0) {
-      _lendedTokens[fund].add(token);
-      _borrowedTokens[strategy].add(token);
-      borr.lenders.add(fund);
+      _lendedTokens[fromFund].add(token);
+      _borrowedTokens[toStrategy].add(token);
+      borr.lenders.add(fromFund);
 
-      lend.borrowers.push(BorrowerStateInfo({borrower: strategy, lastAccum: accumRate}));
+      lend.borrowers.push(BorrowerStateInfo({borrower: toStrategy, lastAccum: accumRate}));
       Arithmetic.require((lendBalance.borrowerIndex = uint16(lend.borrowers.length)) > 0);
       lendBalance.amount = amount;
     } else {
@@ -80,25 +81,27 @@ abstract contract BorrowManagerBase {
     }
     borr.total += amount;
 
-    // ILender(fund).approveBorrow(token, amount, address(strategy));
-    // IInvestStrategy(strategy).investFrom(token, fund, amount);
+    ILender(fromFund).approveBorrow(token, amount, address(toStrategy));
+    IReinvestStrategy(toStrategy).investFrom(token, fromFund, amount);
+    Sanity.require(IERC20(token).allowance(fromFund, toStrategy) == 0);
+
     // TODO get stats and update rate
   }
 
   function pullFrom(
     address token,
-    address strategy,
-    address fund,
+    address fromStrategy,
+    address toFund,
     uint256 amount
   ) external returns (uint256) {
     // TODO onlyApprovedStrategy(strategy)
     // TODO onlyApprovedFund(fund)
 
-    TokenBorrow storage borr = _borrowings[token][strategy];
+    TokenBorrow storage borr = _borrowings[token][fromStrategy];
     uint96 accumRate = borr.accumRate;
 
-    TokenLend storage lend = _lendings[token][fund];
-    LendedBalance storage lendBalance = lend.balances[strategy];
+    TokenLend storage lend = _lendings[token][toFund];
+    LendedBalance storage lendBalance = lend.balances[fromStrategy];
 
     uint256 index = lendBalance.borrowerIndex;
     if (index == 0) {
@@ -114,11 +117,11 @@ abstract contract BorrowManagerBase {
         lend.borrowers[index - 1] = info;
         lend.balances[info.borrower].borrowerIndex = uint16(index);
       }
-      delete lend.balances[strategy];
+      delete lend.balances[fromStrategy];
       lend.borrowers.pop();
 
       if (lastIndex == 1) {
-        _lendedTokens[fund].remove(token);
+        _lendedTokens[toFund].remove(token);
       }
     } else {
       BorrowerStateInfo storage info = lend.borrowers[index];
@@ -128,18 +131,21 @@ abstract contract BorrowManagerBase {
     }
 
     if ((borr.total -= amount) == 0) {
-      _borrowedTokens[strategy].remove(token);
+      _borrowedTokens[fromStrategy].remove(token);
     }
 
-    // IInvestStrategy(strategy).approveDivest(token, fund, amount);
-    // ILender(fund).repayFrom(token, strategy, amount);
-
-    // SafeERC20.safeTransferFrom(IERC20(token), strategy, address(this), amount);
-    // SafeERC20.safeApprove(IERC20(token), fund, amount);
-    // ILender(fund).repay(token, amount);
+    IReinvestStrategy(fromStrategy).approveDivest(token, toFund, amount);
+    ILender(toFund).repayFrom(token, fromStrategy, amount);
+    Sanity.require(IERC20(token).allowance(fromStrategy, toFund) == 0);
 
     return amount;
   }
 
+  function pullYieldFrom(
+    address token,
+    address fromStrategy,
+    address toFund,
+    uint16 maxPct
+  ) external returns (uint256) {}
   // func requestLiquidity
 }

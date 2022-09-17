@@ -10,9 +10,33 @@ library Math {
     }
   }
 
-  function boundedSub2(uint256 x, uint256 y) internal pure returns (uint256, uint256) {
+  function boundedXSub(uint256 x, uint256 y) internal pure returns (uint256, uint256) {
     unchecked {
-      return x < y ? (uint256(0), y - x) : (x - y, 0);
+      return x <= y ? (uint256(0), y - x) : (x - y, 0);
+    }
+  }
+
+  function boundedMaxSub(uint256 x, uint256 y) internal pure returns (uint256, uint256) {
+    unchecked {
+      return x <= y ? (uint256(0), x) : (x - y, y);
+    }
+  }
+
+  function boundedSub128(uint128 x, uint256 y) internal pure returns (uint128) {
+    unchecked {
+      return x <= y ? 0 : uint128(x - y);
+    }
+  }
+
+  function boundedXSub128(uint128 x, uint256 y) internal pure returns (uint128, uint256) {
+    unchecked {
+      return x <= y ? (uint128(0), y - x) : (uint128(x - y), 0);
+    }
+  }
+
+  function boundedMaxSub128(uint128 x, uint256 y) internal pure returns (uint128, uint256) {
+    unchecked {
+      return x <= y ? (uint128(0), x) : (uint128(x - y), y);
     }
   }
 

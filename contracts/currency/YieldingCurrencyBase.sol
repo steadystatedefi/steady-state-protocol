@@ -10,45 +10,76 @@ import './InvestmentCurrencyBase.sol';
 abstract contract YieldingCurrencyBase is InvestmentCurrencyBase {
   using Math for uint256;
   using WadRayMath for uint256;
+  using InvestAccount for InvestAccount.Balance;
 
-  mapping(address => uint256) private _accumulatedYield;
-  uint104 private _yieldRateAccum;
-
-  // uint104 private _prevRateAccum;
-  // uint32 private _lastYieldAt;
-
-  function updateNonInvestSupply(uint256 decrement, uint256 increment) internal override {
-    super.updateNonInvestSupply(decrement, increment);
+  struct YieldBalance {
+    uint128 lastRateAccum;
+    uint128 yieldAccum;
   }
 
-  function internalGetCurrentYieldBase() internal view override returns (uint104) {
-    return _yieldRateAccum;
+  mapping(address => YieldBalance) private _yields;
+  uint128 private _yieldRateAccum; // wad-based
+
+  uint32 private _lastYieldAt;
+  uint96 private _lastIndicativeRate;
+
+  function internalBeforeManagedBalanceUpdate(address account, InvestAccount.Balance accBalance) internal override {
+    _updateYieldBalance(account, accBalance, 0);
   }
 
-  function internalAddAccountYield(
+  function _updateYieldBalance(
     address account,
-    uint256 balance,
-    uint256 baseBefore,
-    uint256 baseAfter
-  ) internal override {
-    _accumulatedYield[account] += balance.wadMul(baseAfter - baseBefore);
+    InvestAccount.Balance accBalance,
+    uint256 deduct
+  ) private returns (uint256) {
+    uint256 v = accBalance.ownBalance() + accBalance.givenBalance();
+    YieldBalance storage yield = _yields[account];
+
+    uint128 yieldRateAccum;
+    if (v != 0) {
+      yieldRateAccum = _yieldRateAccum;
+      v = v.wadMul(Math.boundedSub128(yieldRateAccum, yield.lastRateAccum));
+    }
+
+    if (v != 0 || deduct != 0) {
+      yield.lastRateAccum = yieldRateAccum;
+      uint128 yieldAccum = yield.yieldAccum;
+      Arithmetic.require((yieldAccum += uint128(v)) >= v);
+      (yield.yieldAccum, deduct) = Math.boundedMaxSub128(yieldAccum, deduct);
+    }
+    return deduct;
   }
 
   function internalAddYield(uint256 amount) internal {
-    (, uint256 totalInvested) = totalAndInvestedSupply();
-    amount = amount.wadDiv(totalInvested);
+    (, uint256 totalManaged) = totalAndManagedSupply();
+    amount = amount.wadDiv(totalManaged);
 
-    uint104 prevYieldRateAccum = _yieldRateAccum;
-    uint104 yieldRateAccum = prevYieldRateAccum + uint104(amount);
+    uint128 prevYieldRateAccum = _yieldRateAccum;
+    uint128 yieldRateAccum = prevYieldRateAccum + uint128(amount);
     Arithmetic.require(yieldRateAccum >= amount);
     _yieldRateAccum = yieldRateAccum;
 
     internalUpdateYieldRate(prevYieldRateAccum, yieldRateAccum);
   }
 
-  function internalUpdateYieldRate(uint256 prevYieldRateAccum, uint256 yieldRateAccum) internal virtual;
+  function internalPullYield(address account) internal returns (uint256) {
+    return _updateYieldBalance(account, internalGetBalance(account), type(uint256).max);
+  }
 
-  function expectedYieldRate() internal view returns (uint256, uint32) {}
+  function internalUpdateYieldRate(uint256 prevYieldRateAccum, uint256 yieldRateAccum) internal virtual {
+    uint256 v = _lastYieldAt;
+    if (v != 0) {
+      v -= block.timestamp;
+      if (v == 0) {
+        return;
+      }
+      v = yieldRateAccum.boundedSub(prevYieldRateAccum).divUp(v);
+      _lastIndicativeRate = v >= type(uint96).max ? type(uint96).max : uint96(v);
+    }
+    _lastYieldAt = uint32(block.timestamp);
+  }
 
-  function internalPullYield(address account) internal returns (uint256) {}
+  function indicativeYieldRate() internal view returns (uint256, uint32) {
+    return (_lastIndicativeRate, _lastYieldAt);
+  }
 }
