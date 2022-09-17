@@ -46,7 +46,11 @@ abstract contract InsurerJoinBase is IJoinEvents {
     State.require(status > MemberStatus.Unknown);
 
     MemberStatus currentStatus = internalGetStatus(insured);
-    if (currentStatus == MemberStatus.Joining) {
+    if (status == currentStatus) {
+      return currentStatus;
+    }
+
+    if (currentStatus == MemberStatus.Joining || status == MemberStatus.JoinFailed) {
       bool accepted;
       if (status == MemberStatus.Accepted) {
         if (internalPrepareJoin(insured)) {
@@ -79,10 +83,10 @@ abstract contract InsurerJoinBase is IJoinEvents {
       emit JoinFailed(insured, isPanic, errReason);
       status = MemberStatus.JoinFailed;
     } else {
-      if (status == MemberStatus.Declined) {
-        State.require(currentStatus != MemberStatus.Banned);
-      }
-      if (currentStatus == MemberStatus.Accepted && status != MemberStatus.Accepted) {
+      State.require(status != MemberStatus.Accepted);
+      State.require(currentStatus != MemberStatus.Banned);
+
+      if (currentStatus == MemberStatus.Accepted) {
         internalAfterJoinOrLeave(insured, status);
         emit MemberLeft(insured);
       }
