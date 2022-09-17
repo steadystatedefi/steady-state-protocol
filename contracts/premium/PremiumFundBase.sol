@@ -722,12 +722,11 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
   function swapAssets(
     address actuary,
     address account,
-    address defaultRecepient,
     SwapInstruction[] calldata instructions
   ) external onlyApprovedFor(account, APPROVE_SWAP) returns (uint256[] memory tokenAmounts) {
     if (instructions.length <= 1) {
       // _ensureActiveActuary is applied inside swapToken invoked via _swapTokensOne
-      return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuary, account, defaultRecepient, instructions[0]);
+      return instructions.length == 0 ? tokenAmounts : _swapTokensOne(actuary, account, instructions[0]);
     }
 
     _ensureActiveActuary(actuary);
@@ -737,10 +736,9 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     ActuaryConfig storage config = _configs[actuary];
 
     for (uint256 i = 0; i < instructions.length; i++) {
-      address recipient = instructions[i].recipient;
       address targetToken = instructions[i].targetToken;
 
-      SafeERC20.safeTransfer(IERC20(targetToken), recipient == address(0) ? defaultRecepient : recipient, tokenAmounts[i]);
+      SafeERC20.safeTransfer(IERC20(targetToken), instructions[i].recipient, tokenAmounts[i]);
 
       if (fees[i] > 0) {
         _addFee(config, targetToken, fees[i]);
@@ -891,19 +889,11 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
   function _swapTokensOne(
     address actuary,
     address account,
-    address defaultRecepient,
     SwapInstruction calldata instruction
   ) private returns (uint256[] memory tokenAmounts) {
     tokenAmounts = new uint256[](1);
 
-    tokenAmounts[0] = swapAsset(
-      actuary,
-      account,
-      instruction.recipient != address(0) ? instruction.recipient : defaultRecepient,
-      instruction.valueToSwap,
-      instruction.targetToken,
-      instruction.minAmount
-    );
+    tokenAmounts[0] = swapAsset(actuary, account, instruction.recipient, instruction.valueToSwap, instruction.targetToken, instruction.minAmount);
   }
 
   function knownTokens() external view returns (address[] memory) {
