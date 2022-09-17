@@ -65,7 +65,7 @@ abstract contract YieldStreamerBase is Collateralized {
     if (v > 0) {
       uint256 yieldDebt = _yieldDebt;
       if (yieldDebt > 0) {
-        (v, yieldDebt) = v.boundedSub2(yieldDebt);
+        (v, yieldDebt) = v.boundedXSub(yieldDebt);
         _yieldDebt = uint128(yieldDebt);
       }
     }
