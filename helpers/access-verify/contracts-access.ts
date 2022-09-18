@@ -175,6 +175,12 @@ add(Factories.JoinablePoolExtension, {
   },
 });
 
+add(Factories.ImperpetualPoolExtension, {
+  functions: {
+    applyPendingAdjustments: true,
+  },
+});
+
 add(Factories.ImperpetualPoolV1, {
   functions: {
     ...ERC20.functions,
