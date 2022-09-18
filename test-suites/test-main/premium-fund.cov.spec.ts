@@ -26,12 +26,12 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     sources.push(source);
   };
 
-  enum StarvationPointMode {
-    RateFactor = 0 + 64, // + BF_AUTO_REPLENISH
-    GlobalRateFactor = 1 + 64, // + BF_AUTO_REPLENISH
-    Constant = 2,
-    GlobalConstant = 3,
-  }
+  // enum StarvationPointMode {
+  //   RateFactor = 0 + 64, // + BF_AUTO_REPLENISH
+  //   GlobalRateFactor = 1 + 64, // + BF_AUTO_REPLENISH
+  //   Constant = 2,
+  //   GlobalConstant = 3,
+  // }
 
   before(async () => {
     user = testEnv.users[0];
