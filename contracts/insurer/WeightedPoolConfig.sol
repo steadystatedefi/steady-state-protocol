@@ -222,13 +222,19 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     uint256 baseRate = (approvedParams.basePremiumRate + unitSize - 1) / unitSize;
     Arithmetic.require(baseRate <= type(uint40).max);
 
-    super.internalSetInsuredParams(
-      insured,
-      Rounds.InsuredParams({minUnits: uint24(minUnits), maxShare: uint16(maxShare), minPremiumRate: uint40(baseRate)})
-    );
+    Rounds.InsuredParams memory params = Rounds.InsuredParams({
+      minUnits: uint24(minUnits),
+      maxShare: uint16(maxShare),
+      minPremiumRate: uint40(baseRate)
+    });
+
+    super.internalSetInsuredParams(insured, params);
+    emit ParamsForInsuredUpdated(insured, params);
 
     return true;
   }
+
+  event ParamsForInsuredUpdated(address indexed insured, Rounds.InsuredParams params);
 
   function internalGetStatus(address account) internal view override returns (MemberStatus) {
     return internalGetInsuredStatus(account);

@@ -146,7 +146,44 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     DemandedCoverage memory coverage
   ) internal virtual returns (uint256);
 
+  function getPendingAdjustments()
+    external
+    view
+    returns (
+      uint256 total,
+      uint256 pendingCovered,
+      uint256 pendingDemand
+    )
+  {
+    return internalGetUnadjustedUnits();
+  }
+
+  function applyPendingAdjustments() external {
+    internalApplyAdjustmentsToTotals();
+  }
+
   function getTotals(uint256 loopLimit) external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return internalGetTotals(loopLimit == 0 ? type(uint256).max : loopLimit);
+  }
+
+  function weightedParams() external view returns (WeightedPoolParams memory) {
+    return _params;
+  }
+
+  function dumpBatches() external view returns (Dump memory) {
+    return _dump();
+  }
+
+  function dumpInsured(address insured)
+    external
+    view
+    returns (
+      Rounds.InsuredEntry memory,
+      Rounds.Demand[] memory,
+      Rounds.Coverage memory,
+      Rounds.CoveragePremium memory
+    )
+  {
+    return _dumpInsured(insured);
   }
 }

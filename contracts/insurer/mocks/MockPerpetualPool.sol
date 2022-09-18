@@ -48,26 +48,6 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
 
   function internalOnCoverageRecovered() internal override {}
 
-  function dump() external view returns (Dump memory) {
-    return _dump();
-  }
-
-  function getPendingAdjustments()
-    external
-    view
-    returns (
-      uint256 total,
-      uint256 pendingCovered,
-      uint256 pendingDemand
-    )
-  {
-    return internalGetUnadjustedUnits();
-  }
-
-  function applyPendingAdjustments() external {
-    internalApplyAdjustmentsToTotals();
-  }
-
   function hasAnyAcl(address, uint256) internal pure override returns (bool) {
     return true;
   }

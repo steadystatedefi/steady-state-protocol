@@ -48,39 +48,6 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
 
   function internalOnCoverageRecovered() internal override {}
 
-  // function dump() external view returns (Dump memory) {
-  //   return _dump();
-  // }
-
-  // function dumpInsured(address insured)
-  //   external
-  //   view
-  //   returns (
-  //     Rounds.InsuredEntry memory,
-  //     Rounds.Demand[] memory,
-  //     Rounds.Coverage memory,
-  //     Rounds.CoveragePremium memory
-  //   )
-  // {
-  //   return _dumpInsured(insured);
-  // }
-
-  function getPendingAdjustments()
-    external
-    view
-    returns (
-      uint256 total,
-      uint256 pendingCovered,
-      uint256 pendingDemand
-    )
-  {
-    return internalGetUnadjustedUnits();
-  }
-
-  function applyPendingAdjustments() external {
-    internalApplyAdjustmentsToTotals();
-  }
-
   modifier onlyPremiumDistributor() override {
     _;
   }
