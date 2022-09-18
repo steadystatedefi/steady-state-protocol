@@ -55,6 +55,12 @@ add(Factories.ProxyCatalog, {
   },
 });
 
+add(Factories.FrontHelper, {
+  functions: {
+    syncSwapInfo: true,
+  },
+});
+
 add(Factories.ApprovalCatalogV1, {
   functions: {
     submitApplication: true,
