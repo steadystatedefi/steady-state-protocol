@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { IInsurerPool, MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
@@ -26,18 +27,6 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     pool = await Factories.MockPerpetualPool.deploy(extension.address, joinExtension.address);
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
-
-  enum MemberStatus {
-    Unknown,
-    JoinCancelled,
-    JoinRejected,
-    JoinFailed,
-    Declined,
-    Joining,
-    Accepted,
-    Banned,
-    NotApplicable,
-  }
 
   it('Insurer and insured pools', async () => {
     const minUnits = 10;

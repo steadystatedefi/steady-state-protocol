@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { MockCollateralCurrency, IInsurerPool, MockInsuredPool, MockPerpetualPool } from '../../types';
@@ -32,18 +33,6 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     await cc.registerInsurer(pool.address);
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
-
-  enum MemberStatus {
-    Unknown,
-    JoinCancelled,
-    JoinRejected,
-    JoinFailed,
-    Declined,
-    Joining,
-    Accepted,
-    Banned,
-    NotApplicable,
-  }
 
   const addInsured = async (minUnits: number, riskWeightValue: number, poolDemandValue: number) => {
     const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);

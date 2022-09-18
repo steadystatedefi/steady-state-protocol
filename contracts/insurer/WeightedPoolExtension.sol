@@ -129,8 +129,12 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
 
-    if (address(_premiumDistributor) != address(0)) {
-      _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
+    if (coverage.premiumRate != 0) {
+      if (address(_premiumDistributor) != address(0)) {
+        _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
+      }
+    } else {
+      Sanity.require(coverage.totalPremium == 0);
     }
 
     return (params.receivedCoverage, receivedCollateral, coverage);

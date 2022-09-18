@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { HALF_RAY, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
@@ -33,18 +34,6 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     await cc.registerInsurer(pool.address);
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
-
-  enum MemberStatus {
-    Unknown,
-    JoinCancelled,
-    JoinRejected,
-    JoinFailed,
-    Declined,
-    Joining,
-    Accepted,
-    Banned,
-    NotApplicable,
-  }
 
   it('Insurer and insured pools', async () => {
     const minUnits = 10;
