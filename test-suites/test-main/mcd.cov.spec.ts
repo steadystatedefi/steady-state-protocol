@@ -3,9 +3,9 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 import { BigNumber } from 'ethers';
 
-import { MAX_UINT, RAY } from '../../helpers/constants';
+import { MAX_UINT, RAY, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
-import { createRandomAddress } from '../../helpers/runtime-utils';
+import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import {
   IInsurerPool,
   MockCollateralCurrency,
@@ -19,6 +19,8 @@ import { makeSuite, TestEnv } from './setup/make-suite';
 makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const drawdownPct = 10; // 10% constant inside MockImperpetualPool
+  const rate = 1e12;
+  const demandPerInsured = 4000 * unitSize;
   let demanded: BigNumber;
 
   let pool: MockImperpetualPool;
@@ -33,8 +35,8 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
     const insured = await Factories.MockInsuredPool.deploy(
       cc.address,
-      4000 * unitSize,
-      1e12,
+      demandPerInsured,
+      rate,
       10 * unitSize,
       premiumToken.address
     );
@@ -233,4 +235,58 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       makeTest(claimAmt, forepay, false);
     }
   }
+
+  it('Premium debt', async () => {
+    await insureds[0].cancelAllCoverageDemand();
+    await insureds[1].cancelAllCoverageDemand();
+    await insureds[2].cancelAllCoverageDemand();
+
+    await pool.setPremiumDistributor(premFund.address);
+    await pool.setCoverageForepayPct(80_00);
+
+    let demand = (await joinPool(10 * 100)).totalDemand;
+    demand = demand.add((await joinPool(10 * 100)).totalDemand);
+    demand = demand.add((await joinPool(10 * 100)).totalDemand);
+
+    let ratePerInsured = BigNumber.from(demandPerInsured).mul(rate).div(WAD);
+    let t = (await cc.mintAndTransfer(user.address, pool.address, demand, 0)).timestamp;
+    t = t === undefined ? await currentTime() : t;
+
+    for (let i = insureds.length - 3; i < insureds.length; i++) {
+      await premFund.setPrice(await insureds[i].premiumToken(), WAD);
+      await insureds[i].reconcileWithInsurers(0, 0);
+    }
+
+    let insured = insureds[insureds.length - 1];
+    let receiver = createRandomAddress();
+    await advanceTimeAndBlock(20);
+    let t2 = (await insured.cancelCoverage(receiver, MAX_UINT)).timestamp;
+    t2 = t2 === undefined ? await currentTime() : t2;
+
+    let debt = ratePerInsured.mul(t2 - t);
+    expect(await cc.balanceOf(receiver)).lt(BigNumber.from(demandPerInsured).sub(debt));
+
+    await advanceTimeAndBlock(120);
+    insured = insureds[insureds.length - 2];
+    receiver = createRandomAddress();
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT)).timestamp;
+    t2 = t2 === undefined ? await currentTime() : t2;
+
+    debt = ratePerInsured.mul(t2 - t);
+    expect(await cc.balanceOf(receiver)).lt(BigNumber.from(demandPerInsured).sub(debt));
+
+    const t3 = t2;
+    const drawdown = await collectAvailableDrawdown();
+    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
+
+    insured = insureds[insureds.length - 3];
+    receiver = createRandomAddress();
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT)).timestamp;
+    t2 = t2 === undefined ? await currentTime() : t2;
+    debt = ratePerInsured.mul(t3 - t);
+    ratePerInsured = BigNumber.from(demandPerInsured).sub(drawdown).mul(rate).div(WAD);
+    debt = debt.add(ratePerInsured.mul(t2 - t3));
+
+    // expect(await cc.balanceOf(receiver)).lt(BigNumber.from(demandPerInsured).sub(debt).sub(drawdown));
+  });
 });
