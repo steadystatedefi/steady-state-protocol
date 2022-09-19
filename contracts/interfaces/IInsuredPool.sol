@@ -10,8 +10,13 @@ interface IInsuredPool is ICollateralized {
 
   /// @notice Invoked by chartered pools to request more coverage demand
   /// @param amount a hint on demand amount, 0 means default
+  /// @param maxAmount max demand amount
   /// @param loopLimit a max number of iterations
-  function pullCoverageDemand(uint256 amount, uint256 loopLimit) external returns (bool);
+  function pullCoverageDemand(
+    uint256 amount,
+    uint256 maxAmount,
+    uint256 loopLimit
+  ) external returns (bool);
 
   /// @notice Get this insured params
   /// @return The insured params

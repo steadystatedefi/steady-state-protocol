@@ -18,19 +18,21 @@ abstract contract InsurerJoinBase is IJoinEvents {
 
   function internalIsInvestor(address) internal view virtual returns (bool);
 
-  function internalRequestJoin(address insured) internal virtual returns (MemberStatus status) {
+  function internalRequestJoin(address insured) internal virtual {
     Value.requireContract(insured);
-    if ((status = internalGetStatus(insured)) >= MemberStatus.Joining) {
-      return status;
+    MemberStatus status = internalGetStatus(insured);
+    if (status >= MemberStatus.Joining) {
+      return;
     }
     if (status == MemberStatus.Unknown) {
       State.require(!internalIsInvestor(insured));
     }
+
     internalSetStatus(insured, MemberStatus.Joining);
     emit JoinRequested(insured);
 
     if ((status = internalInitiateJoin(insured)) != MemberStatus.Joining) {
-      status = _updateInsuredStatus(insured, status);
+      _updateInsuredStatus(insured, status);
     }
   }
 
@@ -42,58 +44,55 @@ abstract contract InsurerJoinBase is IJoinEvents {
     }
   }
 
-  function _updateInsuredStatus(address insured, MemberStatus status) private returns (MemberStatus) {
-    State.require(status > MemberStatus.Unknown);
+  function _updateInsuredStatus(address insured, MemberStatus status) private {
+    Value.require(status > MemberStatus.Unknown);
 
     MemberStatus currentStatus = internalGetStatus(insured);
     if (status == currentStatus) {
-      return currentStatus;
+      return;
     }
 
-    if (currentStatus == MemberStatus.Joining || status == MemberStatus.JoinFailed) {
-      bool accepted;
-      if (status == MemberStatus.Accepted) {
-        if (internalPrepareJoin(insured)) {
-          accepted = true;
-        } else {
+    bool accepted;
+    if (currentStatus == MemberStatus.Joining) {
+      if (status == MemberStatus.Accepted && internalPrepareJoin(insured)) {
+        accepted = true;
+        internalSetStatus(insured, status);
+        IInsuredPool(insured).joinProcessed(accepted);
+        currentStatus = internalGetStatus(insured);
+      } else {
+        if (status != MemberStatus.Banned) {
           status = MemberStatus.JoinRejected;
         }
-      } else if (status != MemberStatus.Banned) {
-        status = MemberStatus.JoinRejected;
-      }
-      internalSetStatus(insured, status);
+        internalSetStatus(insured, currentStatus = status);
 
-      bool isPanic;
-      bytes memory errReason;
+        uint256 resultType;
+        bytes memory errReason;
 
-      try IInsuredPool(insured).joinProcessed(accepted) {
-        emit JoinProcessed(insured, accepted);
-
-        status = internalGetStatus(insured);
-        if (accepted && status == MemberStatus.Accepted) {
-          internalAfterJoinOrLeave(insured, status);
+        try IInsuredPool(insured).joinProcessed(accepted) {
+          resultType = 2;
+        } catch Error(string memory reason) {
+          errReason = bytes(reason);
+        } catch (bytes memory reason) {
+          resultType = 1;
+          errReason = reason;
         }
-        return status;
-      } catch Error(string memory reason) {
-        errReason = bytes(reason);
-      } catch (bytes memory reason) {
-        isPanic = true;
-        errReason = reason;
+        if (resultType < 2) {
+          emit JoinRejectionFailed(insured, resultType == 1, errReason);
+        }
       }
-      emit JoinFailed(insured, isPanic, errReason);
-      status = MemberStatus.JoinFailed;
+      emit JoinProcessed(insured, accepted);
     } else {
-      State.require(status != MemberStatus.Accepted);
+      Value.require(status != MemberStatus.Accepted);
       State.require(currentStatus != MemberStatus.Banned);
-
-      if (currentStatus == MemberStatus.Accepted) {
-        internalAfterJoinOrLeave(insured, status);
-        emit MemberLeft(insured);
-      }
+      internalSetStatus(insured, status);
     }
 
-    internalSetStatus(insured, status);
-    return status;
+    if (currentStatus == MemberStatus.Accepted) {
+      if (!accepted) {
+        emit MemberLeft(insured);
+      }
+      internalAfterJoinOrLeave(insured, status);
+    }
   }
 
   function internalAfterJoinOrLeave(address insured, MemberStatus status) internal virtual;
