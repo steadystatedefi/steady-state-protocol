@@ -26,6 +26,7 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
         unitsPerAutoPull: 0
       })
     );
+    setDefaultLoopLimit(LoopLimitType.PullDemandAfterJoin, 255);
   }
 
   function getRevision() internal pure override returns (uint256) {}
@@ -89,8 +90,4 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return IMockInsurer(address(this)).getTotals(0);
   }
-
-  // function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
-  //   return internalGetTotals(type(uint256).max);
-  // }
 }

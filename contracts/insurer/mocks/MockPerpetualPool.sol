@@ -26,6 +26,7 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
         unitsPerAutoPull: 0
       })
     );
+    setDefaultLoopLimit(LoopLimitType.PullDemandAfterJoin, 255);
   }
 
   function getRevision() internal pure override returns (uint256) {}

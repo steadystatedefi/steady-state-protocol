@@ -37,10 +37,6 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return _charteredInsurers;
   }
 
-  function getDemandOnJoin() internal view virtual returns (uint256) {
-    return ~uint256(0);
-  }
-
   ///@dev Add the Insurer pool if accepted, and set the status of it
   function internalJoinProcessed(address insurer, bool accepted) internal {
     Access.require(getAccountStatus(insurer) == STATUS_PENDING);
@@ -51,18 +47,21 @@ abstract contract InsuredJoinBase is IInsuredPool {
       State.require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
       internalSetServiceAccountStatus(insurer, uint16(index));
-      _addCoverageDemandTo(ICoverageDistributor(insurer), 0, getDemandOnJoin(), 0);
     } else {
       internalSetServiceAccountStatus(insurer, STATUS_NOT_JOINED);
     }
   }
 
   /// @inheritdoc IInsuredPool
-  function pullCoverageDemand(uint256 amount, uint256 loopLimit) external override returns (bool) {
+  function pullCoverageDemand(
+    uint256 amount,
+    uint256 maxAmount,
+    uint256 loopLimit
+  ) external override returns (bool) {
     uint16 status = getAccountStatus(msg.sender);
     if (status <= INDEX_MAX) {
       Access.require(status > 0);
-      return _addCoverageDemandTo(ICoverageDistributor(msg.sender), amount, type(uint256).max, loopLimit);
+      return _addCoverageDemandTo(ICoverageDistributor(msg.sender), amount, maxAmount, loopLimit);
     }
     return false;
   }
