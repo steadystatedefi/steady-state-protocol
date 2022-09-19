@@ -42,3 +42,15 @@ export const AccessFlags = {
   COLLATERAL_FUND_LISTING: BigNumber.from(1).shl(64), // an ephemeral role - just to keep a list of collateral funds
   INSURER_POOL_LISTING: BigNumber.from(1).shl(65), // an ephemeral role - just to keep a list of insurer funds
 } as const;
+
+export enum MemberStatus {
+  Unknown,
+  JoinCancelled,
+  JoinRejected,
+  JoinFailed,
+  Declined,
+  Joining,
+  Accepted,
+  Banned,
+  NotApplicable,
+}

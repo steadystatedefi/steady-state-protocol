@@ -110,7 +110,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
   // slither-disable-next-line calls-loop,costly-loop
   function _cancelDemand(address insurer, uint256 requestedAmount) private returns (uint256 totalPayout) {
     uint256 unitSize = IDemandableCoverage(insurer).coverageUnitSize();
-    uint256 unitCount = requestedAmount.divUp(unitSize);
+    uint256 unitCount = requestedAmount == type(uint256).max ? requestedAmount : requestedAmount.divUp(unitSize);
     if (unitCount > 0) {
       uint256[] memory canceledBands;
       (unitCount, canceledBands) = IDemandableCoverage(insurer).cancelCoverageDemand(address(this), unitCount, 0);

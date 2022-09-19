@@ -2,9 +2,16 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { Factories } from '../../helpers/contract-types';
 import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
-import { MockCollateralCurrency, IInsurerPool, MockInsuredPool, MockPerpetualPool } from '../../types';
+import {
+  MockCollateralCurrency,
+  IInsurerPool,
+  MockInsuredPool,
+  MockPerpetualPool,
+  WeightedPoolExtension,
+} from '../../types';
 
 import { makeSharedStateSuite, TestEnv } from './setup/make-suite';
 
@@ -16,6 +23,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
   const poolDemand = poolDemandUnits * unitSize;
   let pool: MockPerpetualPool;
   let poolIntf: IInsurerPool;
+  let poolExt: WeightedPoolExtension;
   const insureds: MockInsuredPool[] = [];
   const insuredUnits: number[] = [];
   const insuredTS: number[] = [];
@@ -31,19 +39,8 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     pool = await Factories.MockPerpetualPool.deploy(extension.address, joinExtension.address);
     await cc.registerInsurer(pool.address);
     poolIntf = Factories.IInsurerPool.attach(pool.address);
+    poolExt = Factories.WeightedPoolExtension.attach(pool.address);
   });
-
-  enum MemberStatus {
-    Unknown,
-    JoinCancelled,
-    JoinRejected,
-    JoinFailed,
-    Declined,
-    Joining,
-    Accepted,
-    Banned,
-    NotApplicable,
-  }
 
   const addInsured = async (minUnits: number, riskWeightValue: number, poolDemandValue: number) => {
     const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
@@ -397,7 +394,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(stats0.totalDemand).gt(stats1.totalDemand);
     expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
 
-    const adj = await pool.getPendingAdjustments();
+    const adj = await poolExt.getPendingAdjustments();
     expect(adj.pendingDemand.mul(unitSize)).eq(stats0.totalDemand.sub(stats1.totalDemand));
     expect(adj.pendingCovered).eq(0);
 
@@ -408,7 +405,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     const insured = insureds[0];
 
     const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
-    const adj0 = await pool.getPendingAdjustments();
+    const adj0 = await poolExt.getPendingAdjustments();
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
@@ -423,7 +420,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       expect(stats0.totalPremium).lt(stats1.totalPremium);
     }
 
-    const adj1 = await pool.getPendingAdjustments();
+    const adj1 = await poolExt.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
     expect(adj0.pendingCovered).eq(adj1.pendingCovered);
   });
@@ -437,7 +434,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await pool.totalSupplyValue()).eq(totalInvested);
 
     const insured = insureds[0];
-    const adj0 = await pool.getPendingAdjustments();
+    const adj0 = await poolExt.getPendingAdjustments();
 
     expect(await cc.balanceOf(insured.address)).eq(0);
 
@@ -516,7 +513,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     );
     expect(totals0.totalPremium).lt(totals1.totalPremium);
 
-    const adj1 = await pool.getPendingAdjustments();
+    const adj1 = await poolExt.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
     // TODO expect(adj0.pendingCovered).eq(stats0.totalCovered);
   });
@@ -557,7 +554,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     await insured.testCancelCoverageDemand(pool.address, 1000000000);
 
-    const adj0 = await pool.getPendingAdjustments();
+    const adj0 = await poolExt.getPendingAdjustments();
 
     const { coverage: totals1 } = await pool.getTotals();
     const { coverage: stats1 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
@@ -577,7 +574,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(totals0.totalDemand.sub(totals1.totalDemand)).eq(stats0.totalDemand.sub(stats1.totalDemand));
 
     // check for an inlined zero batch
-    const dump = await pool.dump();
+    const dump = await poolExt.dumpBatches();
     expect(dump.batches[0].unitPerRound).gt(0);
     expect(dump.batches[1].unitPerRound).eq(0);
     expect(dump.batches[2].unitPerRound).gt(0);
@@ -589,7 +586,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(dump.batches[1].roundPremiumRateSum).eq(0);
     expect(dump.batches[1].state).eq(1); // this zero round MUST remain "ready to use" to avoid lockup
 
-    const adj1 = await pool.getPendingAdjustments();
+    const adj1 = await poolExt.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
     expect(adj0.pendingCovered).gt(0);
   });
@@ -598,7 +595,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     const insured = insureds[1];
 
     const { coverage: totals0 } = await pool.getTotals();
-    const dump0 = await pool.dump();
+    const dump0 = await poolExt.dumpBatches();
 
     expect(dump0.batches[1].unitPerRound).eq(0);
 
@@ -613,7 +610,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(totals1.totalDemand).gt(totals0.totalDemand);
 
     {
-      const dump1 = await pool.dump();
+      const dump1 = await poolExt.dumpBatches();
       expect(dump1.batches[1].unitPerRound).gt(0);
 
       expect(dump1.batchCount).eq(dump0.batchCount);
@@ -628,7 +625,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     await insured.testCancelCoverageDemand(pool.address, poolDemandUnits);
 
     {
-      const dump1 = await pool.dump();
+      const dump1 = await poolExt.dumpBatches();
 
       dump0.batches.forEach((b0, index) => {
         const b1 = dump1.batches[index];
@@ -716,10 +713,10 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
   it('Apply delayed adjustments', async () => {
     await callAndCheckTotals(async () => {
-      await pool.applyPendingAdjustments();
+      await poolExt.applyPendingAdjustments();
     });
 
-    const adj0 = await pool.getPendingAdjustments();
+    const adj0 = await poolExt.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(0);
     expect(adj0.pendingCovered).eq(0);
   });
