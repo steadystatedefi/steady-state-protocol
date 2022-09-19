@@ -2,12 +2,9 @@
 pragma solidity ^0.8.10;
 
 import '../tools/math/WadRayMath.sol';
-import '../tools/tokens/ERC20MintableBalancelessBase.sol';
-import '../tools/tokens/IERC1363.sol';
-import '../access/AccessHelper.sol';
 import './InvestmentCurrencyBase.sol';
 
-abstract contract YieldingCurrencyBase is InvestmentCurrencyBase {
+abstract contract YieldingBase {
   using Math for uint256;
   using WadRayMath for uint256;
   using InvestAccount for InvestAccount.Balance;
@@ -17,13 +14,13 @@ abstract contract YieldingCurrencyBase is InvestmentCurrencyBase {
     uint128 yieldAccum;
   }
 
-  mapping(address => YieldBalance) private _yields;
+  mapping(address => YieldBalance) private _yields; // [account]
   uint128 private _yieldRateAccum; // wad-based
 
   uint32 private _lastYieldAt;
   uint96 private _lastIndicativeRate;
 
-  function internalBeforeManagedBalanceUpdate(address account, InvestAccount.Balance accBalance) internal override {
+  function internalBeforeManagedBalanceUpdate(address account, InvestAccount.Balance accBalance) internal virtual {
     _updateYieldBalance(account, accBalance, 0);
   }
 
@@ -49,6 +46,10 @@ abstract contract YieldingCurrencyBase is InvestmentCurrencyBase {
     }
     return deduct;
   }
+
+  function totalAndManagedSupply() public view virtual returns (uint256, uint256);
+
+  function internalGetBalance(address account) internal view virtual returns (InvestAccount.Balance);
 
   function internalAddYield(uint256 amount) internal {
     (, uint256 totalManaged) = totalAndManagedSupply();

@@ -33,7 +33,7 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
     return _totalSupply;
   }
 
-  function totalAndManagedSupply() public view returns (uint256 total, uint256 totalManaged) {
+  function totalAndManagedSupply() public view virtual returns (uint256 total, uint256 totalManaged) {
     total = _totalSupply;
     totalManaged = total - _totalNonManaged;
   }
@@ -46,7 +46,7 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
     Arithmetic.require((_totalNonManaged = uint128((_totalNonManaged - decrement) + increment)) >= increment);
   }
 
-  function internalGetBalance(address account) public view returns (InvestAccount.Balance) {
+  function internalGetBalance(address account) internal view virtual returns (InvestAccount.Balance) {
     return _accounts[account];
   }
 
@@ -70,7 +70,7 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
     }
   }
 
-  function incrementBalance(address account, uint256 amount) internal override {
+  function incrementBalance(address account, uint256 amount) internal virtual override {
     InvestAccount.Balance to = _accounts[account];
     if (amount > 0) {
       _updateAccount(account, to, to.incOwnBalance(amount));

@@ -5,9 +5,10 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/tokens/ERC20MintableBalancelessBase.sol';
 import '../tools/tokens/IERC1363.sol';
 import '../access/AccessHelper.sol';
-import './YieldingCurrencyBase.sol';
+import './InvestmentCurrencyBase.sol';
+import './YieldingBase.sol';
 
-abstract contract BorrowableCurrencyBase is YieldingCurrencyBase, AccessHelper {
+abstract contract BorrowableCurrencyBase is AccessHelper, InvestmentCurrencyBase, YieldingBase {
   using Math for uint256;
   using WadRayMath for uint256;
   using InvestAccount for InvestAccount.Balance;
@@ -36,5 +37,33 @@ abstract contract BorrowableCurrencyBase is YieldingCurrencyBase, AccessHelper {
     _borrowManager = borrowManager_;
 
     emit BorrowManagerUpdated(borrowManager_);
+  }
+
+  function totalAndManagedSupply() public view override(InvestmentCurrencyBase, YieldingBase) returns (uint256, uint256) {
+    return super.totalAndManagedSupply();
+  }
+
+  function internalGetBalance(address account) internal view override(InvestmentCurrencyBase, YieldingBase) returns (InvestAccount.Balance) {
+    return super.internalGetBalance(account);
+  }
+
+  function internalBeforeManagedBalanceUpdate(address account, InvestAccount.Balance accBalance)
+    internal
+    override(InvestmentCurrencyBase, YieldingBase)
+  {
+    return super.internalBeforeManagedBalanceUpdate(account, accBalance);
+  }
+
+  function incrementBalance(address account, uint256 amount) internal override {
+    super.incrementBalance(account, amount);
+
+    if (account == address(this) && amount != 0) {
+      // this is yield mint
+      internalAddYield(amount);
+    }
+  }
+
+  function pullYield() external returns (uint256) {
+    return internalPullYield(msg.sender);
   }
 }

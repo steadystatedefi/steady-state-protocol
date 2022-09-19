@@ -13,6 +13,9 @@ interface IReinvestStrategy {
   function approveDivest(
     address token,
     address to,
-    uint256 amount
-  ) external;
+    uint256 amount,
+    uint256 minLimit
+  ) external returns (uint256 amountBefore);
+
+  function investedValueOf(address token) external view returns (uint256);
 }
