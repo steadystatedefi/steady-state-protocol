@@ -5,7 +5,7 @@ import { BigNumber } from 'ethers';
 
 import { MAX_UINT, RAY, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
-import { advanceTimeAndBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
+import { advanceBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import {
   IInsurerPool,
   MockCollateralCurrency,
@@ -160,7 +160,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     for (let i = 0; i < insureds.length; i++) {
       const insured = insureds[i];
-      await insured.reconcileWithInsurers(0, 0);
+      await insured.reconcileWithInsurers(0, 0, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
       const coverage = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
       expect(await cc.balanceOf(insured.address)).eq(coverage.mul(coverageForepayPct).div(10000));
     }
@@ -190,8 +190,9 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     }
 
     for (let i = 0; i < insureds.length; i++) {
-      await insureds[i].reconcileWithInsurers(0, 0);
+      await insureds[i].reconcileWithInsurers(0, 0, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
     }
+
     let availableCC = await cc.balanceOf(pool.address);
     expect(availableCC).eq(demanded.mul(100 - ((flushMCD ? drawdownPct : 0) + forepayPct)).div(100));
 
@@ -208,7 +209,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       const expectedPayout = totalCovered.mul(forepayPct).div(100).add(extra);
 
       const requestAmount = claimPct === 100 ? MAX_UINT : totalCovered.mul(claimPct).div(100);
-      await insured.cancelCoverage(receiver, requestAmount);
+      await insured.cancelCoverage(receiver, requestAmount, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
       {
         expect(await cc.balanceOf(receiver)).eq(expectedPayout);
       }
@@ -237,9 +238,9 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
   }
 
   it('Premium debt', async () => {
-    await insureds[0].cancelAllCoverageDemand();
-    await insureds[1].cancelAllCoverageDemand();
-    await insureds[2].cancelAllCoverageDemand();
+    await insureds[0].cancelAllCoverageDemand({ gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+    await insureds[1].cancelAllCoverageDemand({ gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+    await insureds[2].cancelAllCoverageDemand({ gasLimit: testEnv.underCoverage ? 2000000 : undefined });
 
     await pool.setPremiumDistributor(premFund.address);
     await pool.setCoverageForepayPct(80_00);
@@ -254,34 +255,40 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     for (let i = insureds.length - 3; i < insureds.length; i++) {
       await premFund.setPrice(await insureds[i].premiumToken(), WAD);
-      await insureds[i].reconcileWithInsurers(0, 0);
+      await insureds[i].reconcileWithInsurers(0, 0, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
     }
 
     let insured = insureds[insureds.length - 1];
     let receiver = createRandomAddress();
-    await advanceTimeAndBlock(20);
-    let t2 = (await insured.cancelCoverage(receiver, MAX_UINT)).timestamp;
+    await advanceBlock((await currentTime()) + 20);
+    let t2 = (
+      await insured.cancelCoverage(receiver, MAX_UINT, { gasLimit: testEnv.underCoverage ? 2000000 : undefined })
+    ).timestamp;
     t2 = t2 === undefined ? await currentTime() : t2;
 
     let debt = ratePerInsured.mul(t2 - t);
-    expect(await cc.balanceOf(receiver)).lt(BigNumber.from(demandPerInsured).sub(debt));
+    expect(await cc.balanceOf(receiver)).lte(BigNumber.from(demandPerInsured).sub(debt));
 
-    await advanceTimeAndBlock(120);
+    await advanceBlock((await currentTime()) + 120);
     insured = insureds[insureds.length - 2];
     receiver = createRandomAddress();
-    t2 = (await insured.cancelCoverage(receiver, MAX_UINT)).timestamp;
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, { gasLimit: testEnv.underCoverage ? 2000000 : undefined }))
+      .timestamp;
     t2 = t2 === undefined ? await currentTime() : t2;
 
     debt = ratePerInsured.mul(t2 - t);
-    expect(await cc.balanceOf(receiver)).lt(BigNumber.from(demandPerInsured).sub(debt));
+    expect(await cc.balanceOf(receiver)).lte(BigNumber.from(demandPerInsured).sub(debt));
 
     const t3 = t2;
     const drawdown = await collectAvailableDrawdown();
-    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
+    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0, {
+      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
+    });
 
     insured = insureds[insureds.length - 3];
     receiver = createRandomAddress();
-    t2 = (await insured.cancelCoverage(receiver, MAX_UINT)).timestamp;
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, { gasLimit: testEnv.underCoverage ? 2000000 : undefined }))
+      .timestamp;
     t2 = t2 === undefined ? await currentTime() : t2;
     debt = ratePerInsured.mul(t3 - t);
     ratePerInsured = BigNumber.from(demandPerInsured).sub(drawdown).mul(rate).div(WAD);
