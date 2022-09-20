@@ -50,6 +50,15 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       expect(chartered).eql([pool.address]);
 
       const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
+
+      const rateBands = await insured.rateBands();
+      expect(rateBands[1]).eq(1);
+      expect(rateBands[0].length).eq(1);
+      const rateBand = rateBands[0][0];
+      expect(rateBand.coverageDemand).eq(poolDemand);
+      expect(rateBand.assignedDemand).eq(stats.coverage.totalDemand);
+      expect(rateBand.premiumRate).eq(RATE);
+
       insureds.push(insured);
       // collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       return stats.coverage;
