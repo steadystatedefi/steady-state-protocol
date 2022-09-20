@@ -7,6 +7,7 @@ export const Factories = {
   IInsurerPool: iface(types.IInsurerPool__factory),
   ICancellableCoverage: iface(types.ICancellableCoverage__factory),
   ICoverageDistributor: iface(types.ICoverageDistributor__factory),
+  WeightedPoolExtension: iface(types.WeightedPoolExtension__factory),
 
   JoinablePoolExtension: wrap(types.JoinablePoolExtension__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),

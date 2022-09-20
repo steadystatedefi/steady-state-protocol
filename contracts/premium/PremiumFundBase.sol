@@ -389,7 +389,6 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     uint256 rate
   ) external override {
     ActuaryConfig storage config = _ensureActuary(msg.sender);
-    Value.require(source != address(0));
     Value.require(rate > 0);
 
     _premiumAllocationUpdated(config, msg.sender, source, address(0), increment, rate, false);

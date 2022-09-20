@@ -224,12 +224,21 @@ contract FrontHelper is AccessHelper {
     address premiumFund,
     address actuary,
     address[] calldata assets
-  ) external view returns (IPremiumFund.AssetBalanceInfo[] memory balances) {
+  ) public view returns (IPremiumFund.AssetBalanceInfo[] memory balances) {
     balances = new IPremiumFund.AssetBalanceInfo[](assets.length);
     for (uint256 i = assets.length; i > 0; ) {
       i--;
       // slither-disable-next-line calls-loop
       balances[i] = IPremiumFund(premiumFund).assetBalance(actuary, assets[i]);
     }
+  }
+
+  function syncSwapInfo(
+    address premiumFund,
+    address actuary,
+    address[] calldata assets
+  ) external returns (IPremiumFund.AssetBalanceInfo[] memory) {
+    IPremiumFund(premiumFund).syncAssets(actuary, 0, assets);
+    return getSwapInfo(premiumFund, actuary, assets);
   }
 }

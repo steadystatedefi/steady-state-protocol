@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { HALF_RAY, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
 import { MockCollateralCurrency, MockImperpetualPool } from '../../types';
@@ -19,6 +20,39 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
     await cc.registerLiquidityProvider(testEnv.deployer.address);
     pool = await Factories.MockImperpetualPool.deploy(extension.address, joinExtension.address);
     await cc.registerInsurer(pool.address);
+  });
+
+  it('Reconcile an empty insured', async () => {
+    const minUnits = 10;
+    const riskWeight = 1000; // 10%
+    const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
+    const poolDemand = 0;
+
+    const joinPool = async (riskWeightValue: number) => {
+      const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+      const insured = await Factories.MockInsuredPool.deploy(
+        cc.address,
+        poolDemand,
+        RATE,
+        minUnits * unitSize,
+        premiumToken.address
+      );
+      await pool.approveNextJoin(riskWeightValue, premiumToken.address);
+      await insured.joinPool(pool.address, { gasLimit: 1000000 });
+      expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
+      const { 0: generic, 1: chartered } = await insured.getInsurers();
+      expect(generic).eql([]);
+      expect(chartered).eql([pool.address]);
+
+      return insured;
+    };
+
+    const fund = await Factories.MockPremiumFund.deploy(cc.address);
+    await pool.setPremiumDistributor(fund.address);
+    await fund.registerPremiumActuary(pool.address, true);
+
+    const insured = await joinPool(riskWeight);
+    await insured.reconcileWithInsurers(0, 0);
   });
 
   it('Add coverage by users into an empty pool', async () => {

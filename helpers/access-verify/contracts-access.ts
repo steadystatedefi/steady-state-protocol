@@ -55,6 +55,12 @@ add(Factories.ProxyCatalog, {
   },
 });
 
+add(Factories.FrontHelper, {
+  functions: {
+    syncSwapInfo: true,
+  },
+});
+
 add(Factories.ApprovalCatalogV1, {
   functions: {
     submitApplication: true,
@@ -166,6 +172,12 @@ add(Factories.InsuredPoolV1, {
 add(Factories.JoinablePoolExtension, {
   functions: {
     cancelJoin: true,
+  },
+});
+
+add(Factories.ImperpetualPoolExtension, {
+  functions: {
+    applyPendingAdjustments: true,
   },
 });
 

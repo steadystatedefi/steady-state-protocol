@@ -55,5 +55,6 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
     if (address(_premiumDistributor) != address(0)) {
       _premiumDistributor.registerPremiumSource(insured, status == MemberStatus.Accepted);
     }
+    super.internalAfterJoinOrLeave(insured, status);
   }
 }

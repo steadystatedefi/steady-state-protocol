@@ -14,23 +14,13 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   using Rounds for Rounds.PackedInsuredParams;
 
   WeightedPoolParams internal _params;
-
-  // uint256 private _loopLimits;
+  uint256 internal _loopLimits;
 
   constructor(
     IAccessController acl,
     uint256 unitSize,
     address collateral_
   ) WeightedRoundsBase(unitSize) GovernedHelper(acl, collateral_) {}
-
-  // function internalSetLoopLimits(uint16[] memory limits) internal virtual {
-  //   uint256 v;
-  //   for (uint256 i = limits.length; i > 0; ) {
-  //     i--;
-  //     v = (v << 16) | uint16(limits[i]);
-  //   }
-  //   _loopLimits = v;
-  // }
 
   event WeightedPoolParamsUpdated(WeightedPoolParams params);
 
@@ -169,14 +159,20 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return _requiredForMinimumCoverage(entry.demandedUnits, entry.params.minUnits(), unitCount) || unitCount >= _params.minAdvanceUnits;
   }
 
-  function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view returns (uint256) {
+  function setDefaultLoopLimit(LoopLimitType t, uint8 limit) internal {
+    _loopLimits = (_loopLimits & ~(uint256(0xFF) << uint8(t))) | (uint256(limit) << uint8(t));
+  }
+
+  function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view virtual returns (uint256) {
     if (limit == 0) {
-      // limit = uint16(_loopLimits >> (uint8(t) << 1));
-      // if (limit == 0) {
-      limit = t > LoopLimitType.ReceivableDemandedCoverage ? 31 : 255;
-      // }
+      limit = uint8(_loopLimits >> uint8(t));
+      if (limit == 0) {
+        limit = t <= LoopLimitType.ReceivableDemandedCoverage ? type(uint8).max : (t < LoopLimitType.PullDemandAfterJoin ? 31 : 0);
+      }
+      if (limit == type(uint8).max) {
+        limit = type(uint256).max;
+      }
     }
-    this;
     return limit;
   }
 
@@ -222,12 +218,27 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     uint256 baseRate = (approvedParams.basePremiumRate + unitSize - 1) / unitSize;
     Arithmetic.require(baseRate <= type(uint40).max);
 
-    super.internalSetInsuredParams(
-      insured,
-      Rounds.InsuredParams({minUnits: uint24(minUnits), maxShare: uint16(maxShare), minPremiumRate: uint40(baseRate)})
-    );
+    Rounds.InsuredParams memory params = Rounds.InsuredParams({
+      minUnits: uint24(minUnits),
+      maxShare: uint16(maxShare),
+      minPremiumRate: uint40(baseRate)
+    });
+
+    super.internalSetInsuredParams(insured, params);
+    emit ParamsForInsuredUpdated(insured, params);
 
     return true;
+  }
+
+  event ParamsForInsuredUpdated(address indexed insured, Rounds.InsuredParams params);
+
+  function internalAfterJoinOrLeave(address insured, MemberStatus status) internal virtual override {
+    if (status == MemberStatus.Accepted) {
+      uint256 loopLimit = defaultLoopLimit(LoopLimitType.PullDemandAfterJoin, 0);
+      if (loopLimit > 0) {
+        IInsuredPool(insured).pullCoverageDemand(0, type(uint256).max, loopLimit);
+      }
+    }
   }
 
   function internalGetStatus(address account) internal view override returns (MemberStatus) {
@@ -255,5 +266,7 @@ enum LoopLimitType {
   AddCoverage,
   AddCoverageDemandByPull,
   CancelCoverageDemand,
-  ReceiveDemandedCoverage
+  ReceiveDemandedCoverage,
+  // Modify ops (0 by default)
+  PullDemandAfterJoin
 }

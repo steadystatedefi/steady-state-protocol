@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { IInsurerPool, MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
@@ -27,18 +28,6 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
 
-  enum MemberStatus {
-    Unknown,
-    JoinCancelled,
-    JoinRejected,
-    JoinFailed,
-    Declined,
-    Joining,
-    Accepted,
-    Banned,
-    NotApplicable,
-  }
-
   it('Insurer and insured pools', async () => {
     const minUnits = 10;
     const riskWeight = 1000; // 10%
@@ -61,6 +50,15 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       expect(chartered).eql([pool.address]);
 
       const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
+
+      const rateBands = await insured.rateBands();
+      expect(rateBands[1]).eq(1);
+      expect(rateBands[0].length).eq(1);
+      const rateBand = rateBands[0][0];
+      expect(rateBand.coverageDemand).eq(poolDemand);
+      expect(rateBand.assignedDemand).eq(stats.coverage.totalDemand);
+      expect(rateBand.premiumRate).eq(RATE);
+
       insureds.push(insured);
       // collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       return stats.coverage;
