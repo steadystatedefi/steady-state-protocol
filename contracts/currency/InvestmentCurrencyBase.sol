@@ -99,7 +99,9 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
       // user to user
       // insurer to user (mcd)
       // insurer to insured
+      // insured to user (non-given portion only)
 
+      // requireSafeOp(sender != address(this));
       from = from.decOwnBalance(amount);
 
       if (to.isNotRestricted()) {
@@ -116,17 +118,13 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
       }
     } else {
       // user to insurer
-      // any to insurer (transferFrom only)
-      // this to insurer - yield outbound
+      // !insurer to insurer (transferFrom only)
       requireSafeOp(from.isNotManaged());
       Sanity.require(to.isNotRestricted());
 
       if (from.isNotRestricted()) {
-        if (from.isNotManaged()) {
-          updateNonManagedSupply(amount, 0);
-        } else {
-          internalBeforeManagedBalanceUpdate(sender, from);
-        }
+        // if (sender != address(this))
+        updateNonManagedSupply(amount, 0);
         from = from.decOwnBalance(amount);
       } else {
         requireSafeOp(recipient == msg.sender);
@@ -234,7 +232,8 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
 library InvestAccount {
   type Balance is uint256;
 
-  uint8 internal constant FLAG_MANAGED = 1 << 0;
+  uint16 internal constant FLAG_MANAGED = 1 << 0;
+  uint16 internal constant FLAG_MANAGED_X = 1 << 1;
 
   function eq(Balance v0, Balance v1) internal pure returns (bool) {
     return Balance.unwrap(v0) == Balance.unwrap(v1);

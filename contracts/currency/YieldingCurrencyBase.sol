@@ -8,7 +8,7 @@ import '../access/AccessHelper.sol';
 import './InvestmentCurrencyBase.sol';
 import './YieldingBase.sol';
 
-abstract contract BorrowableCurrencyBase is AccessHelper, InvestmentCurrencyBase, YieldingBase {
+abstract contract YieldingCurrencyBase is AccessHelper, InvestmentCurrencyBase, YieldingBase {
   using Math for uint256;
   using WadRayMath for uint256;
   using InvestAccount for InvestAccount.Balance;
@@ -66,4 +66,19 @@ abstract contract BorrowableCurrencyBase is AccessHelper, InvestmentCurrencyBase
   function pullYield() external returns (uint256) {
     return internalPullYield(msg.sender);
   }
+
+  event AccountMarked(address indexed account);
+  event AccountUnmarked(address indexed account, uint256 amount);
+
+  function markRestricted(address account) external {
+    internalSubBalance(account, true, 0);
+    emit AccountMarked(account);
+  }
+
+  function unmarkRestricted(address account, uint256 releaseAmount) external {
+    internalSubBalance(account, false, releaseAmount);
+    emit AccountUnmarked(account, releaseAmount);
+  }
+
+  // TODO function stateOf(address account)
 }
