@@ -69,6 +69,17 @@ abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
     return internalPullYieldFrom(token, fromStrategy, viaFund, maxAmount, collateral());
   }
 
+  function repayLossFrom(
+    address token,
+    address from,
+    address forStrategy,
+    address viaFund,
+    uint256 amount
+  ) external onlyBorrowOps onlyCollateralFund(viaFund) {
+    // NB! The collateral currency will detect mint to itself as a yield payment
+    internalPayLoss(token, from, forStrategy, viaFund, amount, collateral());
+  }
+
   // TODO func repayLoss
   // TODO func requestLiquidity
 }

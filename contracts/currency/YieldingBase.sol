@@ -29,7 +29,7 @@ abstract contract YieldingBase {
     InvestAccount.Balance accBalance,
     uint256 deduct
   ) private returns (uint256) {
-    uint256 v = accBalance.ownBalance() + accBalance.givenBalance();
+    uint256 v = accBalance.isNotManagedBalance() ? 0 : accBalance.ownBalance() + accBalance.givenBalance();
     YieldBalance storage yield = _yields[account];
 
     uint128 yieldRateAccum;
@@ -64,7 +64,8 @@ abstract contract YieldingBase {
   }
 
   function internalPullYield(address account) internal returns (uint256) {
-    return _updateYieldBalance(account, internalGetBalance(account), type(uint256).max);
+    InvestAccount.Balance accBalance = internalGetBalance(account);
+    return _updateYieldBalance(account, accBalance, type(uint256).max);
   }
 
   function internalUpdateYieldRate(uint256 prevYieldRateAccum, uint256 yieldRateAccum) internal virtual {

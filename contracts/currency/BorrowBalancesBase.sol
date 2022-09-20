@@ -40,16 +40,6 @@ abstract contract BorrowBalancesBase {
   mapping(address => mapping(address => TokenBorrow)) private _borrowings; // [token][borrower]
   mapping(address => EnumerableSet.AddressSet) private _borrowedTokens; // [borrower]
 
-  // modifier onlyCollateralFund(address fund) {
-  //   // Access.require(IManagedCollateralCurrency(collateral()).isLiquidityProvider(fromFund));
-  //   _;
-  // }
-
-  // modifier onlyFundReinvestor(address fund) {
-  //   // onlyCollateralFund
-  //   _;
-  // }
-
   function internalPushTo(
     address token,
     address fromFund,
@@ -73,7 +63,6 @@ abstract contract BorrowBalancesBase {
       lend.borrowers.push(BorrowerStateInfo({borrower: toStrategy}));
       Arithmetic.require((lendBalance.borrowerIndex = uint16(lend.borrowers.length)) > 0);
     } else {
-      // BorrowerStateInfo storage info = lend.borrowers[index - 1];
       v = lendBalance.amount;
     }
     Arithmetic.require((lendBalance.amount = v + uint240(amount)) >= amount);
@@ -81,8 +70,6 @@ abstract contract BorrowBalancesBase {
 
     IReinvestStrategy(toStrategy).investFrom(token, fromFund, amount);
     Sanity.require(IERC20(token).allowance(fromFund, toStrategy) == 0);
-
-    // TODO get stats and update rate
   }
 
   function internalPullFrom(
@@ -117,7 +104,6 @@ abstract contract BorrowBalancesBase {
         _lendedTokens[toFund].remove(token);
       }
     } else {
-      // BorrowerStateInfo storage info = lend.borrowers[index];
       lendBalance.amount = uint240(v - amount);
     }
 
@@ -132,7 +118,7 @@ abstract contract BorrowBalancesBase {
       if (totalBorrowed == 0) {
         _borrowedTokens[fromStrategy].remove(token);
       } else {
-        // emit on loss (totalBorrowed)
+        // emit? on loss (totalBorrowed)
       }
     }
     borr.total = totalBorrowed;
@@ -165,11 +151,23 @@ abstract contract BorrowBalancesBase {
     Sanity.require(IERC20(token).allowance(fromStrategy, viaFund) == 0);
   }
 
+  function internalPayLoss(
+    address token,
+    address from,
+    address forStrategy,
+    address viaFund,
+    uint256 amount,
+    address to
+  ) internal {
+    TokenBorrow storage borr = _borrowings[token][forStrategy];
+    borr.total -= amount;
+    ILender(viaFund).depositYield(token, from, amount, to);
+  }
+
   function balancesOf(address token, address strategy) public view returns (uint256 totalBorrowed, uint256 totalRepayable) {
     TokenBorrow storage borr = _borrowings[token][strategy];
     return (borr.total, IReinvestStrategy(strategy).investedValueOf(token));
   }
 
-  // TODO func repayLoss
   // TODO func requestLiquidity
 }

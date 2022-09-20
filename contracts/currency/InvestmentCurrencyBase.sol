@@ -9,7 +9,8 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
   using InvestAccount for InvestAccount.Balance;
   using Math for uint256;
 
-  uint16 internal constant FLAG_MANAGED = 1 << 0; // MUST be equal to InvestAccount.FLAG_MANAGED
+  uint16 internal constant FLAG_MANAGER = 1 << 0; // MUST be equal to InvestAccount.FLAG_MANAGED
+  uint16 internal constant FLAG_MANAGED_BALANCE = 1 << 1; // MUST be equal to InvestAccount.FLAG_MANAGED_BALANCE
 
   uint16 internal constant FLAG_TRANSFER_CALLBACK = 1 << 2;
   uint16 internal constant FLAG_MINT = 1 << 3;
@@ -53,7 +54,7 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
   function balanceOf(address account) public view returns (uint256 u) {
     InvestAccount.Balance acc = _accounts[account];
     u = acc.ownBalance();
-    return acc.isNotManaged() ? u + acc.givenBalance() : u;
+    return acc.isNotManager() ? u + acc.givenBalance() : u;
   }
 
   function balancesOf(address account) public view returns (uint256 full, uint256 given) {
@@ -73,15 +74,15 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
   function incrementBalance(address account, uint256 amount) internal virtual override {
     InvestAccount.Balance to = _accounts[account];
     if (amount > 0) {
-      _updateAccount(account, to, to.incOwnBalance(amount));
+      _updateBalance(account, to, to.incOwnBalance(amount));
     }
   }
 
   function decrementBalance(address account, uint256 amount) internal override {
     InvestAccount.Balance from = _accounts[account];
-    requireSafeOp(from.isNotRestrictedOrManaged());
+    requireSafeOp(from.isNotManager());
     if (amount > 0) {
-      _updateAccount(account, from, from.decOwnBalance(amount));
+      _updateBalance(account, from, from.decOwnBalance(amount));
     }
   }
 
@@ -95,23 +96,20 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
 
     requireSafeOp(recipient != address(this));
 
-    if (to.isNotManaged()) {
+    if (to.isNotManager()) {
       // user to user
       // insurer to user (mcd)
       // insurer to insured
       // insured to user (non-given portion only)
 
-      // requireSafeOp(sender != address(this));
       from = from.decOwnBalance(amount);
 
-      if (to.isNotRestricted()) {
-        if (!from.isNotManaged()) {
-          internalBeforeManagedBalanceUpdate(sender, from);
-          updateNonManagedSupply(0, amount);
-        }
+      if (to.isNotRestricted() || from.isNotManager()) {
+        _updateNonManagedTransfer(sender, from, recipient, to, amount);
+
         to = to.incOwnBalance(amount);
       } else {
-        requireSafeOp(!from.isNotManaged());
+        Sanity.require(from.isNotRestricted());
 
         from = from.incGivenBalance(amount);
         to = to.incGivenBalance(amount);
@@ -119,12 +117,12 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
     } else {
       // user to insurer
       // !insurer to insurer (transferFrom only)
-      requireSafeOp(from.isNotManaged());
+
+      requireSafeOp(from.isNotManager());
       Sanity.require(to.isNotRestricted());
 
       if (from.isNotRestricted()) {
-        // if (sender != address(this))
-        updateNonManagedSupply(amount, 0);
+        _updateNonManagedTransfer(sender, from, recipient, to, amount);
         from = from.decOwnBalance(amount);
       } else {
         requireSafeOp(recipient == msg.sender);
@@ -133,7 +131,6 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
         to = to.decGivenBalance(amount);
       }
 
-      internalBeforeManagedBalanceUpdate(recipient, to);
       to = to.incOwnBalance(amount);
     }
 
@@ -184,25 +181,65 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
     _accounts[account] = acc;
   }
 
-  function _updateAccount(
+  function _updateNonManagedTransfer(
+    address sender,
+    InvestAccount.Balance from,
+    address recipient,
+    InvestAccount.Balance to,
+    uint256 amount
+  ) private {
+    if (from.isNotManagedBalance()) {
+      if (!to.isNotManagedBalance()) {
+        internalBeforeManagedBalanceUpdate(recipient, to);
+        updateNonManagedSupply(amount, 0);
+      }
+    } else {
+      if (to.isNotManagedBalance()) {
+        internalBeforeManagedBalanceUpdate(sender, from);
+        updateNonManagedSupply(0, amount);
+      }
+    }
+  }
+
+  function _updateBalance(
     address account,
     InvestAccount.Balance accBefore,
     InvestAccount.Balance accAfter
   ) private {
-    uint256 bBefore = accBefore.isNotManaged() ? accBefore.ownBalance() : 0;
-    uint256 bAfter = accAfter.isNotManaged() ? accAfter.ownBalance() : 0;
+    uint256 bBefore = accBefore.isNotManagedBalance() ? accBefore.ownBalance() : 0;
+    uint256 bAfter = accAfter.isNotManagedBalance() ? accAfter.ownBalance() : 0;
     if (bBefore != bAfter) {
-      updateNonManagedSupply(accBefore.ownBalance(), accAfter.ownBalance());
+      updateNonManagedSupply(bBefore, bAfter);
     }
     _accounts[account] = accAfter;
   }
 
+  function _updateFlags(
+    address account,
+    InvestAccount.Balance accBefore,
+    InvestAccount.Balance accAfter
+  ) private {
+    uint16 flagDiff = accBefore.flags() ^ accAfter.flags();
+    if (flagDiff & FLAG_MANAGER != 0) {
+      State.require(accAfter.givenBalance() == 0);
+      if (accAfter.isNotManager()) {
+        // flag was unset
+        State.require(accAfter.ownBalance() == 0);
+      }
+    }
+    if (flagDiff != 0) {
+      internalBeforeManagedBalanceUpdate(account, accBefore);
+    }
+
+    _updateBalance(account, accBefore, accAfter);
+  }
+
   function internalBeforeManagedBalanceUpdate(address, InvestAccount.Balance) internal virtual;
 
-  function managedBalanceOf(address account) internal view returns (uint256) {
-    InvestAccount.Balance acc = _accounts[account];
-    return acc.isNotManaged() ? 0 : acc.ownBalance() + acc.givenBalance();
-  }
+  // function managedBalanceOf(address account) internal view returns (uint256) {
+  //   InvestAccount.Balance acc = _accounts[account];
+  //   return acc.isNotManaged() ? 0 : acc.ownBalance() + acc.givenBalance();
+  // }
 
   function internalGetFlags(address account) internal view returns (uint256 flags) {
     InvestAccount.Balance acc = _accounts[account];
@@ -214,26 +251,26 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
 
   function internalUpdateFlags(
     address account,
-    uint8 unsetFlags,
-    uint8 setFlags
+    uint16 unsetFlags,
+    uint16 setFlags
   ) internal {
     Value.require(account != address(0));
     InvestAccount.Balance acc = _accounts[account];
-    _updateAccount(account, acc, acc.setFlags(setFlags | (acc.flags() & ~unsetFlags)));
+    _updateFlags(account, acc, acc.setFlags(setFlags | (acc.flags() & ~unsetFlags)));
   }
 
   function internalUnsetFlags(address account) internal {
     Value.require(account != address(0));
     InvestAccount.Balance acc = _accounts[account];
-    _updateAccount(account, acc, acc.setFlags(0));
+    _updateFlags(account, acc, acc.setFlags(0));
   }
 }
 
 library InvestAccount {
   type Balance is uint256;
 
-  uint16 internal constant FLAG_MANAGED = 1 << 0;
-  uint16 internal constant FLAG_MANAGED_X = 1 << 1;
+  uint16 internal constant FLAG_MANAGER = 1 << 0;
+  uint16 internal constant FLAG_MANAGED_BALANCE = 1 << 1;
 
   function eq(Balance v0, Balance v1) internal pure returns (bool) {
     return Balance.unwrap(v0) == Balance.unwrap(v1);
@@ -256,20 +293,20 @@ library InvestAccount {
   }
 
   uint256 private constant MASK_RESTRICTED = 0xFFFF;
-  uint256 private constant MASK_MANAGED = (uint256(FLAG_MANAGED) << 16) | MASK_RESTRICTED;
 
-  uint256 private constant INT_FLAG_MANAGED = uint256(FLAG_MANAGED) << OFS_FLAGS;
+  uint256 private constant INT_FLAG_MANAGER = uint256(FLAG_MANAGER) << OFS_FLAGS;
+  uint256 private constant INT_FLAG_MANAGED_BALANCE = uint256(FLAG_MANAGED_BALANCE | FLAG_MANAGER) << OFS_FLAGS;
 
   function isNotRestricted(Balance v) internal pure returns (bool) {
-    return (Balance.unwrap(v) >> OFS_REF_COUNT) & MASK_RESTRICTED == 0;
+    return refCount(v) == 0;
   }
 
-  function isNotManaged(Balance v) internal pure returns (bool) {
-    return Balance.unwrap(v) & INT_FLAG_MANAGED == 0;
+  function isNotManagedBalance(Balance v) internal pure returns (bool) {
+    return Balance.unwrap(v) & INT_FLAG_MANAGED_BALANCE == 0;
   }
 
-  function isNotRestrictedOrManaged(Balance v) internal pure returns (bool) {
-    return (Balance.unwrap(v) >> OFS_REF_COUNT) & MASK_MANAGED == 0;
+  function isNotManager(Balance v) internal pure returns (bool) {
+    return Balance.unwrap(v) & INT_FLAG_MANAGER == 0;
   }
 
   uint8 private constant OFS_FLAGS = OFS_REF_COUNT + 16;

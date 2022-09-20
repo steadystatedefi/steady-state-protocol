@@ -51,7 +51,7 @@ abstract contract YieldingCurrencyBase is AccessHelper, InvestmentCurrencyBase, 
     internal
     override(InvestmentCurrencyBase, YieldingBase)
   {
-    return super.internalBeforeManagedBalanceUpdate(account, accBalance);
+    super.internalBeforeManagedBalanceUpdate(account, accBalance);
   }
 
   function incrementBalance(address account, uint256 amount) internal override {
