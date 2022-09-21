@@ -116,12 +116,12 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await registerActuaryAndSource();
 
     await fund.setPaused(ZERO_ADDRESS, token1.address, true);
-    await actuary.setRate(sources[0].address, 100);
+    await actuary.setRate(sources[0].address, 100, testEnv.covGas(30000000));
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(100);
 
     const bal = await token1.balanceOf(fund.address);
     await advanceBlock((await currentTime()) + 10);
-    await actuary.callPremiumAllocationFinished(sources[0].address, 0);
+    await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
     expect(await token1.balanceOf(fund.address)).gt(bal);
   });
 
@@ -228,7 +228,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     // syncAssets
     await advanceBlock((await currentTime()) + 10);
-    await fund.syncAssets(actuary.address, 0, [token1.address, token2.address]);
+    await fund.syncAssets(actuary.address, 0, [token1.address, token2.address], testEnv.covGas(30000000));
     timed1 = await timeDiff(curTime1);
     timed2 = await timeDiff(curTime2);
 

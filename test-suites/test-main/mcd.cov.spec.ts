@@ -160,7 +160,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     for (let i = 0; i < insureds.length; i++) {
       const insured = insureds[i];
-      await insured.reconcileWithInsurers(0, 0, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+      await insured.reconcileWithInsurers(0, 0, testEnv.covGas(30000000));
       const coverage = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
       expect(await cc.balanceOf(insured.address)).eq(coverage.mul(coverageForepayPct).div(10000));
     }
@@ -190,7 +190,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     }
 
     for (let i = 0; i < insureds.length; i++) {
-      await insureds[i].reconcileWithInsurers(0, 0, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+      await insureds[i].reconcileWithInsurers(0, 0, testEnv.covGas(30000000));
     }
 
     let availableCC = await cc.balanceOf(pool.address);
@@ -209,7 +209,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       const expectedPayout = totalCovered.mul(forepayPct).div(100).add(extra);
 
       const requestAmount = claimPct === 100 ? MAX_UINT : totalCovered.mul(claimPct).div(100);
-      await insured.cancelCoverage(receiver, requestAmount, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+      await insured.cancelCoverage(receiver, requestAmount, testEnv.covGas(30000000));
       {
         expect(await cc.balanceOf(receiver)).eq(expectedPayout);
       }
@@ -238,9 +238,9 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
   }
 
   it('Premium debt', async () => {
-    await insureds[0].cancelAllCoverageDemand({ gasLimit: testEnv.underCoverage ? 2000000 : undefined });
-    await insureds[1].cancelAllCoverageDemand({ gasLimit: testEnv.underCoverage ? 2000000 : undefined });
-    await insureds[2].cancelAllCoverageDemand({ gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+    await insureds[0].cancelAllCoverageDemand(testEnv.covGas(30000000));
+    await insureds[1].cancelAllCoverageDemand(testEnv.covGas(30000000));
+    await insureds[2].cancelAllCoverageDemand(testEnv.covGas(30000000));
 
     await pool.setPremiumDistributor(premFund.address);
     await pool.setCoverageForepayPct(80_00);
@@ -255,15 +255,13 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     for (let i = insureds.length - 3; i < insureds.length; i++) {
       await premFund.setPrice(await insureds[i].premiumToken(), WAD);
-      await insureds[i].reconcileWithInsurers(0, 0, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+      await insureds[i].reconcileWithInsurers(0, 0, testEnv.covGas(30000000));
     }
 
     let insured = insureds[insureds.length - 1];
     let receiver = createRandomAddress();
     await advanceBlock((await currentTime()) + 20);
-    let t2 = (
-      await insured.cancelCoverage(receiver, MAX_UINT, { gasLimit: testEnv.underCoverage ? 2000000 : undefined })
-    ).timestamp;
+    let t2 = (await insured.cancelCoverage(receiver, MAX_UINT, testEnv.covGas(30000000))).timestamp;
     t2 = t2 === undefined ? await currentTime() : t2;
 
     let debt = ratePerInsured.mul(t2 - t);
@@ -273,8 +271,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     await advanceBlock((await currentTime()) + 120);
     insured = insureds[insureds.length - 2];
     receiver = createRandomAddress();
-    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, { gasLimit: testEnv.underCoverage ? 2000000 : undefined }))
-      .timestamp;
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, testEnv.covGas(30000000))).timestamp;
     t2 = t2 === undefined ? await currentTime() : t2;
 
     debt = ratePerInsured.mul(t2 - t);
@@ -289,8 +286,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
 
     insured = insureds[insureds.length - 3];
     receiver = createRandomAddress();
-    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, { gasLimit: testEnv.underCoverage ? 2000000 : undefined }))
-      .timestamp;
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, testEnv.covGas(30000000))).timestamp;
     t2 = t2 === undefined ? await currentTime() : t2;
     bal = await cc.balanceOf(receiver);
     debt = ratePerInsured.mul(t3 - t);

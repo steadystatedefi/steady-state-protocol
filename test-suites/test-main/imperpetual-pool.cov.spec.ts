@@ -330,7 +330,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
   it('Fails to cancel coverage without reconcillation', async () => {
     const insured = insureds[0];
-    await expect(insured.cancelCoverage(zeroAddress(), 0)).revertedWith('must be reconciled');
+    await expect(insured.cancelCoverage(zeroAddress(), 0, testEnv.covGas(30000000))).revertedWith('must be reconciled');
   });
 
   let givenOutCollateral = 0;
@@ -345,7 +345,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
     expect(expectedCollateral).gt(0);
 
-    await insured.reconcileWithInsurers(0, 0); // required to cancel
+    await insured.reconcileWithInsurers(0, 0, testEnv.covGas(30000000)); // required to cancel
 
     const receivedCollateral = await cc.balanceOf(insured.address);
     expect(receivedCollateral).eq(expectedCollateral.mul(100 - drawdownPct).div(100)); // drawdown withholded
@@ -399,7 +399,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     /** **************** */
     /* Cancel coverage */
-    await insured.cancelCoverage(zeroAddress(), 0);
+    await insured.cancelCoverage(zeroAddress(), 0, testEnv.covGas(30000000));
     /** **************** */
     /** **************** */
 
@@ -468,7 +468,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     /** **************** */
     /* Cancel coverage */
-    await insured.cancelCoverage(receiver, payoutAmount);
+    await insured.cancelCoverage(receiver, payoutAmount, testEnv.covGas(30000000));
     /** **************** */
     /** **************** */
 
@@ -514,7 +514,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
         .add(unitSize / 2)
         .div(unitSize)
     );
-    expect(totals0.totalPremium).lt(totals1.totalPremium);
+    expect(totals0.totalPremium).lte(totals1.totalPremium);
 
     const adj1 = await poolExt.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
