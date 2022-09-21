@@ -128,6 +128,12 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     expect(totalCovered).eq(totals.coverage.totalCovered);
     expect(totalDemand).eq(totals.coverage.totalDemand);
+    expect(await pool.collateralSupply()).eq(
+      totals.coverage.totalCovered.add(await pool.getExcessCoverage()).add(totals.coverage.pendingCovered)
+    );
+
+    // totalRate is off by 2
+    expect(await pool.totalPremiumRate()).eq(totals.coverage.premiumRate);
     // expect(totalPremium - 1).lte(totals.coverage.totalPremium); // rounding
 
     let precisionMargin = Math.round(insureds.length / 2);
