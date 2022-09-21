@@ -20,7 +20,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const drawdownPct = 10; // 10% constant inside MockImperpetualPool
   const rate = 1e12;
-  const demandPerInsured = 4000 * unitSize;
+  const demandPerInsured = BigNumber.from(4000 * unitSize);
   let demanded: BigNumber;
 
   let pool: MockImperpetualPool;
@@ -249,7 +249,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     demand = demand.add((await joinPool(10 * 100)).totalDemand);
     demand = demand.add((await joinPool(10 * 100)).totalDemand);
 
-    let ratePerInsured = BigNumber.from(demandPerInsured).mul(rate).div(WAD);
+    let ratePerInsured = demandPerInsured.mul(rate).div(WAD);
     let t = (await cc.mintAndTransfer(user.address, pool.address, demand, 0)).timestamp;
     t = t === undefined ? await currentTime() : t;
 
@@ -267,7 +267,8 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     t2 = t2 === undefined ? await currentTime() : t2;
 
     let debt = ratePerInsured.mul(t2 - t);
-    expect(await cc.balanceOf(receiver)).lte(BigNumber.from(demandPerInsured).sub(debt));
+    let bal = await cc.balanceOf(receiver);
+    expect(bal).lte(BigNumber.from(demandPerInsured).sub(debt));
 
     await advanceBlock((await currentTime()) + 120);
     insured = insureds[insureds.length - 2];
@@ -277,7 +278,8 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     t2 = t2 === undefined ? await currentTime() : t2;
 
     debt = ratePerInsured.mul(t2 - t);
-    expect(await cc.balanceOf(receiver)).lte(BigNumber.from(demandPerInsured).sub(debt));
+    bal = await cc.balanceOf(receiver);
+    expect(bal).lte(BigNumber.from(demandPerInsured).sub(debt));
 
     const t3 = t2;
     const drawdown = await collectAvailableDrawdown();
@@ -290,10 +292,15 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     t2 = (await insured.cancelCoverage(receiver, MAX_UINT, { gasLimit: testEnv.underCoverage ? 2000000 : undefined }))
       .timestamp;
     t2 = t2 === undefined ? await currentTime() : t2;
+    bal = await cc.balanceOf(receiver);
     debt = ratePerInsured.mul(t3 - t);
     ratePerInsured = BigNumber.from(demandPerInsured).sub(drawdown).mul(rate).div(WAD);
     debt = debt.add(ratePerInsured.mul(t2 - t3));
 
-    // expect(await cc.balanceOf(receiver)).lt(BigNumber.from(demandPerInsured).sub(debt).sub(drawdown));
+    if (debt > drawdown) {
+      expect(bal).lte(BigNumber.from(demandPerInsured).sub(debt));
+    } else {
+      expect(bal).eq(BigNumber.from(demandPerInsured).sub(drawdown));
+    }
   });
 });
