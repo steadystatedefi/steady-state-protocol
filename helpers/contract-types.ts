@@ -46,6 +46,7 @@ export const Factories = {
   MockInsuredPoolV2: mock(types.MockInsuredPoolV2__factory),
   MockYieldDistributor: mock(types.MockYieldDistributor__factory),
   MockInsurerForYield: mock(types.MockInsurerForYield__factory),
+  MockCancellableImperpetualPool: mock(types.MockCancellableImperpetualPool__factory),
 };
 
 loadFactories(Factories);

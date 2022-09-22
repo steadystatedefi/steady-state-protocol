@@ -35,7 +35,7 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
 
   function getRevision() internal pure override returns (uint256) {}
 
-  function handleJoinRequest(address) external pure override returns (MemberStatus) {
+  function handleJoinRequest(address) external pure virtual override returns (MemberStatus) {
     return MemberStatus.Accepted;
   }
 
