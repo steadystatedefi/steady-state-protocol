@@ -448,7 +448,9 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
         .add(unitSize / 2)
         .div(unitSize)
     );
-    expect(totals0.totalPremium).lt(totals1.totalPremium);
+    if (!testEnv.underCoverage) {
+      expect(totals0.totalPremium).lt(totals1.totalPremium);
+    }
 
     const adj1 = await poolExt.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);
@@ -520,7 +522,9 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
         .add(unitSize / 2)
         .div(unitSize)
     );
-    expect(totals0.totalPremium).lte(totals1.totalPremium);
+    if (!testEnv.underCoverage) {
+      expect(totals0.totalPremium).lt(totals1.totalPremium);
+    }
 
     const adj1 = await poolExt.getPendingAdjustments();
     expect(adj0.pendingDemand).eq(adj1.pendingDemand);

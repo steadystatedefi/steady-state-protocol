@@ -792,7 +792,9 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
         .add(unitSize / 2)
         .div(unitSize)
     );
-    expect(totals0.totalPremium).lte(totals1.totalPremium);
+    if (!testEnv.underCoverage) {
+      expect(totals0.totalPremium).lt(totals1.totalPremium);
+    }
   });
 
   it('Cancel coverage for insureds[2] with full repayment', async () => {
@@ -859,7 +861,9 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
         .add(unitSize / 2)
         .div(unitSize)
     );
-    expect(totals0.totalPremium).lte(totals1.totalPremium);
+    if (!testEnv.underCoverage) {
+      expect(totals0.totalPremium).lt(totals1.totalPremium);
+    }
   });
 
   // TODO check premium rates after partial cancel
