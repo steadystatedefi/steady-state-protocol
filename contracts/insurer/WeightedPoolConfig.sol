@@ -263,8 +263,8 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     ISubBalance(collateral()).openSubBalance(recipient);
   }
 
-  function closeCollateralSubBalance(address recipient, uint256 releaseAmount, uint256 transferAmount) internal {
-    ISubBalance(collateral()).closeSubBalance(recipient, releaseAmount, transferAmount);
+  function closeCollateralSubBalance(address recipient, uint256 transferAmount) internal {
+    ISubBalance(collateral()).closeSubBalance(recipient, transferAmount);
   }
 
   function balanceOfGivenOutCollateral(address account) internal view returns (uint256 u) {

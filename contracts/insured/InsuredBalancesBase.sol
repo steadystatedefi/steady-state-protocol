@@ -248,11 +248,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     }
   }
 
-  function totalBalanceOfGivenInCollateral(address account) internal view returns (uint256 u) {
-    (, , u) = ISubBalance(collateral()).balancesOf(account);
-  }
-
-  function balanceOfGivenInCollateral(address account) internal view returns (uint256) {
-    return ISubBalance(collateral()).subBalanceOf(address(this), account);
+  function totalReceivedCollateral() public view returns (uint256 u) {
+    (, , u) = ISubBalance(collateral()).balancesOf(address(this));
   }
 }

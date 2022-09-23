@@ -234,7 +234,7 @@ abstract contract InsuredPoolBase is
   function cancelCoverage(address payoutReceiver, uint256 expectedPayout) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalCancelRates();
 
-    uint256 payoutRatio = totalBalanceOfGivenInCollateral(address(this));
+    uint256 payoutRatio = totalReceivedCollateral();
     if (payoutRatio <= expectedPayout) {
       payoutRatio = WadRayMath.RAY;
     } else if (payoutRatio > 0) {
@@ -295,7 +295,7 @@ abstract contract InsuredPoolBase is
   }
 
   function internalReservedCollateral() internal view override returns (uint256) {
-    return totalBalanceOfGivenInCollateral(address(this));
+    return totalReceivedCollateral();
   }
 
   event PrepayWithdrawn(uint256 amount, address indexed recipient);

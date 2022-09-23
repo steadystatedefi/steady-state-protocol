@@ -116,23 +116,17 @@ contract CollateralCurrency is YieldingCurrencyBase, IManagedCollateralCurrency 
     _;
   }
 
-  event SuBalanceOpened(address indexed account);
-  event SuBalanceClosed(address indexed account, uint256 amount);
+  event SuBalanceOpened(address indexed account, address indexed manager);
+  event SuBalanceClosed(address indexed account, address indexed manager, uint256 amount);
 
   function openSubBalance(address account) external onlyInvestManager {
-    internalSubBalance(account, true, 0);
-    emit SuBalanceOpened(account);
+    internalSubBalance(msg.sender, account, true, 0);
+    emit SuBalanceOpened(account, msg.sender);
   }
 
-  function closeSubBalance(address account, uint256 releaseAmount, uint256 transferAmount) external onlyInvestManager {
-    internalSubBalance(account, false, releaseAmount);
-    emit SuBalanceClosed(account, releaseAmount);
-    if (releaseAmount > 0) {
-      emit Transfer(account, msg.sender, releaseAmount);
-    }
-    if (transferAmount > 0) {
-      _transfer(msg.sender, account, transferAmount);
-    }
+  function closeSubBalance(address account, uint256 transferAmount) external onlyInvestManager {
+    uint256 releaseAmount = internalSubBalance(msg.sender, account, false, transferAmount);
+    emit SuBalanceClosed(account, msg.sender, releaseAmount);
   }
 
   // TODO function stateOf(address account)

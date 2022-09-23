@@ -59,7 +59,15 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
     return acc.isNotManager() ? u + acc.givenBalance() : u;
   }
 
-  function balancesOf(address account) public view returns (uint256 full, uint256 givenOut, uint256 givenIn) {
+  function balancesOf(address account)
+    public
+    view
+    returns (
+      uint256 full,
+      uint256 givenOut,
+      uint256 givenIn
+    )
+  {
     InvestAccount.Balance acc = _accounts[account];
     full = acc.ownBalance();
     if (acc.isNotManager()) {
@@ -183,16 +191,30 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   }
 
   function internalSubBalance(
+    address manager,
     address account,
     bool lock,
-    uint256 amount
-  ) internal {
+    uint256 transferAmount
+  ) internal returns (uint256 releaseAmount) {
     (InvestAccount.Balance acc, bool edge) = _accounts[account].flipRefCount(lock);
+    releaseAmount = _subBalances[account][manager];
     if (lock) {
-      Value.require(amount == 0);
+      Value.require(transferAmount == 0);
+      Value.require(releaseAmount == 0);
     } else {
-      acc = acc.decGivenBalance(amount);
-      Sanity.require((_subBalances[account][msg.sender] -= amount) == 0);
+      if (releaseAmount != 0) {
+        acc = acc.decGivenBalance(releaseAmount);
+        delete _subBalances[account][manager];
+        emit Transfer(account, manager, releaseAmount);
+      }
+
+      if (transferAmount != 0 || releaseAmount != 0) {
+        InvestAccount.Balance accTo = _accounts[manager];
+        _updateBalance(manager, accTo, accTo.incOwnBalance(releaseAmount).decOwnBalance(transferAmount));
+        if (transferAmount != 0) {
+          emit Transfer(manager, account, transferAmount);
+        }
+      }
     }
 
     Sanity.require(!edge || acc.givenBalance() == 0);

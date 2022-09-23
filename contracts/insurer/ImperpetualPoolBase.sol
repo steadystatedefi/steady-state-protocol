@@ -64,42 +64,41 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
     uint256 givenValue = givenOutValue + premiumDebt;
 
-    if (givenValue != payoutValue) {
-      if (givenValue > payoutValue) {
-        recoveredValue += advanceValue - givenValue;
+    if (givenValue > payoutValue) {
+      recoveredValue += advanceValue - givenValue;
 
-        // the given coverage will be taken back
-        uint256 recovered = givenValue - payoutValue;
-        if (recovered > givenOutValue) {
-          recovered = givenOutValue;
-        }
-
-        // only the outstanding premium debt should be deducted, an outstanding coverage debt is managed as reduction of coverage itself
-        if (premiumDebt > recovered) {
-          _decrementTotalValue(premiumDebt - recovered);
-        }
-
-        recoveredValue += recovered;
-      } else {
-        uint256 underpay = payoutValue - givenValue;
-
-        if (recoveredValue < underpay) {
-          recoveredValue += _calcAvailableDrawdownReserve(recoveredValue + advanceValue);
-          if (recoveredValue < underpay) {
-            underpay = recoveredValue;
-          }
-          recoveredValue = 0;
-        } else {
-          recoveredValue -= underpay;
-        }
-
-        // if (underpay > 0) {
-        //   transferCollateral(insured, underpay);
-        // }
-        payoutValue = givenValue + underpay;
+      // the given out coverage will be taken back
+      uint256 recovered = givenValue - payoutValue;
+      if (recovered > givenOutValue) {
+        recovered = givenOutValue;
       }
+
+      // only the outstanding premium debt should be deducted, an outstanding coverage debt is managed as reduction of coverage itself
+      if (premiumDebt > recovered) {
+        _decrementTotalValue(premiumDebt - recovered);
+      }
+
+      recoveredValue += recovered;
+    } else if (givenValue < payoutValue) {
+      uint256 underpay = payoutValue - givenValue;
+
+      if (recoveredValue < underpay) {
+        recoveredValue += _calcAvailableDrawdownReserve(recoveredValue + advanceValue);
+        if (recoveredValue < underpay) {
+          underpay = recoveredValue;
+        }
+        recoveredValue = 0;
+      } else {
+        recoveredValue -= underpay;
+      }
+
+      // if (underpay > 0) {
+      //   transferCollateral(insured, underpay);
+      // }
+      payoutValue = givenValue + underpay;
     }
-    // TODO cc.closeSubBalance(insured, givenOutValue, payoutValue);
+
+    closeCollateralSubBalance(insured, payoutValue);
 
     if (recoveredValue > 0) {
       internalSetExcess(_excessCoverage + recoveredValue);
