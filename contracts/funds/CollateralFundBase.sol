@@ -6,7 +6,6 @@ import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
-import '../interfaces/ICollateralStakeManager.sol';
 import '../pricing/PricingHelper.sol';
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
@@ -426,39 +425,8 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return _tokens.values();
   }
 
-  event AssetBorrowed(address indexed token, uint256 amount, address to);
   event AssetBorrowApproved(address indexed token, uint256 amount, address to);
   event AssetReplenished(address indexed token, uint256 amount);
-
-  function borrow(
-    address token,
-    uint256 amount,
-    address to
-  ) external {
-    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
-    Value.require(amount > 0);
-
-    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    uint256 value = amount.wadMul(internalPriceOf(token));
-    State.require(value > 0);
-    State.require(bm.verifyBorrowUnderlying(msg.sender, value));
-
-    SafeERC20.safeTransfer(IERC20(token), to, amount);
-
-    emit AssetBorrowed(token, amount, to);
-  }
-
-  function repay(address token, uint256 amount) external {
-    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
-    Value.require(amount > 0);
-
-    SafeERC20.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
-
-    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    State.require(bm.verifyRepayUnderlying(msg.sender, amount));
-
-    emit AssetReplenished(token, amount);
-  }
 
   function resetPriceGuard() external aclHasAny(AccessFlags.LP_ADMIN) {
     getPricer().resetSourceGroup();

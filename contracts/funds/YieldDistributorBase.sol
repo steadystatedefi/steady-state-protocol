@@ -9,12 +9,7 @@ import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../access/AccessHelper.sol';
 
-import '../access/AccessHelper.sol';
-import './interfaces/IManagedYieldDistributor.sol';
-import './YieldStakerBase.sol';
-import './YieldStreamerBase.sol';
-
-contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, YieldStreamerBase {
+contract YieldDistributorBase {
   using SafeERC20 for IERC20;
   using Math for uint256;
   using WadRayMath for uint256;
@@ -24,118 +19,7 @@ contract YieldDistributorBase is IManagedYieldDistributor, YieldStakerBase, Yiel
   uint128 private _totalIntegral;
   uint32 private _lastUpdatedAt;
 
-  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
-
-  event AssetAdded(address indexed asset);
-  event AssetRemoved(address indexed asset);
-
-  function registerStakeAsset(address asset, bool register) external override onlyCollateralCurrency {
-    if (register) {
-      internalAddAsset(asset);
-      emit AssetAdded(asset);
-    } else {
-      internalRemoveAsset(asset);
-      emit AssetRemoved(asset);
-    }
-  }
-
-  function internalAddYieldExcess(uint256 value) internal override(YieldStakerBase, YieldStreamerBase) {
-    YieldStakerBase.internalAddYieldExcess(value);
-  }
-
-  function internalGetTimeIntegral() internal view override returns (uint256 totalIntegral, uint32 lastUpdatedAt) {
-    return (_totalIntegral, _lastUpdatedAt);
-  }
-
-  function internalSetTimeIntegral(uint256 totalIntegral, uint32 lastUpdatedAt) internal override {
-    (_totalIntegral, _lastUpdatedAt) = (totalIntegral.asUint128(), lastUpdatedAt);
-  }
-
-  function internalGetRateIntegral(uint32 from, uint32 till) internal override(YieldStakerBase, YieldStreamerBase) returns (uint256) {
-    return YieldStreamerBase.internalGetRateIntegral(from, till);
-  }
-
-  function internalCalcRateIntegral(uint32 from, uint32 till) internal view override(YieldStakerBase, YieldStreamerBase) returns (uint256) {
-    return YieldStreamerBase.internalCalcRateIntegral(from, till);
-  }
-
-  function internalPullYield(uint256 availableYield, uint256 requestedYield) internal override(YieldStakerBase, YieldStreamerBase) returns (bool) {
-    return YieldStreamerBase.internalPullYield(availableYield, requestedYield);
-  }
-
-  function _onlyTrustedBorrower(address addr) private view {
-    Access.require(hasAnyAcl(addr, AccessFlags.LIQUIDITY_BORROWER) && internalIsYieldSource(addr));
-  }
-
-  modifier onlyTrustedBorrower(address addr) {
-    _onlyTrustedBorrower(addr);
-    _;
-  }
-
-  function verifyBorrowUnderlying(address account, uint256 value)
-    external
-    override
-    onlyLiquidityProvider
-    onlyTrustedBorrower(account)
-    returns (bool)
-  {
-    internalApplyBorrow(value);
-    return true;
-  }
-
-  function verifyRepayUnderlying(address account, uint256 value) external override onlyLiquidityProvider onlyTrustedBorrower(account) returns (bool) {
-    internalApplyRepay(value);
-    return true;
-  }
-
-  event YieldPayout(address indexed source, uint256 amount, uint256 expectedRate);
-
-  function addYieldPayout(uint256 amount, uint256 expectedRate) external {
-    if (amount > 0) {
-      transferCollateralFrom(msg.sender, address(this), amount);
-    }
-    internalSyncTotal();
-    internalAddYieldPayout(msg.sender, amount, expectedRate);
-    emit YieldPayout(msg.sender, amount, expectedRate);
-  }
-
-  function addYieldSource(address source, uint8 sourceType) external aclHas(AccessFlags.BORROWER_ADMIN) {
-    internalAddYieldSource(source, sourceType);
-  }
-
-  function removeYieldSource(address source) external aclHas(AccessFlags.BORROWER_ADMIN) {
-    internalSyncTotal();
-    internalRemoveYieldSource(source);
-  }
+  // constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   // TODO pause, pause_asset, pause_source_borrow
-
-  function getYieldSource(address source)
-    external
-    view
-    returns (
-      uint8 sourceType,
-      uint96 expectedRate,
-      uint32 since
-    )
-  {
-    return internalGetYieldSource(source);
-  }
-
-  function getYieldInfo()
-    external
-    view
-    returns (
-      uint256 rate,
-      uint256 debt,
-      uint32 cutOff
-    )
-  {
-    return internalGetYieldInfo();
-  }
-
-  function internalPullYieldFrom(uint8, address) internal virtual override returns (uint256) {
-    Errors.notImplemented();
-    return 0;
-  }
 }

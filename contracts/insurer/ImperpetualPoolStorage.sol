@@ -10,8 +10,6 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
   using Math for uint256;
   using WadRayMath for uint256;
 
-  mapping(address => uint256) internal _insuredBalances; // [insured]
-
   uint128 private _totalSupply;
 
   uint128 internal _burntDrawdown;

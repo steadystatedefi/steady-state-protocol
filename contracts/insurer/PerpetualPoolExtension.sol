@@ -24,7 +24,7 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     uint256 premiumDebt
   ) internal override returns (uint256) {
     uint256 deficitValue;
-    uint256 toPay = payoutValue;
+    uint256 toPay = payoutValue; // - premiumDebt + recoveredValue
     unchecked {
       if (toPay >= advanceValue) {
         toPay -= advanceValue;
@@ -56,6 +56,8 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     } else if (toPay > 0) {
       transferCollateral(insured, toPay);
     }
+
+    // TODO cc.closeSubBalance(insured, advanceValue, payoutValue);
 
     // this call is to consider / reinvest the released funds
     PerpetualPoolBase(address(this)).updateCoverageOnCancel(payoutValue + premiumDebt, recoveredValue, collateralAsPremium);

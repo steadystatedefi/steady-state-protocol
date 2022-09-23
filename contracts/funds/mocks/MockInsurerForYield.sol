@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import '../../tools/tokens/ERC20Base.sol';
 import '../../tools/math/WadRayMath.sol';
 import '../../interfaces/IYieldStakeAsset.sol';
-import '../../interfaces/ICollateralStakeManager.sol';
 import '../Collateralized.sol';
 
 contract MockInsurerForYield is IYieldStakeAsset, Collateralized, ERC20Base {
@@ -30,12 +29,5 @@ contract MockInsurerForYield is IYieldStakeAsset, Collateralized, ERC20Base {
 
   function mint(address account, uint256 amount) external {
     _mint(account, amount);
-  }
-
-  function callSyncByAsset() external {
-    ICollateralStakeManager m = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    if (address(m) != address(0)) {
-      m.syncByStakeAsset(totalSupply(), collateralSupply());
-    }
   }
 }

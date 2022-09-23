@@ -50,7 +50,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   function internalSubrogated(uint256 value) internal override {
     internalSetExcess(_excessCoverage + value);
-    internalSyncStake();
   }
 
   function updateCoverageOnCancel(
@@ -60,24 +59,24 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 recoveredValue,
     uint256 premiumDebt
   ) external onlySelf returns (uint256) {
-    uint256 givenOutValue = _insuredBalances[insured];
+    uint256 givenOutValue = subBalanceOfCollateral(insured);
     Value.require(givenOutValue <= advanceValue);
 
-    delete _insuredBalances[insured];
     uint256 givenValue = givenOutValue + premiumDebt;
-    bool syncStake;
 
     if (givenValue != payoutValue) {
       if (givenValue > payoutValue) {
         recoveredValue += advanceValue - givenValue;
 
-        // try to take back the given coverage
-        uint256 recovered = transferAvailableCollateralFrom(insured, address(this), givenValue - payoutValue);
+        // the given coverage will be taken back
+        uint256 recovered = givenValue - payoutValue;
+        if (recovered > givenOutValue) {
+          recovered = givenOutValue;
+        }
 
         // only the outstanding premium debt should be deducted, an outstanding coverage debt is managed as reduction of coverage itself
         if (premiumDebt > recovered) {
           _decrementTotalValue(premiumDebt - recovered);
-          syncStake = true;
         }
 
         recoveredValue += recovered;
@@ -94,20 +93,17 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
           recoveredValue -= underpay;
         }
 
-        if (underpay > 0) {
-          transferCollateral(insured, underpay);
-        }
+        // if (underpay > 0) {
+        //   transferCollateral(insured, underpay);
+        // }
         payoutValue = givenValue + underpay;
       }
     }
+    // TODO cc.closeSubBalance(insured, givenOutValue, payoutValue);
 
     if (recoveredValue > 0) {
       internalSetExcess(_excessCoverage + recoveredValue);
       internalOnCoverageRecovered();
-      syncStake = true;
-    }
-    if (syncStake) {
-      internalSyncStake();
     }
 
     return payoutValue;
@@ -119,7 +115,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 totalCovered
   ) external onlySelf returns (uint256) {
     uint256 expectedAmount = totalCovered.percentMul(_params.coveragePrepayPct);
-    uint256 actualAmount = _insuredBalances[insured];
+    uint256 actualAmount = subBalanceOfCollateral(insured);
 
     if (actualAmount < expectedAmount) {
       uint256 d = expectedAmount - actualAmount;
@@ -131,7 +127,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
       }
 
       if (receivedCoverage > 0) {
-        _insuredBalances[insured] = actualAmount + receivedCoverage;
         transferCollateral(insured, receivedCoverage);
       }
     } else {

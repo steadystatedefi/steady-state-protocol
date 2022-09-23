@@ -8,7 +8,7 @@ import './YieldDistributorBase.sol';
 contract YieldDistributorV1 is IYieldDistributorInit, VersionedInitializable, YieldDistributorBase {
   uint256 private constant CONTRACT_REVISION = 1;
 
-  constructor(IAccessController acl, address collateral_) YieldDistributorBase(acl, collateral_) {}
+  constructor(IAccessController acl, address collateral_) {} // YieldDistributorBase(acl, collateral_) {}
 
   function initializeYieldDistributor() public override initializer(CONTRACT_REVISION) {}
 

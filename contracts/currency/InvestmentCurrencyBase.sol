@@ -4,8 +4,9 @@ pragma solidity ^0.8.10;
 import '../tools/math/Math.sol';
 import '../tools/tokens/ERC20MintableBalancelessBase.sol';
 import '../tools/tokens/IERC1363.sol';
+import './interfaces/ISubBalance.sol';
 
-abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
+abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalancelessBase {
   using InvestAccount for InvestAccount.Balance;
   using Math for uint256;
 
@@ -18,6 +19,7 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
   uint256 internal constant FLAG_RESTRICTED = 1 << 16;
 
   mapping(address => InvestAccount.Balance) private _accounts;
+  mapping(address => mapping(address => uint256)) private _subBalances; // [account][giver]
   uint128 private _totalSupply;
   uint128 private _totalNonManaged;
 
@@ -57,10 +59,21 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
     return acc.isNotManager() ? u + acc.givenBalance() : u;
   }
 
-  function balancesOf(address account) public view returns (uint256 full, uint256 given) {
+  function balancesOf(address account) public view returns (uint256 full, uint256 givenOut, uint256 givenIn) {
     InvestAccount.Balance acc = _accounts[account];
-    given = acc.givenBalance();
-    return (given + acc.ownBalance(), given);
+    full = acc.ownBalance();
+    if (acc.isNotManager()) {
+      givenIn = acc.givenBalance();
+      if (!acc.isNotManagedOrRestrictedBalance()) {
+        full += givenIn;
+      }
+    } else {
+      full += givenOut = acc.givenBalance();
+    }
+  }
+
+  function subBalanceOf(address account, address from) public view returns (uint256) {
+    return _subBalances[account][from];
   }
 
   error BalanceOperationRestricted();
@@ -113,6 +126,7 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
 
         from = from.incGivenBalance(amount);
         to = to.incGivenBalance(amount);
+        _subBalances[recipient][sender] += amount;
       }
     } else {
       // user to insurer
@@ -129,6 +143,7 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
 
         from = from.decGivenBalance(amount);
         to = to.decGivenBalance(amount);
+        _subBalances[sender][recipient] -= amount;
       }
 
       to = to.incOwnBalance(amount);
@@ -172,11 +187,14 @@ abstract contract InvestmentCurrencyBase is ERC20MintableBalancelessBase {
     bool lock,
     uint256 amount
   ) internal {
-    Value.require(!lock || amount == 0);
     (InvestAccount.Balance acc, bool edge) = _accounts[account].flipRefCount(lock);
-    if (amount > 0) {
+    if (lock) {
+      Value.require(amount == 0);
+    } else {
       acc = acc.decGivenBalance(amount);
+      Sanity.require((_subBalances[account][msg.sender] -= amount) == 0);
     }
+
     Sanity.require(!edge || acc.givenBalance() == 0);
     _accounts[account] = acc;
   }
@@ -303,6 +321,10 @@ library InvestAccount {
 
   function isNotManagedBalance(Balance v) internal pure returns (bool) {
     return Balance.unwrap(v) & INT_FLAG_MANAGED_BALANCE == 0;
+  }
+
+  function isNotManagedOrRestrictedBalance(Balance v) internal pure returns (bool) {
+    return Balance.unwrap(v) & (MASK_RESTRICTED | INT_FLAG_MANAGED_BALANCE) == 0;
   }
 
   function isNotManager(Balance v) internal pure returns (bool) {
