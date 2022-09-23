@@ -146,7 +146,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       totalPremiumRate += interest.rate.toNumber();
     }
 
-    expect(totalPremium).gt(0);
+    if (!testEnv.underCoverage) {
+      expect(totalPremium).gt(0);
+    }
     {
       const totals = await pool.getTotals();
       expect(totals.coverage.totalPremium).eq(totalPremium);
