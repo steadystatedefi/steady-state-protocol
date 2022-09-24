@@ -47,7 +47,13 @@ const ERC20: ContractAccessExceptions = {
   },
 };
 
-add(Factories.CollateralCurrency, ERC20);
+add(Factories.CollateralCurrency, {
+  functions: {
+    ...ERC20.functions,
+
+    pullYield: true,
+  },
+});
 
 add(Factories.ProxyCatalog, {
   functions: {
