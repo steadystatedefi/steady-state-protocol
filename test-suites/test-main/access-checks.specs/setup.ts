@@ -174,4 +174,8 @@ export async function setInsurer(state: State, deployer: SignerWithAddress, gove
       state.insurer = Factories.ImperpetualPoolV1.attach(ev.proxy); // eslint-disable-line no-param-reassign
     }
   );
+
+  await state.controller.grantAnyRoles(deployer.address, AccessFlags.INSURER_ADMIN);
+  await state.cc.registerInsurer(state.insurer.address);
+  await state.controller.revokeAllRoles(deployer.address);
 }

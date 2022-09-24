@@ -209,9 +209,10 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
       }
 
       if (transferAmount != 0 || releaseAmount != 0) {
-        InvestAccount.Balance accTo = _accounts[manager];
-        _updateBalance(manager, accTo, accTo.incOwnBalance(releaseAmount).decOwnBalance(transferAmount));
+        InvestAccount.Balance accMgr = _accounts[manager];
+        _updateBalance(manager, accMgr, accMgr.incOwnBalance(releaseAmount).decOwnBalance(transferAmount));
         if (transferAmount != 0) {
+          acc = acc.incOwnBalance(transferAmount);
           emit Transfer(manager, account, transferAmount);
         }
       }
