@@ -33,6 +33,10 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     _params.coverageForepayPct = pct;
   }
 
+  function setMaxInsuredSharePct(uint16 pct) external {
+    _params.maxInsuredSharePct = pct;
+  }
+
   function getRevision() internal pure override returns (uint256) {}
 
   function handleJoinRequest(address) external pure virtual override returns (MemberStatus) {
@@ -93,5 +97,13 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
 
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return IMockInsurer(address(this)).getTotals(0);
+  }
+
+  function transferInsuredPoolToken(
+    address insured,
+    address to,
+    uint256 amount
+  ) external {
+    IERC20(insured).transfer(to, amount);
   }
 }

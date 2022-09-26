@@ -4,6 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 import { MemberStatus } from '../../helpers/access-flags';
 import { HALF_RAY, RAY } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
+import { advanceBlock, currentTime } from '../../helpers/runtime-utils';
 import { MockCollateralCurrency, MockImperpetualPool } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
@@ -107,5 +108,56 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
     expect(await pool.totalSupplyValue()).eq(
       totals.coverage.totalCovered.add(totals.coverage.pendingCovered).add(totals.coverage.totalPremium).add(excess)
     );
+  });
+
+  it('Transfer imperpetual pool balance', async () => {
+    const [user1, user2] = testEnv.users;
+    const amount = 100 * unitSize;
+
+    await cc.mintAndTransfer(user1.address, pool.address, amount, 0);
+    await pool.connect(user1).transfer(user2.address, amount);
+    expect(await pool.balanceOf(user2.address)).eq(amount);
+  });
+
+  it('Transfer insured rate balance', async () => {
+    const user = testEnv.users[1];
+    await pool.setMaxInsuredSharePct(1_00_00);
+
+    const minUnits = 10;
+    const RATE = 1e12; // this is about a max rate (0.0001% per s) or 3150% p.a
+    const poolDemand = 100000 * unitSize;
+
+    const joinPool = async (riskWeightValue: number) => {
+      const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+      const insured = await Factories.MockInsuredPool.deploy(
+        cc.address,
+        poolDemand,
+        RATE,
+        minUnits * unitSize,
+        premiumToken.address
+      );
+      await pool.approveNextJoin(riskWeightValue, premiumToken.address);
+      await insured.joinPool(pool.address, { gasLimit: 1000000 });
+      expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
+
+      return insured;
+    };
+
+    const insured = await joinPool(1_00_00);
+    const t1 = await currentTime();
+    let bals = await insured.balancesOf(pool.address);
+    const rate = bals.rate;
+
+    await advanceBlock((await currentTime()) + 15);
+    let t2 = (await pool.transferInsuredPoolToken(insured.address, user.address, rate)).timestamp;
+    t2 = t2 === undefined ? await currentTime() : t2;
+
+    bals = await insured.balancesOf(pool.address);
+    expect(bals.rate).eq(0);
+    expect(bals.premium).eq(rate.mul(t2 - t1));
+    bals = await insured.balancesOf(user.address);
+    expect(bals.rate).eq(rate);
+    expect(bals.premium).eq(0);
+    expect(await insured.balanceOf(user.address)).eq(rate);
   });
 });
