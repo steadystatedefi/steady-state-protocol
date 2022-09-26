@@ -35,7 +35,7 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
   /// @dev Cancel all coverage for the insured and payout
   /// @param insured The address of the insured to cancel
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
-  /// @return payoutValue The effective amount of coverage paid out to the insured (includes all )
+  /// @return payoutValue The effective amount of coverage paid out to the insured (debt & drawdown are deducted)
   function internalCancelCoverage(
     address insured,
     uint256 payoutRatio,

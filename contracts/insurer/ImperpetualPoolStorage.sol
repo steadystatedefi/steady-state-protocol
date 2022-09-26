@@ -12,11 +12,8 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
 
   uint128 private _totalSupply;
 
-  uint128 internal _burntDrawdown;
   uint128 internal _burntPremium;
-
-  /// @dev decreased on losses (e.g. premium underpaid or collateral loss), increased on external value streams, e.g. collateral yield
-  int128 internal _valueAdjustment;
+  int128 internal _deltaDrawdown;
 
   function totalSupply() public view override(IERC20, WeightedPoolBase) returns (uint256) {
     return _totalSupply;

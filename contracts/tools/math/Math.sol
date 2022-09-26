@@ -4,6 +4,14 @@ pragma solidity ^0.8.10;
 import '../Errors.sol';
 
 library Math {
+  function addInt(uint256 x, int256 y) internal pure returns (uint256) {
+    return y >= 0 ? x + uint256(y) : x - uint256(-y);
+  }
+
+  function boundedAddInt(uint256 x, int256 y) internal pure returns (uint256) {
+    return y >= 0 ? x + uint256(y) : boundedSub(x, uint256(-y));
+  }
+
   function boundedSub(uint256 x, uint256 y) internal pure returns (uint256) {
     unchecked {
       return x <= y ? 0 : x - y;

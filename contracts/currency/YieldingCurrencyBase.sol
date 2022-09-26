@@ -36,8 +36,4 @@ abstract contract YieldingCurrencyBase is AccessHelper, InvestmentCurrencyBase, 
       internalAddYield(amount);
     }
   }
-
-  function pullYield() external returns (uint256) {
-    return internalPullYield(msg.sender);
-  }
 }

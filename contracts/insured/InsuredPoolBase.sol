@@ -246,7 +246,7 @@ abstract contract InsuredPoolBase is
     uint256 totalPayout = internalCancelInsurers(getCharteredInsurers(), payoutRatio);
     totalPayout += internalCancelInsurers(getGenericInsurers(), payoutRatio);
 
-    // NB! it is possible for totalPayout < expectedPayout when drawdown takes place
+    // NB! it is possible for totalPayout < expectedPayout when drawdown or premium debt are present
     if (totalPayout > 0) {
       Value.require(payoutReceiver != address(0));
       transferCollateral(payoutReceiver, totalPayout);
