@@ -24,7 +24,7 @@ export const AccessFlags = {
   INSURED_ADMIN: 1 << 12,
   INSURED_OPS: 1 << 13,
   BORROWER_ADMIN: 1 << 14,
-  LIQUIDITY_BORROWER: 1 << 15,
+  LIQUIDITY_MANAGER: 1 << 15,
 
   // protected singletons - use for proxies
   APPROVAL_CATALOG: 1 << 16,

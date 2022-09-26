@@ -1,21 +1,14 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
-import '../tools/tokens/ERC20Base.sol';
-import '../tools/Errors.sol';
-import '../tools/SafeERC20.sol';
-import '../tools/math/Math.sol';
-import '../tools/math/WadRayMath.sol';
 import '../funds/Collateralized.sol';
+import '../access/AccessHelper.sol';
 import './interfaces/ILender.sol';
 import './interfaces/IReinvestStrategy.sol';
-import './BorrowBalancesBase.sol';
+import '../currency/BorrowBalancesBase.sol';
 
-abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
-  using Math for uint256;
-  using WadRayMath for uint256;
-  using EnumerableSet for EnumerableSet.AddressSet;
+abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBalancesBase {
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function _onlyCollateralFund(address fund) private view {
     address cc = collateral();
@@ -29,7 +22,7 @@ abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
   }
 
   function _onlyBorrowOpsOf(address fund) private view {
-    Access.require(ILender(fund).isBorrowOps(msg.sender));
+    Access.require(fund != address(0) && ILender(fund).isBorrowOps(msg.sender));
   }
 
   modifier onlyBorrowOpsOf(address fund) {
@@ -37,7 +30,22 @@ abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
     _;
   }
 
-  modifier onlyBorrowOps() {
+  mapping(address => uint256) private _strategies;
+
+  function enableStrategy(address strategy, bool enable) external aclHas(AccessFlags.BORROWER_ADMIN) {
+    Value.require(strategy != address(0));
+    _strategies[strategy] = enable ? 1 : 0;
+  }
+
+  function isStrategy(address strategy) public view returns (bool) {
+    return _strategies[strategy] != 0;
+  }
+
+  function _onlyActiveStrategy(address strategy) private view {
+    Access.require(isStrategy(strategy));
+  }
+
+  modifier onlyActiveStrategy(address strategy) {
     _;
   }
 
@@ -46,7 +54,7 @@ abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
     address fromFund,
     address toStrategy,
     uint256 amount
-  ) external onlyBorrowOpsOf(fromFund) onlyCollateralFund(fromFund) {
+  ) external onlyBorrowOpsOf(fromFund) onlyCollateralFund(fromFund) onlyActiveStrategy(toStrategy) {
     return internalPushTo(token, fromFund, toStrategy, amount);
   }
 
@@ -55,7 +63,7 @@ abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
     address fromStrategy,
     address toFund,
     uint256 amount
-  ) external onlyBorrowOpsOf(toFund) returns (uint256) {
+  ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) returns (uint256) {
     return internalPullFrom(token, fromStrategy, toFund, amount);
   }
 
@@ -64,7 +72,7 @@ abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
     address fromStrategy,
     address viaFund,
     uint256 maxAmount
-  ) external onlyBorrowOps onlyCollateralFund(viaFund) returns (uint256) {
+  ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) onlyCollateralFund(viaFund) returns (uint256) {
     // NB! The collateral currency will detect mint to itself as a yield payment
     return internalPullYieldFrom(token, fromStrategy, viaFund, maxAmount, collateral());
   }
@@ -75,11 +83,10 @@ abstract contract BorrowManagerBase is Collateralized, BorrowBalancesBase {
     address forStrategy,
     address viaFund,
     uint256 amount
-  ) external onlyBorrowOps onlyCollateralFund(viaFund) {
+  ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) onlyCollateralFund(viaFund) {
     // NB! The collateral currency will detect mint to itself as a yield payment
     internalPayLoss(token, from, forStrategy, viaFund, amount, collateral());
   }
 
-  // TODO func repayLoss
   // TODO func requestLiquidity
 }

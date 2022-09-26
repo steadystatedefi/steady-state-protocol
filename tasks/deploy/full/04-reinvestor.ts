@@ -5,9 +5,9 @@ import { mustWaitTx, notFalsyOrZeroAddress } from '../../../helpers/runtime-util
 import { deployTask } from '../deploy-steps';
 import { findOrDeployProxyFromCatalog } from '../templates';
 
-const catalogName = ProxyTypes.YIELD_DISTRIBUTOR;
+const catalogName = ProxyTypes.REINVESTOR;
 
-deployTask(`full:deploy-yield-distributor`, `Deploy ${catalogName}`, __dirname).setAction(
+deployTask(`full:deploy-reinvestor`, `Deploy ${catalogName}`, __dirname).setAction(
   dreAction(async () => {
     const cc = Factories.CollateralCurrency.get();
     const found = await cc.borrowManager();
@@ -17,8 +17,8 @@ deployTask(`full:deploy-yield-distributor`, `Deploy ${catalogName}`, __dirname).
       return;
     }
 
-    const factory = Factories.YieldDistributorV1;
-    const initFunctionData = factory.interface.encodeFunctionData('initializeYieldDistributor');
+    const factory = Factories.ReinvestorV1;
+    const initFunctionData = factory.interface.encodeFunctionData('initializeReinvestor');
 
     const [yd] = await findOrDeployProxyFromCatalog(factory, catalogName, initFunctionData);
 

@@ -486,7 +486,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
   }
 
   function isBorrowOps(address operator) public view returns (bool) {
-    // TODO
+    return hasAnyAcl(operator, AccessFlags.LP_ADMIN | AccessFlags.LIQUIDITY_MANAGER);
   }
 }
 
