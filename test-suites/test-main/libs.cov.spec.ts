@@ -33,6 +33,9 @@ makeSuite('Strings library', (testEnv: TestEnv) => {
   });
 
   it('overflow revert type', async () => {
+    if (testEnv.underCoverage) {
+      return;
+    }
     await expect(libs.testOverflowUint128Mutable(MAX_UINT128.add(1))).revertedWith('panic code 0x11');
     await expect(libs.testOverflowUint128Mutable(MAX_UINT)).revertedWith('panic code 0x11');
   });

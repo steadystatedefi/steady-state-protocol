@@ -1,11 +1,11 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
-import { BigNumber, BigNumberish } from 'ethers';
+import { BigNumber } from 'ethers';
 
-import { MAX_UINT, RAY } from '../../helpers/constants';
+import { MAX_UINT, RAY, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
-import { createRandomAddress } from '../../helpers/runtime-utils';
+import { advanceBlock, createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import {
   IInsurerPool,
   MockCollateralCurrency,
@@ -19,7 +19,9 @@ import { makeSuite, TestEnv } from './setup/make-suite';
 makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   const drawdownPct = 10; // 10% constant inside MockImperpetualPool
-  let demanded: BigNumberish;
+  const rate = 1e12;
+  const demandPerInsured = BigNumber.from(4000 * unitSize);
+  let demanded: BigNumber;
 
   let pool: MockImperpetualPool;
   let poolIntf: IInsurerPool;
@@ -33,8 +35,8 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
     const insured = await Factories.MockInsuredPool.deploy(
       cc.address,
-      4000 * unitSize,
-      1e12,
+      demandPerInsured,
+      rate,
       10 * unitSize,
       premiumToken.address
     );
@@ -153,85 +155,191 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     expect(await collectAvailableDrawdown()).eq(amtMinted.mul(drawdownPct).div(100));
   });
 
-  it('Cancel all coverage (MCD will cause not entire coverage to be paid out)', async () => {
+  const checkForepay = async () => {
+    const coverageForepayPct = (await pool.getPoolParams()).coverageForepayPct;
+
+    for (let i = 0; i < insureds.length; i++) {
+      const insured = insureds[i];
+      await insured.reconcileWithInsurers(0, 0, testEnv.covGas(30000000));
+      const coverage = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
+      expect(await cc.balanceOf(insured.address)).eq(coverage.mul(coverageForepayPct).div(10000));
+    }
+  };
+
+  it('Forepay reconciliation', async () => {
+    await pool.setCoverageForepayPct(60_00);
+    await checkForepay();
+    await pool.setCoverageForepayPct(80_00);
+    await checkForepay();
+    await pool.setCoverageForepayPct(90_00);
+    await checkForepay();
+  });
+
+  const claim = async (claimPct: number, flushMCD: boolean) => {
+    const forepayPct = (await pool.getPoolParams()).coverageForepayPct / 100;
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
     expect(await cc.balanceOf(user.address)).eq(0);
 
     const poolBalance = await cc.balanceOf(pool.address);
 
     const drawdown = await collectAvailableDrawdown();
-    expect(drawdown).gt(0);
-    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
-    expect(await cc.balanceOf(user.address)).eq(drawdown);
+    expect(drawdown).eq(demanded.mul(drawdownPct).div(100)).gt(0);
 
-    expect(await collectAvailableDrawdown()).eq(0);
+    if (flushMCD) {
+      await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
+      expect(await cc.balanceOf(user.address)).eq(drawdown);
+      expect(await collectAvailableDrawdown()).eq(0);
+    }
 
     for (let i = 0; i < insureds.length; i++) {
-      const insured = insureds[i];
-      await insured.reconcileWithInsurers(0, 0);
-      const receiver = createRandomAddress();
-      const payoutAmount = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
+      await insureds[i].reconcileWithInsurers(0, 0, testEnv.covGas(30000000));
+    }
 
-      await insured.cancelCoverage(receiver, MAX_UINT);
+    let availableCC = await cc.balanceOf(pool.address);
+    expect(availableCC).eq(demanded.mul(100 - ((flushMCD ? drawdownPct : 0) + forepayPct)).div(100));
+
+    let lockedFromClaim = BigNumber.from(0);
+    for (let i = 0; i < insureds.length; i++) {
+      const insured = insureds[i];
+      const receiver = createRandomAddress();
+      const totalCovered = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalCovered;
+      availableCC = (await cc.balanceOf(pool.address)).sub(lockedFromClaim);
+      availableCC = availableCC.gt(0) ? availableCC : BigNumber.from(0);
+
+      const missing = totalCovered.mul(claimPct - forepayPct).div(100);
+      const extra = availableCC.gt(missing) ? missing : availableCC;
+      const expectedPayout = totalCovered.mul(forepayPct).div(100).add(extra);
+
+      const requestAmount = claimPct === 100 ? MAX_UINT : totalCovered.mul(claimPct).div(100);
+      await insured.cancelCoverage(receiver, requestAmount, testEnv.covGas(30000000));
       {
-        const bal = await cc.balanceOf(receiver);
-        expect(bal).eq(payoutAmount.mul(100 - drawdownPct).div(100));
+        expect(await cc.balanceOf(receiver)).eq(expectedPayout);
       }
+
+      lockedFromClaim = lockedFromClaim.add(totalCovered.mul(100 - claimPct).div(100));
     }
 
     const { coverage } = await pool.getTotals();
     expect(coverage.totalDemand).eq(0);
     expect(coverage.totalCovered).eq(0);
-    expect(await collectAvailableDrawdown()).eq(0);
-
-    const excess = await pool.getExcessCoverage();
-    expect(excess.sub(drawdown)).eq(await cc.balanceOf(pool.address));
-    expect(excess).eq(poolBalance.mul(drawdownPct).div(100));
-  });
-
-  const claim = async (flushMCD: boolean, increment: boolean) => {
-    await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
-    expect(await cc.balanceOf(user.address)).eq(0);
-    const poolBalance = await cc.balanceOf(pool.address);
-
-    const drawdown = await collectAvailableDrawdown();
-    expect(drawdown).gt(0);
-
-    if (flushMCD) {
-      await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
-      expect(await cc.balanceOf(user.address)).eq(drawdown);
-    }
-
-    const insured = insureds[0];
-    await insured.reconcileWithInsurers(0, 0);
-    const receiver = createRandomAddress();
-    const {
-      coverage: { totalCovered },
-    } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
-
-    const coverageForepayPct = (await pool.getPoolParams()).coverageForepayPct;
-    expect(coverageForepayPct).gte(50_00);
-    const payoutVariance = Math.round((100_00 - coverageForepayPct) / 2);
-    expect(payoutVariance).gt(0);
-
-    const payoutAmount = totalCovered
-      .mul(coverageForepayPct + (increment ? payoutVariance : -payoutVariance))
-      .div(1_00_00);
-
-    await insured.cancelCoverage(receiver, payoutAmount);
-    {
-      const bal = await cc.balanceOf(receiver);
-      expect(bal).eq(flushMCD && increment ? totalCovered.mul(coverageForepayPct).div(1_00_00) : payoutAmount);
-    }
-
-    // const excess = await pool.getExcessCoverage()
-    // expect(excess).eq(await cc.balanceOf(pool.address));
-    // expect(excess.add(drawdown)).eq(poolBalance.mul(drawdownPct).div(100));
   };
 
-  it('Claim slightly below the forepay', async () => claim(false, false));
-  it('Claim slightly above the forepay', async () => claim(false, true));
+  const makeTest = (claimPct: number, forepayPct: number, flushMCD: boolean) => {
+    const title = `Claim ${claimPct}%, forepay ${forepayPct}%${flushMCD ? ', MCD depleted' : ''}`;
+    return it(title, async () => {
+      await pool.setCoverageForepayPct(forepayPct * 100);
+      await claim(claimPct, flushMCD);
+    });
+  };
 
-  it('Claim slightly below the forepay, MCD depleted', async () => claim(true, false));
-  it('Claim slightly above the forepay, MCD depleted', async () => claim(true, true));
+  for (let claimAmt = 100; claimAmt > 60; claimAmt -= 10) {
+    for (let forepay = 90; forepay > 70; forepay -= 10) {
+      makeTest(claimAmt, forepay, true);
+      makeTest(claimAmt, forepay, false);
+    }
+  }
+
+  it('Premium debt', async () => {
+    await insureds[0].cancelAllCoverageDemand(testEnv.covGas(30000000));
+    await insureds[1].cancelAllCoverageDemand(testEnv.covGas(30000000));
+    await insureds[2].cancelAllCoverageDemand(testEnv.covGas(30000000));
+
+    await pool.setPremiumDistributor(premFund.address);
+    await pool.setCoverageForepayPct(80_00);
+
+    let demand = (await joinPool(10 * 100)).totalDemand;
+    demand = demand.add((await joinPool(10 * 100)).totalDemand);
+    demand = demand.add((await joinPool(10 * 100)).totalDemand);
+
+    let ratePerInsured = demandPerInsured.mul(rate).div(WAD);
+    let t = (await cc.mintAndTransfer(user.address, pool.address, demand, 0)).timestamp;
+    t = t === undefined ? await currentTime() : t;
+
+    for (let i = insureds.length - 3; i < insureds.length; i++) {
+      await premFund.setPrice(await insureds[i].premiumToken(), WAD);
+      await insureds[i].reconcileWithInsurers(0, 0, testEnv.covGas(30000000));
+    }
+
+    let insured = insureds[insureds.length - 1];
+    let receiver = createRandomAddress();
+    await advanceBlock((await currentTime()) + 20);
+    let t2 = (await insured.cancelCoverage(receiver, MAX_UINT, testEnv.covGas(30000000))).timestamp;
+    t2 = t2 === undefined ? await currentTime() : t2;
+
+    let debt = ratePerInsured.mul(t2 - t);
+    let bal = await cc.balanceOf(receiver);
+    expect(bal).lte(BigNumber.from(demandPerInsured).sub(debt));
+
+    await advanceBlock((await currentTime()) + 120);
+    insured = insureds[insureds.length - 2];
+    receiver = createRandomAddress();
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, testEnv.covGas(30000000))).timestamp;
+    t2 = t2 === undefined ? await currentTime() : t2;
+
+    debt = ratePerInsured.mul(t2 - t);
+    bal = await cc.balanceOf(receiver);
+    expect(bal).lte(BigNumber.from(demandPerInsured).sub(debt));
+
+    const t3 = t2;
+    const drawdown = await collectAvailableDrawdown();
+    await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0, {
+      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
+    });
+
+    insured = insureds[insureds.length - 3];
+    receiver = createRandomAddress();
+    t2 = (await insured.cancelCoverage(receiver, MAX_UINT, testEnv.covGas(30000000))).timestamp;
+    t2 = t2 === undefined ? await currentTime() : t2;
+    bal = await cc.balanceOf(receiver);
+    debt = ratePerInsured.mul(t3 - t);
+    ratePerInsured = BigNumber.from(demandPerInsured).sub(drawdown).mul(rate).div(WAD);
+    debt = debt.add(ratePerInsured.mul(t2 - t3));
+
+    if (debt > drawdown) {
+      expect(bal).lte(BigNumber.from(demandPerInsured).sub(debt));
+    } else {
+      expect(bal).eq(BigNumber.from(demandPerInsured).sub(drawdown));
+    }
+  });
+
+  it('Premium debt > payout', async () => {
+    await insureds[0].cancelAllCoverageDemand(testEnv.covGas(30000000));
+    await insureds[1].cancelAllCoverageDemand(testEnv.covGas(30000000));
+    await insureds[2].cancelAllCoverageDemand(testEnv.covGas(30000000));
+
+    await pool.setPremiumDistributor(premFund.address);
+    await pool.setCoverageForepayPct(80_00);
+
+    let demand = (await joinPool(10 * 100)).totalDemand;
+    demand = demand.add((await joinPool(10 * 100)).totalDemand);
+    demand = demand.add((await joinPool(10 * 100)).totalDemand);
+
+    const ratePerInsured = demandPerInsured.mul(rate).div(WAD);
+    let t = (await cc.mintAndTransfer(user.address, pool.address, demand, 0)).timestamp;
+    t = t === undefined ? await currentTime() : t;
+
+    await advanceBlock((await currentTime()) + 500);
+    for (let i = insureds.length - 3; i < insureds.length; i++) {
+      await premFund.setPrice(await insureds[i].premiumToken(), WAD);
+      await insureds[i].reconcileWithInsurers(0, 0, testEnv.covGas(30000000));
+    }
+
+    const insured = insureds[insureds.length - 1];
+    const receiver = createRandomAddress();
+
+    // let { coverage } = await pool.getTotals();
+    await insured.cancelCoverage(receiver, ratePerInsured.mul(300), testEnv.covGas(30000000));
+    const debt = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalPremium;
+
+    expect(await cc.balanceOf(receiver)).eq(0);
+    expect((await pool.getTotals()).coverage.totalDemand).eq(demandPerInsured.mul(2));
+
+    /*
+    console.log(await pool.getTotals());
+    console.log(await pool.getExcessCoverage());
+    console.log('debt', debt);
+    */
+
+    // expect(demandPerInsured).eq(debt.add(await pool.getExcessCoverage()));
+  });
 });

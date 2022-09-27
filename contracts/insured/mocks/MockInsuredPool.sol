@@ -29,4 +29,8 @@ contract MockInsuredPool is InsuredPoolMonoRateBase {
   function internalPriceOf(address) internal pure override returns (uint256) {
     return WadRayMath.WAD;
   }
+
+  function cancelJoin(IJoinable pool) external {
+    pool.cancelJoin();
+  }
 }

@@ -792,7 +792,9 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
         .add(unitSize / 2)
         .div(unitSize)
     );
-    expect(totals0.totalPremium).lt(totals1.totalPremium);
+    if (!testEnv.underCoverage) {
+      expect(totals0.totalPremium).lt(totals1.totalPremium);
+    }
   });
 
   it('Cancel coverage for insureds[2] with full repayment', async () => {
@@ -800,7 +802,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     const insured = insureds[2];
 
-    await insured.reconcileWithInsurers(0, 0); // required to cancel
+    await insured.reconcileWithInsurers(0, 0, testEnv.covGas(30000000)); // required to cancel
 
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
@@ -818,7 +820,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     /** **************** */
     /* Cancel coverage */
-    await insured.cancelCoverage(receiver, payoutAmount);
+    await insured.cancelCoverage(receiver, payoutAmount, testEnv.covGas(30000000));
     /** **************** */
     /** **************** */
 
@@ -859,7 +861,9 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
         .add(unitSize / 2)
         .div(unitSize)
     );
-    expect(totals0.totalPremium).lt(totals1.totalPremium);
+    if (!testEnv.underCoverage) {
+      expect(totals0.totalPremium).lt(totals1.totalPremium);
+    }
   });
 
   // TODO check premium rates after partial cancel

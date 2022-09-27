@@ -50,6 +50,7 @@ struct InsuredParams {
 }
 
 struct InsuredRateBand {
-  uint64 premiumRate;
-  uint96 coverageDemand;
+  uint256 premiumRate;
+  uint256 coverageDemand;
+  uint256 assignedDemand;
 }

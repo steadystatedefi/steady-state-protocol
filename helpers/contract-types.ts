@@ -5,9 +5,9 @@ import { wrap, mock, iface, loadFactories, NamedAttachable } from './factory-wra
 export const Factories = {
   IERC20: iface(types.IERC20Detailed__factory),
   IInsurerPool: iface(types.IInsurerPool__factory),
-  WeightedPoolExtension: iface(types.WeightedPoolExtension__factory),
   ICancellableCoverage: iface(types.ICancellableCoverage__factory),
   ICoverageDistributor: iface(types.ICoverageDistributor__factory),
+  WeightedPoolExtension: iface(types.WeightedPoolExtension__factory),
 
   JoinablePoolExtension: wrap(types.JoinablePoolExtension__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
@@ -44,6 +44,7 @@ export const Factories = {
   MockChainlinkV3: mock(types.MockChainlinkV3__factory),
   MockUniswapV2: mock(types.MockUniswapV2__factory),
   MockInsuredPoolV2: mock(types.MockInsuredPoolV2__factory),
+  MockCancellableImperpetualPool: mock(types.MockCancellableImperpetualPool__factory),
 };
 
 loadFactories(Factories);
