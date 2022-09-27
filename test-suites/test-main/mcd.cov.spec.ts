@@ -180,8 +180,6 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
     expect(await cc.balanceOf(user.address)).eq(0);
 
-    const poolBalance = await cc.balanceOf(pool.address);
-
     const drawdown = await collectAvailableDrawdown();
     expect(drawdown).eq(demanded.mul(drawdownPct).div(100)).gt(0);
 
@@ -314,9 +312,7 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     demand = demand.add((await joinPool(10 * 100)).totalDemand);
     demand = demand.add((await joinPool(10 * 100)).totalDemand);
 
-    const ratePerInsured = demandPerInsured.mul(rate).div(WAD);
-    let t = (await cc.mintAndTransfer(user.address, pool.address, demand, 0)).timestamp;
-    t = t === undefined ? await currentTime() : t;
+    await cc.mintAndTransfer(user.address, pool.address, demand, 0);
 
     await advanceBlock((await currentTime()) + 500);
     for (let i = insureds.length - 3; i < insureds.length; i++) {
@@ -327,19 +323,35 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     const insured = insureds[insureds.length - 1];
     const receiver = createRandomAddress();
 
-    // let { coverage } = await pool.getTotals();
-    await insured.cancelCoverage(receiver, ratePerInsured.mul(300), testEnv.covGas(30000000));
-    const debt = (await poolIntf.receivableDemandedCoverage(insured.address, 0)).coverage.totalPremium;
+    const totalValue0 = await pool.totalSupplyValue();
+    const { availableDrawdownValue: drawdown0 } = await pool.callStatic.collectDrawdownPremium();
+
+    const { coverage: coverage0 } = await pool.getTotals();
+    expect(coverage0.totalDemand).eq(demandPerInsured.mul(3));
+
+    const expectedPayout = BigNumber.from(1000);
+    await insured.cancelCoverage(receiver, expectedPayout, testEnv.covGas(30000000));
+
+    const { coverage: coverage1 } = await pool.getTotals();
+    expect(coverage1.totalDemand).eq(demandPerInsured.mul(2));
 
     expect(await cc.balanceOf(receiver)).eq(0);
-    expect((await pool.getTotals()).coverage.totalDemand).eq(demandPerInsured.mul(2));
 
-    /*
-    console.log(await pool.getTotals());
-    console.log(await pool.getExcessCoverage());
-    console.log('debt', debt);
-    */
+    const receivable = await poolIntf.receivableDemandedCoverage(insured.address, 0);
+    const debt = receivable.coverage.totalPremium;
+    expect(debt).gt(expectedPayout);
 
-    // expect(demandPerInsured).eq(debt.add(await pool.getExcessCoverage()));
+    const totalValue1 = await pool.totalSupplyValue();
+    expect(coverage0.totalPremium).lt(coverage1.totalPremium);
+
+    // NB! This is internal totalPremium which is ever-growing - it is subtracted to compensate the growth.
+    expect(totalValue0.sub(coverage0.totalPremium)).eq(totalValue1.sub(coverage1.totalPremium).add(debt));
+
+    const { availableDrawdownValue: drawdown1 } = await pool.callStatic.collectDrawdownPremium();
+
+    // the payout was given out to users as extra MCD to compensate lack of premium tokens
+    expect(demandPerInsured.sub(expectedPayout)).eq(await pool.getExcessCoverage());
+    // drawdown is increased by expectedPayout and decreased due to reduction of the total coverage
+    expect(drawdown1.sub(drawdown0)).eq(expectedPayout.mul(100 - drawdownPct).div(100));
   });
 });

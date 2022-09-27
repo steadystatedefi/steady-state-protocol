@@ -29,7 +29,7 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     if (payoutRatio > 0) {
       payoutRatio = internalVerifyPayoutRatio(insured, payoutRatio, enforcedCancel);
     }
-    (payoutValue, ) = internalCancelCoverage(insured, payoutRatio, enforcedCancel);
+    payoutValue = internalCancelCoverage(insured, payoutRatio, enforcedCancel);
   }
 
   /// @dev Cancel all coverage for the insured and payout
@@ -40,9 +40,10 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     address insured,
     uint256 payoutRatio,
     bool enforcedCancel
-  ) private returns (uint256 payoutValue, uint256 deductedValue) {
-    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage, uint256 receivedPremium) = super
-      .internalCancelCoverage(insured);
+  ) private returns (uint256 payoutValue) {
+    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
+      insured
+    );
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
 
@@ -59,23 +60,9 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
 
     uint256 premiumDebt = address(_premiumDistributor) == address(0)
       ? 0
-      : _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
+      : _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium);
 
     internalSetStatus(insured, MemberStatus.Declined);
-
-    if (premiumDebt > 0) {
-      unchecked {
-        if (premiumDebt >= payoutValue) {
-          deductedValue = payoutValue;
-          premiumDebt -= payoutValue;
-          payoutValue = 0;
-        } else {
-          deductedValue = premiumDebt;
-          payoutValue -= premiumDebt;
-          premiumDebt = 0;
-        }
-      }
-    }
 
     payoutValue = internalTransferCancelledCoverage(
       insured,
@@ -130,7 +117,7 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
 
     if (coverage.premiumRate != 0) {
       if (address(_premiumDistributor) != address(0)) {
-        _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
+        _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate);
       }
     } else {
       Sanity.require(coverage.totalPremium == 0);

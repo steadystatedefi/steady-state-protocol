@@ -76,12 +76,12 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   const timeDiff = async (earlier: number) => (await currentTime()) - earlier;
 
-  const registerActuaryAndSource = async () => {
+  const registerActuaryAndSource = async (rate = 10) => {
     await fund.registerPremiumActuary(actuary.address, true);
 
     await actuary.addSource(sources[0].address);
     await fund.setPrice(token1.address, WAD);
-    await actuary.setRate(sources[0].address, 10);
+    await actuary.setRate(sources[0].address, rate);
   };
 
   it('Must add actuary before adding source', async () => {
@@ -114,14 +114,15 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   it('Can update/finish while token is paused GLOBALLY', async () => {
     await registerActuaryAndSource();
+    const rate = 100;
 
     await fund.setPaused(ZERO_ADDRESS, token1.address, true);
-    await actuary.setRate(sources[0].address, 100, testEnv.covGas(30000000));
+    await actuary.setRate(sources[0].address, rate, testEnv.covGas(30000000));
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(100);
 
     const bal = await token1.balanceOf(fund.address);
     await advanceBlock((await currentTime()) + 10);
-    await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
+    await actuary.callPremiumAllocationFinished(sources[0].address, rate * 20, testEnv.covGas(30000000));
     expect(await token1.balanceOf(fund.address)).gt(bal);
   });
 
@@ -149,21 +150,23 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   });
 
   it('Premium allocation finished', async () => {
-    await registerActuaryAndSource();
+    const rate = 10;
+    await registerActuaryAndSource(rate);
 
     await advanceBlock((await currentTime()) + 10);
     await fund.syncAsset(actuary.address, 0, token1.address);
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(10);
-    await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
+    await actuary.callPremiumAllocationFinished(sources[0].address, rate * 20, testEnv.covGas(30000000));
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(0);
     await fund.registerPremiumActuary(actuary.address, false, testEnv.covGas(30000000));
   });
 
   it('Premium allocation finished before sync', async () => {
-    await registerActuaryAndSource();
+    const rate = 10;
+    await registerActuaryAndSource(rate);
 
     await advanceBlock((await currentTime()) + 10);
-    await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
+    await actuary.callPremiumAllocationFinished(sources[0].address, rate * 20, testEnv.covGas(30000000));
   });
 
   it('Rates', async () => {
