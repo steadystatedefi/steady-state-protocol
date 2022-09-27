@@ -157,10 +157,14 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
     expect(await cc.balanceOf(user.address)).eq(0);
 
+    const poolBalance = await cc.balanceOf(pool.address);
+
     const drawdown = await collectAvailableDrawdown();
     expect(drawdown).gt(0);
     await premFund.swapAsset(pool.address, user.address, user.address, drawdown, cc.address, 0);
     expect(await cc.balanceOf(user.address)).eq(drawdown);
+
+    expect(await collectAvailableDrawdown()).eq(0);
 
     for (let i = 0; i < insureds.length; i++) {
       const insured = insureds[i];
@@ -171,8 +175,6 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       await insured.cancelCoverage(receiver, MAX_UINT);
       {
         const bal = await cc.balanceOf(receiver);
-        // expect(bal).lte(payoutAmount);
-        // expect(bal).gte(payoutAmount.mul(100 - drawdownPct).div(100));
         expect(bal).eq(payoutAmount.mul(100 - drawdownPct).div(100));
       }
     }
@@ -181,11 +183,16 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
     expect(coverage.totalDemand).eq(0);
     expect(coverage.totalCovered).eq(0);
     expect(await collectAvailableDrawdown()).eq(0);
+
+    const excess = await pool.getExcessCoverage();
+    expect(excess.sub(drawdown)).eq(await cc.balanceOf(pool.address));
+    expect(excess).eq(poolBalance.mul(drawdownPct).div(100));
   });
 
   const claim = async (flushMCD: boolean, increment: boolean) => {
     await cc.mintAndTransfer(user.address, pool.address, demanded, 0);
     expect(await cc.balanceOf(user.address)).eq(0);
+    const poolBalance = await cc.balanceOf(pool.address);
 
     const drawdown = await collectAvailableDrawdown();
     expect(drawdown).gt(0);
@@ -216,6 +223,10 @@ makeSuite('Minimum Drawdown (with Imperpetual Index Pool)', (testEnv: TestEnv) =
       const bal = await cc.balanceOf(receiver);
       expect(bal).eq(flushMCD && increment ? totalCovered.mul(coverageForepayPct).div(1_00_00) : payoutAmount);
     }
+
+    // const excess = await pool.getExcessCoverage()
+    // expect(excess).eq(await cc.balanceOf(pool.address));
+    // expect(excess.add(drawdown)).eq(poolBalance.mul(drawdownPct).div(100));
   };
 
   it('Claim slightly below the forepay', async () => claim(false, false));

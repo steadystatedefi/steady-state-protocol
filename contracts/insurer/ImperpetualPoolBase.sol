@@ -9,6 +9,7 @@ import './WeightedPoolBase.sol';
 /// @notice Handles adding coverage by users.
 abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using Math for uint256;
+  using Math for uint128;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -59,42 +60,53 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 recoveredValue,
     uint256 premiumDebt
   ) external onlySelf returns (uint256) {
-    Value.require(advanceValue >= subBalanceOfCollateral(insured));
-
-    advanceValue = advanceValue + recoveredValue;
+    uint256 forepayValue = subBalanceOfCollateral(insured);
+    Sanity.require(advanceValue >= forepayValue);
 
     // a value this insurer has already credited to the insured
-    uint256 givenValue = advanceValue + premiumDebt;
+    uint256 v = forepayValue + premiumDebt;
+    advanceValue += recoveredValue;
 
     uint256 premiumDebtRecovery;
-    // the outstanding premium debt is deducted as if it was paid out - this will reduce the total value (but it can be recovered, see below)
-    if (premiumDebt > 0) {
-      Arithmetic.require((_burntPremium += uint128(premiumDebt)) >= premiumDebt);
-    }
-
-    if (givenValue > payoutValue) {
-      recoveredValue = advanceValue.boundedSub(payoutValue);
+    if (v >= payoutValue) {
+      (recoveredValue, payoutValue) = advanceValue.boundedMaxSub(payoutValue);
 
       // the premium debt recovery is limited to the payout value, the payout value is deducted by the debt
       (payoutValue, premiumDebtRecovery) = payoutValue.boundedMaxSub(premiumDebt);
-    } else if (givenValue < payoutValue) {
+    } else {
+      // payout is large and will cover whole premium debt
       premiumDebtRecovery = premiumDebt;
-      payoutValue -= premiumDebt;
+      payoutValue -= v;
 
-      uint256 underpay = payoutValue - advanceValue;
-      if (underpay > 0 && underpay > (recoveredValue = _calcAvailableDrawdownReserve(advanceValue))) {
-        underpay = recoveredValue;
+      // max allowed drawdown of this insured
+      uint256 insuredDrawdown = advanceValue - forepayValue;
+      if (payoutValue > insuredDrawdown) {
+        payoutValue = insuredDrawdown;
       }
-      recoveredValue = 0;
 
-      payoutValue = advanceValue + underpay;
+      if (payoutValue != 0) {
+        v = _calcAvailableDrawdownReserve(advanceValue);
+        if (payoutValue > v) {
+          payoutValue = v;
+        }
+      }
+
+      payoutValue += forepayValue;
+      recoveredValue = advanceValue - payoutValue - premiumDebt;
     }
 
-    if (premiumDebtRecovery > 0) {
+    if (premiumDebt != 0) {
+      // the outstanding premium debt is deducted as if it was paid out - this will reduce the total value
+      Arithmetic.require((_burntPremium += uint128(premiumDebt)) >= premiumDebt);
+
       // the part of payout that was deducted and will be applied as value recovery
-      // it will be available as an extra coverage drawdown - this will increase the total value
-      _deltaDrawdown += premiumDebtRecovery.asInt128();
+      if (premiumDebtRecovery != 0) {
+        // it will be available as an extra coverage drawdown - this will increase the total value
+        Arithmetic.require((_boostDrawdown += uint128(premiumDebtRecovery)) >= premiumDebtRecovery);
+      }
     }
+
+    Sanity.require(advanceValue == recoveredValue + premiumDebtRecovery + payoutValue);
 
     closeCollateralSubBalance(insured, payoutValue);
 
@@ -140,7 +152,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   }
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
-    v = coverage.totalCovered.addInt(_deltaDrawdown);
+    v = (coverage.totalCovered + _boostDrawdown) - _burntDrawdown;
     v += coverage.pendingCovered + _excessCoverage;
     v = v - added;
     v += coverage.totalPremium - _burntPremium;
@@ -221,7 +233,16 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
     burntAmount = _burnValue(account, value, coverage);
 
-    _deltaDrawdown -= value.asInt128();
+    uint256 v = _boostDrawdown;
+    if (v != 0) {
+      (_boostDrawdown, v) = uint128(v).boundedXSub128(value);
+    } else {
+      v = value;
+    }
+    if (v != 0) {
+      Arithmetic.require((_burntDrawdown += uint128(v)) >= v);
+    }
+
     transferCollateral(recepient, value);
   }
 
@@ -234,23 +255,26 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
 
-  function __calcDrawdown(uint256 totalCovered, uint16 maxDrawdownPct) internal view returns (uint256 max, uint256 avail) {
-    max = (totalCovered + _excessCoverage).percentMul(maxDrawdownPct);
-    avail = max.boundedAddInt(_deltaDrawdown);
+  function _coverageDrawdown(uint256 totalCovered, uint16 maxDrawdownPct) internal view returns (uint256 max, uint256 avail) {
+    max = totalCovered.percentMul(maxDrawdownPct);
+    avail = max.boundedSub(_burntDrawdown);
   }
 
-  function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256 avail) {
-    (, avail) = __calcDrawdown(_coveredTotal() + extra, PercentageMath.ONE - _params.coverageForepayPct);
+  function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256 maxAvail) {
+    uint256 total = extra + _coveredTotal() + _excessCoverage;
+    (, maxAvail) = _coverageDrawdown(total, PercentageMath.ONE - _params.coverageForepayPct);
   }
 
   function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256 max, uint256 avail) {
-    return __calcDrawdown(totalCovered, _params.maxUserDrawdownPct);
+    (max, avail) = _coverageDrawdown(totalCovered + _excessCoverage, _params.maxUserDrawdownPct);
+    max += totalCovered = _boostDrawdown;
+    avail += totalCovered;
   }
 
   function internalCollectDrawdownPremium() internal override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
     uint256 extYield = IManagedCollateralCurrency(collateral()).pullYield();
     if (extYield > 0) {
-      _deltaDrawdown += extYield.asInt128();
+      Arithmetic.require((_boostDrawdown += uint128(extYield)) >= extYield);
     }
     return _calcAvailableUserDrawdown(_coveredTotal());
   }

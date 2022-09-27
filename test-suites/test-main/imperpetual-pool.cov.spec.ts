@@ -338,6 +338,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
   it('Reconcile before cancellation', async () => {
     const insured = insureds[0];
     expect(await cc.balanceOf(insured.address)).eq(0);
+    const { availableDrawdownValue: drawdown0 } = await pool.callStatic.collectDrawdownPremium();
 
     const {
       availableCoverage: expectedCollateral,
@@ -367,6 +368,9 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     }
 
     givenOutCollateral += receivedCollateral.toNumber();
+
+    const { availableDrawdownValue: drawdown1 } = await pool.callStatic.collectDrawdownPremium();
+    expect(drawdown1).eq(drawdown0);
   });
 
   it('Cancel coverage of insured[0] (no payout)', async () => {
@@ -381,6 +385,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const totalValue0 = await pool.totalSupplyValue();
 
     const excessCoverage0 = await pool.getExcessCoverage();
+    const { availableDrawdownValue: drawdown0 } = await pool.callStatic.collectDrawdownPremium();
 
     expect(
       totals0.totalCovered
@@ -408,6 +413,9 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
     expect(await cc.balanceOf(insured.address)).eq(0);
+
+    const { availableDrawdownValue: drawdown1 } = await pool.callStatic.collectDrawdownPremium();
+    expect(drawdown1).eq(drawdown0);
 
     const excessCoverage = (await pool.getExcessCoverage()).sub(excessCoverage0);
     expect(excessCoverage).gte(stats0.totalCovered);

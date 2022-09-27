@@ -11,9 +11,9 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
   using WadRayMath for uint256;
 
   uint128 private _totalSupply;
-
   uint128 internal _burntPremium;
-  int128 internal _deltaDrawdown;
+  uint128 internal _boostDrawdown;
+  uint128 internal _burntDrawdown;
 
   function totalSupply() public view override(IERC20, WeightedPoolBase) returns (uint256) {
     return _totalSupply;
