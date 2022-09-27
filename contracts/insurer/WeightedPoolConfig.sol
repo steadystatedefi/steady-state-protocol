@@ -38,9 +38,9 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     Value.require(params.riskWeightTarget > 0 && params.riskWeightTarget < PercentageMath.ONE);
 
     Value.require(
-      params.coveragePrepayPct >= _params.coveragePrepayPct &&
-        params.coveragePrepayPct >= PercentageMath.HALF_ONE &&
-        params.maxUserDrawdownPct <= PercentageMath.ONE - params.coveragePrepayPct
+      params.coverageForepayPct >= _params.coverageForepayPct &&
+        params.coverageForepayPct >= PercentageMath.HALF_ONE &&
+        params.maxUserDrawdownPct <= PercentageMath.ONE - params.coverageForepayPct
     );
 
     _params = params;

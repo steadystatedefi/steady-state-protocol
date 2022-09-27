@@ -180,6 +180,10 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     (receivedCoverage, receivedCollateral, coverage) = insurer.receiveDemandedCoverage(address(this), 0);
     // console.log('internalReconcileWithInsurer', address(this), coverage.totalPremium, coverage.premiumRate);
 
+    if (receivedCoverage != 0 || receivedCollateral != 0) {
+      internalCoverageReceived(address(insurer), receivedCoverage, receivedCollateral);
+    }
+
     (Balances.RateAcc memory totals, bool updated) = _syncInsurerBalance(b, coverage);
 
     if (coverage.premiumRate != b.rate && (coverage.premiumRate > b.rate || updateRate)) {
@@ -201,6 +205,12 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
       _balances[address(insurer)] = b;
     }
   }
+
+  function internalCoverageReceived(
+    address insurer,
+    uint256 receivedCoverage,
+    uint256 receivedCollateral
+  ) internal virtual;
 
   function _syncInsurerBalance(Balances.RateAccWithUint16 memory b, DemandedCoverage memory coverage)
     private

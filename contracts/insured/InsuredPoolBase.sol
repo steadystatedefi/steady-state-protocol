@@ -28,6 +28,9 @@ abstract contract InsuredPoolBase is
 
   InsuredParams private _params;
 
+  uint256 private _totalReceivedCoverage;
+  mapping(address => uint256) private _receivedCoverage; // [insurer]
+
   uint8 internal constant DECIMALS = 18;
 
   constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) InsuredAccessControl(acl, collateral_) {}
@@ -234,7 +237,7 @@ abstract contract InsuredPoolBase is
   function cancelCoverage(address payoutReceiver, uint256 expectedPayout) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalCancelRates();
 
-    uint256 payoutRatio = totalReceivedCollateral();
+    uint256 payoutRatio = _totalReceivedCoverage;
     if (payoutRatio <= expectedPayout) {
       payoutRatio = WadRayMath.RAY;
     } else if (payoutRatio > 0) {
@@ -266,9 +269,26 @@ abstract contract InsuredPoolBase is
     for (uint256 i = insurers.length; i > 0; ) {
       address insurer = insurers[--i];
 
-      totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
-      emit CoverageCancelled(insurer, payoutRatio, totalPayout);
+      uint256 payout = ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
+      totalPayout += payout;
+      emit CoverageCancelled(insurer, payoutRatio, payout);
+
+      _totalReceivedCoverage -= _receivedCoverage[insurer];
+      delete _receivedCoverage[insurer];
     }
+  }
+
+  function internalCoverageReceived(
+    address insurer,
+    uint256 receivedCoverage,
+    uint256
+  ) internal override {
+    _receivedCoverage[insurer] += receivedCoverage;
+    _totalReceivedCoverage += receivedCoverage;
+  }
+
+  function totalReceived() public view returns (uint256 receivedCoverage, uint256 receivedCollateral) {
+    return (_totalReceivedCoverage, totalReceivedCollateral());
   }
 
   function internalPriceOf(address asset) internal view virtual override returns (uint256) {

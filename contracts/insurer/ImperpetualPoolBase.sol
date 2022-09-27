@@ -111,7 +111,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 receivedCoverage,
     uint256 totalCovered
   ) external onlySelf returns (uint256) {
-    uint256 expectedAmount = totalCovered.percentMul(_params.coveragePrepayPct);
+    uint256 expectedAmount = totalCovered.percentMul(_params.coverageForepayPct);
     uint256 actualAmount = subBalanceOfCollateral(insured);
 
     if (actualAmount < expectedAmount) {
@@ -240,7 +240,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   }
 
   function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256 avail) {
-    (, avail) = __calcDrawdown(_coveredTotal() + extra, PercentageMath.ONE - _params.coveragePrepayPct);
+    (, avail) = __calcDrawdown(_coveredTotal() + extra, PercentageMath.ONE - _params.coverageForepayPct);
   }
 
   function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256 max, uint256 avail) {
