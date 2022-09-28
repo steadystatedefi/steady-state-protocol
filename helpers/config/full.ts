@@ -1,6 +1,7 @@
 import { ENetwork } from '../config-networks';
 import { IConfiguration, INetworkConfiguration } from '../config-types';
 import { WAD } from '../constants';
+import { BalancerAssetMode } from '../types-balancer';
 
 type FullTokens = 'USDC' | 'USD';
 
@@ -43,6 +44,18 @@ const configTemplate: Omit<INetworkConfiguration<FullTokens>, 'Assets' | 'PriceF
       ],
     },
   ],
+  PremiumFund: {
+    drawdownTokenConfig: {
+      mode: BalancerAssetMode.AssetRateMultiplier,
+      w: 0,
+      n: 20_00, // 20% - drawdown token is not rate-balanced, but share-based
+    },
+    premiumTokenConfig: {
+      mode: BalancerAssetMode.AssetRateMultiplier,
+      w: 0,
+      n: 60, // 1 minute
+    },
+  },
 };
 
 export const FullConfig: IConfiguration<ENetwork> = {

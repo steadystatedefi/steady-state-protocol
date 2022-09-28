@@ -83,6 +83,16 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
   event ActuaryAdded(address indexed actuary);
   event ActuaryRemoved(address indexed actuary);
 
+  function _initializeTemplate(address cc) internal {
+    _balancers[address(0)].configs[cc].calc = CalcConfig.newValue(
+      uint144(WadRayMath.WAD),
+      0,
+      // by default a user can swap for free 1/5 (20%) of availableDrawdown * user's share in the insurer
+      CalcConfig.SP_EXTERNAL_N_BASE / 5,
+      CalcConfig.BF_EXTERNAL
+    );
+  }
+
   function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
     ActuaryConfig storage config = _configs[actuary];
     address cc = collateral();
@@ -92,18 +102,12 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
       Value.require(IPremiumActuary(actuary).collateral() == cc);
       _markTokenAsPresent(cc);
 
-      BalancerLib2.AssetConfig memory tac = _balancers[address(0)].configs[cc];
-      if (tac.calc.isZero()) {
-        tac.calc = CalcConfig.newValue(
-          uint144(WadRayMath.WAD),
-          0,
-          // by default a user can swap for free 1/5 (20%) of availableDrawdown * user's share in the insurer
-          CalcConfig.SP_EXTERNAL_N_BASE / 5,
-          CalcConfig.BF_EXTERNAL
-        );
-      }
-      _balancers[actuary].configs[cc] = tac;
-      _balancers[actuary].configs[address(0)] = _balancers[address(0)].configs[address(0)];
+      BalancerLib2.AssetBalancer storage templateBalancer = _balancers[address(0)];
+
+      _balancers[actuary].spConst = templateBalancer.spConst;
+      _balancers[actuary].spFactor = templateBalancer.spFactor;
+      _balancers[actuary].configs[cc] = templateBalancer.configs[cc];
+      _balancers[actuary].configs[address(0)] = templateBalancer.configs[address(0)];
 
       config.state = ActuaryState.Active;
       _tokenActuaries[cc].add(actuary);

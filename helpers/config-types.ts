@@ -6,6 +6,7 @@ import { ETH_ADDRESS, USD_ADDRESS } from './constants';
 import { ProxyTypes } from './proxy-types';
 import { falsyOrZeroAddress } from './runtime-utils';
 import { EthereumAddress } from './types';
+import { BalancerAssetMode } from './types-balancer';
 
 export type IAssets<T> = Record<string, T>;
 
@@ -28,6 +29,22 @@ export interface ICollateralFundAsset {
 export interface ICollateralFund<K extends string> {
   fuseMask: BigNumberish;
   assets?: ParamPerOpt<K, ICollateralFundAsset>;
+}
+
+export interface IPremiumTokenConfig {
+  mode: BalancerAssetMode;
+  modeFinished?: BalancerAssetMode;
+  w: number;
+  n: number;
+  autoReplenish?: boolean;
+  constSP?: BigNumber;
+}
+
+export interface IPremiumFund {
+  premiumTokenConfig: IPremiumTokenConfig;
+  drawdownTokenConfig: IPremiumTokenConfig;
+  globalConstSP?: BigNumber;
+  globalFactorSP?: number;
 }
 
 export interface IPriceBase<K extends string> {
@@ -87,6 +104,7 @@ export interface INetworkConfiguration<Tokens extends string = string> {
   Dependencies: IDependencies;
   PriceFeeds: ParamPerOpt<Tokens, IPriceStatic<Tokens> | IPriceFeed<Tokens>>;
   IndexPools: IIndexPoolConfig[];
+  PremiumFund: IPremiumFund;
 }
 
 export type IConfiguration<Networks extends string = string> = ParamPerOpt<Networks, INetworkConfiguration<string>>;
