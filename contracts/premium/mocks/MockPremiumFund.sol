@@ -9,7 +9,9 @@ contract MockPremiumFund is PremiumFundBase {
 
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) PremiumFundBase(IAccessController(address(0)), collateral_) {}
+  constructor(address collateral_) PremiumFundBase(IAccessController(address(0)), collateral_) {
+    _initializeTemplate(collateral_);
+  }
 
   function isAdmin(address) internal pure override returns (bool) {
     return true;

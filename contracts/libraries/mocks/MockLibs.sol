@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import '../Strings.sol';
 import '../../tools/Errors.sol';
 import '../../tools/math/Math.sol';
+import '../../premium/BalancerLib2.sol';
 
 import 'hardhat/console.sol';
 
@@ -26,5 +27,14 @@ contract MockLibs {
 
   function testOverflowBits(uint256 v, uint256 bits) public pure {
     Math.overflowBits(v, bits);
+  }
+
+  function testCalcConfigValue(
+    uint144 price,
+    uint64 w,
+    uint32 n,
+    uint16 flags
+  ) public pure returns (CalcConfigValue) {
+    return CalcConfig.newValue(price, w, n, flags);
   }
 }

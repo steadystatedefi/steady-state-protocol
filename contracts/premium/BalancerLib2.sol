@@ -519,7 +519,7 @@ library CalcConfig {
 
   uint16 internal constant BF_SPM_GLOBAL = 1 << 0;
   uint16 internal constant BF_SPM_CONSTANT = 1 << 1;
-  uint16 internal constant BF_SPM_MAX_WITH_CONST = 1 << 2; // only applicable with BF_SPM_CONSTANT
+  uint16 internal constant BF_SPM_MAX_WITH_CONST = 1 << 2;
 
   uint16 internal constant BF_AUTO_REPLENISH = 1 << 6; // pull a source at every swap
   uint16 internal constant BF_FINISHED = 1 << 7; // no more sources for this token
