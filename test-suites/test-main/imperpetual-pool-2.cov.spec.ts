@@ -11,7 +11,7 @@ import { MockCollateralCurrency, MockERC20, MockImperpetualPool, MockInsuredPool
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
-makeSuite.only('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
+makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
   const unitSize = 1e7; // unitSize * RATE == ratePerUnit * WAD - to give `ratePerUnit` rate points per unit per second
   let pool: MockImperpetualPool;
   let cc: MockCollateralCurrency;
