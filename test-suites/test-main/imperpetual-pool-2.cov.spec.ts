@@ -40,7 +40,7 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
       premiumToken.address
     );
     await pool.approveNextJoin(riskWeightValue, premiumToken.address);
-    await insured.joinPool(pool.address, { gasLimit: 1000000 });
+    await insured.joinPool(pool.address, testEnv.covGas());
     expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
     const { 0: generic, 1: chartered } = await insured.getInsurers();
     expect(generic).eql([]);
@@ -72,9 +72,7 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
 
       const investment = unitSize * perUser;
       totalInvested += investment;
-      await cc.mintAndTransfer(testUser.address, pool.address, investment, 0, {
-        gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-      });
+      await cc.mintAndTransfer(testUser.address, pool.address, investment, 0, testEnv.covGas());
 
       expect(await cc.balanceOf(pool.address)).eq(totalInvested);
 
@@ -147,6 +145,10 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
   });
 
   it('SyncAsset before reconcile', async () => {
+    if (testEnv.underCoverage) {
+      return;
+    }
+
     const demand = BigNumber.from(4000 * unitSize);
     const ratePerInsured = demand.mul(RATE).div(WAD);
     const insureds: MockInsuredPool[] = [];

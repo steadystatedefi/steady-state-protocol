@@ -52,7 +52,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
       premiumToken.address
     );
     await pool.approveNextJoin(riskWeightValue, premiumToken.address);
-    await insured.joinPool(pool.address, { gasLimit: 1000000 });
+    await insured.joinPool(pool.address, testEnv.covGas());
     insuredTS.push(await currentTime());
     expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
     const { 0: generic, 1: chartered } = await insured.getInsurers();
@@ -214,9 +214,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
       const investment = unitSize * perUser;
       totalInvested += investment;
-      await cc.mintAndTransfer(testUser.address, pool.address, investment, 0, {
-        gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-      });
+      await cc.mintAndTransfer(testUser.address, pool.address, investment, 0, testEnv.covGas());
       timestamps.push(await currentTime());
 
       expect(await cc.balanceOf(pool.address)).eq(totalInvested);
@@ -275,9 +273,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     const missingCoverage = totalCoverageDemandedUnits - totalCoverageProvidedUnits;
     expect(await pool.withdrawable(user.address)).eq(0);
-    await cc.mintAndTransfer(user.address, pool.address, unitSize * missingCoverage, 0, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.mintAndTransfer(user.address, pool.address, unitSize * missingCoverage, 0, testEnv.covGas());
 
     totalInvested += unitSize * missingCoverage;
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
@@ -285,9 +281,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await pool.withdrawable(user.address)).eq(0);
 
     const investment = unitSize * 1000;
-    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, testEnv.covGas());
 
     totalInvested += investment;
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
@@ -302,7 +296,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     const userBalance = await pool.balanceOf(user.address);
     const withdrawable = await pool.withdrawable(user.address);
 
-    await pool.connect(user).withdrawAll({ gasLimit: 2000000 });
+    await pool.connect(user).withdrawAll(testEnv.covGas());
 
     expect(await pool.withdrawable(user.address)).eq(0);
     expect(await cc.balanceOf(user.address)).eq(withdrawable);
@@ -329,9 +323,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
     expect(await pool.withdrawable(user.address)).eq(0);
 
     const investment = unitSize * 1000;
-    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, testEnv.covGas());
 
     totalInvested += investment;
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
@@ -802,7 +794,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     const insured = insureds[2];
 
-    await insured.reconcileWithInsurers(0, 0, testEnv.covGas(30000000)); // required to cancel
+    await insured.reconcileWithInsurers(0, 0, testEnv.covGas()); // required to cancel
 
     const { coverage: totals0 } = await pool.getTotals();
     const { coverage: stats0 } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
@@ -820,7 +812,7 @@ makeSharedStateSuite('Coverage cancel (with Perpetual Index Pool)', (testEnv: Te
 
     /** **************** */
     /* Cancel coverage */
-    await insured.cancelCoverage(receiver, payoutAmount, testEnv.covGas(30000000));
+    await insured.cancelCoverage(receiver, payoutAmount, testEnv.covGas());
     /** **************** */
     /** **************** */
 

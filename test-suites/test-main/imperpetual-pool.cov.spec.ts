@@ -57,7 +57,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
         premiumToken.address
       );
       await pool.approveNextJoin(riskWeightValue, premiumToken.address);
-      await insured.joinPool(pool.address, { gasLimit: 1000000 });
+      await insured.joinPool(pool.address, testEnv.covGas());
       insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
@@ -207,9 +207,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
       const investment = unitSize * perUser;
       totalInvested += investment;
-      await cc.mintAndTransfer(testUser.address, pool.address, investment, 0, {
-        gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-      });
+      await cc.mintAndTransfer(testUser.address, pool.address, investment, 0, testEnv.covGas());
       timestamps.push(await currentTime());
 
       expect(await cc.balanceOf(pool.address)).eq(totalInvested);
@@ -271,9 +269,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     const missingCoverage = totalCoverageDemandedUnits - totalCoverageProvidedUnits;
     expect(await pool.getExcessCoverage()).eq(0);
-    await cc.mintAndTransfer(user.address, pool.address, unitSize * missingCoverage, 0, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.mintAndTransfer(user.address, pool.address, unitSize * missingCoverage, 0, testEnv.covGas());
 
     totalInvested += unitSize * missingCoverage;
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
@@ -281,9 +277,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     expect(await pool.getExcessCoverage()).eq(0);
 
     const investment = unitSize * 1000;
-    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, testEnv.covGas());
 
     totalInvested += investment;
     expect(await cc.balanceOf(pool.address)).eq(totalInvested);
@@ -306,7 +300,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     const exchangeRate0 = await pool.exchangeRate();
     expect(totalValue0.mul(RAY).add(totalSupply0.div(2)).div(totalSupply0)).eq(exchangeRate0);
 
-    await pool.connect(user).burnPremium(user.address, withdrawable, user.address, { gasLimit: 2000000 });
+    await pool.connect(user).burnPremium(user.address, withdrawable, user.address, testEnv.covGas());
 
     const premiumDelta = (await pool.getTotals()).coverage.totalPremium.sub(premium0);
     expect(await pool.totalSupplyValue()).eq(totalValue0.add(premiumDelta).sub(withdrawable));
@@ -336,7 +330,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
   it('Fails to cancel coverage without reconcillation', async () => {
     const insured = insureds[0];
-    await expect(insured.cancelCoverage(zeroAddress(), 0, testEnv.covGas(30000000))).revertedWith('must be reconciled');
+    await expect(insured.cancelCoverage(zeroAddress(), 0, testEnv.covGas())).revertedWith('must be reconciled');
   });
 
   let givenOutCollateral = 0;
@@ -352,7 +346,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
     } = await poolIntf.receivableDemandedCoverage(insured.address, 0);
     expect(expectedCollateral).gt(0);
 
-    await insured.reconcileWithInsurers(0, 0, testEnv.covGas(30000000)); // required to cancel
+    await insured.reconcileWithInsurers(0, 0, testEnv.covGas()); // required to cancel
 
     const receivedCollateral = await cc.balanceOf(insured.address);
     expect(receivedCollateral).eq(expectedCollateral.mul(100 - drawdownPct).div(100)); // drawdown withholded
@@ -410,7 +404,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     /** **************** */
     /* Cancel coverage */
-    await insured.cancelCoverage(zeroAddress(), 0, testEnv.covGas(30000000));
+    await insured.cancelCoverage(zeroAddress(), 0, testEnv.covGas());
     /** **************** */
     /** **************** */
 
@@ -484,7 +478,7 @@ makeSharedStateSuite('Imperpetual Index Pool', (testEnv: TestEnv) => {
 
     /** **************** */
     /* Cancel coverage */
-    await insured.cancelCoverage(receiver, payoutAmount, testEnv.covGas(30000000));
+    await insured.cancelCoverage(receiver, payoutAmount, testEnv.covGas());
     /** **************** */
     /** **************** */
 

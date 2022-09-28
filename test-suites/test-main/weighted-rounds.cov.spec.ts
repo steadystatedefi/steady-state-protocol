@@ -403,7 +403,7 @@ makeSharedStateSuite('Weighted Rounds', (testEnv: TestEnv) => {
       expect(t.coverage.totalDemand).eq(4200 * unitSize);
     }
 
-    await subj.addCoverage(110 * unitSize, { gasLimit: 80000 });
+    await subj.addCoverage(110 * unitSize, testEnv.covGas());
     expect(await subj.excessCoverage()).eq(excess);
 
     {
