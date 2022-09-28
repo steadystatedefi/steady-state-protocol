@@ -21,7 +21,7 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
         overUnitsPerRound: 30,
-        coveragePrepayPct: 9000, // 90%
+        coverageForepayPct: 9000, // 90%
         maxUserDrawdownPct: 1000, // 10%
         unitsPerAutoPull: 0
       })
@@ -29,9 +29,17 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     setDefaultLoopLimit(LoopLimitType.PullDemandAfterJoin, 255);
   }
 
+  function setCoverageForepayPct(uint16 pct) external {
+    _params.coverageForepayPct = pct;
+  }
+
+  function setMaxInsuredSharePct(uint16 pct) external {
+    _params.maxInsuredSharePct = pct;
+  }
+
   function getRevision() internal pure override returns (uint256) {}
 
-  function handleJoinRequest(address) external pure override returns (MemberStatus) {
+  function handleJoinRequest(address) external pure virtual override returns (MemberStatus) {
     return MemberStatus.Accepted;
   }
 
@@ -89,5 +97,13 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
 
   function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
     return IMockInsurer(address(this)).getTotals(0);
+  }
+
+  function transferInsuredPoolToken(
+    address insured,
+    address to,
+    uint256 amount
+  ) external {
+    IERC20(insured).transfer(to, amount);
   }
 }

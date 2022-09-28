@@ -55,18 +55,17 @@ contract MockPremiumActuary is IPremiumActuary {
   function callPremiumAllocationUpdated(
     address insured,
     uint256 accumulated,
-    uint256 increment,
     uint256 rate
   ) external {
-    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, accumulated, increment, rate);
+    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, accumulated, rate);
   }
 
-  function callPremiumAllocationFinished(address source, uint256 increment) external {
-    IPremiumDistributor(premiumDistributor).premiumAllocationFinished(source, 0, increment);
+  function callPremiumAllocationFinished(address source, uint256 accumulated) external {
+    IPremiumDistributor(premiumDistributor).premiumAllocationFinished(source, accumulated);
   }
 
   function setRate(address insured, uint256 rate) external {
-    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, 0, 0, rate);
+    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, 0, rate);
   }
 
   function totalSupply() external view returns (uint256) {

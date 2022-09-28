@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import '../tools/upgradeability/VersionedInitializable.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../interfaces/ICollateralStakeManager.sol';
 import '../interfaces/IYieldStakeAsset.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
@@ -150,6 +149,10 @@ abstract contract WeightedPoolBase is
     internalSetPoolParams(params);
   }
 
+  function getPoolParams() external view returns (WeightedPoolParams memory) {
+    return _params;
+  }
+
   // TODO setLoopLimits
   // function setLoopLimits(uint16[] calldata limits) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
   //   internalSetLoopLimits(limits);
@@ -191,13 +194,6 @@ abstract contract WeightedPoolBase is
   }
 
   function internalOnCoveredUpdated() internal {}
-
-  function internalSyncStake() internal {
-    ICollateralStakeManager m = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    if (address(m) != address(0)) {
-      m.syncByStakeAsset(totalSupply(), collateralSupply());
-    }
-  }
 
   function _coveredTotal() internal view returns (uint256) {
     (uint256 totalCovered, uint256 pendingCovered) = super.internalGetCoveredTotals();

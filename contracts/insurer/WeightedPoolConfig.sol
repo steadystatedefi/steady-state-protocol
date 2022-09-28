@@ -38,9 +38,9 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     Value.require(params.riskWeightTarget > 0 && params.riskWeightTarget < PercentageMath.ONE);
 
     Value.require(
-      params.coveragePrepayPct >= _params.coveragePrepayPct &&
-        params.coveragePrepayPct >= PercentageMath.HALF_ONE &&
-        params.maxUserDrawdownPct <= PercentageMath.ONE - params.coveragePrepayPct
+      params.coverageForepayPct >= _params.coverageForepayPct &&
+        params.coverageForepayPct >= PercentageMath.HALF_ONE &&
+        params.maxUserDrawdownPct <= PercentageMath.ONE - params.coverageForepayPct
     );
 
     _params = params;
@@ -227,6 +227,8 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     super.internalSetInsuredParams(insured, params);
     emit ParamsForInsuredUpdated(insured, params);
 
+    openCollateralSubBalance(insured);
+
     return true;
   }
 
@@ -255,6 +257,22 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
       status = MemberStatus.NotApplicable;
     }
     return status;
+  }
+
+  function openCollateralSubBalance(address recipient) internal {
+    ISubBalance(collateral()).openSubBalance(recipient);
+  }
+
+  function closeCollateralSubBalance(address recipient, uint256 transferAmount) internal {
+    ISubBalance(collateral()).closeSubBalance(recipient, transferAmount);
+  }
+
+  function balanceOfGivenOutCollateral(address account) internal view returns (uint256 u) {
+    (, u, ) = ISubBalance(collateral()).balancesOf(account);
+  }
+
+  function subBalanceOfCollateral(address account) internal view returns (uint256) {
+    return ISubBalance(collateral()).subBalanceOf(account, address(this));
   }
 }
 

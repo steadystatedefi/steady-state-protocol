@@ -68,7 +68,7 @@ makeSuite('access: Yield Distributor', (testEnv: TestEnv) => {
     await expect(state.dist.verifyBorrowUnderlying(user2.address, 0)).to.be.reverted;
     await expect(state.dist.verifyRepayUnderlying(user2.address, 0)).to.be.reverted;
 
-    await state.controller.grantRoles(user2.address, AccessFlags.LIQUIDITY_BORROWER);
+    await state.controller.grantRoles(user2.address, AccessFlags.LIQUIDITY_MANAGER);
     await state.dist.verifyBorrowUnderlying(user2.address, 0);
     await state.dist.verifyRepayUnderlying(user2.address, 0);
   });

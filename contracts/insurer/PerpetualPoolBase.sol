@@ -235,7 +235,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
   function internalCollectDrawdownPremium() internal view override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {}
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    Value.require(params.coveragePrepayPct == PercentageMath.ONE);
+    Value.require(params.coverageForepayPct == PercentageMath.ONE);
 
     super.internalSetPoolParams(params);
   }

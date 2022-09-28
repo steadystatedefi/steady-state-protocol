@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import './ICharterable.sol';
+import '../insurer/Rounds.sol';
 
 interface IJoinableBase {
   /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
@@ -9,6 +10,7 @@ interface IJoinableBase {
   function requestJoin(address insured) external;
 
   // function statusOf(address insured)
+  function cancelJoin() external returns (MemberStatus);
 }
 
 interface IJoinable is ICharterable, IJoinableBase {}

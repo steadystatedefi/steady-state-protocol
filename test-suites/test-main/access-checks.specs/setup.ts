@@ -18,7 +18,6 @@ import {
   OracleRouterV1,
   PremiumFundV1,
   ProxyCatalog,
-  YieldDistributorV1,
 } from '../../../types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 
@@ -33,7 +32,7 @@ export type State = {
   fund: CollateralFundV1;
   oracle: OracleRouterV1;
   premiumFund: PremiumFundV1;
-  dist: YieldDistributorV1;
+  //  dist: YieldDistributorV1;
 
   insured: InsuredPoolV1;
   insurer: ImperpetualPoolV1;
@@ -71,10 +70,10 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
     state.controller.address,
     state.cc.address,
   ]);
-  state.dist = await Factories.YieldDistributorV1.connectAndDeploy(deployer, 'yieldDist', [
-    state.controller.address,
-    state.cc.address,
-  ]);
+  // state.dist = await Factories.YieldDistributorV1.connectAndDeploy(deployer, 'yieldDist', [
+  //   state.controller.address,
+  //   state.cc.address,
+  // ]);
 
   state.premToken = await Factories.MockERC20.connectAndDeploy(deployer, 'premToken', ['Premium', 'Prem', 18]);
 
@@ -156,7 +155,7 @@ export async function setInsurer(state: State, deployer: SignerWithAddress, gove
     minUnitsPerRound: 10,
     maxUnitsPerRound: 20,
     overUnitsPerRound: 30,
-    coveragePrepayPct: 100_00,
+    coverageForepayPct: 100_00,
     maxUserDrawdownPct: 0,
     unitsPerAutoPull: 0,
   };
@@ -174,4 +173,8 @@ export async function setInsurer(state: State, deployer: SignerWithAddress, gove
       state.insurer = Factories.ImperpetualPoolV1.attach(ev.proxy); // eslint-disable-line no-param-reassign
     }
   );
+
+  await state.controller.grantAnyRoles(deployer.address, AccessFlags.INSURER_ADMIN);
+  await state.cc.registerInsurer(state.insurer.address);
+  await state.controller.revokeAllRoles(deployer.address);
 }

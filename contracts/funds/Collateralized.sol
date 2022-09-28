@@ -5,6 +5,7 @@ import '../tools/Errors.sol';
 import '../tools/tokens/IERC20.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../interfaces/ICollateralized.sol';
+import '../currency/interfaces/ISubBalance.sol';
 
 abstract contract Collateralized is ICollateralized {
   address private immutable _collateral;
@@ -41,7 +42,7 @@ abstract contract Collateralized is ICollateralized {
   }
 
   function balanceOfCollateral(address account) internal view returns (uint256) {
-    return IERC20(collateral()).balanceOf(account);
+    return IERC20(_collateral).balanceOf(account);
   }
 
   function transferCollateralFrom(
@@ -50,30 +51,7 @@ abstract contract Collateralized is ICollateralized {
     uint256 amount
   ) internal {
     // collateral is a trusted token, hence we do not use safeTransfer here
-    ensureTransfer(IERC20(collateral()).transferFrom(from, recipient, amount));
-  }
-
-  function transferAvailableCollateralFrom(
-    address from,
-    address recipient,
-    uint256 maxAmount
-  ) internal returns (uint256 amount) {
-    IERC20 token = IERC20(collateral());
-    amount = maxAmount;
-    if (amount > (maxAmount = token.allowance(from, address(this)))) {
-      if (maxAmount == 0) {
-        return 0;
-      }
-      amount = maxAmount;
-    }
-    if (amount > (maxAmount = token.balanceOf(from))) {
-      if (maxAmount == 0) {
-        return 0;
-      }
-      amount = maxAmount;
-    }
-    // ensureTransfer(token.transferFrom(from, recipient, amount));
-    transferCollateralFrom(from, recipient, amount);
+    ensureTransfer(IERC20(_collateral).transferFrom(from, recipient, amount));
   }
 
   function ensureTransfer(bool ok) private pure {

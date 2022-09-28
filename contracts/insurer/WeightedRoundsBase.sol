@@ -470,7 +470,6 @@ abstract contract WeightedRoundsBase {
   struct GetCoveredDemandParams {
     uint256 loopLimit;
     uint256 receivedCoverage;
-    uint256 receivedPremium;
     address insured;
     bool done;
   }
@@ -497,7 +496,6 @@ abstract contract WeightedRoundsBase {
       premium.coveragePremiumRate,
       premium.lastUpdatedAt
     );
-    params.receivedPremium = uint256(_unitSize).wadMul(coverage.totalPremium);
 
     uint256 demandLength = demands.length;
     if (demandLength == 0) {
@@ -518,7 +516,6 @@ abstract contract WeightedRoundsBase {
     coverage.totalDemand = uint256(_unitSize) * _insureds[params.insured].demandedUnits;
     coverage.totalCovered += uint256(_unitSize) * covered.coveredUnits;
     params.receivedCoverage = uint256(_unitSize) * (covered.coveredUnits - params.receivedCoverage);
-    params.receivedPremium = coverage.totalPremium - params.receivedPremium;
   }
 
   function internalUpdateCoveredDemand(GetCoveredDemandParams memory params) internal returns (DemandedCoverage memory coverage) {
@@ -1386,7 +1383,7 @@ abstract contract WeightedRoundsBase {
   /// @dev Cancel ALL coverage for the insured, including in the partial state
   /// @dev Deletes the coverage information and demands of the insured
   /// @return coverage The coverage info of the insured. IS FINALIZED
-  /// @return excessCoverage The new amount of excess coverage
+  /// @return excessCoverage The amount of coverage from the partial round
   /// @return providedCoverage Amount of coverage provided before cancellation
   /// @return receivedCoverage Amount of coverage received from the sync before cancelling
   function internalCancelCoverage(address insured)
@@ -1395,20 +1392,19 @@ abstract contract WeightedRoundsBase {
       DemandedCoverage memory coverage,
       uint256 excessCoverage,
       uint256 providedCoverage,
-      uint256 receivedCoverage,
-      uint256 receivedPremium
+      uint256 receivedCoverage
     )
   {
     Rounds.InsuredEntry storage entry = _insureds[insured];
 
     if (entry.demandedUnits == 0) {
-      return (coverage, 0, 0, 0, 0);
+      return (coverage, 0, 0, 0);
     }
     _removeFromPullable(insured, entry.nextBatchNo);
 
     Rounds.Coverage memory covered;
     Rounds.CoveragePremium memory premium;
-    (coverage, covered, premium, receivedCoverage, receivedPremium) = _syncBeforeCancelCoverage(insured);
+    (coverage, covered, premium, receivedCoverage) = _syncBeforeCancelCoverage(insured);
 
     Rounds.Demand[] storage demands = _demands[insured];
     Rounds.Demand memory d;
@@ -1451,8 +1447,7 @@ abstract contract WeightedRoundsBase {
       DemandedCoverage memory coverage,
       Rounds.Coverage memory covered,
       Rounds.CoveragePremium memory premium,
-      uint256 receivedCoverage,
-      uint256 receivedPremium
+      uint256 receivedCoverage
     )
   {
     GetCoveredDemandParams memory params;
@@ -1463,7 +1458,6 @@ abstract contract WeightedRoundsBase {
     Sanity.require(params.done);
 
     receivedCoverage = params.receivedCoverage;
-    receivedPremium = params.receivedPremium;
   }
 
   /// @dev Cancel coverage in the partial state

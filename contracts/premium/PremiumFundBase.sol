@@ -48,7 +48,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
   }
 
   struct SourceBalance {
-    uint128 debt;
+    uint128 lastPremium;
     uint96 rate;
     uint32 updatedAt;
   }
@@ -332,7 +332,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     address actuary,
     address source,
     address token,
-    uint256 increment,
+    uint256 premium,
     uint256 rate,
     bool checkSuspended
   )
@@ -347,31 +347,33 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     balancer = _balancers[actuary];
 
     sBalance = config.sourceBalances[source];
-    (uint96 lastRate, uint32 updatedAt) = (sBalance.rate, sBalance.updatedAt);
+    uint96 lastRate = sBalance.rate;
 
     if (token == address(0)) {
       // this is a call from the actuary - it doesnt know about tokens, only about sources
       targetToken = config.sourceToken[source];
       Value.require(targetToken != address(0));
 
-      if (updatedAt == 0 && rate > 0) {
+      premium -= sBalance.lastPremium;
+
+      if (rate > 0 && sBalance.updatedAt == sBalance.updatedAt) {
         _addPremiumSource(config, balancer, targetToken, source);
       }
     } else {
       // this is a sync call from a user - who knows about tokens, but not about sources
       targetToken = token;
       rate = lastRate;
-      increment = rate * (uint32(block.timestamp - updatedAt));
+      premium = 0;
     }
 
     bool underprovisioned = !balancer.replenishAsset(
       BalancerLib2.ReplenishParams({actuary: actuary, source: source, token: targetToken, replenishFn: _replenishFn}),
-      increment,
+      premium,
       uint96(rate),
       lastRate,
       checkSuspended
     );
-    emit PremiumAllocationUpdated(actuary, source, token, increment, rate, underprovisioned);
+    emit PremiumAllocationUpdated(actuary, source, token, premium, rate, underprovisioned);
 
     if (underprovisioned) {
       // the source failed to keep the promised premium rate, stop the rate to avoid false inflow
@@ -379,26 +381,21 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     } else if (lastRate != rate) {
       Arithmetic.require((sBalance.rate = uint96(rate)) == rate);
     }
-    sBalance.updatedAt = uint32(block.timestamp);
+    sBalance.updatedAt = uint32(block.timestamp); // not needed
   }
 
   function premiumAllocationUpdated(
     address source,
-    uint256,
-    uint256 increment,
+    uint256 totalPremium,
     uint256 rate
   ) external override {
     ActuaryConfig storage config = _ensureActuary(msg.sender);
     Value.require(rate > 0);
 
-    _premiumAllocationUpdated(config, msg.sender, source, address(0), increment, rate, false);
+    _premiumAllocationUpdated(config, msg.sender, source, address(0), totalPremium, rate, false);
   }
 
-  function premiumAllocationFinished(
-    address source,
-    uint256,
-    uint256 increment
-  ) external override returns (uint256 premiumDebt) {
+  function premiumAllocationFinished(address source, uint256 totalPremium) external override returns (uint256 premiumDebt) {
     ActuaryConfig storage config = _ensureActuary(msg.sender);
     Value.require(source != address(0));
 
@@ -407,15 +404,13 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
       msg.sender,
       source,
       address(0),
-      increment,
+      totalPremium,
       0,
       false
     );
 
-    premiumDebt = sBalance.debt;
-    if (premiumDebt > 0) {
-      sBalance.debt = 0;
-    }
+    premiumDebt = totalPremium - sBalance.lastPremium;
+    // sBalance.lastPremium = totalPremium;
 
     _removePremiumSource(config, balancer, source, targetToken);
     emit ActuarySourceRemoved(msg.sender, source, targetToken);
@@ -445,14 +440,14 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
       params.source = _sourceForReplenish(config, params.token);
     }
 
-    SourceBalance storage balance = config.sourceBalances[params.source];
+    SourceBalance storage sBalance = config.sourceBalances[params.source];
     {
       uint32 cur = uint32(block.timestamp);
-      if (cur > balance.updatedAt) {
-        expectedValue = uint256(cur - balance.updatedAt) * balance.rate;
-        balance.updatedAt = cur;
+      if (cur > sBalance.updatedAt) {
+        expectedValue = uint256(cur - sBalance.updatedAt) * sBalance.rate;
+        sBalance.updatedAt = cur;
       } else {
-        Sanity.require(cur == balance.updatedAt);
+        Sanity.require(cur == sBalance.updatedAt);
         return (0, 0, 0);
       }
     }
@@ -460,20 +455,16 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
       requiredValue = expectedValue;
     }
 
-    uint256 debtValue = balance.debt;
-    requiredValue += debtValue;
-
     if (requiredValue > 0) {
-      uint256 missingValue;
       uint256 price = internalPriceOf(params.token);
+      uint256 amount;
 
-      (replenishedAmount, missingValue) = _collectPremium(params, requiredValue, price);
+      (replenishedAmount, amount) = _collectPremium(params, requiredValue, price);
+      amount -= replenishedAmount;
+      replenishedValue = amount == 0 ? requiredValue : requiredValue - amount.wadMul(price);
 
-      if (debtValue != missingValue) {
-        Arithmetic.require((balance.debt = uint128(missingValue)) == missingValue);
-      }
-
-      replenishedValue = replenishedAmount.wadMul(price);
+      Arithmetic.require((sBalance.lastPremium += uint128(replenishedValue)) >= replenishedValue);
+      // console.log('_replenishFn', sBalance.lastPremium, missingValue, requiredValue);
     }
   }
 
@@ -495,12 +486,9 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     BalancerLib2.ReplenishParams memory params,
     uint256 requiredValue,
     uint256 price
-  ) private returns (uint256 collectedAmount, uint256 missingValue) {
-    uint256 requiredAmount = requiredValue.wadDiv(price);
+  ) private returns (uint256 collectedAmount, uint256 requiredAmount) {
+    requiredAmount = requiredValue.wadDiv(price);
     collectedAmount = _collectPremiumCall(params.actuary, params.source, IERC20(params.token), requiredAmount, requiredValue);
-    if (collectedAmount < requiredAmount) {
-      missingValue = (requiredAmount - collectedAmount).wadMul(price);
-    }
   }
 
   event PremiumCollectionFailed(address indexed source, address indexed token, uint256 amount, bool isPanic, bytes reason);

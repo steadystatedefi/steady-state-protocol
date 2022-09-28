@@ -26,13 +26,6 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     sources.push(source);
   };
 
-  // enum StarvationPointMode {
-  //   RateFactor = 0 + 64, // + BF_AUTO_REPLENISH
-  //   GlobalRateFactor = 1 + 64, // + BF_AUTO_REPLENISH
-  //   Constant = 2,
-  //   GlobalConstant = 3,
-  // }
-
   before(async () => {
     user = testEnv.users[0];
     cc = await Factories.MockERC20.deploy('Collateral', '$CC', 18);
@@ -83,12 +76,12 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   const timeDiff = async (earlier: number) => (await currentTime()) - earlier;
 
-  const registerActuaryAndSource = async () => {
+  const registerActuaryAndSource = async (rate = 10) => {
     await fund.registerPremiumActuary(actuary.address, true);
 
     await actuary.addSource(sources[0].address);
     await fund.setPrice(token1.address, WAD);
-    await actuary.setRate(sources[0].address, 10);
+    await actuary.setRate(sources[0].address, rate);
   };
 
   it('Must add actuary before adding source', async () => {
@@ -121,14 +114,15 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
   it('Can update/finish while token is paused GLOBALLY', async () => {
     await registerActuaryAndSource();
+    const rate = 100;
 
     await fund.setPaused(ZERO_ADDRESS, token1.address, true);
-    await actuary.setRate(sources[0].address, 100);
+    await actuary.setRate(sources[0].address, rate, testEnv.covGas(30000000));
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(100);
 
     const bal = await token1.balanceOf(fund.address);
     await advanceBlock((await currentTime()) + 10);
-    await actuary.callPremiumAllocationFinished(sources[0].address, 0);
+    await actuary.callPremiumAllocationFinished(sources[0].address, rate * 20, testEnv.covGas(30000000));
     expect(await token1.balanceOf(fund.address)).gt(bal);
   });
 
@@ -156,21 +150,23 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
   });
 
   it('Premium allocation finished', async () => {
-    await registerActuaryAndSource();
+    const rate = 10;
+    await registerActuaryAndSource(rate);
 
     await advanceBlock((await currentTime()) + 10);
     await fund.syncAsset(actuary.address, 0, token1.address);
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(10);
-    await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
+    await actuary.callPremiumAllocationFinished(sources[0].address, rate * 20, testEnv.covGas(30000000));
     expect((await fund.balancesOf(actuary.address, sources[0].address, testEnv.covGas(30000000))).rate).eq(0);
     await fund.registerPremiumActuary(actuary.address, false, testEnv.covGas(30000000));
   });
 
   it('Premium allocation finished before sync', async () => {
-    await registerActuaryAndSource();
+    const rate = 10;
+    await registerActuaryAndSource(rate);
 
     await advanceBlock((await currentTime()) + 10);
-    await actuary.callPremiumAllocationFinished(sources[0].address, 0, testEnv.covGas(30000000));
+    await actuary.callPremiumAllocationFinished(sources[0].address, rate * 20, testEnv.covGas(30000000));
   });
 
   it('Rates', async () => {
@@ -235,7 +231,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
 
     // syncAssets
     await advanceBlock((await currentTime()) + 10);
-    await fund.syncAssets(actuary.address, 0, [token1.address, token2.address]);
+    await fund.syncAssets(actuary.address, 0, [token1.address, token2.address], testEnv.covGas(30000000));
     timed1 = await timeDiff(curTime1);
     timed2 = await timeDiff(curTime2);
 
@@ -374,7 +370,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
     await actuary.addSource(sources[0].address);
 
     await fund.setPrice(token1.address, WAD);
-    await actuary.setRate(sources[0].address, 2000);
+    await actuary.setRate(sources[0].address, 2000, testEnv.covGas(30000000));
     await fund.setAutoReplenish(actuary.address, token1.address);
 
     await advanceBlock((await currentTime()) + 20);
@@ -446,7 +442,7 @@ makeSuite('Premium Fund', (testEnv: TestEnv) => {
       spConst: 0,
       calc: BigNumber.from(flatPct)
         .shl(144 + 64)
-        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 20%; calc.flags = BF_EXTERNAL
+        .or(BigNumber.from(1).shl(14 + 32 + 64 + 144)), // calc.n = 100%; calc.flags = BF_EXTERNAL
     });
 
     await advanceBlock((await currentTime()) + 10);

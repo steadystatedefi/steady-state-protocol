@@ -4,15 +4,47 @@ pragma solidity ^0.8.10;
 import '../Errors.sol';
 
 library Math {
+  function addInt(uint256 x, int256 y) internal pure returns (uint256) {
+    return y >= 0 ? x + uint256(y) : x - uint256(-y);
+  }
+
+  function boundedAddInt(uint256 x, int256 y) internal pure returns (uint256) {
+    return y >= 0 ? x + uint256(y) : boundedSub(x, uint256(-y));
+  }
+
   function boundedSub(uint256 x, uint256 y) internal pure returns (uint256) {
     unchecked {
       return x <= y ? 0 : x - y;
     }
   }
 
-  function boundedSub2(uint256 x, uint256 y) internal pure returns (uint256, uint256) {
+  function boundedXSub(uint256 x, uint256 y) internal pure returns (uint256, uint256) {
     unchecked {
-      return x < y ? (uint256(0), y - x) : (x - y, 0);
+      return x <= y ? (uint256(0), y - x) : (x - y, 0);
+    }
+  }
+
+  function boundedMaxSub(uint256 x, uint256 y) internal pure returns (uint256, uint256) {
+    unchecked {
+      return x <= y ? (uint256(0), x) : (x - y, y);
+    }
+  }
+
+  function boundedSub128(uint128 x, uint256 y) internal pure returns (uint128) {
+    unchecked {
+      return x <= y ? 0 : uint128(x - y);
+    }
+  }
+
+  function boundedXSub128(uint128 x, uint256 y) internal pure returns (uint128, uint256) {
+    unchecked {
+      return x <= y ? (uint128(0), y - x) : (uint128(x - y), 0);
+    }
+  }
+
+  function boundedMaxSub128(uint128 x, uint256 y) internal pure returns (uint128, uint256) {
+    unchecked {
+      return x <= y ? (uint128(0), x) : (uint128(x - y), y);
     }
   }
 
@@ -30,49 +62,44 @@ library Math {
     }
   }
 
+  function asUint240(uint256 x) internal pure returns (uint240 v) {
+    checkAssign(v = uint240(x), x);
+  }
+
   function asUint224(uint256 x) internal pure returns (uint224 v) {
     checkAssign(v = uint224(x), x);
-    return v;
   }
 
   function asUint216(uint256 x) internal pure returns (uint216 v) {
     checkAssign(v = uint216(x), x);
-    return v;
   }
 
   function asUint128(uint256 x) internal pure returns (uint128 v) {
     checkAssign(v = uint128(x), x);
-    return v;
   }
 
   function asUint112(uint256 x) internal pure returns (uint112 v) {
     checkAssign(v = uint112(x), x);
-    return v;
   }
 
   function asUint96(uint256 x) internal pure returns (uint96 v) {
     checkAssign(v = uint96(x), x);
-    return v;
   }
 
   function asUint88(uint256 x) internal pure returns (uint88 v) {
     checkAssign(v = uint88(x), x);
-    return v;
   }
 
   function asUint64(uint256 x) internal pure returns (uint64 v) {
     checkAssign(v = uint64(x), x);
-    return v;
   }
 
   function asUint32(uint256 x) internal pure returns (uint32 v) {
     checkAssign(v = uint32(x), x);
-    return v;
   }
 
   function asInt128(uint256 x) internal pure returns (int128 v) {
     checkAssign(uint128(v = int128(uint128(x))), x);
-    return v;
   }
 
   function checkAdd(uint256 result, uint256 added) internal pure {

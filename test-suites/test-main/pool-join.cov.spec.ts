@@ -146,7 +146,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       totalPremiumRate += interest.rate.toNumber();
     }
 
-    expect(totalPremium).gt(0);
+    if (!testEnv.underCoverage) {
+      expect(totalPremium).gt(0);
+    }
     {
       const totals = await pool.getTotals();
       expect(totals.coverage.totalPremium).eq(totalPremium);
@@ -353,5 +355,26 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         expect(balances.swappable).eq(0);
       }
     }
+  });
+
+  it('Cancel join', async () => {
+    const jExt = await Factories.JoinablePoolExtension.deploy(zeroAddress(), unitSize, fund.address);
+    const ext = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, fund.address);
+    const cPool = await Factories.MockCancellableImperpetualPool.deploy(ext.address, jExt.address);
+
+    const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+    const insured = await Factories.MockInsuredPool.deploy(
+      fund.address,
+      poolDemand,
+      RATE,
+      10 * unitSize,
+      premiumToken.address
+    );
+
+    await insured.joinPool(cPool.address);
+
+    expect(await cPool.statusOf(insured.address)).eq(MemberStatus.Joining);
+    await insured.cancelJoin(cPool.address);
+    expect(await cPool.statusOf(insured.address)).eq(MemberStatus.JoinCancelled);
   });
 });

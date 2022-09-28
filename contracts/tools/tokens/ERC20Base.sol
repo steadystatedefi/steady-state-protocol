@@ -7,6 +7,8 @@ import './ERC20BalanceBase.sol';
 import './ERC20MintableBase.sol';
 
 abstract contract ERC20Base is ERC20DetailsBase, ERC20AllowanceBase, ERC20BalanceBase, ERC20MintableBase {
+  uint256 private _totalSupply;
+
   constructor(
     string memory name_,
     string memory symbol_,
@@ -23,5 +25,13 @@ abstract contract ERC20Base is ERC20DetailsBase, ERC20AllowanceBase, ERC20Balanc
 
   function decrementBalance(address account, uint256 amount) internal override(ERC20BalanceBase, ERC20MintableBase) {
     ERC20BalanceBase.decrementBalance(account, amount);
+  }
+
+  function totalSupply() public view virtual override returns (uint256) {
+    return _totalSupply;
+  }
+
+  function updateTotalSupply(uint256 decrement, uint256 increment) internal override {
+    _totalSupply = (_totalSupply - decrement) + increment;
   }
 }

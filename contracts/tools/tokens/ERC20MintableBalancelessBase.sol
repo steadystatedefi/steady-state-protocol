@@ -3,10 +3,10 @@ pragma solidity ^0.8.4;
 
 import './ERC20DetailsBase.sol';
 import './ERC20AllowanceBase.sol';
-import './ERC20TransferBase.sol';
+import './ERC20MintableBase.sol';
 import './ERC20PermitBase.sol';
 
-abstract contract ERC20BalancelessBase is ERC20DetailsBase, ERC20AllowanceBase, ERC20PermitBase, ERC20TransferBase {
+abstract contract ERC20MintableBalancelessBase is ERC20DetailsBase, ERC20AllowanceBase, ERC20PermitBase, ERC20MintableBase {
   function _getPermitDomainName() internal view override returns (bytes memory) {
     return bytes(super.name());
   }

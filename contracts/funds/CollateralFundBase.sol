@@ -6,15 +6,15 @@ import '../tools/SafeERC20.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
-import '../interfaces/ICollateralStakeManager.sol';
 import '../pricing/PricingHelper.sol';
 import '../access/AccessHelper.sol';
 import './interfaces/ICollateralFund.sol';
+import '../currency/interfaces/ILender.sol';
 import './Collateralized.sol';
 
 // TODO:TEST tests for zero return on price lockup
 
-abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHelper {
+abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, PricingHelper {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -37,16 +37,10 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     address trustee;
   }
 
-  struct BorrowBalance {
-    uint128 amount;
-    uint128 value;
-  }
-
   uint8 private constant AF_ADDED = 1 << 7;
 
   EnumerableSet.AddressSet private _tokens;
   mapping(address => CollateralAsset) private _assets; // [token]
-  mapping(address => mapping(address => BorrowBalance)) private _borrowedBalances; // [token][borrower]
   mapping(address => mapping(address => uint256)) private _approvals; // [owner][delegate]
 
   function _onlyApproved(
@@ -319,11 +313,20 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
   ) private onlySpecial(account, CollateralFundLib.APPROVED_DEPOSIT) returns (uint256) {
     (uint256 value, bool ok) = __deposit(operator, token, tokenAmount);
     if (ok) {
-      emit AssetDeposited(token, account, tokenAmount, value);
-      _collateral.mint(account, value);
+      _afterDepositAndMint(account, token, tokenAmount, value);
       return value;
     }
     return 0;
+  }
+
+  function _afterDepositAndMint(
+    address account,
+    address token,
+    uint256 tokenAmount,
+    uint256 value
+  ) private {
+    emit AssetDeposited(token, account, tokenAmount, value);
+    _collateral.mint(account, value);
   }
 
   function _depositAndInvest(
@@ -422,53 +425,68 @@ abstract contract CollateralFundBase is ICollateralFund, AccessHelper, PricingHe
     return _tokens.values();
   }
 
-  event AssetBorrowed(address indexed token, uint256 amount, address to);
+  event AssetBorrowApproved(address indexed token, uint256 amount, address to);
   event AssetReplenished(address indexed token, uint256 amount);
-
-  function borrow(
-    address token,
-    uint256 amount,
-    address to
-  ) external {
-    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
-    Value.require(amount > 0);
-
-    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    uint256 value = amount.wadMul(internalPriceOf(token));
-    State.require(value > 0);
-    State.require(bm.verifyBorrowUnderlying(msg.sender, value));
-
-    BorrowBalance storage balance = _borrowedBalances[token][msg.sender];
-    Arithmetic.require((balance.amount += uint128(amount)) >= amount);
-    Arithmetic.require((balance.value += uint128(value)) >= value);
-
-    SafeERC20.safeTransfer(IERC20(token), to, amount);
-
-    emit AssetBorrowed(token, amount, to);
-  }
-
-  function repay(address token, uint256 amount) external {
-    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
-    Value.require(amount > 0);
-
-    SafeERC20.safeTransferFrom(IERC20(token), msg.sender, address(this), amount);
-
-    BorrowBalance storage balance = _borrowedBalances[token][msg.sender];
-    uint256 prevAmount = balance.amount;
-    balance.amount = uint128(prevAmount - amount);
-
-    uint256 prevValue = balance.value;
-    uint256 value = (prevValue * amount) / prevAmount;
-    balance.value = uint128(prevValue - value);
-
-    ICollateralStakeManager bm = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    State.require(bm.verifyRepayUnderlying(msg.sender, value));
-
-    emit AssetReplenished(token, amount);
-  }
 
   function resetPriceGuard() external aclHasAny(AccessFlags.LP_ADMIN) {
     getPricer().resetSourceGroup();
+  }
+
+  function _onlyBorrowManager() private view {
+    Access.require(msg.sender == IManagedCollateralCurrency(collateral()).borrowManager());
+  }
+
+  modifier onlyBorrowManager() {
+    _onlyBorrowManager();
+    _;
+  }
+
+  function approveBorrow(
+    address operator,
+    address token,
+    uint256 amount,
+    address to
+  ) external override onlyBorrowManager {
+    Access.require(isBorrowOps(operator));
+    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
+    Value.require(amount > 0);
+
+    State.require(IERC20(token).balanceOf(address(this)) >= amount);
+    SafeERC20.safeApprove(IERC20(token), to, amount);
+    emit AssetBorrowApproved(token, amount, to);
+  }
+
+  function repayFrom(
+    address token,
+    address from,
+    uint256 amount
+  ) external override onlyBorrowManager {
+    _onlyActiveAsset(token, CollateralFundLib.APPROVED_BORROW);
+    Value.require(amount > 0);
+
+    SafeERC20.safeTransferFrom(IERC20(token), from, address(this), amount);
+    emit AssetReplenished(token, amount);
+  }
+
+  function depositYield(
+    address token,
+    address from,
+    uint256 amount,
+    address to
+  ) external onlyBorrowManager {
+    _onlyActiveAsset(token, CollateralFundLib.APPROVED_DEPOSIT);
+    Value.require(amount > 0);
+
+    (uint256 value, bool ok) = __deposit(from, token, amount);
+    if (ok) {
+      _afterDepositAndMint(to, token, amount, value);
+    } else {
+      revert Errors.ExcessiveVolatility();
+    }
+  }
+
+  function isBorrowOps(address operator) public view returns (bool) {
+    return hasAnyAcl(operator, AccessFlags.LP_ADMIN | AccessFlags.LIQUIDITY_MANAGER);
   }
 }
 

@@ -6,7 +6,7 @@ import '../interfaces/IInsuredPoolInit.sol';
 import '../interfaces/IWeightedPool.sol';
 import '../interfaces/IPremiumFundInit.sol';
 import '../interfaces/ICollateralFundInit.sol';
-import '../interfaces/IYieldDistributorInit.sol';
+import '../interfaces/IReinvestorInit.sol';
 import '../insurer/WeightedPoolConfig.sol';
 
 library ProxyTypes {
@@ -43,9 +43,9 @@ library ProxyTypes {
     return abi.encodeWithSelector(ICollateralFundInit.initializeCollateralFund.selector);
   }
 
-  bytes32 internal constant YIELD_DISTRIBUTOR = 'YIELD_DISTRIBUTOR';
+  bytes32 internal constant REINVESTOR = 'REINVESTOR';
 
-  function yieldDistributorInit() internal pure returns (bytes memory) {
-    return abi.encodeWithSelector(IYieldDistributorInit.initializeYieldDistributor.selector);
+  function reinvestorInit() internal pure returns (bytes memory) {
+    return abi.encodeWithSelector(IReinvestorInit.initializeReinvestor.selector);
   }
 }
