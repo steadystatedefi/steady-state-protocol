@@ -48,12 +48,12 @@ const configTemplate: Omit<INetworkConfiguration<FullTokens>, 'Assets' | 'PriceF
     drawdownTokenConfig: {
       mode: BalancerAssetMode.AssetRateMultiplier,
       w: 0,
-      n: 60, // 1 minute
+      n: 20_00, // 20% - drawdown token is not rate-balanced, but share-based
     },
     premiumTokenConfig: {
       mode: BalancerAssetMode.AssetRateMultiplier,
       w: 0,
-      n: 20_00, // 20% - premium token is not rate-balanced, but share-based
+      n: 60, // 1 minute
     },
   },
 };
