@@ -21,5 +21,5 @@ export const ETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 export const USD_ADDRESS = '0x10F7Fc1F91Ba351f9C629c5947AD69bD03C05b96';
 
 export const MAX_UINT144 = BigNumber.from(1).shl(144).sub(1);
-export const MAX_UINT64 = BigNumber.from(1).shl(144).sub(1);
+export const MAX_UINT64 = BigNumber.from(1).shl(64).sub(1);
 export const MAX_UINT32 = BigNumber.from(1).shl(32).sub(1);
