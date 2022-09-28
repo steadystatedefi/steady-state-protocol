@@ -48,9 +48,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   it('Mint and transfer to an unregistered insusrer', async () => {
     const investment = unitSize * 400;
     // totalInvested += investment;
-    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, testEnv.covGas());
 
     expect(await cc.balanceOf(pool.address)).eq(investment);
     expect(await pool.balanceOf(user.address)).eq(0); // doesnt react
@@ -64,9 +62,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
     const before = await cc.balanceOf(pool.address);
     const investment = unitSize * 400;
     // totalInvested += investment;
-    await cc.mintAndTransfer(user.address, pool.address, investment, 0, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.mintAndTransfer(user.address, pool.address, investment, 0, testEnv.covGas());
 
     expect(await cc.balanceOf(pool.address)).eq(before.add(investment));
     expect(await pool.balanceOf(user.address)).eq(investment);
@@ -77,9 +73,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
     const beforePool = await pool.balanceOf(user.address);
 
     const investment = unitSize * 200;
-    await cc.connect(user).transfer(pool.address, investment, {
-      gasLimit: testEnv.underCoverage ? 2000000 : undefined,
-    });
+    await cc.connect(user).transfer(pool.address, investment, testEnv.covGas());
 
     expect(await cc.balanceOf(pool.address)).eq(before.add(investment));
     expect(await pool.balanceOf(user.address)).eq(beforePool.add(investment));

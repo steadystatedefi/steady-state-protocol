@@ -42,7 +42,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         premiumToken.address
       );
       await pool.approveNextJoin(riskWeightValue, premiumToken.address);
-      await insured.joinPool(pool.address, { gasLimit: 1000000 });
+      await insured.joinPool(pool.address, testEnv.covGas());
       insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
@@ -107,9 +107,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       perUser += 1;
       totalCoverageProvidedUnits += perUser;
       userUnits.push(perUser);
-      await fund
-        .connect(user)
-        .invest(pool.address, unitSize * perUser, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+      await fund.connect(user).invest(pool.address, unitSize * perUser, testEnv.covGas());
 
       timestamps.push(await currentTime());
       const interest = await pool.interestOf(user.address);
