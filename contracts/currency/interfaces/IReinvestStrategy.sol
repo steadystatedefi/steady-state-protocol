@@ -10,6 +10,8 @@ interface IReinvestStrategy {
     uint256 amount
   ) external;
 
+  ///@param amount The amount of token requesting to be withdrawn
+  ///@param minLimit The minimum amount that must be left in the strategy after this withdraw
   function approveDivest(
     address token,
     address to,

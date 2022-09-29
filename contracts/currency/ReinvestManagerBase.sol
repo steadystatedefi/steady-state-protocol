@@ -46,6 +46,7 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
   }
 
   modifier onlyActiveStrategy(address strategy) {
+    _onlyActiveStrategy(strategy);
     _;
   }
 
