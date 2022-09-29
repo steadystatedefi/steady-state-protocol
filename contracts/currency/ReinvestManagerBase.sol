@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '@openzeppelin/contracts/utils/Address.sol';
+import '../libraries/CallData.sol';
 import '../funds/Collateralized.sol';
 import '../access/AccessHelper.sol';
 import './interfaces/ILender.sol';
@@ -33,7 +35,7 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
   mapping(address => uint256) private _strategies;
 
   function enableStrategy(address strategy, bool enable) external aclHas(AccessFlags.BORROWER_ADMIN) {
-    Value.require(strategy != address(0));
+    Value.require(enable ? Address.isContract(strategy) : strategy != address(0));
     _strategies[strategy] = enable ? 1 : 0;
   }
 
@@ -87,6 +89,23 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
   ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) onlyCollateralFund(viaFund) {
     // NB! The collateral currency will detect mint to itself as a yield payment
     internalPayLoss(token, from, forStrategy, viaFund, amount, collateral());
+  }
+
+  function callStrategy(address strategy, bytes calldata callData) external aclHas(AccessFlags.LIQUIDITY_MANAGER) {
+    Value.require(Address.isContract(strategy));
+
+    bytes4 selector = CallData.getSelector(callData);
+    Access.require(
+      !(selector == IReinvestStrategy.approveDivest.selector ||
+        selector == IReinvestStrategy.investFrom.selector ||
+        selector == IReinvestStrategy.connectAssetBefore.selector ||
+        selector == IReinvestStrategy.connectAssetAfter.selector ||
+        selector == IReinvestStrategy.investedValueOf.selector)
+    );
+
+    // solhint-disable-next-line avoid-low-level-calls
+    (bool success, bytes memory returndata) = strategy.call{value: 0}(callData);
+    Address.verifyCallResult(success, returndata, 'callStrategy failed');
   }
 
   // TODO func requestLiquidity

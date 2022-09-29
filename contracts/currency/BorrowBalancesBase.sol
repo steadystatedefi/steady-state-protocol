@@ -40,6 +40,8 @@ abstract contract BorrowBalancesBase {
   mapping(address => mapping(address => TokenBorrow)) private _borrowings; // [token][borrower]
   mapping(address => EnumerableSet.AddressSet) private _borrowedTokens; // [borrower]
 
+  error AssetIsNotSupported(address asset, address strategy);
+
   function internalPushTo(
     address token,
     address fromFund,
@@ -66,10 +68,21 @@ abstract contract BorrowBalancesBase {
       v = lendBalance.amount;
     }
     Arithmetic.require((lendBalance.amount = v + uint240(amount)) >= amount);
-    borr.total += amount;
+    uint256 totalBorrowedBefore = borr.total;
+    borr.total = totalBorrowedBefore + amount;
+
+    if (totalBorrowedBefore == 0) {
+      if (!IReinvestStrategy(toStrategy).connectAssetBefore(token)) {
+        revert AssetIsNotSupported(token, toStrategy);
+      }
+    }
 
     IReinvestStrategy(toStrategy).investFrom(token, fromFund, amount);
     Sanity.require(IERC20(token).allowance(fromFund, toStrategy) == 0);
+
+    if (totalBorrowedBefore == 0) {
+      IReinvestStrategy(toStrategy).connectAssetAfter(token);
+    }
   }
 
   function internalPullFrom(
@@ -117,8 +130,6 @@ abstract contract BorrowBalancesBase {
       }
       if (totalBorrowed == 0) {
         _borrowedTokens[fromStrategy].remove(token);
-      } else {
-        // emit? on loss (totalBorrowed)
       }
     }
     borr.total = totalBorrowed;
