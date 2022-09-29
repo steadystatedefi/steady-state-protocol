@@ -1,25 +1,29 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../interfaces/IReinvestStrategy.sol';
 import '../../tools/SafeERC20.sol';
 import '../../tools/Errors.sol';
+import './ReinvestStrategyBase.sol';
 import './AaveTypes.sol';
 
-contract AaveStrategy is IReinvestStrategy {
+contract AaveStrategy is ReinvestStrategyBase {
   IAaveLendingPool private immutable _pool;
   uint8 private immutable _version;
 
   mapping(address => address) private _reserveTokens;
 
-  constructor(address pool, uint8 version) {
+  constructor(
+    address manager,
+    address pool,
+    uint8 version
+  ) ReinvestStrategyBase(manager) {
     Value.require(pool != address(0));
     Value.require(version >= 2 && version <= 3);
     _pool = IAaveLendingPool(pool);
     _version = version;
   }
 
-  function connectAssetBefore(address token) external override returns (bool) {
+  function connectAssetBefore(address token) external override onlyManager returns (bool) {
     address aToken;
     if (_version == 3) {
       aToken = IAaveLendingPoolV3(address(_pool)).getReserveData(token).aTokenAddress;
@@ -30,7 +34,7 @@ contract AaveStrategy is IReinvestStrategy {
     return aToken != address(0);
   }
 
-  function connectAssetAfter(address token) external override {
+  function connectAssetAfter(address token) external override onlyManager {
     State.require(_reserveTokens[token] != address(0));
 
     // this reduces gas costs on withdrawals
@@ -41,7 +45,7 @@ contract AaveStrategy is IReinvestStrategy {
     address token,
     address from,
     uint256 amount
-  ) external override {
+  ) external override onlyManager {
     SafeERC20.safeTransferFrom(IERC20(token), from, address(this), amount);
     _pool.deposit(token, amount, address(this), 0);
   }
@@ -51,7 +55,7 @@ contract AaveStrategy is IReinvestStrategy {
     address to,
     uint256 amount,
     uint256 minLimit
-  ) external override returns (uint256 amountBefore) {
+  ) external override onlyManager returns (uint256 amountBefore) {
     address aToken = _reserveTokens[token];
     State.require(aToken != address(0));
 
@@ -70,15 +74,6 @@ contract AaveStrategy is IReinvestStrategy {
   function investedValueOf(address token) external view override returns (uint256) {
     address aToken = _reserveTokens[token];
     return aToken == address(0) ? 0 : IERC20(aToken).balanceOf(address(this));
-  }
-
-  function _onlyManager() private view {
-    // TODO
-  }
-
-  modifier onlyManager() {
-    _onlyManager();
-    _;
   }
 
   function setRewardClaimer(address incentivesController, address claimer) external onlyManager {
