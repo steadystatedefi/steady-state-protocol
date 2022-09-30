@@ -63,7 +63,7 @@ abstract contract YieldingBase {
     internalUpdateYieldRate(prevYieldRateAccum, yieldRateAccum);
   }
 
-  function internalPullYield(address account) internal returns (uint256) {
+  function internalPullYield(address account) internal virtual returns (uint256) {
     InvestAccount.Balance accBalance = internalGetBalance(account);
     return _updateYieldBalance(account, accBalance, type(uint256).max);
   }
