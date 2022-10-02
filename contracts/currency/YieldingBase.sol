@@ -71,7 +71,7 @@ abstract contract YieldingBase {
   function internalUpdateYieldRate(uint256 prevYieldRateAccum, uint256 yieldRateAccum) internal virtual {
     uint256 v = _lastYieldAt;
     if (v != 0) {
-      v -= block.timestamp;
+      v = block.timestamp - v;
       if (v == 0) {
         return;
       }
