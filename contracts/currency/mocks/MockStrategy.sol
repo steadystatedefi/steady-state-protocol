@@ -7,6 +7,12 @@ import '../../tools/tokens/IERC20.sol';
 contract MockStrategy is IReinvestStrategy {
   mapping(address => uint256) public investedValueOf;
 
+  function connectAssetBefore(address) external returns (bool) {
+    return true;
+  }
+
+  function connectAssetAfter(address token) external {}
+
   function investFrom(
     address token,
     address from,
