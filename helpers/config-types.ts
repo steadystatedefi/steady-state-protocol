@@ -47,6 +47,13 @@ export interface IPremiumFund {
   globalFactorSP?: number;
 }
 
+export interface IReinvestor {
+  AAVE?: {
+    pool: EthereumAddress;
+    version: 2 | 3;
+  };
+}
+
 export interface IPriceBase<K extends string> {
   decimals: number;
   xPrice?: K | true;
@@ -105,6 +112,7 @@ export interface INetworkConfiguration<Tokens extends string = string> {
   PriceFeeds: ParamPerOpt<Tokens, IPriceStatic<Tokens> | IPriceFeed<Tokens>>;
   IndexPools: IIndexPoolConfig[];
   PremiumFund: IPremiumFund;
+  Reinvestor?: IReinvestor;
 }
 
 export type IConfiguration<Networks extends string = string> = ParamPerOpt<Networks, INetworkConfiguration<string>>;

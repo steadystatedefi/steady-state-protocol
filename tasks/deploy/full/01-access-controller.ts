@@ -23,7 +23,10 @@ deployTask(`full:deploy-access-controller`, `Deploy ${factory.toString()}`, __di
       await mustWaitTx(
         ac.grantRoles(
           deployer.address,
-          AccessFlags.LP_DEPLOY + AccessFlags.INSURER_ADMIN + AccessFlags.PRICE_ROUTER_ADMIN
+          AccessFlags.LP_DEPLOY +
+            AccessFlags.INSURER_ADMIN +
+            AccessFlags.PRICE_ROUTER_ADMIN +
+            AccessFlags.BORROWER_ADMIN
         )
       );
     }
