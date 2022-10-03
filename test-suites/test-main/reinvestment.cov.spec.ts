@@ -71,6 +71,12 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
     [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, strat.address);
     expect(borrowedBal).eq(0);
     expect(repayableBal).eq(amount);
+
+    // Since there is no borrowed balance, the pull yield method must be used
+    await reinvest.pullFrom(token.address, strat.address, cf.address, MAX_UINT);
+    [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, strat.address);
+    expect(borrowedBal).eq(0);
+    expect(repayableBal).eq(amount);
   });
 
   it('Deposit yield into collateral fund', async () => {
@@ -78,13 +84,18 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
 
     await cf.connect(user).invest(user.address, token.address, amount, insurer.address);
     await reinvest.pushTo(token.address, cf.address, strat.address, amount);
+    await reinvest.pullYieldFrom(token.address, strat.address, cf.address, amount);
+    expect(await token.balanceOf(cf.address)).eq(0);
     await strat.connect(user).deltaYield(token.address, amount);
 
     await reinvest.pullYieldFrom(token.address, strat.address, cf.address, amount);
     const [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, strat.address);
-    expect(borrowedBal).eq(amount);
-    expect(repayableBal).eq(amount);
-    expect(await cc.balanceOf(insurer.address)).eq(amount);
+    {
+      expect(borrowedBal).eq(amount);
+      expect(repayableBal).eq(amount);
+      expect(await cc.balanceOf(insurer.address)).eq(amount);
+      expect(await token.balanceOf(cf.address)).eq(amount);
+    }
 
     await insurer.collectDrawdownPremium();
     expect(await cc.balanceOf(insurer.address)).eq(amount * 2);
@@ -94,6 +105,7 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
     await reinvest.pullYieldFrom(token.address, strat.address, cf.address, amount);
     await insurer.collectDrawdownPremium();
     expect(await cc.balanceOf(insurer.address)).eq(amount * 3);
+    expect(await token.balanceOf(cf.address)).eq(amount * 2);
   });
 
   it('Strategy loss', async () => {
