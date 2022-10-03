@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../ImperpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
+import './IMockInsurer.sol';
 
 contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
   constructor(ImperpetualPoolExtension extension, JoinablePoolExtension joinExtension)
@@ -20,25 +21,30 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
         overUnitsPerRound: 30,
-        coveragePrepayPct: 9000, // 90%
+        coverageForepayPct: 9000, // 90%
         maxUserDrawdownPct: 1000, // 10%
         unitsPerAutoPull: 0
       })
     );
+    setDefaultLoopLimit(LoopLimitType.PullDemandAfterJoin, 255);
+  }
+
+  function setCoverageForepayPct(uint16 pct) external {
+    _params.coverageForepayPct = pct;
+  }
+
+  function setMaxInsuredSharePct(uint16 pct) external {
+    _params.maxInsuredSharePct = pct;
   }
 
   function getRevision() internal pure override returns (uint256) {}
 
-  function handleJoinRequest(address) external pure override returns (MemberStatus) {
+  function handleJoinRequest(address) external pure virtual override returns (MemberStatus) {
     return MemberStatus.Accepted;
   }
 
   function governerQueryAccessControlMask(address, uint256 filterMask) external pure override returns (uint256) {
     return filterMask;
-  }
-
-  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
-    return internalGetTotals(type(uint256).max);
   }
 
   function getExcessCoverage() external view returns (uint256) {
@@ -50,39 +56,6 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
   }
 
   function internalOnCoverageRecovered() internal override {}
-
-  // function dump() external view returns (Dump memory) {
-  //   return _dump();
-  // }
-
-  // function dumpInsured(address insured)
-  //   external
-  //   view
-  //   returns (
-  //     Rounds.InsuredEntry memory,
-  //     Rounds.Demand[] memory,
-  //     Rounds.Coverage memory,
-  //     Rounds.CoveragePremium memory
-  //   )
-  // {
-  //   return _dumpInsured(insured);
-  // }
-
-  function getPendingAdjustments()
-    external
-    view
-    returns (
-      uint256 total,
-      uint256 pendingCovered,
-      uint256 pendingDemand
-    )
-  {
-    return internalGetUnadjustedUnits();
-  }
-
-  function applyPendingAdjustments() external {
-    internalApplyAdjustmentsToTotals();
-  }
 
   modifier onlyPremiumDistributor() override {
     _;
@@ -120,5 +93,17 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
       data.premiumToken = _expectedPremiumToken;
       ok = true;
     }
+  }
+
+  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+    return IMockInsurer(address(this)).getTotals(0);
+  }
+
+  function transferInsuredPoolToken(
+    address insured,
+    address to,
+    uint256 amount
+  ) external {
+    IERC20(insured).transfer(to, amount);
   }
 }

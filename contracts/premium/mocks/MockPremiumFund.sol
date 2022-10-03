@@ -5,10 +5,13 @@ import '../PremiumFundBase.sol';
 
 contract MockPremiumFund is PremiumFundBase {
   using EnumerableSet for EnumerableSet.AddressSet;
+  using CalcConfig for CalcConfigValue;
 
   mapping(address => uint256) private _prices;
 
-  constructor(address collateral_) PremiumFundBase(IAccessController(address(0)), collateral_) {}
+  constructor(address collateral_) PremiumFundBase(IAccessController(address(0)), collateral_) {
+    _initializeTemplate(collateral_);
+  }
 
   function isAdmin(address) internal pure override returns (bool) {
     return true;
@@ -22,39 +25,9 @@ contract MockPremiumFund is PremiumFundBase {
     return true;
   }
 
-  function setConfig(
-    address actuary,
-    address asset,
-    uint152 price,
-    uint64 w,
-    uint32 n,
-    uint16 flags,
-    uint160 spConst
-  ) external {
-    _balancers[actuary].configs[asset] = BalancerLib2.AssetConfig(price, w, n, flags, spConst);
-  }
-
-  function setDefaultConfig(
-    address actuary,
-    uint152 price,
-    uint64 w,
-    uint32 n,
-    uint16 flags,
-    uint160 spConst
-  ) external {
-    _configs[actuary].defaultConfig = BalancerLib2.AssetConfig(price, w, n, flags, spConst);
-  }
-
-  function getDefaultConfig(address actuary) external view returns (BalancerLib2.AssetConfig memory) {
-    return _configs[actuary].defaultConfig;
-  }
-
-  function getConifg(address actuary, address asset) external view returns (BalancerLib2.AssetConfig memory) {
-    return _balancers[actuary].configs[asset];
-  }
-
   function setAutoReplenish(address actuary, address asset) external {
-    _balancers[actuary].configs[asset].flags |= BalancerLib2.BF_AUTO_REPLENISH;
+    BalancerLib2.AssetConfig storage ac = _balancers[actuary].configs[asset];
+    ac.calc = ac.calc.setAutoReplenish(true);
   }
 
   function balancesOf(address actuary, address source) external view returns (SourceBalance memory) {

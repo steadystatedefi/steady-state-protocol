@@ -4,12 +4,6 @@ pragma solidity ^0.8.4;
 import './ERC20TransferBase.sol';
 
 abstract contract ERC20MintableBase is ERC20TransferBase {
-  uint256 private _totalSupply;
-
-  function totalSupply() public view override returns (uint256) {
-    return _totalSupply;
-  }
-
   /** @dev Creates `amount` tokens and assigns them to `account`, increasing
    * the total supply.
    *
@@ -24,7 +18,7 @@ abstract contract ERC20MintableBase is ERC20TransferBase {
 
     _beforeTokenTransfer(address(0), account, amount);
 
-    _totalSupply = _totalSupply + amount;
+    updateTotalSupply(0, amount);
     incrementBalance(account, amount);
 
     emit Transfer(address(0), account, amount);
@@ -41,7 +35,7 @@ abstract contract ERC20MintableBase is ERC20TransferBase {
     _beforeTokenTransfer(address(0), account, amount);
     _beforeTokenTransfer(account, recipient, amount);
 
-    _totalSupply = _totalSupply + amount;
+    updateTotalSupply(0, amount);
     incrementBalance(recipient, amount);
 
     emit Transfer(address(0), account, amount);
@@ -64,7 +58,7 @@ abstract contract ERC20MintableBase is ERC20TransferBase {
 
     _beforeTokenTransfer(account, address(0), amount);
 
-    _totalSupply = _totalSupply - amount;
+    updateTotalSupply(amount, 0);
     decrementBalance(account, amount);
 
     emit Transfer(account, address(0), amount);
@@ -82,4 +76,6 @@ abstract contract ERC20MintableBase is ERC20TransferBase {
   function incrementBalance(address account, uint256 amount) internal virtual;
 
   function decrementBalance(address account, uint256 amount) internal virtual;
+
+  function updateTotalSupply(uint256 decrement, uint256 increment) internal virtual;
 }

@@ -7,15 +7,10 @@ interface IPremiumDistributor is ICollateralized {
   function premiumAllocationUpdated(
     address insured,
     uint256 accumulated,
-    uint256 increment,
     uint256 rate
   ) external;
 
-  function premiumAllocationFinished(
-    address insured,
-    uint256 accumulated,
-    uint256 increment
-  ) external returns (uint256 premiumDebt);
+  function premiumAllocationFinished(address insured, uint256 accumulated) external returns (uint256 premiumDebt);
 
   function registerPremiumSource(address insured, bool register) external;
 }

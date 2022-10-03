@@ -85,7 +85,7 @@ makeSuite('access: Proxy Catalog', (testEnv: TestEnv) => {
     await state.proxyCatalog.addAuthenticImplementation(version1.address, implName, ctx);
     await state.proxyCatalog.setDefaultImplementation(version1.address);
     await state.proxyCatalog.addAuthenticImplementation(version2.address, implName, ctx);
-    const validFlag = AccessFlags.LIQUIDITY_BORROWER;
+    const validFlag = AccessFlags.LIQUIDITY_MANAGER;
 
     await expect(state.proxyCatalog.connect(user3).setAccess([implName], [validFlag])).reverted;
     await state.proxyCatalog.setAccess([implName], [validFlag]);

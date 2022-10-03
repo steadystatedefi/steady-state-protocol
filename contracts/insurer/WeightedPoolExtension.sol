@@ -7,7 +7,7 @@ import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
 // Handles Insured pool functions, adding/cancelling demand
-abstract contract WeightedPoolExtension is IAddableCoverageDistributor, WeightedPoolStorage {
+abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -16,29 +16,6 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
   /// @return The coverage unit size
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
-  }
-
-  /// @inheritdoc IAddableCoverageDistributor
-  function addCoverageDemand(
-    uint256 unitCount,
-    uint256 premiumRate,
-    bool hasMore,
-    uint256 loopLimit
-  ) external override onlyActiveInsured returns (uint256 addedCount) {
-    AddCoverageDemandParams memory params;
-    params.insured = msg.sender;
-    Arithmetic.require(premiumRate == (params.premiumRate = uint40(premiumRate)));
-    params.loopLimit = defaultLoopLimit(LoopLimitType.AddCoverageDemand, loopLimit);
-    params.hasMore = hasMore;
-    Arithmetic.require(unitCount <= type(uint64).max);
-
-    addedCount = unitCount - super.internalAddCoverageDemand(uint64(unitCount), params);
-    //If there was excess coverage before adding this demand, immediately assign it
-    if (_excessCoverage > 0 && internalCanAddCoverage()) {
-      // avoid addCoverage code to be duplicated within WeightedPoolExtension to reduce contract size
-      WeightedPoolBase(address(this)).pushCoverageExcess();
-    }
-    return addedCount;
   }
 
   function cancelCoverage(address insured, uint256 payoutRatio)
@@ -52,30 +29,30 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
     if (payoutRatio > 0) {
       payoutRatio = internalVerifyPayoutRatio(insured, payoutRatio, enforcedCancel);
     }
-    (payoutValue, ) = internalCancelCoverage(insured, payoutRatio, enforcedCancel);
+    payoutValue = internalCancelCoverage(insured, payoutRatio, enforcedCancel);
   }
 
   /// @dev Cancel all coverage for the insured and payout
   /// @param insured The address of the insured to cancel
   /// @param payoutRatio The RAY ratio of how much of provided coverage should be paid out
-  /// @return payoutValue The effective amount of coverage paid out to the insured (includes all )
+  /// @return payoutValue The effective amount of coverage paid out to the insured (debt & drawdown are deducted)
   function internalCancelCoverage(
     address insured,
     uint256 payoutRatio,
     bool enforcedCancel
-  ) private returns (uint256 payoutValue, uint256 deductedValue) {
-    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage, uint256 receivedPremium) = super
-      .internalCancelCoverage(insured);
+  ) private returns (uint256 payoutValue) {
+    (DemandedCoverage memory coverage, uint256 excessCoverage, uint256 providedCoverage, uint256 receivableCoverage) = super.internalCancelCoverage(
+      insured
+    );
     // NB! receivableCoverage was not yet received by the insured, it was found during the cancallation
     // and caller relies on a coverage provided earlier
+
+    payoutValue = providedCoverage.rayMul(payoutRatio);
 
     // NB! when protocol is not fully covered, then there will be a discrepancy between the coverage provided ad-hoc
     // and the actual amount of protocol tokens made available during last sync
     // so this is a sanity check - insurance must be sync'ed before cancellation
     // otherwise there will be premium without actual supply of protocol tokens
-
-    payoutValue = providedCoverage.rayMul(payoutRatio);
-
     require(
       enforcedCancel || ((receivableCoverage <= providedCoverage >> 16) && (receivableCoverage + payoutValue <= providedCoverage)),
       'must be reconciled'
@@ -83,23 +60,9 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
 
     uint256 premiumDebt = address(_premiumDistributor) == address(0)
       ? 0
-      : _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium, receivedPremium);
+      : _premiumDistributor.premiumAllocationFinished(insured, coverage.totalPremium);
 
     internalSetStatus(insured, MemberStatus.Declined);
-
-    if (premiumDebt > 0) {
-      unchecked {
-        if (premiumDebt >= payoutValue) {
-          deductedValue = payoutValue;
-          premiumDebt -= payoutValue;
-          payoutValue = 0;
-        } else {
-          deductedValue = premiumDebt;
-          payoutValue -= premiumDebt;
-          premiumDebt = 0;
-        }
-      }
-    }
 
     payoutValue = internalTransferCancelledCoverage(
       insured,
@@ -118,7 +81,7 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
     uint256 premiumDebt
   ) internal virtual returns (uint256);
 
-  /// @inheritdoc IAddableCoverageDistributor
+  /// @inheritdoc IReceivableCoverage
   function receivableDemandedCoverage(address insured, uint256 loopLimit)
     external
     view
@@ -133,7 +96,7 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
     return (params.receivedCoverage, coverage);
   }
 
-  /// @inheritdoc IAddableCoverageDistributor
+  /// @inheritdoc IReceivableCoverage
   function receiveDemandedCoverage(address insured, uint256 loopLimit)
     external
     override
@@ -152,8 +115,12 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
     coverage = internalUpdateCoveredDemand(params);
     receivedCollateral = internalTransferDemandedCoverage(insured, params.receivedCoverage, coverage);
 
-    if (address(_premiumDistributor) != address(0)) {
-      _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, params.receivedPremium, coverage.premiumRate);
+    if (coverage.premiumRate != 0) {
+      if (address(_premiumDistributor) != address(0)) {
+        _premiumDistributor.premiumAllocationUpdated(insured, coverage.totalPremium, coverage.premiumRate);
+      }
+    } else {
+      Sanity.require(coverage.totalPremium == 0);
     }
 
     return (params.receivedCoverage, receivedCollateral, coverage);
@@ -165,7 +132,49 @@ abstract contract WeightedPoolExtension is IAddableCoverageDistributor, Weighted
     DemandedCoverage memory coverage
   ) internal virtual returns (uint256);
 
+
   function getCoveredRateBands(address insured, bool ignoreRecent) external view returns (uint256[] memory) {
     return internalGetCoveredRateBands(insured, ignoreRecent);
+  }
+
+  function getPendingAdjustments()
+    external
+    view
+    returns (
+      uint256 total,
+      uint256 pendingCovered,
+      uint256 pendingDemand
+    )
+  {
+    return internalGetUnadjustedUnits();
+  }
+
+  function applyPendingAdjustments() external {
+    internalApplyAdjustmentsToTotals();
+  }
+
+  function getTotals(uint256 loopLimit) external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+    return internalGetTotals(loopLimit == 0 ? type(uint256).max : loopLimit);
+  }
+
+  function weightedParams() external view returns (WeightedPoolParams memory) {
+    return _params;
+  }
+
+  function dumpBatches() external view returns (Dump memory) {
+    return _dump();
+  }
+
+  function dumpInsured(address insured)
+    external
+    view
+    returns (
+      Rounds.InsuredEntry memory,
+      Rounds.Demand[] memory,
+      Rounds.Coverage memory,
+      Rounds.CoveragePremium memory
+    )
+  {
+    return _dumpInsured(insured);
   }
 }

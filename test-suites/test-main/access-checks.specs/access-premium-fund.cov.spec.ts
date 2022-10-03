@@ -39,18 +39,9 @@ makeSuite('access: Premium Fund', (testEnv: TestEnv) => {
   it('ROLE: Emergency Admin', async () => {
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN);
     await state.premiumFund.registerPremiumActuary(actuary.address, true);
-    {
-      await expect(state.premiumFund['setPaused(address,address,bool)'](actuary.address, state.premToken.address, true))
-        .reverted;
-      await expect(state.premiumFund['setPaused(address,bool)'](actuary.address, true)).reverted;
-      await expect(state.premiumFund.setPausedToken(state.premToken.address, true)).reverted;
-    }
+    await expect(state.premiumFund.setPaused(actuary.address, state.premToken.address, true)).reverted;
 
     await state.controller.grantRoles(deployer.address, AccessFlags.EMERGENCY_ADMIN);
-    {
-      await state.premiumFund['setPaused(address,address,bool)'](actuary.address, state.premToken.address, true);
-      await state.premiumFund['setPaused(address,bool)'](actuary.address, true);
-      await state.premiumFund.setPausedToken(state.premToken.address, true);
-    }
+    await state.premiumFund.setPaused(actuary.address, state.premToken.address, true);
   });
 });

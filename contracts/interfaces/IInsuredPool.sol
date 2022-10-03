@@ -10,8 +10,13 @@ interface IInsuredPool is ICollateralized {
 
   /// @notice Invoked by chartered pools to request more coverage demand
   /// @param amount a hint on demand amount, 0 means default
+  /// @param maxAmount max demand amount
   /// @param loopLimit a max number of iterations
-  function pullCoverageDemand(uint256 amount, uint256 loopLimit) external returns (bool);
+  function pullCoverageDemand(
+    uint256 amount,
+    uint256 maxAmount,
+    uint256 loopLimit
+  ) external returns (bool);
 
   /// @notice Get this insured params
   /// @return The insured params
@@ -24,6 +29,20 @@ interface IInsuredPool is ICollateralized {
   function offerCoverage(uint256 offeredAmount) external returns (uint256 acceptedAmount, uint256 rate);
 
   function rateBands() external view returns (InsuredRateBand[] memory bands, uint256 maxBands);
+
+  function getInsurers() external view returns (address[] memory, address[] memory);
+}
+
+interface IReconcilableInsuredPool is IInsuredPool {
+  function receivableByReconcileWithInsurer(address insurer) external view returns (ReceivableByReconcile memory);
+}
+
+struct ReceivableByReconcile {
+  uint256 receivableCoverage;
+  uint256 demandedCoverage;
+  uint256 providedCoverage;
+  uint256 rate;
+  uint256 accumulated;
 }
 
 struct InsuredParams {
@@ -31,6 +50,7 @@ struct InsuredParams {
 }
 
 struct InsuredRateBand {
-  uint64 premiumRate;
-  uint96 coverageDemand;
+  uint256 premiumRate;
+  uint256 coverageDemand;
+  uint256 assignedDemand;
 }

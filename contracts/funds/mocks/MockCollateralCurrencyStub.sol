@@ -45,4 +45,6 @@ contract MockCollateralCurrencyStub {
   }
 
   function borrowManager() public view returns (address) {}
+
+  function openSubBalance(address account) external {}
 }

@@ -1,7 +1,9 @@
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 
-import { MAX_UINT, MAX_UINT128 } from '../../helpers/constants';
+import { MAX_UINT, MAX_UINT128, MAX_UINT144 } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
+import { BalancerCalcConfig } from '../../helpers/types-balancer';
 import { MockLibs } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
@@ -33,6 +35,9 @@ makeSuite('Strings library', (testEnv: TestEnv) => {
   });
 
   it('overflow revert type', async () => {
+    if (testEnv.underCoverage) {
+      return;
+    }
     await expect(libs.testOverflowUint128Mutable(MAX_UINT128.add(1))).revertedWith('panic code 0x11');
     await expect(libs.testOverflowUint128Mutable(MAX_UINT)).revertedWith('panic code 0x11');
   });
@@ -52,16 +57,11 @@ makeSuite('Strings library', (testEnv: TestEnv) => {
     await expect(libs.testOverflowBits(1, 0)).reverted;
   });
 
-  // it('overflowAdd', async () => {
-  //   await libs.testOverflowAdd(0, 0);
-  //   await libs.testOverflowAdd(MAX_UINT, 0);
-  //   await libs.testOverflowAdd(MAX_UINT, MAX_UINT);
-  //   await libs.testOverflowAdd(MAX_UINT, MAX_UINT.sub(1));
-  //   await libs.testOverflowAdd(MAX_UINT128, 0);
-  //   await libs.testOverflowAdd(MAX_UINT128, MAX_UINT128);
-  //   await libs.testOverflowAdd(MAX_UINT128, MAX_UINT128.sub(1));
-
-  //   await expect(libs.testOverflowAdd(MAX_UINT128, MAX_UINT128.add(1))).reverted;
-  //   await expect(libs.testOverflowAdd(MAX_UINT128, MAX_UINT)).reverted;
-  // });
+  it('encode CalcConfigValue', async () => {
+    const u64 = BigNumber.from('0x0102030405060708');
+    const u32 = BigNumber.from('0xF1E1C1B1');
+    expect(await libs.testCalcConfigValue(MAX_UINT144, u64, u32, 0xc0fe)).eq(
+      BalancerCalcConfig.encodeRaw(MAX_UINT144, u64, u32, 0xc0fe)
+    );
+  });
 });

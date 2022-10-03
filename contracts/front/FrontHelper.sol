@@ -4,8 +4,10 @@ pragma solidity ^0.8.4;
 import '../tools/Errors.sol';
 import '../tools/tokens/IERC20Details.sol';
 import '../interfaces/IProxyFactory.sol';
+import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IPremiumActuary.sol';
+import '../interfaces/IPremiumSource.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../funds/interfaces/ICollateralFund.sol';
 import '../premium/interfaces/IPremiumFund.sol';
@@ -164,5 +166,79 @@ contract FrontHelper is AccessHelper {
       result[i] = IInsurerPool(insurers[i]).statusOf(insured);
     }
     return result;
+  }
+
+  function batchBalancesOf(address account, address[] calldata insurers)
+    external
+    view
+    returns (
+      uint256[] memory values,
+      uint256[] memory balances,
+      uint256[] memory swappables
+    )
+  {
+    values = new uint256[](insurers.length);
+    balances = new uint256[](insurers.length);
+    swappables = new uint256[](insurers.length);
+    for (uint256 i = insurers.length; i > 0; ) {
+      i--;
+      // slither-disable-next-line calls-loop
+      (values[i], balances[i], swappables[i]) = IInsurerPool(insurers[i]).balancesOf(account);
+    }
+  }
+
+  function getInsuredReconcileInfo(address[] calldata insureds)
+    external
+    view
+    returns (
+      address[] memory premiumTokens,
+      address[][] memory chartered,
+      ReceivableByReconcile[][] memory receivables
+    )
+  {
+    premiumTokens = new address[](insureds.length);
+    chartered = new address[][](insureds.length);
+    receivables = new ReceivableByReconcile[][](insureds.length);
+
+    for (uint256 i = insureds.length; i > 0; ) {
+      i--;
+      address insured = insureds[i];
+      // slither-disable-next-line calls-loop
+      premiumTokens[i] = IPremiumSource(insured).premiumToken();
+
+      // slither-disable-next-line calls-loop
+      (, chartered[i]) = IInsuredPool(insured).getInsurers();
+
+      address[] memory insurers = chartered[i];
+      ReceivableByReconcile[] memory c = receivables[i] = new ReceivableByReconcile[](insurers.length);
+
+      for (uint256 j = insurers.length; j > 0; ) {
+        j--;
+        // slither-disable-next-line calls-loop
+        c[j] = IReconcilableInsuredPool(insured).receivableByReconcileWithInsurer(insurers[j]);
+      }
+    }
+  }
+
+  function getSwapInfo(
+    address premiumFund,
+    address actuary,
+    address[] calldata assets
+  ) public view returns (IPremiumFund.AssetBalanceInfo[] memory balances) {
+    balances = new IPremiumFund.AssetBalanceInfo[](assets.length);
+    for (uint256 i = assets.length; i > 0; ) {
+      i--;
+      // slither-disable-next-line calls-loop
+      balances[i] = IPremiumFund(premiumFund).assetBalance(actuary, assets[i]);
+    }
+  }
+
+  function syncSwapInfo(
+    address premiumFund,
+    address actuary,
+    address[] calldata assets
+  ) external returns (IPremiumFund.AssetBalanceInfo[] memory) {
+    IPremiumFund(premiumFund).syncAssets(actuary, 0, assets);
+    return getSwapInfo(premiumFund, actuary, assets);
   }
 }

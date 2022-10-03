@@ -38,7 +38,7 @@ const testEnv: TestEnv = {
       return overrides ?? {};
     }
     if ((gasLimit ?? 0) === 0) {
-      gasLimit = 2000000; // eslint-disable-line no-param-reassign
+      gasLimit = 20000000; // eslint-disable-line no-param-reassign
     }
     if (overrides === undefined) {
       return { gasLimit };

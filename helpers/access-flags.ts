@@ -1,5 +1,7 @@
 import { BigNumber } from 'ethers';
 
+export type AccessFlag = number | BigNumber;
+
 export const AccessFlags = {
   // roles that can be assigned to multiple addresses - use range [0..15]
   EMERGENCY_ADMIN: 1 << 0,
@@ -22,7 +24,7 @@ export const AccessFlags = {
   INSURED_ADMIN: 1 << 12,
   INSURED_OPS: 1 << 13,
   BORROWER_ADMIN: 1 << 14,
-  LIQUIDITY_BORROWER: 1 << 15,
+  LIQUIDITY_MANAGER: 1 << 15,
 
   // protected singletons - use for proxies
   APPROVAL_CATALOG: 1 << 16,
@@ -40,3 +42,15 @@ export const AccessFlags = {
   COLLATERAL_FUND_LISTING: BigNumber.from(1).shl(64), // an ephemeral role - just to keep a list of collateral funds
   INSURER_POOL_LISTING: BigNumber.from(1).shl(65), // an ephemeral role - just to keep a list of insurer funds
 } as const;
+
+export enum MemberStatus {
+  Unknown,
+  JoinCancelled,
+  JoinRejected,
+  JoinFailed,
+  Declined,
+  Joining,
+  Accepted,
+  Banned,
+  NotApplicable,
+}

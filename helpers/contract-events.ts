@@ -1,4 +1,3 @@
-import { YieldClaimedEvent } from '../types/contracts/funds/YieldDistributorBase';
 import {
   ApplicationAppliedEvent,
   ApplicationApprovedEvent,
@@ -27,7 +26,6 @@ export const Events = {
   ClaimSubmitted: wrap(stub as ClaimSubmittedEvent),
   ClaimApproved: wrap(stub as ClaimApprovedEvent),
   ClaimApplied: wrap(stub as ClaimAppliedEvent),
-  YieldClaimed: wrap(stub as YieldClaimedEvent),
 };
 
 Object.entries(Events).forEach(([name, factory]) => addNamedEvent(factory, name));

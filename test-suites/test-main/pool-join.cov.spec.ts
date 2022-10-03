@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { Factories } from '../../helpers/contract-types';
 import { createRandomAddress, currentTime } from '../../helpers/runtime-utils';
 import { IInsurerPool, MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
@@ -27,18 +28,6 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
     poolIntf = Factories.IInsurerPool.attach(pool.address);
   });
 
-  enum MemberStatus {
-    Unknown,
-    JoinCancelled,
-    JoinRejected,
-    JoinFailed,
-    Declined,
-    Joining,
-    Accepted,
-    Banned,
-    NotApplicable,
-  }
-
   it('Insurer and insured pools', async () => {
     const minUnits = 10;
     const riskWeight = 1000; // 10%
@@ -53,7 +42,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
         premiumToken.address
       );
       await pool.approveNextJoin(riskWeightValue, premiumToken.address);
-      await insured.joinPool(pool.address, { gasLimit: 1000000 });
+      await insured.joinPool(pool.address, testEnv.covGas());
       insuredTS.push(await currentTime());
       expect(await pool.statusOf(insured.address)).eq(MemberStatus.Accepted);
       const { 0: generic, 1: chartered } = await insured.getInsurers();
@@ -61,6 +50,15 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       expect(chartered).eql([pool.address]);
 
       const stats = await poolIntf.receivableDemandedCoverage(insured.address, 0);
+
+      const rateBands = await insured.rateBands();
+      expect(rateBands[1]).eq(1);
+      expect(rateBands[0].length).eq(1);
+      const rateBand = rateBands[0][0];
+      expect(rateBand.coverageDemand).eq(poolDemand);
+      expect(rateBand.assignedDemand).eq(stats.coverage.totalDemand);
+      expect(rateBand.premiumRate).eq(RATE);
+
       insureds.push(insured);
       // collector.registerProtocolTokens(protocol.address, [insured.address], [payInToken]);
       return stats.coverage;
@@ -109,9 +107,7 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       perUser += 1;
       totalCoverageProvidedUnits += perUser;
       userUnits.push(perUser);
-      await fund
-        .connect(user)
-        .invest(pool.address, unitSize * perUser, { gasLimit: testEnv.underCoverage ? 2000000 : undefined });
+      await fund.connect(user).invest(pool.address, unitSize * perUser, testEnv.covGas());
 
       timestamps.push(await currentTime());
       const interest = await pool.interestOf(user.address);
@@ -148,7 +144,9 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
       totalPremiumRate += interest.rate.toNumber();
     }
 
-    expect(totalPremium).gt(0);
+    if (!testEnv.underCoverage) {
+      expect(totalPremium).gt(0);
+    }
     {
       const totals = await pool.getTotals();
       expect(totals.coverage.totalPremium).eq(totalPremium);
@@ -350,10 +348,31 @@ makeSharedStateSuite('Pool joins', (testEnv: TestEnv) => {
 
       {
         const balances = await pool.balancesOf(address);
-        expect(balances.coverage).eq(0);
-        expect(balances.scaled).eq(0);
-        expect(balances.premium).eq(0);
+        expect(balances.value).eq(0);
+        expect(balances.balance).eq(0);
+        expect(balances.swappable).eq(0);
       }
     }
+  });
+
+  it('Cancel join', async () => {
+    const jExt = await Factories.JoinablePoolExtension.deploy(zeroAddress(), unitSize, fund.address);
+    const ext = await Factories.PerpetualPoolExtension.deploy(zeroAddress(), unitSize, fund.address);
+    const cPool = await Factories.MockCancellableImperpetualPool.deploy(ext.address, jExt.address);
+
+    const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+    const insured = await Factories.MockInsuredPool.deploy(
+      fund.address,
+      poolDemand,
+      RATE,
+      10 * unitSize,
+      premiumToken.address
+    );
+
+    await insured.joinPool(cPool.address);
+
+    expect(await cPool.statusOf(insured.address)).eq(MemberStatus.Joining);
+    await insured.cancelJoin(cPool.address);
+    expect(await cPool.statusOf(insured.address)).eq(MemberStatus.JoinCancelled);
   });
 });

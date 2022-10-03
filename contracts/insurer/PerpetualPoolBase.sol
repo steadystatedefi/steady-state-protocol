@@ -132,22 +132,18 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return _balances[account].balance;
   }
 
-  /// @dev returns the ($CC coverage, $PC coverage, premium accumulated) of a user
-  /// @return coverage The amount of coverage user is providing
-  /// @return scaled The number of tokens `coverage` is equal to
-  /// @return premium The amount of premium earned by the user
   function balancesOf(address account)
     public
     view
     returns (
-      uint256 coverage,
-      uint256 scaled,
-      uint256 premium
+      uint256 value,
+      uint256 balance,
+      uint256 swappable
     )
   {
-    scaled = balanceOf(account);
-    coverage = scaled.rayMul(exchangeRate());
-    (, premium) = interestOf(account);
+    balance = balanceOf(account);
+    value = balance.rayMul(exchangeRate());
+    (, swappable) = interestOf(account);
   }
 
   /// @return The $CC-equivalent value of this pool
@@ -236,10 +232,10 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     Errors.notImplemented();
   }
 
-  function internalCollectDrawdownPremium() internal override returns (uint256) {}
+  function internalCollectDrawdownPremium() internal view override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {}
 
   function internalSetPoolParams(WeightedPoolParams memory params) internal override {
-    Value.require(params.coveragePrepayPct == PercentageMath.ONE);
+    Value.require(params.coverageForepayPct == PercentageMath.ONE);
 
     super.internalSetPoolParams(params);
   }

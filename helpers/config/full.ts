@@ -1,13 +1,11 @@
 import { ENetwork } from '../config-networks';
 import { IConfiguration, INetworkConfiguration } from '../config-types';
 import { WAD } from '../constants';
+import { BalancerAssetMode } from '../types-balancer';
 
 type FullTokens = 'USDC' | 'USD';
 
-const configMain: INetworkConfiguration<FullTokens> = {
-  Assets: {
-    USDC: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  },
+const configTemplate: Omit<INetworkConfiguration<FullTokens>, 'Assets' | 'PriceFeeds'> = {
   Commons: {
     unitSize: WAD,
   },
@@ -18,14 +16,11 @@ const configMain: INetworkConfiguration<FullTokens> = {
   },
   CollateralFund: {
     fuseMask: 1,
-  },
-  Dependencies: {},
-  PriceFeeds: {
-    USDC: {
-      decimals: 18,
-      value: WAD,
+    assets: {
+      USDC: {},
     },
   },
+  Dependencies: {},
   IndexPools: [
     {
       poolType: 'IMPERPETUAL_INDEX_POOL',
@@ -36,28 +31,56 @@ const configMain: INetworkConfiguration<FullTokens> = {
         {
           maxAdvanceUnits: 10000,
           minAdvanceUnits: 1000,
-          riskWeightTarget: 1000, // 10%
-          minInsuredSharePct: 100, // 1%
-          maxInsuredSharePct: 4000, // 40%
+          riskWeightTarget: 10_00, // 10%
+          minInsuredSharePct: 1_00, // 1%
+          maxInsuredSharePct: 40_00, // 40%
           minUnitsPerRound: 20,
           maxUnitsPerRound: 20,
           overUnitsPerRound: 30,
-          coveragePrepayPct: 9000, // 90%
-          maxUserDrawdownPct: 1000, // 10%
+          coverageForepayPct: 90_00, // 90%
+          maxUserDrawdownPct: 10_00, // 10%
           unitsPerAutoPull: 0,
         },
       ],
     },
   ],
+  PremiumFund: {
+    drawdownTokenConfig: {
+      mode: BalancerAssetMode.AssetRateMultiplier,
+      w: 0,
+      n: 20_00, // 20% - drawdown token is not rate-balanced, but share-based
+    },
+    premiumTokenConfig: {
+      mode: BalancerAssetMode.AssetRateMultiplier,
+      w: 0,
+      n: 60, // 1 minute
+    },
+  },
 };
 
 export const FullConfig: IConfiguration<ENetwork> = {
-  main: configMain,
   goerli: {
-    ...configMain,
+    ...configTemplate,
     Assets: {
-      USDC: '0x2f3A40A3db8a7e3D09B0adfEfbCe4f6F81927557',
+      USDC: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F',
+    },
+    PriceFeeds: {
+      USDC: {
+        decimals: 6,
+        value: WAD,
+      },
     },
   },
-  hardhat: configMain,
+  hardhat: {
+    ...configTemplate,
+    Assets: {
+      USDC: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F',
+    },
+    PriceFeeds: {
+      USDC: {
+        decimals: 6,
+        value: WAD,
+      },
+    },
+  },
 };

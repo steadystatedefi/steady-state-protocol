@@ -10,6 +10,7 @@ contract MockPremiumActuary is IPremiumActuary {
   address public override premiumDistributor;
   address public override collateral;
   uint256 public drawdown;
+  uint256 public userShare;
 
   mapping(address => uint256) public premiumBurnt;
 
@@ -28,10 +29,15 @@ contract MockPremiumActuary is IPremiumActuary {
 
   function setDrawdown(uint256 amount) external {
     drawdown = amount;
+    userShare = amount;
   }
 
-  function collectDrawdownPremium() external view override returns (uint256 availablePremiumValue) {
-    return drawdown;
+  function setUserShare(uint256 amount) external {
+    userShare = amount;
+  }
+
+  function collectDrawdownPremium() external view override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
+    return (drawdown, drawdown);
   }
 
   function burnPremium(
@@ -49,17 +55,24 @@ contract MockPremiumActuary is IPremiumActuary {
   function callPremiumAllocationUpdated(
     address insured,
     uint256 accumulated,
-    uint256 increment,
     uint256 rate
   ) external {
-    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, accumulated, increment, rate);
+    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, accumulated, rate);
   }
 
-  function callPremiumAllocationFinished(address source, uint256 increment) external {
-    IPremiumDistributor(premiumDistributor).premiumAllocationFinished(source, 0, increment);
+  function callPremiumAllocationFinished(address source, uint256 accumulated) external {
+    IPremiumDistributor(premiumDistributor).premiumAllocationFinished(source, accumulated);
   }
 
   function setRate(address insured, uint256 rate) external {
-    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, 0, 0, rate);
+    IPremiumDistributor(premiumDistributor).premiumAllocationUpdated(insured, 0, rate);
+  }
+
+  function totalSupply() external view returns (uint256) {
+    return drawdown;
+  }
+
+  function balanceOf(address) external view returns (uint256) {
+    return userShare;
   }
 }

@@ -1,10 +1,13 @@
 import * as types from '../types';
 
-import { wrap, mock, iface, loadFactories } from './factory-wrapper';
+import { wrap, mock, iface, loadFactories, NamedAttachable } from './factory-wrapper';
 
 export const Factories = {
   IERC20: iface(types.IERC20Detailed__factory),
   IInsurerPool: iface(types.IInsurerPool__factory),
+  ICancellableCoverage: iface(types.ICancellableCoverage__factory),
+  ICoverageDistributor: iface(types.ICoverageDistributor__factory),
+  WeightedPoolExtension: iface(types.WeightedPoolExtension__factory),
 
   JoinablePoolExtension: wrap(types.JoinablePoolExtension__factory),
   PerpetualPoolExtension: wrap(types.PerpetualPoolExtension__factory),
@@ -18,8 +21,8 @@ export const Factories = {
   CollateralCurrency: wrap(types.CollateralCurrency__factory),
   FrontHelper: wrap(types.FrontHelper__factory),
   OracleRouterV1: wrap(types.OracleRouterV1__factory),
-  YieldDistributorV1: wrap(types.YieldDistributorV1__factory),
   CollateralFundV1: wrap(types.CollateralFundV1__factory),
+  ReinvestorV1: wrap(types.ReinvestorV1__factory),
   PremiumFundV1: wrap(types.PremiumFundV1__factory),
 
   MockCollateralCurrency: mock(types.MockCollateralCurrency__factory),
@@ -41,8 +44,19 @@ export const Factories = {
   MockChainlinkV3: mock(types.MockChainlinkV3__factory),
   MockUniswapV2: mock(types.MockUniswapV2__factory),
   MockInsuredPoolV2: mock(types.MockInsuredPoolV2__factory),
-  MockYieldDistributor: mock(types.MockYieldDistributor__factory),
-  MockInsurerForYield: mock(types.MockInsurerForYield__factory),
+  MockCancellableImperpetualPool: mock(types.MockCancellableImperpetualPool__factory),
 };
 
 loadFactories(Factories);
+
+export function findFactory(name: string): NamedAttachable {
+  return Factories[name] as NamedAttachable;
+}
+
+export function getFactory(name: string): NamedAttachable {
+  const factory = Factories[name] as NamedAttachable;
+  if (!factory) {
+    throw new Error(`Unknown type factory name: ${name}`);
+  }
+  return factory;
+}

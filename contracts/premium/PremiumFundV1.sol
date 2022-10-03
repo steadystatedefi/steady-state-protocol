@@ -10,7 +10,9 @@ contract PremiumFundV1 is VersionedInitializable, IPremiumFundInit, PremiumFundB
 
   constructor(IAccessController acl, address collateral_) PremiumFundBase(acl, collateral_) {}
 
-  function initializePremiumFund() public override initializer(CONTRACT_REVISION) {}
+  function initializePremiumFund() public override initializer(CONTRACT_REVISION) {
+    _initializeTemplate(collateral());
+  }
 
   function getRevision() internal pure override returns (uint256) {
     return CONTRACT_REVISION;

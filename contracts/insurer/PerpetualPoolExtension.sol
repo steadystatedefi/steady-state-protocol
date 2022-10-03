@@ -6,6 +6,7 @@ import './PerpetualPoolBase.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
 contract PerpetualPoolExtension is WeightedPoolExtension {
+  using Math for uint256;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -23,42 +24,16 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     uint256 recoveredValue,
     uint256 premiumDebt
   ) internal override returns (uint256) {
-    uint256 deficitValue;
-    uint256 toPay = payoutValue;
-    unchecked {
-      if (toPay >= advanceValue) {
-        toPay -= advanceValue;
-        advanceValue = 0;
-      } else {
-        deficitValue = (advanceValue -= toPay);
-        toPay = 0;
-      }
+    uint256 givenOutValue = subBalanceOfCollateral(insured);
+    Value.require(givenOutValue == advanceValue);
 
-      if (toPay >= premiumDebt) {
-        toPay -= premiumDebt;
-      } else {
-        deficitValue += (premiumDebt - toPay);
-      }
-    }
+    (payoutValue, premiumDebt) = payoutValue.boundedXSub(premiumDebt);
+    recoveredValue += advanceValue.boundedSub(payoutValue);
 
-    uint256 collateralAsPremium;
-
-    if (deficitValue > 0) {
-      // toPay is zero
-      toPay = transferAvailableCollateralFrom(insured, address(this), deficitValue);
-      if (toPay > advanceValue) {
-        unchecked {
-          collateralAsPremium = toPay - advanceValue;
-        }
-        toPay = advanceValue;
-      }
-      recoveredValue += toPay;
-    } else if (toPay > 0) {
-      transferCollateral(insured, toPay);
-    }
+    closeCollateralSubBalance(insured, payoutValue);
 
     // this call is to consider / reinvest the released funds
-    PerpetualPoolBase(address(this)).updateCoverageOnCancel(payoutValue + premiumDebt, recoveredValue, collateralAsPremium);
+    PerpetualPoolBase(address(this)).updateCoverageOnCancel(payoutValue + premiumDebt, recoveredValue, 0);
     // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
 
     return payoutValue;

@@ -77,12 +77,7 @@ deployTask(
       [accessController.address, cc.address, cfg.CollateralFund.fuseMask ?? 0],
       cc.address
     );
-    await addImpl(
-      ProxyTypes.YIELD_DISTRIBUTOR,
-      Factories.YieldDistributorV1,
-      [accessController.address, cc.address],
-      cc.address
-    );
+    await addImpl(ProxyTypes.REINVESTOR, Factories.ReinvestorV1, [accessController.address, cc.address], cc.address);
     await addImpl(ProxyTypes.PREMIUM_FUND, Factories.PremiumFundV1, [accessController.address, cc.address], cc.address);
     await addImpl(
       ProxyTypes.INSURED_POOL,

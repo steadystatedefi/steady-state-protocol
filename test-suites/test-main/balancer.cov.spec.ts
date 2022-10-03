@@ -57,11 +57,11 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     expectedFee?: BigNumberish,
     minAmount?: number
   ) => {
-    await lib.setBalance(token, balance, 0, { gasLimit: 2000000 });
-    await lib.setTotalBalance(scaleValue(balance), 0, { gasLimit: 2000000 });
+    await lib.setBalance(token, balance, 0);
+    await lib.setTotalBalance(scaleValue(balance), 0);
 
     await Events.TokenSwapped.waitOne(
-      lib.swapToken(token, scaleValue(value), minAmount ?? 0),
+      lib.swapToken(token, scaleValue(value), minAmount ?? 0, testEnv.covGas()),
 
       (ev) => {
         expect(ev.amount).eq(expectedAmount);
@@ -130,7 +130,7 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     await lib.setTotalBalance(v + dV, rate);
 
     {
-      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
+      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, testEnv.covGas()));
       if (!testEnv.underCoverage) {
         expect(ev.amount).eq((v + dV - starvationPoint / 2) * pf);
       }
@@ -153,7 +153,7 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     await lib.setTotalBalance(v + dV, rate);
 
     {
-      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, { gasLimit: 2000000 }));
+      const ev = await Events.TokenSwapped.waitOne(lib.swapToken(t0, v + dV, 0, testEnv.covGas()));
       if (!testEnv.underCoverage) {
         expect(ev.amount).eq((v + dV - starvationPoint / 2) * pf);
       }
@@ -504,7 +504,7 @@ makeSharedStateSuite('Balancer math', (testEnv: TestEnv) => {
     }
 
     /*
-    NB! This test only applies to the flattened curve mode (0 < w < 1) and checks that 
+    NB! This test only applies to the flattened curve mode (0 < w < 1) and checks that
     the switch between function at the starvation point is smooth and creates no dent / step.
     */
 

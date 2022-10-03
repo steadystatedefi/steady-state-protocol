@@ -27,7 +27,9 @@ abstract contract InsuredPoolBase is
   using Math for uint256;
 
   InsuredParams private _params;
-  mapping(address => uint256) private _receivedCollaterals; // [insurer]
+
+  uint256 private _totalReceivedCoverage;
+  mapping(address => uint256) private _receivedCoverage; // [insurer]
 
   uint8 internal constant DECIMALS = 18;
 
@@ -173,6 +175,15 @@ abstract contract InsuredPoolBase is
     }
   }
 
+  function receivableByReconcileWithInsurer(address insurer) external view returns (ReceivableByReconcile memory r) {
+    Balances.RateAcc memory totals = internalSyncTotals();
+    (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(ICoverageDistributor(insurer), totals);
+    r.demandedCoverage = cov.totalDemand;
+    r.providedCoverage = cov.totalCovered;
+    r.receivableCoverage = c;
+    (r.rate, r.accumulated) = (totals.rate, totals.accum);
+  }
+
   /// @dev Get the values if reconciliation were to occur with the desired Insurers
   /// @dev DOES sync the rate (for the view)
   function _reconcileWithInsurersView(uint256 startIndex, uint256 count)
@@ -226,7 +237,7 @@ abstract contract InsuredPoolBase is
   function cancelCoverage(address payoutReceiver, uint256 expectedPayout) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalCancelRates();
 
-    uint256 payoutRatio = super.totalReceivedCollateral();
+    uint256 payoutRatio = _totalReceivedCoverage;
     if (payoutRatio <= expectedPayout) {
       payoutRatio = WadRayMath.RAY;
     } else if (payoutRatio > 0) {
@@ -238,18 +249,13 @@ abstract contract InsuredPoolBase is
     uint256 totalPayout = internalCancelInsurers(getCharteredInsurers(), payoutRatio);
     totalPayout += internalCancelInsurers(getGenericInsurers(), payoutRatio);
 
-    // NB! it is possible for totalPayout < expectedPayout when drawdown takes place
+    // NB! it is possible for totalPayout < expectedPayout when drawdown or premium debt are present
     if (totalPayout > 0) {
       Value.require(payoutReceiver != address(0));
       transferCollateral(payoutReceiver, totalPayout);
     }
 
     emit CoverageFullyCancelled(expectedPayout, totalPayout, payoutReceiver);
-  }
-
-  function internalCollateralReceived(address insurer, uint256 amount) internal override {
-    super.internalCollateralReceived(insurer, amount);
-    _receivedCollaterals[insurer] += amount;
   }
 
   event CoverageCancelled(address indexed insurer, uint256 payoutRatio, uint256 actualPayout);
@@ -260,22 +266,29 @@ abstract contract InsuredPoolBase is
   /// @dev e.g payoutRatio = 7e26 means 30% of coverage is sent back to the insurer
   /// @return totalPayout total amount of coverage paid out to this insured
   function internalCancelInsurers(address[] storage insurers, uint256 payoutRatio) private returns (uint256 totalPayout) {
-    IERC20 t = IERC20(collateral());
-
     for (uint256 i = insurers.length; i > 0; ) {
       address insurer = insurers[--i];
 
-      uint256 receivedCollateral = _receivedCollaterals[insurer];
-      _receivedCollaterals[insurer] = 0;
+      uint256 payout = ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
+      totalPayout += payout;
+      emit CoverageCancelled(insurer, payoutRatio, payout);
 
-      State.require(t.approve(insurer, receivedCollateral));
-
-      totalPayout += ICancellableCoverage(insurer).cancelCoverage(address(this), payoutRatio);
-      emit CoverageCancelled(insurer, payoutRatio, totalPayout);
-
-      internalDecReceivedCollateral(receivedCollateral - t.allowance(address(this), insurer));
-      State.require(t.approve(insurer, 0));
+      _totalReceivedCoverage -= _receivedCoverage[insurer];
+      delete _receivedCoverage[insurer];
     }
+  }
+
+  function internalCoverageReceived(
+    address insurer,
+    uint256 receivedCoverage,
+    uint256
+  ) internal override {
+    _receivedCoverage[insurer] += receivedCoverage;
+    _totalReceivedCoverage += receivedCoverage;
+  }
+
+  function totalReceived() public view returns (uint256 receivedCoverage, uint256 receivedCollateral) {
+    return (_totalReceivedCoverage, totalReceivedCollateral());
   }
 
   function internalPriceOf(address asset) internal view virtual override returns (uint256) {
@@ -302,7 +315,7 @@ abstract contract InsuredPoolBase is
   }
 
   function internalReservedCollateral() internal view override returns (uint256) {
-    return super.totalReceivedCollateral();
+    return totalReceivedCollateral();
   }
 
   event PrepayWithdrawn(uint256 amount, address indexed recipient);

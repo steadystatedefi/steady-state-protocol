@@ -15,19 +15,21 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
 
   constructor(IAccessController acl, address collateral_) InsuredPoolBase(acl, collateral_) {}
 
-  event CoverageDemandUpdated(uint256 requiredCoverage, uint256 premiumRate);
+  event CoverageDemandUpdated(uint256 requiredCoverage, uint256 demandedCoverage, uint256 premiumRate);
 
   function _initializeCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) internal {
-    State.require(_premiumRate == 0);
     Value.require(premiumRate != 0);
+    if (_premiumRate != premiumRate) {
+      State.require(_demandedCoverage == 0);
+      Arithmetic.require((_premiumRate = uint64(premiumRate)) == premiumRate);
+    }
     Arithmetic.require((_requiredCoverage = uint96(requiredCoverage)) == requiredCoverage);
-    Arithmetic.require((_premiumRate = uint64(premiumRate)) == premiumRate);
-    emit CoverageDemandUpdated(requiredCoverage, premiumRate);
+    emit CoverageDemandUpdated(requiredCoverage, _demandedCoverage, premiumRate);
   }
 
   function internalAddRequiredCoverage(uint256 amount) internal {
-    _requiredCoverage += amount.asUint96();
-    emit CoverageDemandUpdated(_requiredCoverage + _demandedCoverage, _premiumRate);
+    Arithmetic.require((_requiredCoverage += uint96(amount)) >= amount);
+    emit CoverageDemandUpdated(_requiredCoverage, _demandedCoverage, _premiumRate);
   }
 
   /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
@@ -78,10 +80,12 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
   }
 
   function rateBands() external view override returns (InsuredRateBand[] memory bands, uint256) {
-    if (_premiumRate > 0) {
+    uint256 v = _premiumRate;
+    if (v > 0) {
       bands = new InsuredRateBand[](1);
-      bands[0].premiumRate = _premiumRate;
-      bands[0].coverageDemand = _requiredCoverage + _demandedCoverage;
+      bands[0].premiumRate = v;
+      bands[0].assignedDemand = v = _demandedCoverage;
+      bands[0].coverageDemand = _requiredCoverage + v;
     }
     return (bands, 1);
   }
@@ -109,11 +113,11 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
 
   // slither-disable-next-line calls-loop,costly-loop
   function _cancelDemand(address insurer, uint256 requestedAmount) private returns (uint256 totalPayout) {
-    uint256 unitSize = ICancellableCoverageDemand(insurer).coverageUnitSize();
-    uint256 unitCount = requestedAmount.divUp(unitSize);
+    uint256 unitSize = IDemandableCoverage(insurer).coverageUnitSize();
+    uint256 unitCount = requestedAmount == type(uint256).max ? requestedAmount : requestedAmount.divUp(unitSize);
     if (unitCount > 0) {
       uint256[] memory canceledBands;
-      (unitCount, canceledBands) = ICancellableCoverageDemand(insurer).cancelCoverageDemand(address(this), unitCount, 0);
+      (unitCount, canceledBands) = IDemandableCoverage(insurer).cancelCoverageDemand(address(this), unitCount, 0);
       Sanity.require(canceledBands.length <= 1);
     }
 

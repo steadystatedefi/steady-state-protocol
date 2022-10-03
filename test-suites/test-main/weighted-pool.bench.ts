@@ -2,6 +2,7 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
+import { MemberStatus } from '../../helpers/access-flags';
 import { Factories } from '../../helpers/contract-types';
 import { createUserWallet, mustWaitTx } from '../../helpers/runtime-utils';
 import { IInsurerPool, MockCollateralCurrencyStub, MockInsuredPool, MockPerpetualPool } from '../../types';
@@ -34,23 +35,11 @@ makeSharedStateSuite('Weighted Pool benchmark', (testEnv: TestEnv) => {
       minUnitsPerRound: 10,
       maxUnitsPerRound: 20,
       overUnitsPerRound: 30,
-      coveragePrepayPct: 100_00,
+      coverageForepayPct: 100_00,
       maxUserDrawdownPct: 0,
       unitsPerAutoPull: 0,
     });
   });
-
-  enum MemberStatus {
-    Unknown,
-    JoinCancelled,
-    JoinRejected,
-    JoinFailed,
-    Declined,
-    Joining,
-    Accepted,
-    Banned,
-    NotApplicable,
-  }
 
   const deployProtocolPools = async () => {
     const minUnits = 10;

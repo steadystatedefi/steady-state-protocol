@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../PerpetualPoolBase.sol';
 import './MockWeightedRounds.sol';
+import './IMockInsurer.sol';
 
 contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   constructor(PerpetualPoolExtension extension, JoinablePoolExtension joinExtension)
@@ -20,11 +21,12 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
         minUnitsPerRound: 20,
         maxUnitsPerRound: 20,
         overUnitsPerRound: 30,
-        coveragePrepayPct: 10000, // 100%
+        coverageForepayPct: 10000, // 100%
         maxUserDrawdownPct: 0, // 0%
         unitsPerAutoPull: 0
       })
     );
+    setDefaultLoopLimit(LoopLimitType.PullDemandAfterJoin, 255);
   }
 
   function getRevision() internal pure override returns (uint256) {}
@@ -37,10 +39,6 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     return filterMask;
   }
 
-  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
-    return internalGetTotals(type(uint256).max);
-  }
-
   function getExcessCoverage() external view returns (uint256) {
     return _excessCoverage;
   }
@@ -50,26 +48,6 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
   }
 
   function internalOnCoverageRecovered() internal override {}
-
-  function dump() external view returns (Dump memory) {
-    return _dump();
-  }
-
-  function getPendingAdjustments()
-    external
-    view
-    returns (
-      uint256 total,
-      uint256 pendingCovered,
-      uint256 pendingDemand
-    )
-  {
-    return internalGetUnadjustedUnits();
-  }
-
-  function applyPendingAdjustments() external {
-    internalApplyAdjustmentsToTotals();
-  }
 
   function hasAnyAcl(address, uint256) internal pure override returns (bool) {
     return true;
@@ -103,5 +81,9 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
       data.premiumToken = _expectedPremiumToken;
       ok = true;
     }
+  }
+
+  function getTotals() external view returns (DemandedCoverage memory coverage, TotalCoverage memory total) {
+    return IMockInsurer(address(this)).getTotals(0);
   }
 }

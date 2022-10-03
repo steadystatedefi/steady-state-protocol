@@ -47,11 +47,23 @@ const ERC20: ContractAccessExceptions = {
   },
 };
 
-add(Factories.CollateralCurrency, ERC20);
+add(Factories.CollateralCurrency, {
+  functions: {
+    ...ERC20.functions,
+
+    pullYield: true,
+  },
+});
 
 add(Factories.ProxyCatalog, {
   functions: {
     createCustomProxy: true,
+  },
+});
+
+add(Factories.FrontHelper, {
+  functions: {
+    syncSwapInfo: true,
   },
 });
 
@@ -110,23 +122,13 @@ add(Factories.CollateralFundV1, {
   },
 });
 
-add(Factories.YieldDistributorV1, {
+add(Factories.ReinvestorV1, {
   functions: {
-    stake: true,
-    unstake: true,
-    claimYield: true,
-    claimYieldFrom: true,
-
-    // no assets to check
-    addYieldPayout: ProtocolErrors.IllegalState,
-    syncByStakeAsset: ProtocolErrors.IllegalState,
-    syncStakeAsset: ProtocolErrors.IllegalState,
-
-    initializeYieldDistributor: ProtocolErrors.AlreadyInitialized,
+    initializeReinvestor: ProtocolErrors.AlreadyInitialized,
   },
 
   implOverride: {
-    initializeYieldDistributor: ProtocolErrors.InitializerBlockedOff,
+    initializeReinvestor: ProtocolErrors.InitializerBlockedOff,
   },
 });
 
@@ -166,6 +168,12 @@ add(Factories.InsuredPoolV1, {
 add(Factories.JoinablePoolExtension, {
   functions: {
     cancelJoin: true,
+  },
+});
+
+add(Factories.ImperpetualPoolExtension, {
+  functions: {
+    applyPendingAdjustments: true,
   },
 });
 

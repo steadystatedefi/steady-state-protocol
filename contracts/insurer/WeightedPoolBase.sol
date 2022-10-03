@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import '../tools/upgradeability/VersionedInitializable.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../interfaces/ICollateralStakeManager.sol';
 import '../interfaces/IYieldStakeAsset.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
@@ -18,6 +17,7 @@ abstract contract WeightedPoolBase is
   IInsurerPoolBase,
   IPremiumActuary,
   IYieldStakeAsset,
+  IDemandableCoverage,
   Delegator,
   ERC1363ReceiverBase,
   WeightedPoolStorage,
@@ -39,8 +39,14 @@ abstract contract WeightedPoolBase is
 
   // solhint-disable-next-line payable-fallback
   fallback() external {
-    // all IAddableCoverageDistributor etc functions should be delegated to the extension
+    // all IReceivableCoverage etc functions should be delegated to the extension
     _delegate(_extension);
+  }
+
+  /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
+  /// @return The coverage unit size
+  function coverageUnitSize() external view override returns (uint256) {
+    return internalUnitSize();
   }
 
   function charteredDemand() external pure override returns (bool) {
@@ -67,11 +73,20 @@ abstract contract WeightedPoolBase is
     _delegate(_joinExtension);
   }
 
+  function addCoverageDemand(
+    uint256,
+    uint256,
+    bool,
+    uint256
+  ) external override returns (uint256) {
+    _delegate(_joinExtension);
+  }
+
   function cancelCoverageDemand(
     address,
     uint256,
     uint256
-  ) external returns (uint256) {
+  ) external override returns (uint256, uint256[] memory) {
     _delegate(_joinExtension);
   }
 
@@ -102,11 +117,11 @@ abstract contract WeightedPoolBase is
     address drawdownRecepient
   ) internal virtual;
 
-  function collectDrawdownPremium() external override onlyPremiumDistributor returns (uint256) {
+  function collectDrawdownPremium() external override onlyPremiumDistributor returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
     return internalCollectDrawdownPremium();
   }
 
-  function internalCollectDrawdownPremium() internal virtual returns (uint256);
+  function internalCollectDrawdownPremium() internal virtual returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue);
 
   event SubrogationAdded(uint256 value);
 
@@ -132,6 +147,10 @@ abstract contract WeightedPoolBase is
 
   function setPoolParams(WeightedPoolParams calldata params) external onlyGovernorOr(AccessFlags.INSURER_ADMIN) {
     internalSetPoolParams(params);
+  }
+
+  function getPoolParams() external view returns (WeightedPoolParams memory) {
+    return _params;
   }
 
   // TODO setLoopLimits
@@ -176,13 +195,6 @@ abstract contract WeightedPoolBase is
 
   function internalOnCoveredUpdated() internal {}
 
-  function internalSyncStake() internal {
-    ICollateralStakeManager m = ICollateralStakeManager(IManagedCollateralCurrency(collateral()).borrowManager());
-    if (address(m) != address(0)) {
-      m.syncByStakeAsset(totalSupply(), collateralSupply());
-    }
-  }
-
   function _coveredTotal() internal view returns (uint256) {
     (uint256 totalCovered, uint256 pendingCovered) = super.internalGetCoveredTotals();
     return totalCovered + pendingCovered;
@@ -207,7 +219,7 @@ abstract contract WeightedPoolBase is
       if (insured == address(0)) {
         break;
       }
-      if (IInsuredPool(insured).pullCoverageDemand(internalOpenBatchRounds() * internalUnitSize(), insuredLimit)) {
+      if (IInsuredPool(insured).pullCoverageDemand(internalOpenBatchRounds() * internalUnitSize(), type(uint256).max, insuredLimit)) {
         if (loopLimit <= insuredLimit) {
           break;
         }

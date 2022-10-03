@@ -9,6 +9,7 @@ import './WeightedPoolBase.sol';
 /// @notice Handles adding coverage by users.
 abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using Math for uint256;
+  using Math for uint128;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
@@ -50,7 +51,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
   function internalSubrogated(uint256 value) internal override {
     internalSetExcess(_excessCoverage + value);
-    internalSyncStake();
   }
 
   function updateCoverageOnCancel(
@@ -60,54 +60,59 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 recoveredValue,
     uint256 premiumDebt
   ) external onlySelf returns (uint256) {
-    uint256 givenOutValue = _insuredBalances[insured];
-    Value.require(givenOutValue <= advanceValue);
+    uint256 forepayValue = subBalanceOfCollateral(insured);
+    Sanity.require(advanceValue >= forepayValue);
 
-    delete _insuredBalances[insured];
-    uint256 givenValue = givenOutValue + premiumDebt;
-    bool syncStake;
+    // a value this insurer has already credited to the insured
+    uint256 v = forepayValue + premiumDebt;
+    advanceValue += recoveredValue;
 
-    if (givenValue != payoutValue) {
-      if (givenValue > payoutValue) {
-        recoveredValue += advanceValue - givenValue;
+    uint256 premiumDebtRecovery;
+    if (v >= payoutValue) {
+      (recoveredValue, payoutValue) = advanceValue.boundedMaxSub(payoutValue);
 
-        // try to take back the given coverage
-        uint256 recovered = transferAvailableCollateralFrom(insured, address(this), givenValue - payoutValue);
+      // the premium debt recovery is limited to the payout value, the payout value is deducted by the debt
+      (payoutValue, premiumDebtRecovery) = payoutValue.boundedMaxSub(premiumDebt);
+    } else {
+      // payout is large and will cover whole premium debt
+      premiumDebtRecovery = premiumDebt;
+      payoutValue -= v;
 
-        // only the outstanding premium debt should be deducted, an outstanding coverage debt is managed as reduction of coverage itself
-        if (premiumDebt > recovered) {
-          _decrementTotalValue(premiumDebt - recovered);
-          syncStake = true;
+      // max allowed drawdown of this insured
+      uint256 insuredDrawdown = advanceValue - forepayValue;
+      if (payoutValue > insuredDrawdown) {
+        payoutValue = insuredDrawdown;
+      }
+
+      if (payoutValue != 0) {
+        v = _calcAvailableDrawdownReserve(advanceValue);
+        if (payoutValue > v) {
+          payoutValue = v;
         }
+      }
 
-        recoveredValue += recovered;
-      } else {
-        uint256 underpay = payoutValue - givenValue;
+      payoutValue += forepayValue;
+      recoveredValue = advanceValue - payoutValue - premiumDebt;
+    }
 
-        if (recoveredValue < underpay) {
-          recoveredValue += _calcAvailableDrawdownReserve(recoveredValue + advanceValue);
-          if (recoveredValue < underpay) {
-            underpay = recoveredValue;
-          }
-          recoveredValue = 0;
-        } else {
-          recoveredValue -= underpay;
-        }
+    if (premiumDebt != 0) {
+      // the outstanding premium debt is deducted as if it was paid out - this will reduce the total value
+      Arithmetic.require((_burntPremium += uint128(premiumDebt)) >= premiumDebt);
 
-        if (underpay > 0) {
-          transferCollateral(insured, underpay);
-        }
-        payoutValue = givenValue + underpay;
+      // the part of payout that was deducted and will be applied as value recovery
+      if (premiumDebtRecovery != 0) {
+        // it will be available as an extra coverage drawdown - this will increase the total value
+        Arithmetic.require((_boostDrawdown += uint128(premiumDebtRecovery)) >= premiumDebtRecovery);
       }
     }
+
+    Sanity.require(advanceValue == recoveredValue + premiumDebtRecovery + payoutValue);
+
+    closeCollateralSubBalance(insured, payoutValue);
 
     if (recoveredValue > 0) {
       internalSetExcess(_excessCoverage + recoveredValue);
       internalOnCoverageRecovered();
-      syncStake = true;
-    }
-    if (syncStake) {
-      internalSyncStake();
     }
 
     return payoutValue;
@@ -118,8 +123,8 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     uint256 receivedCoverage,
     uint256 totalCovered
   ) external onlySelf returns (uint256) {
-    uint256 expectedAmount = totalCovered.percentMul(_params.coveragePrepayPct);
-    uint256 actualAmount = _insuredBalances[insured];
+    uint256 expectedAmount = totalCovered.percentMul(_params.coverageForepayPct);
+    uint256 actualAmount = subBalanceOfCollateral(insured);
 
     if (actualAmount < expectedAmount) {
       uint256 d = expectedAmount - actualAmount;
@@ -131,7 +136,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
       }
 
       if (receivedCoverage > 0) {
-        _insuredBalances[insured] = actualAmount + receivedCoverage;
         transferCollateral(insured, receivedCoverage);
       }
     } else {
@@ -141,14 +145,6 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     return receivedCoverage;
   }
 
-  function _decrementTotalValue(uint256 valueLoss) private {
-    _valueAdjustment -= valueLoss.asInt128();
-  }
-
-  function _incrementTotalValue(uint256 valueGain) private {
-    _valueAdjustment += valueGain.asInt128();
-  }
-
   /// @dev Attempt to take the excess coverage and fill batches
   /// @dev Occurs when there is excess and a new batch is ready (more demand added)
   function pushCoverageExcess() public override {
@@ -156,19 +152,10 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   }
 
   function totalSupplyValue(DemandedCoverage memory coverage, uint256 added) private view returns (uint256 v) {
-    v = coverage.totalCovered - _burntDrawdown;
-    v = (v + coverage.pendingCovered) - added;
-
-    {
-      int256 va = _valueAdjustment;
-      if (va >= 0) {
-        v += uint256(va);
-      } else {
-        v -= uint256(-va);
-      }
-    }
+    v = (coverage.totalCovered + _boostDrawdown) - _burntDrawdown;
+    v += coverage.pendingCovered + _excessCoverage;
+    v = v - added;
     v += coverage.totalPremium - _burntPremium;
-    v += _excessCoverage;
   }
 
   function totalSupplyValue() public view returns (uint256) {
@@ -195,14 +182,13 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     public
     view
     returns (
-      uint256 coverage,
-      uint256 scaled,
-      uint256 premium
+      uint256 value,
+      uint256 balance,
+      uint256 swappable
     )
   {
-    scaled = balanceOf(account);
-    coverage = scaled.rayMul(exchangeRate());
-    premium;
+    balance = balanceOf(account);
+    swappable = value = balance.rayMul(exchangeRate());
   }
 
   ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
@@ -247,7 +233,16 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
 
     burntAmount = _burnValue(account, value, coverage);
 
-    _burntDrawdown += value.asUint128();
+    uint256 v = _boostDrawdown;
+    if (v != 0) {
+      (_boostDrawdown, v) = uint128(v).boundedXSub128(value);
+    } else {
+      v = value;
+    }
+    if (v != 0) {
+      Arithmetic.require((_burntDrawdown += uint128(v)) >= v);
+    }
+
     transferCollateral(recepient, value);
   }
 
@@ -260,26 +255,27 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     drawdownRecepient != address(0) ? _burnCoverage(account, value, drawdownRecepient, coverage) : _burnPremium(account, value, coverage);
   }
 
-  function __calcAvailableDrawdown(uint256 totalCovered, uint16 maxDrawdown) internal view returns (uint256) {
-    uint256 burntDrawdown = _burntDrawdown;
-    totalCovered += _excessCoverage;
-    totalCovered = totalCovered.percentMul(maxDrawdown);
-    return totalCovered.boundedSub(burntDrawdown);
+  function _coverageDrawdown(uint256 totalCovered, uint16 maxDrawdownPct) internal view returns (uint256 max, uint256 avail) {
+    max = totalCovered.percentMul(maxDrawdownPct);
+    avail = max.boundedSub(_burntDrawdown);
   }
 
-  function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256) {
-    return __calcAvailableDrawdown(_coveredTotal() + extra, PercentageMath.ONE - _params.coveragePrepayPct);
+  function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256 maxAvail) {
+    uint256 total = extra + _coveredTotal() + _excessCoverage;
+    (, maxAvail) = _coverageDrawdown(total, PercentageMath.ONE - _params.coverageForepayPct);
   }
 
-  function _calcAvailableUserDrawdown() internal view returns (uint256) {
+  function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256 max, uint256 avail) {
+    (max, avail) = _coverageDrawdown(totalCovered + _excessCoverage, _params.maxUserDrawdownPct);
+    max += totalCovered = _boostDrawdown;
+    avail += totalCovered;
+  }
+
+  function internalCollectDrawdownPremium() internal override returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
+    uint256 extYield = IManagedCollateralCurrency(collateral()).pullYield();
+    if (extYield > 0) {
+      Arithmetic.require((_boostDrawdown += uint128(extYield)) >= extYield);
+    }
     return _calcAvailableUserDrawdown(_coveredTotal());
-  }
-
-  function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256) {
-    return __calcAvailableDrawdown(totalCovered, _params.maxUserDrawdownPct);
-  }
-
-  function internalCollectDrawdownPremium() internal view override returns (uint256) {
-    return _calcAvailableUserDrawdown();
   }
 }

@@ -37,7 +37,6 @@ interface IPremiumFund is ICollateralized {
   function swapAssets(
     address actuary,
     address account,
-    address defaultRecepient,
     SwapInstruction[] calldata instructions
   ) external returns (uint256[] memory tokenAmounts);
 
@@ -48,4 +47,15 @@ interface IPremiumFund is ICollateralized {
   function actuaries() external view returns (address[] memory);
 
   function activeSourcesOf(address actuary, address token) external view returns (address[] memory);
+
+  struct AssetBalanceInfo {
+    uint256 amount;
+    uint256 stravation;
+    uint256 price;
+    uint256 feeFactor;
+    uint256 valueRate;
+    uint32 since;
+  }
+
+  function assetBalance(address actuary, address asset) external view returns (AssetBalanceInfo memory);
 }
