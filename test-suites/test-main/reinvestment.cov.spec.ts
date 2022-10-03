@@ -4,6 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 
 import { MAX_UINT, WAD } from '../../helpers/constants';
 import { Factories } from '../../helpers/contract-types';
+import { advanceBlock, currentTime } from '../../helpers/runtime-utils';
 import {
   MockCollateralCurrency,
   MockCollateralFund,
@@ -80,12 +81,122 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
     await strat.connect(user).deltaYield(token.address, amount);
 
     await reinvest.pullYieldFrom(token.address, strat.address, cf.address, amount);
-    // expect(await cc.balanceOf(insurer.address)).eq(amount*2);
+    const [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, strat.address);
+    expect(borrowedBal).eq(amount);
+    expect(repayableBal).eq(amount);
+    expect(await cc.balanceOf(insurer.address)).eq(amount);
 
-    // Updates YieldBase.sol yield balance
-    // await insurer.collectDrawdownPremium();
-    // console.log(await cc.balancesOf(insurer.address));
+    await insurer.collectDrawdownPremium();
+    expect(await cc.balanceOf(insurer.address)).eq(amount * 2);
+
+    await advanceBlock((await currentTime()) + 10);
+    await strat.connect(user).deltaYield(token.address, amount);
+    await reinvest.pullYieldFrom(token.address, strat.address, cf.address, amount);
+    await insurer.collectDrawdownPremium();
+    expect(await cc.balanceOf(insurer.address)).eq(amount * 3);
   });
 
-  // it('Strategy loss', async () => { });
+  it('Strategy loss', async () => {
+    const amount = 1e5;
+    const loss = 3e4;
+
+    await cf.connect(user).invest(user.address, token.address, amount, insurer.address);
+    await reinvest.pushTo(token.address, cf.address, strat.address, amount);
+    await strat.connect(user).deltaYield(token.address, loss * -1);
+
+    await reinvest.pullFrom(token.address, strat.address, cf.address, amount);
+    let [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, strat.address);
+    expect(borrowedBal).eq(loss);
+    expect(repayableBal).eq(0);
+
+    await token.connect(user).approve(reinvest.address, loss);
+    await reinvest.repayLossFrom(token.address, user.address, strat.address, cf.address, loss);
+    [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, strat.address);
+    expect(borrowedBal).eq(0);
+    expect(repayableBal).eq(0);
+  });
+
+  it('Two insurers', async () => {
+    const joinExtension = await Factories.JoinablePoolExtension.deploy(zeroAddress(), 1e7, cc.address);
+    const extension = await Factories.ImperpetualPoolExtension.deploy(zeroAddress(), 1e7, cc.address);
+    const insurer2 = await Factories.MockImperpetualPool.deploy(extension.address, joinExtension.address);
+    await cc.registerInsurer(insurer2.address);
+
+    const amountPerInsurer = 1e5;
+
+    await cf.connect(user).invest(user.address, token.address, amountPerInsurer, insurer.address);
+    await cf.connect(user).invest(user.address, token.address, amountPerInsurer, insurer2.address);
+    expect(await token.balanceOf(cf.address)).eq(amountPerInsurer * 2);
+
+    await reinvest.pushTo(token.address, cf.address, strat.address, amountPerInsurer * 2);
+    await strat.connect(user).deltaYield(token.address, amountPerInsurer); // 50% yield
+    await reinvest.pullYieldFrom(token.address, strat.address, cf.address, MAX_UINT);
+
+    expect(await token.balanceOf(cf.address)).eq(amountPerInsurer);
+
+    expect(await cc.balanceOf(insurer.address)).eq(amountPerInsurer);
+    await insurer.collectDrawdownPremium();
+    expect(await cc.balanceOf(insurer.address)).eq(amountPerInsurer * 1.5);
+
+    expect(await cc.balanceOf(insurer2.address)).eq(amountPerInsurer);
+    await insurer2.collectDrawdownPremium();
+    expect(await cc.balanceOf(insurer2.address)).eq(amountPerInsurer * 1.5);
+  });
+
+  it('Aave strategy', async () => {
+    const aToken = await Factories.MockERC20.deploy('aToken', 'AA', 18);
+    const aPool = await Factories.MockAavePoolV3.deploy(aToken.address);
+    const aStrat = await Factories.AaveStrategy.deploy(reinvest.address, aPool.address, 3);
+    await reinvest.enableStrategy(aStrat.address, true);
+    await token.approve(aStrat.address, MAX_UINT);
+
+    const amount = 1e10;
+
+    await cf.connect(user).invest(user.address, token.address, amount, insurer.address);
+    await reinvest.pushTo(token.address, cf.address, aStrat.address, amount);
+    let [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, aStrat.address);
+    {
+      expect(await aToken.balanceOf(aStrat.address)).eq(amount);
+      expect(await token.balanceOf(cf.address)).eq(0);
+      expect(borrowedBal).eq(amount);
+      expect(repayableBal).eq(amount);
+    }
+
+    const stratYield = 1e9; // +10%
+    await token.mint(aPool.address, stratYield);
+    await aPool.addYieldToUser(aStrat.address, stratYield);
+    [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, aStrat.address);
+    {
+      expect(await aStrat.investedValueOf(token.address)).eq(amount + stratYield);
+      expect(borrowedBal).eq(amount);
+      expect(repayableBal).eq(amount + stratYield);
+    }
+
+    await reinvest.pullYieldFrom(token.address, aStrat.address, cf.address, MAX_UINT);
+    [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, aStrat.address);
+    {
+      expect(await aToken.balanceOf(aStrat.address)).eq(amount);
+      expect(await token.balanceOf(cf.address)).eq(stratYield);
+      expect(await aStrat.investedValueOf(token.address)).eq(amount);
+      expect(borrowedBal).eq(amount);
+      expect(repayableBal).eq(amount);
+    }
+
+    await insurer.collectDrawdownPremium();
+    expect(await cc.balanceOf(insurer.address)).eq(amount + stratYield);
+
+    await reinvest.pullFrom(token.address, aStrat.address, cf.address, MAX_UINT);
+    [borrowedBal, repayableBal] = await reinvest.balancesOf(token.address, aStrat.address);
+    {
+      expect(await aToken.balanceOf(aStrat.address)).eq(0);
+      expect(await token.balanceOf(cf.address)).eq(amount + stratYield);
+      expect(await token.balanceOf(aStrat.address)).eq(0);
+      expect(await aStrat.investedValueOf(token.address)).eq(0);
+      expect(borrowedBal).eq(0);
+      expect(repayableBal).eq(0);
+    }
+
+    await insurer.collectDrawdownPremium();
+    expect(await cc.balanceOf(insurer.address)).eq(amount + stratYield);
+  });
 });

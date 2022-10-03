@@ -26,9 +26,16 @@ contract MockStrategy is IReinvestStrategy {
     address token,
     address to,
     uint256 amount,
-    uint256
+    uint256 minLimit
   ) external returns (uint256 amountBefore) {
     amountBefore = investedValueOf[token];
+    if (minLimit > amountBefore) {
+      return 0;
+    }
+    if (amount > (amountBefore - minLimit)) {
+      amount = amountBefore - minLimit;
+    }
+
     IERC20(token).approve(to, amount);
     investedValueOf[token] -= amount;
   }
@@ -38,8 +45,15 @@ contract MockStrategy is IReinvestStrategy {
       investedValueOf[token] += uint256(amount);
       IERC20(token).transferFrom(msg.sender, address(this), uint256(amount));
     } else {
-      investedValueOf[token] -= uint256(amount);
-      IERC20(token).transfer(address(0), uint256(amount));
+      investedValueOf[token] -= uint256(amount * -1);
     }
+  }
+
+  function approve(
+    address token,
+    address to,
+    uint256 amount
+  ) external {
+    IERC20(token).approve(to, amount);
   }
 }

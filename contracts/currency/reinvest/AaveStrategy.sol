@@ -31,6 +31,7 @@ contract AaveStrategy is ReinvestStrategyBase {
       aToken = IAaveLendingPoolV2(address(_pool)).getReserveData(token).aTokenAddress;
     }
     _reserveTokens[token] = aToken;
+    SafeERC20.safeApprove(IERC20(token), address(_pool), type(uint256).max);
     return aToken != address(0);
   }
 
