@@ -36,4 +36,12 @@ abstract contract YieldingCurrencyBase is AccessHelper, InvestmentCurrencyBase, 
       internalAddYield(amount);
     }
   }
+
+  function internalPullYield(address account) internal override returns (uint256) {
+    uint256 yield = super.internalPullYield(account);
+    if (yield > 0) {
+      _transfer(address(this), account, yield);
+    }
+    return yield;
+  }
 }
