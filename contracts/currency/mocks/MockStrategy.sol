@@ -36,4 +36,10 @@ contract MockStrategy is IReinvestStrategy {
       IERC20(token).transfer(address(0), uint256(amount));
     }
   }
+
+  function connectAssetBefore(address) external pure override returns (bool) {
+    return true;
+  }
+
+  function connectAssetAfter(address) external pure override {}
 }
