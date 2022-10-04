@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import '../../interfaces/ICollateralized.sol';
 
 interface IReinvestStrategy {
-  function reinvestManager() external view returns (address);
+  function attachManager(address manager, bool attach) external returns (bool);
 
   function connectAssetBefore(address token) external returns (bool);
 
@@ -24,4 +24,6 @@ interface IReinvestStrategy {
   ) external returns (uint256 amountBefore);
 
   function investedValueOf(address token) external view returns (uint256);
+
+  function name() external view returns (string memory);
 }

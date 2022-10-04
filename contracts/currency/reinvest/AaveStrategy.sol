@@ -76,6 +76,16 @@ contract AaveStrategy is ReinvestStrategyBase {
     return aToken == address(0) ? 0 : IERC20(aToken).balanceOf(address(this));
   }
 
+  function name() external view returns (string memory) {
+    if (_version == 3) {
+      return 'AAVE v3';
+    } else if (_version == 2) {
+      return 'AAVE v2';
+    } else {
+      return 'AAVE ??';
+    }
+  }
+
   function setRewardClaimer(address controller, address claimer) external onlyManager {
     IAaveRewardController(controller).setClaimer(address(this), claimer);
   }

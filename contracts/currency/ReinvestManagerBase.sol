@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
+import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../libraries/CallData.sol';
 import '../funds/Collateralized.sol';
 import '../access/AccessHelper.sol';
@@ -9,6 +10,8 @@ import './interfaces/IReinvestStrategy.sol';
 import '../currency/BorrowBalancesBase.sol';
 
 abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBalancesBase {
+  using EnumerableSet for EnumerableSet.AddressSet;
+
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function _onlyCollateralFund(address fund) private view {
@@ -31,18 +34,27 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
     _;
   }
 
-  mapping(address => uint256) private _strategies;
+  EnumerableSet.AddressSet private _strategies;
 
   event StrategyEnabled(address indexed strategy, bool enable);
 
   function enableStrategy(address strategy, bool enable) external aclHas(AccessFlags.BORROWER_ADMIN) {
-    Value.require(enable ? IReinvestStrategy(strategy).reinvestManager() == address(this) : strategy != address(0));
-    _strategies[strategy] = enable ? 1 : 0;
+    bool ok = IReinvestStrategy(strategy).attachManager(address(this), enable);
+    if (enable) {
+      Value.require(ok);
+      _strategies.add(strategy);
+    } else {
+      _strategies.remove(strategy);
+    }
     emit StrategyEnabled(strategy, enable);
   }
 
   function isStrategy(address strategy) public view returns (bool) {
-    return _strategies[strategy] != 0;
+    return _strategies.contains(strategy);
+  }
+
+  function strategies() external view returns (address[] memory) {
+    return _strategies.values();
   }
 
   function _onlyActiveStrategy(address strategy) private view {
