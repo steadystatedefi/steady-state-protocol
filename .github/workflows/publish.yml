@@ -40,6 +40,9 @@ jobs:
       - name: Bump the application version
         run: npm version ${{ github.event.release.tag_name }}
 
+      - name: Compile
+        run: npm run compile
+
       - name: Build package
         run: npm run build:package
 
