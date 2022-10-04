@@ -70,6 +70,12 @@ export const FullConfig: IConfiguration<ENetwork> = {
         value: WAD,
       },
     },
+    Reinvestor: {
+      AAVE: {
+        pool: '0x368EedF3f56ad10b9bC57eed4Dac65B26Bb667f6',
+        version: 3,
+      },
+    },
   },
   hardhat: {
     ...configTemplate,
@@ -80,6 +86,12 @@ export const FullConfig: IConfiguration<ENetwork> = {
       USDC: {
         decimals: 6,
         value: WAD,
+      },
+    },
+    Reinvestor: {
+      AAVE: {
+        pool: '0x368EedF3f56ad10b9bC57eed4Dac65B26Bb667f6',
+        version: 3,
       },
     },
   },

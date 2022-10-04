@@ -26,10 +26,10 @@ interface IAaveLendingPoolV3 is IAaveLendingPool {
   function getReserveData(address asset) external view returns (AaveDataTypes.ReserveDataV3 memory);
 }
 
-interface IAaveIncentivesController {
+interface IAaveRewardController {
   function setClaimer(address user, address claimer) external;
 
-  function getClaimer(address user) external view returns (address);
+  function claimAllRewards(address[] calldata assets, address to) external returns (address[] memory rewardsList, uint256[] memory claimedAmounts);
 }
 
 library AaveDataTypes {
