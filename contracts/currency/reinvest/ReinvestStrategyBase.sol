@@ -14,6 +14,13 @@ abstract contract ReinvestStrategyBase is IReinvestStrategy {
     _manager = manager;
   }
 
+  function attachManager(address manager, bool attach) external view returns (bool ok) {
+    ok = manager == _manager;
+    if (attach) {
+      Value.require(ok);
+    }
+  }
+
   function _onlyManager() private view {
     Access.require(msg.sender == _manager);
   }

@@ -22,8 +22,10 @@ export const Factories = {
   FrontHelper: wrap(types.FrontHelper__factory),
   OracleRouterV1: wrap(types.OracleRouterV1__factory),
   CollateralFundV1: wrap(types.CollateralFundV1__factory),
-  ReinvestorV1: wrap(types.ReinvestorV1__factory),
   PremiumFundV1: wrap(types.PremiumFundV1__factory),
+  AaveStrategy: wrap(types.AaveStrategy__factory),
+
+  ReinvestorV1: wrap(types.ReinvestorV1__factory),
   AaveStrategy: wrap(types.AaveStrategy__factory),
 
   MockCollateralCurrency: mock(types.MockCollateralCurrency__factory),

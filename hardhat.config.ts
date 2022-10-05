@@ -29,7 +29,7 @@ const DEFAULT_GAS_MUL = 2;
 const HARDFORK = 'istanbul';
 const MNEMONIC_PATH = "m/44'/60'/0'/0";
 const MNEMONIC = process.env.MNEMONIC ?? '';
-const FORK = process.env.FORK ?? '';
+const [FORK, FORK_BLOCK] = (process.env.FORK ?? '').split('@', 2);
 const IS_FORK = !!FORK;
 
 const KEY_SEL = process.env.KEY_SEL || '';
@@ -97,12 +97,14 @@ const mainnetFork = () => {
     console.log('==================================================================================');
   }
 
-  const blockNumbers = {
+  const blockNumbers: Record<string, number> = {
     // [EAllNetworks.main]: 13283829, // 12914827
   };
 
+  const forkBlock = parseInt(FORK_BLOCK, 10);
+
   return {
-    blockNumber: blockNumbers[FORK] as number | undefined,
+    blockNumber: Number.isNaN(forkBlock) ? blockNumbers[FORK] : forkBlock,
     url,
   };
 };
