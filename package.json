@@ -1,6 +1,6 @@
 {
   "name": "@steadystatedefi/protocol-v1",
-  "version": "0.9.9",
+  "version": "0.9.11",
   "description": "SteadyState smart contracts",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
