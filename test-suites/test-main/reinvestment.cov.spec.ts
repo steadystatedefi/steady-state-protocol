@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
 import { MAX_UINT, WAD } from '../../helpers/constants';
+import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { advanceBlock, currentTime } from '../../helpers/runtime-utils';
 import {
@@ -55,12 +56,23 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
     await cf.connect(user).invest(user.address, token.address, amount, insurer.address);
     expect(await token.balanceOf(cf.address)).eq(amount);
 
-    await reinvest.enableStrategy(strat.address, false);
-    expect((await reinvest.strategies()).length).eq(0);
-    await expect(reinvest.pushTo(token.address, cf.address, strat.address, amount)).reverted;
-    await reinvest.enableStrategy(strat.address, true);
-    expect((await reinvest.strategies())[0]).eq(strat.address);
-    await reinvest.pushTo(token.address, cf.address, strat.address, amount);
+    await Events.StrategyEnabled.waitOne(reinvest.enableStrategy(strat.address, false), (ev) => {
+      expect(ev.strategy).eq(strat.address);
+      expect(ev.enable).eq(false);
+    });
+    {
+      expect((await reinvest.strategies()).length).eq(0);
+      await expect(reinvest.pushTo(token.address, cf.address, strat.address, amount)).reverted;
+    }
+
+    await Events.StrategyEnabled.waitOne(reinvest.enableStrategy(strat.address, true), (ev) => {
+      expect(ev.strategy).eq(strat.address);
+      expect(ev.enable).eq(true);
+    });
+    {
+      expect((await reinvest.strategies())[0]).eq(strat.address);
+      await reinvest.pushTo(token.address, cf.address, strat.address, amount);
+    }
 
     expect(await token.balanceOf(strat.address)).eq(amount);
     await strat.connect(user).deltaYield(token.address, amount);

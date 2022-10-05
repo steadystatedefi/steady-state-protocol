@@ -1,3 +1,4 @@
+import { StrategyEnabledEvent } from '../types/contracts/currency/ReinvestManagerBase';
 import {
   ApplicationAppliedEvent,
   ApplicationApprovedEvent,
@@ -26,6 +27,7 @@ export const Events = {
   ClaimSubmitted: wrap(stub as ClaimSubmittedEvent),
   ClaimApproved: wrap(stub as ClaimApprovedEvent),
   ClaimApplied: wrap(stub as ClaimAppliedEvent),
+  StrategyEnabled: wrap(stub as StrategyEnabledEvent),
 };
 
 Object.entries(Events).forEach(([name, factory]) => addNamedEvent(factory, name));
