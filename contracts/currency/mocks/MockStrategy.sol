@@ -64,4 +64,16 @@ contract MockStrategy is IReinvestStrategy {
   function name() external view returns (string memory) {
     return 'MockStrat';
   }
+
+  bool private shouldSucceed;
+
+  function testCall() external {
+    if (!shouldSucceed) {
+      revert();
+    }
+  }
+
+  function setCallSuccess(bool success) external {
+    shouldSucceed = success;
+  }
 }

@@ -56,8 +56,10 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
     expect(await token.balanceOf(cf.address)).eq(amount);
 
     await reinvest.enableStrategy(strat.address, false);
+    expect((await reinvest.strategies()).length).eq(0);
     await expect(reinvest.pushTo(token.address, cf.address, strat.address, amount)).reverted;
     await reinvest.enableStrategy(strat.address, true);
+    expect((await reinvest.strategies())[0]).eq(strat.address);
     await reinvest.pushTo(token.address, cf.address, strat.address, amount);
 
     expect(await token.balanceOf(strat.address)).eq(amount);
@@ -153,6 +155,17 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(insurer2.address)).eq(amountPerInsurer);
     await insurer2.collectDrawdownPremium();
     expect(await cc.balanceOf(insurer2.address)).eq(amountPerInsurer * 1.5);
+  });
+
+  it('Call strategy', async () => {
+    let selector = strat.interface.encodeFunctionData('testCall');
+    await expect(reinvest.callStrategy(user.address, selector)).reverted;
+    await expect(reinvest.callStrategy(strat.address, selector)).reverted;
+
+    await strat.setCallSuccess(true);
+    await reinvest.callStrategy(strat.address, selector);
+    selector = strat.interface.encodeFunctionData('connectAssetAfter', [token.address]);
+    await expect(reinvest.callStrategy(strat.address, selector)).reverted;
   });
 
   it('Aave strategy', async () => {
