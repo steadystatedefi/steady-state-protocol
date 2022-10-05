@@ -56,4 +56,12 @@ contract MockStrategy is IReinvestStrategy {
   ) external {
     IERC20(token).approve(to, amount);
   }
+
+  function attachManager(address manager, bool attach) external returns (bool) {
+    return true;
+  }
+
+  function name() external view returns (string memory) {
+    return 'MockStrat';
+  }
 }
