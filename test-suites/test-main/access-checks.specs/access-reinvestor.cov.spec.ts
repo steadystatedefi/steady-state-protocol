@@ -8,7 +8,7 @@ import { makeSuite, TestEnv } from '../setup/make-suite';
 
 import { deployAccessControlState, setInsurer, State } from './setup';
 
-makeSuite.only('access: Reinvestor', (testEnv: TestEnv) => {
+makeSuite('access: Reinvestor', (testEnv: TestEnv) => {
   let deployer: SignerWithAddress;
   let state: State;
 
