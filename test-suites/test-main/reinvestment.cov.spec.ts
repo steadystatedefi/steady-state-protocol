@@ -55,6 +55,7 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
 
     await cf.connect(user).invest(user.address, token.address, amount, insurer.address);
     expect(await token.balanceOf(cf.address)).eq(amount);
+    expect(await cc.totalSupply()).eq(amount);
 
     await Events.StrategyEnabled.waitOne(reinvest.enableStrategy(strat.address, false), (ev) => {
       expect(ev.strategy).eq(strat.address);
