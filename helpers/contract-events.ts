@@ -1,4 +1,10 @@
-import { StrategyEnabledEvent } from '../types/contracts/currency/ReinvestManagerBase';
+import {
+  LiquidityDivestedEvent,
+  LiquidityInvestedEvent,
+  LiquidityLossPaidEvent,
+  LiquidityYieldPulledEvent,
+  StrategyEnabledEvent,
+} from '../types/contracts/currency/ReinvestManagerBase';
 import {
   ApplicationAppliedEvent,
   ApplicationApprovedEvent,
@@ -28,6 +34,10 @@ export const Events = {
   ClaimApproved: wrap(stub as ClaimApprovedEvent),
   ClaimApplied: wrap(stub as ClaimAppliedEvent),
   StrategyEnabled: wrap(stub as StrategyEnabledEvent),
+  LiquidityInvested: wrap(stub as LiquidityInvestedEvent),
+  LiquidityDivested: wrap(stub as LiquidityDivestedEvent),
+  LiquidityYieldPulled: wrap(stub as LiquidityYieldPulledEvent),
+  LiquidityLossPaid: wrap(stub as LiquidityLossPaidEvent),
 };
 
 Object.entries(Events).forEach(([name, factory]) => addNamedEvent(factory, name));

@@ -236,4 +236,49 @@ makeSuite('Reinvestment', (testEnv: TestEnv) => {
     await insurer.collectDrawdownPremium();
     expect(await cc.balanceOf(insurer.address)).eq(amount + stratYield);
   });
+
+  it('Investment events', async () => {
+    await token.approve(reinvest.address, MAX_UINT);
+    const amount = 1e5;
+    await cf.connect(user).invest(user.address, token.address, amount, insurer.address);
+
+    await Events.LiquidityInvested.waitOne(reinvest.pushTo(token.address, cf.address, strat.address, amount), (ev) => {
+      expect(ev.amount).eq(amount);
+      expect(ev.asset).eq(token.address);
+      expect(ev.fromFund).eq(cf.address);
+      expect(ev.toStrategy).eq(strat.address);
+    });
+
+    await strat.connect(user).deltaYield(token.address, amount);
+    await Events.LiquidityYieldPulled.waitOne(
+      reinvest.pullYieldFrom(token.address, strat.address, cf.address, amount),
+      (ev) => {
+        expect(ev.amount).eq(amount);
+        expect(ev.asset).eq(token.address);
+        expect(ev.viaFund).eq(cf.address);
+        expect(ev.fromStrategy).eq(strat.address);
+      }
+    );
+
+    await strat.connect(user).deltaYield(token.address, (amount / 2) * -1);
+    await Events.LiquidityDivested.waitOne(
+      reinvest.pullFrom(token.address, strat.address, cf.address, amount),
+      (ev) => {
+        expect(ev.amount).eq(amount / 2);
+        expect(ev.asset).eq(token.address);
+        expect(ev.toFund).eq(cf.address);
+        expect(ev.fromStrategy).eq(strat.address);
+      }
+    );
+
+    await Events.LiquidityLossPaid.waitOne(
+      reinvest.repayLossFrom(token.address, user.address, strat.address, cf.address, amount / 2),
+      (ev) => {
+        expect(ev.amount).eq(amount / 2);
+        expect(ev.asset).eq(token.address);
+        expect(ev.viaFund).eq(cf.address);
+        expect(ev.forStrategy).eq(strat.address);
+      }
+    );
+  });
 });
