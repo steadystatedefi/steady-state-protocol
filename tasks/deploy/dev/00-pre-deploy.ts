@@ -8,7 +8,7 @@ deployTask(`dev:pre-deploy`, `Deploy dependency mocks`, __dirname).setAction(
     const cfg = loadNetworkConfig(configName as string);
 
     for (const [assetName] of Object.entries(cfg.Assets)) {
-      const m = await Factories.MockERC20.deploy(assetName, assetName, 18);
+      const m = await Factories.MockERC20.deploy(assetName, assetName, 6);
       console.log('Deployed ERC20 mock:', assetName, m.address);
       cfg.Assets[assetName] = m.address;
     }
