@@ -13,6 +13,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.release.target_commitish }}
+          token: ${{ secrets.WORKFLOW_GIT_ACCESS_TOKEN }}
 
       - uses: actions/cache@v3
         name: Set up cache
@@ -36,6 +37,7 @@ jobs:
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor}}@users.noreply.github.com"
           npm config set commit-hooks false
+          npm config set //registry.npmjs.org/:_authToken ${{ secrets.NPM_TOKEN }}
       
       - name: Bump the application version
         run: npm version ${{ github.event.release.tag_name }}
@@ -53,5 +55,3 @@ jobs:
 
       - name: Push version update
         run: git push --no-verify
-        env:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
