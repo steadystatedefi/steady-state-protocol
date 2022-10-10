@@ -47,6 +47,7 @@ contract AaveStrategy is ReinvestStrategyBase {
     uint256 amount
   ) external override onlyManager {
     SafeERC20.safeTransferFrom(IERC20(token), from, address(this), amount);
+    SafeERC20.safeApprove(IERC20(token), address(_pool), amount);
     _pool.deposit(token, amount, address(this), 0);
   }
 
