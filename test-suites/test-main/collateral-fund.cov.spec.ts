@@ -282,6 +282,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
     const insurer = createRandomAddress();
 
+    expect(await fund.isPaused(token0.address)).eq(true);
     await expect(fund.connect(user1).deposit(user1.address, token0.address, 1000)).revertedWith(
       testEnv.covReason('OperationPaused()')
     );
@@ -293,6 +294,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     );
 
     await fund.setPaused(token0.address, false);
+    expect(await fund.isPaused(token0.address)).eq(false);
 
     await fund.connect(user1).deposit(user1.address, token0.address, 1000);
     await fund.connect(user1).withdraw(user1.address, user1.address, token0.address, 500);

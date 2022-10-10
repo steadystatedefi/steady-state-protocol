@@ -15,9 +15,11 @@ import {
   ImperpetualPoolV1,
   InsuredPoolV1,
   MockERC20,
+  MockStrategy,
   OracleRouterV1,
   PremiumFundV1,
   ProxyCatalog,
+  ReinvestorV1,
 } from '../../../types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 
@@ -32,7 +34,8 @@ export type State = {
   fund: CollateralFundV1;
   oracle: OracleRouterV1;
   premiumFund: PremiumFundV1;
-  //  dist: YieldDistributorV1;
+  reinvestor: ReinvestorV1;
+  strat: MockStrategy;
 
   insured: InsuredPoolV1;
   insurer: ImperpetualPoolV1;
@@ -70,10 +73,11 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
     state.controller.address,
     state.cc.address,
   ]);
-  // state.dist = await Factories.YieldDistributorV1.connectAndDeploy(deployer, 'yieldDist', [
-  //   state.controller.address,
-  //   state.cc.address,
-  // ]);
+  state.reinvestor = await Factories.ReinvestorV1.connectAndDeploy(deployer, 'reinvestor', [
+    state.controller.address,
+    state.cc.address,
+  ]);
+  state.strat = await Factories.MockStrategy.connectAndDeploy(deployer, 'strategy1', []);
 
   state.premToken = await Factories.MockERC20.connectAndDeploy(deployer, 'premToken', ['Premium', 'Prem', 18]);
 
@@ -140,8 +144,11 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
   await state.oracle.setStaticPrices([state.premToken.address], [WAD]);
   await state.oracle.configureSourceGroup(state.fund.address, state.fundFuses);
   await state.premToken.mint(state.insured.address, WAD);
-
+  await state.cc.setBorrowManager(state.reinvestor.address);
   await state.controller.revokeAllRoles(deployer.address);
+
+  await state.premToken.mint(deployer.address, WAD.mul(2));
+  await state.premToken.approve(state.fund.address, MAX_UINT);
   return state;
 }
 
