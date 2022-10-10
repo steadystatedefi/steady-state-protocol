@@ -7,7 +7,7 @@ import '../../tools/tokens/IERC20.sol';
 contract MockStrategy is IReinvestStrategy {
   mapping(address => uint256) public investedValueOf;
 
-  function connectAssetBefore(address) external returns (bool) {
+  function connectAssetBefore(address) external pure returns (bool) {
     return true;
   }
 
@@ -57,17 +57,17 @@ contract MockStrategy is IReinvestStrategy {
     IERC20(token).approve(to, amount);
   }
 
-  function attachManager(address manager, bool attach) external returns (bool) {
+  function attachManager(address, bool) external pure returns (bool) {
     return true;
   }
 
-  function name() external view returns (string memory) {
+  function name() external pure returns (string memory) {
     return 'MockStrat';
   }
 
   bool private shouldSucceed;
 
-  function testCall() external {
+  function testCall() external view {
     if (!shouldSucceed) {
       revert();
     }
