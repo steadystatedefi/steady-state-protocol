@@ -110,6 +110,16 @@ abstract contract AccessHelper {
     return IProxyFactory(getAclAddress(AccessFlags.PROXY_FACTORY));
   }
 
+  function internalIsAuthenticProxy(IProxyFactory pf, address c) internal view virtual returns (bool) {
+    return pf.isAuthenticProxy(c);
+  }
+
+  function ensureAuthenticProxy(address c) internal view {
+    if (!internalIsAuthenticProxy(getProxyFactory(), c)) {
+      revert Errors.AuthenticProxyRequired();
+    }
+  }
+
   function getAclAddress(uint256 t) internal view returns (address) {
     IAccessController acl = remoteAcl();
     return address(acl) == address(0) ? address(0) : acl.getAddress(t);

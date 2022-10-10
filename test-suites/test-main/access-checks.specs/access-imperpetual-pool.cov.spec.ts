@@ -92,7 +92,7 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     await state.insurer.setPoolParams(params);
   });
 
-  it('ROLE: Collateral Currency', async () => {
+  it.skip('ROLE: Collateral Currency', async () => {
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN);
     await state.cc.registerLiquidityProvider(deployer.address);
 

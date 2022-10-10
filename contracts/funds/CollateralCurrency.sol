@@ -43,6 +43,7 @@ contract CollateralCurrency is YieldingCurrencyBase, IManagedCollateralCurrency 
   event LiquidityProviderRegistered(address indexed account);
 
   function registerLiquidityProvider(address account) external aclHas(AccessFlags.LP_DEPLOY) {
+    ensureAuthenticProxy(account);
     internalUpdateFlags(account, 0, FLAG_MINT | FLAG_BURN);
     emit LiquidityProviderRegistered(account);
   }
@@ -54,6 +55,7 @@ contract CollateralCurrency is YieldingCurrencyBase, IManagedCollateralCurrency 
   event InsurerRegistered(address indexed account);
 
   function registerInsurer(address account) external aclHas(AccessFlags.INSURER_ADMIN) {
+    ensureAuthenticProxy(account);
     internalUpdateFlags(account, 0, FLAG_TRANSFER_CALLBACK | FLAG_MANAGER);
     emit InsurerRegistered(account);
   }
