@@ -74,9 +74,13 @@ deployTask(
     await addImpl(ProxyTypes.COLLATERAL_CCY, Factories.CollateralCurrencyV1, [accessController.address], zeroAddress());
 
     const ccDetails = cfg.CollateralCurrency;
-    const [cc,] = await findOrDeployProxyFromCatalog(factoryCC, ProxyTypes.COLLATERAL_CCY, 
+    const [cc] = await findOrDeployProxyFromCatalog(
+      factoryCC,
+      ProxyTypes.COLLATERAL_CCY,
       factoryCC.interface.encodeFunctionData('initializeCollateralCurrency', [ccDetails.name, ccDetails.symbol]),
-      '', zeroAddress());
+      '',
+      zeroAddress()
+    );
 
     await addImpl(
       ProxyTypes.COLLATERAL_FUND,
