@@ -51,20 +51,20 @@ export type State = {
 };
 
 export async function makeMockMinter(state: State, deployer: SignerWithAddress): Promise<MockMinter> {
-  const minterId = formatBytes32String('Minter')
+  const minterId = formatBytes32String('Minter');
   const minterImpl = await Factories.MockMinter.deploy(state.cc.address);
   await state.proxyCatalog.addAuthenticImplementation(minterImpl.address, minterId, state.cc.address); // eslint-disable-line no-param-reassign
   await state.proxyCatalog.setDefaultImplementation(minterImpl.address); // eslint-disable-line no-param-reassign
 
-  let addr: string;
+  let minter!: MockMinter;
   await Events.ProxyCreated.waitOne(
-    state.proxyCatalog.createProxy(deployer.address, minterId, state.cc.address,[]),
+    state.proxyCatalog.createProxy(deployer.address, minterId, state.cc.address, []),
     (ev) => {
-      addr = ev.proxy
+      minter = Factories.MockMinter.attach(ev.proxy);
     }
-  )
+  );
 
-  return Factories.MockMinter.attach(addr);
+  return minter;
 }
 
 async function populateProxyCatalog(state: State, deployer: SignerWithAddress) {
@@ -154,7 +154,6 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
       state.fund = Factories.CollateralFundV1.attach(ev.proxy);
     }
   );
-
 
   const cid = formatBytes32String('policy1');
   await Events.ApplicationSubmitted.waitOne(
