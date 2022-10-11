@@ -1,10 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { formatBytes32String } from 'ethers/lib/utils';
 
 import { AccessFlags } from '../../../helpers/access-flags';
-import { Events } from '../../../helpers/contract-events';
-import { Factories } from '../../../helpers/contract-types';
 import { MockMinter } from '../../../types';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
@@ -69,4 +66,3 @@ makeSuite('access: Collateral Currency', (testEnv: TestEnv) => {
     await expect(state.cc.connect(user2).setBorrowManager(user2.address)).to.be.reverted;
   });
 });
-

@@ -53,8 +53,8 @@ export type State = {
 export async function makeMockMinter(state: State, deployer: SignerWithAddress): Promise<MockMinter> {
   const minterId = formatBytes32String('Minter');
   const minterImpl = await Factories.MockMinter.deploy(state.cc.address);
-  await state.proxyCatalog.addAuthenticImplementation(minterImpl.address, minterId, state.cc.address); // eslint-disable-line no-param-reassign
-  await state.proxyCatalog.setDefaultImplementation(minterImpl.address); // eslint-disable-line no-param-reassign
+  await state.proxyCatalog.addAuthenticImplementation(minterImpl.address, minterId, state.cc.address);
+  await state.proxyCatalog.setDefaultImplementation(minterImpl.address);
 
   let minter!: MockMinter;
   await Events.ProxyCreated.waitOne(
@@ -100,8 +100,8 @@ async function populateProxyCatalog(state: State, deployer: SignerWithAddress) {
   await state.proxyCatalog.setDefaultImplementation(insuredV1ref.address);
   await state.proxyCatalog.setDefaultImplementation(fundRef.address);
 
-  state.insurerInterface = insurerV1ref.interface;
-  state.fundInterface = fundRef.interface;
+  state.insurerInterface = insurerV1ref.interface; // eslint-disable-line no-param-reassign
+  state.fundInterface = fundRef.interface; // eslint-disable-line no-param-reassign
 }
 
 // The returned state's insurerv1 is *not* initialized and must be
