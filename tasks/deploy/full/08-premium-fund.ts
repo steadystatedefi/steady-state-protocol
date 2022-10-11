@@ -34,7 +34,7 @@ deployTask(`full:deploy-premium-fund`, `Deploy ${catalogName}`, __dirname).setAc
 
       if (!newDeploy) {
         const curentCfg = await pf.getAssetConfig(actuary, asset);
-        if (curentCfg.calc.eq(assetCfg.calc) && curentCfg.spConst.eq(assetCfg.spConst)) {
+        if (curentCfg.calc.eq(await assetCfg.calc) && curentCfg.spConst.eq(await assetCfg.spConst)) {
           console.log('\t Already set');
           return;
         }

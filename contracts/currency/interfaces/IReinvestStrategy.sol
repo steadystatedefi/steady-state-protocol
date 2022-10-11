@@ -4,6 +4,8 @@ pragma solidity ^0.8.4;
 import '../../interfaces/ICollateralized.sol';
 
 interface IReinvestStrategy {
+  function attachManager(address manager, bool attach) external returns (bool);
+
   function connectAssetBefore(address token) external returns (bool);
 
   function connectAssetAfter(address token) external;
@@ -14,6 +16,8 @@ interface IReinvestStrategy {
     uint256 amount
   ) external;
 
+  ///@param amount The amount of token requesting to be withdrawn
+  ///@param minLimit The minimum amount that must be left in the strategy after this withdraw
   function approveDivest(
     address token,
     address to,
@@ -22,4 +26,6 @@ interface IReinvestStrategy {
   ) external returns (uint256 amountBefore);
 
   function investedValueOf(address token) external view returns (uint256);
+
+  function name() external view returns (string memory);
 }

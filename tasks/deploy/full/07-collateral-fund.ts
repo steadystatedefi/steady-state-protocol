@@ -8,7 +8,7 @@ import { dreAction } from '../../../helpers/dre';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { falsyOrZeroAddress, mustWaitTx } from '../../../helpers/runtime-utils';
 import { deployTask } from '../deploy-steps';
-import { findOrDeployProxyFromCatalog } from '../templates';
+import { findOrDeployProxyFromCatalog, getDeployedProxy } from '../templates';
 
 const catalogName = ProxyTypes.COLLATERAL_FUND;
 
@@ -19,7 +19,7 @@ deployTask(`full:deploy-collateral-fund`, `Deploy ${catalogName}`, __dirname).se
     const ac = Factories.AccessController.get();
 
     const factory = Factories.CollateralFundV1;
-    const cc = Factories.CollateralCurrency.get();
+    const cc = Factories.CollateralCurrencyV1.attach(getDeployedProxy(ProxyTypes.COLLATERAL_CCY));
     const initFunctionData = factory.interface.encodeFunctionData('initializeCollateralFund');
 
     const [collateralFund, newDeploy] = await findOrDeployProxyFromCatalog(factory, catalogName, initFunctionData);

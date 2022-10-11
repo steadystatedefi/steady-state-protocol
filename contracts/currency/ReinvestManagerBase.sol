@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '@openzeppelin/contracts/utils/Address.sol';
+import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../libraries/CallData.sol';
 import '../funds/Collateralized.sol';
 import '../access/AccessHelper.sol';
@@ -10,6 +10,8 @@ import './interfaces/IReinvestStrategy.sol';
 import '../currency/BorrowBalancesBase.sol';
 
 abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBalancesBase {
+  using EnumerableSet for EnumerableSet.AddressSet;
+
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function _onlyCollateralFund(address fund) private view {
@@ -32,15 +34,27 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
     _;
   }
 
-  mapping(address => uint256) private _strategies;
+  EnumerableSet.AddressSet private _strategies;
+
+  event StrategyEnabled(address indexed strategy, bool enable);
 
   function enableStrategy(address strategy, bool enable) external aclHas(AccessFlags.BORROWER_ADMIN) {
-    Value.require(enable ? Address.isContract(strategy) : strategy != address(0));
-    _strategies[strategy] = enable ? 1 : 0;
+    bool ok = IReinvestStrategy(strategy).attachManager(address(this), enable);
+    if (enable) {
+      Value.require(ok);
+      _strategies.add(strategy);
+    } else {
+      _strategies.remove(strategy);
+    }
+    emit StrategyEnabled(strategy, enable);
   }
 
   function isStrategy(address strategy) public view returns (bool) {
-    return _strategies[strategy] != 0;
+    return _strategies.contains(strategy);
+  }
+
+  function strategies() external view returns (address[] memory) {
+    return _strategies.values();
   }
 
   function _onlyActiveStrategy(address strategy) private view {
@@ -52,43 +66,54 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
     _;
   }
 
+  event LiquidityInvested(address indexed asset, address indexed fromFund, address indexed toStrategy, uint256 amount);
+  event LiquidityDivested(address indexed asset, address indexed fromStrategy, address indexed toFund, uint256 amount);
+  event LiquidityYieldPulled(address indexed asset, address indexed fromStrategy, address indexed viaFund, uint256 amount);
+  event LiquidityLossPaid(address indexed asset, address indexed forStrategy, address indexed viaFund, uint256 amount);
+
   function pushTo(
-    address token,
+    address asset,
     address fromFund,
     address toStrategy,
     uint256 amount
   ) external onlyBorrowOpsOf(fromFund) onlyCollateralFund(fromFund) onlyActiveStrategy(toStrategy) {
-    return internalPushTo(token, fromFund, toStrategy, amount);
+    internalPushTo(asset, fromFund, toStrategy, amount);
+    emit LiquidityInvested(asset, fromFund, toStrategy, amount);
   }
 
   function pullFrom(
-    address token,
+    address asset,
     address fromStrategy,
     address toFund,
     uint256 amount
   ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) returns (uint256) {
-    return internalPullFrom(token, fromStrategy, toFund, amount);
+    amount = internalPullFrom(asset, fromStrategy, toFund, amount);
+    emit LiquidityDivested(asset, fromStrategy, toFund, amount);
+    return amount;
   }
 
   function pullYieldFrom(
-    address token,
+    address asset,
     address fromStrategy,
     address viaFund,
     uint256 maxAmount
   ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) onlyCollateralFund(viaFund) returns (uint256) {
     // NB! The collateral currency will detect mint to itself as a yield payment
-    return internalPullYieldFrom(token, fromStrategy, viaFund, maxAmount, collateral());
+    maxAmount = internalPullYieldFrom(asset, fromStrategy, viaFund, maxAmount, collateral());
+    emit LiquidityYieldPulled(asset, fromStrategy, viaFund, maxAmount);
+    return maxAmount;
   }
 
   function repayLossFrom(
-    address token,
+    address asset,
     address from,
     address forStrategy,
     address viaFund,
     uint256 amount
   ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) onlyCollateralFund(viaFund) {
     // NB! The collateral currency will detect mint to itself as a yield payment
-    internalPayLoss(token, from, forStrategy, viaFund, amount, collateral());
+    internalPayLoss(asset, from, forStrategy, viaFund, amount, collateral());
+    emit LiquidityLossPaid(asset, forStrategy, viaFund, amount);
   }
 
   function callStrategy(address strategy, bytes calldata callData) external aclHas(AccessFlags.LIQUIDITY_MANAGER) {

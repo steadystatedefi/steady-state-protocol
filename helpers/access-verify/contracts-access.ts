@@ -47,11 +47,16 @@ const ERC20: ContractAccessExceptions = {
   },
 };
 
-add(Factories.CollateralCurrency, {
+add(Factories.CollateralCurrencyV1, {
   functions: {
     ...ERC20.functions,
 
     pullYield: true,
+    initializeCollateralCurrency: ProtocolErrors.AlreadyInitialized,
+  },
+
+  implOverride: {
+    initializeCollateralCurrency: ProtocolErrors.InitializerBlockedOff,
   },
 });
 

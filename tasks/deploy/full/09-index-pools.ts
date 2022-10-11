@@ -16,7 +16,7 @@ deployTask(`full:deploy-index-pools`, `Deploy index pools`, __dirname).setAction
     const ac = Factories.AccessController.get();
     const pfFactory = Factories.PremiumFundV1;
     const pf = pfFactory.attach(getDeployedProxy(ProxyTypes.PREMIUM_FUND));
-    const cc = Factories.CollateralCurrency.get();
+    const cc = Factories.CollateralCurrencyV1.attach(getDeployedProxy(ProxyTypes.COLLATERAL_CCY));
 
     let index = 0;
     for (const poolInfo of cfg.IndexPools) {

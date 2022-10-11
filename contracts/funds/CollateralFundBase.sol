@@ -27,7 +27,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     IAccessController acl,
     address collateral_,
     uint256 sourceFuses
-  ) AccessHelper(acl) PricingHelper(_getPricerByAcl(acl)) {
+  ) AccessHelper(acl) {
     _collateral = IManagedCollateralCurrency(collateral_);
     _sourceFuses = sourceFuses;
   }
@@ -393,7 +393,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
   }
 
   function isPaused(address token) public view returns (bool) {
-    return _assets[token].assetFlags == type(uint8).max;
+    return _assets[token].assetFlags == (AF_ADDED);
   }
 
   function setTrustedOperator(address token, address trustee) external aclHas(AccessFlags.LP_DEPLOY) {

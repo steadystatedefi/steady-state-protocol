@@ -35,8 +35,16 @@ contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
     return impl != address(0) && _authImpls[impl] != 0;
   }
 
+  function isAuthenticImplementationOfType(address impl, bytes32 typeName) public view returns (bool) {
+    return typeName != 0 && impl != address(0) && _authImpls[impl] == typeName;
+  }
+
   function isAuthenticProxy(address proxy) public view override returns (bool) {
     return getProxyOwner(proxy) != address(0) && isAuthenticImplementation(getProxyImplementation(proxy));
+  }
+
+  function isAuthenticProxyOfType(address proxy, bytes32 typeName) public view returns (bool) {
+    return getProxyOwner(proxy) != address(0) && isAuthenticImplementationOfType(getProxyImplementation(proxy), typeName);
   }
 
   function getDefaultImplementation(bytes32 name, address ctx) public view override returns (address addr) {

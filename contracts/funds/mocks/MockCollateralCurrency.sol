@@ -21,4 +21,8 @@ contract MockCollateralCurrency is CollateralCurrency {
   function isAdmin(address addr) internal view override returns (bool) {
     return addr == _owner;
   }
+
+  function internalIsAuthenticProxy(IProxyFactory pf, address c) internal view override returns (bool) {
+    return address(pf) == address(0) || super.internalIsAuthenticProxy(pf, c);
+  }
 }

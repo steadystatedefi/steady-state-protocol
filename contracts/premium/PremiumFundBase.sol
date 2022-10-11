@@ -74,7 +74,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
 
   address[] private _knownTokens;
 
-  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) PricingHelper(_getPricerByAcl(acl)) {}
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function remoteAcl() internal view override(AccessHelper, PricingHelper) returns (IAccessController pricer) {
     return AccessHelper.remoteAcl();
