@@ -50,6 +50,7 @@ export const Factories = {
   MockReinvestManager: mock(types.MockReinvestManager__factory),
   MockStrategy: mock(types.MockStrategy__factory),
   MockAavePoolV3: mock(types.MockAavePoolV3__factory),
+  MockMinter: mock(types.MockMinter__factory),
 };
 
 loadFactories(Factories);

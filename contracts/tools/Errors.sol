@@ -71,6 +71,7 @@ library Errors {
 
   error ContractRequired();
   error ImplementationRequired();
+  error AuthenticProxyRequired();
 
   error UnknownPriceAsset(address asset);
   error PriceExpired(address asset);

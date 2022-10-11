@@ -5,11 +5,11 @@ import { formatBytes32String } from 'ethers/lib/utils';
 import { AccessFlags } from '../../../helpers/access-flags';
 import { MAX_UINT } from '../../../helpers/constants';
 import { Factories } from '../../../helpers/contract-types';
-import { IApprovalCatalog, ICancellableCoverage, ICoverageDistributor } from '../../../types';
+import { IApprovalCatalog, ICancellableCoverage, ICoverageDistributor, MockMinter } from '../../../types';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
-import { deployAccessControlState, setInsurer, State } from './setup';
+import { deployAccessControlState, makeMockMinter, setInsurer, State } from './setup';
 
 makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
   let deployer: SignerWithAddress;
@@ -94,10 +94,11 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
 
   it('ROLE: Collateral Currency', async () => {
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN);
-    await state.cc.registerLiquidityProvider(deployer.address);
+    const minter: MockMinter = await makeMockMinter(state, deployer);
+    await state.cc.registerLiquidityProvider(minter.address);
 
     await expect(state.insurer.onTransferReceived(user2.address, user2.address, 100, '')).to.be.reverted;
-    await state.cc.mintAndTransfer(user2.address, user2.address, 100, 100);
+    await minter.mintAndTransfer(user2.address, user2.address, 100, 100);
   });
 
   it('ROLE: onlySelf', async () => {
