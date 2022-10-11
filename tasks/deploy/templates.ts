@@ -13,6 +13,7 @@ import {
   setExternalNeedsSync,
 } from '../../helpers/deploy-db';
 import { NamedAttachable } from '../../helpers/factory-wrapper';
+import { ProxyTypes } from '../../helpers/proxy-types';
 import {
   ensureValidAddress,
   falsyOrZeroAddress,
@@ -60,7 +61,7 @@ export async function deployProxyFromCatalog(
     proxyCatalog.createProxy(
       zeroAddress(),
       catalogType,
-      ctx ?? Factories.CollateralCurrency.get().address,
+      ctx ?? getDeployedProxy(ProxyTypes.COLLATERAL_CCY),
       initFunctionData
     ),
     (event) => {

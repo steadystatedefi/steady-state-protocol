@@ -12,21 +12,20 @@ import { getOrDeploy, NamedDeployable } from '../../../helpers/factory-wrapper';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { falsyOrZeroAddress, mustWaitTx } from '../../../helpers/runtime-utils';
 import { deployTask } from '../deploy-steps';
-import { assignRole } from '../templates';
+import { assignRole, findOrDeployProxyFromCatalog } from '../templates';
 
 const factory = Factories.ProxyCatalog;
+const factoryCC = Factories.CollateralCurrencyV1;
 
 deployTask(
   `full:deploy-proxy-catalog`,
-  `Deploy ${factory.toString()} and default implementations`,
+  `Deploy ${factory.toString()} and ${factoryCC.toString()}`,
   __dirname
 ).setAction(
   dreAction(async ({ cfg: configName }) => {
     const cfg = loadNetworkConfig(configName as string);
 
     const accessController = Factories.AccessController.get();
-    const cc = Factories.CollateralCurrency.get();
-
     const [proxyCatalog, newDeploy] = await getOrDeploy(factory, '', [accessController.address]);
 
     await assignRole(AccessFlags.PROXY_FACTORY, proxyCatalog.address, newDeploy, accessController);
@@ -71,6 +70,18 @@ deployTask(
       [accessController.address, quoteTokenAddr],
       zeroAddress()
     );
+
+    await addImpl(ProxyTypes.COLLATERAL_CCY, Factories.CollateralCurrencyV1, [accessController.address], zeroAddress());
+
+    const ccDetails = cfg.CollateralCurrency;
+    const [cc] = await findOrDeployProxyFromCatalog(
+      factoryCC,
+      ProxyTypes.COLLATERAL_CCY,
+      factoryCC.interface.encodeFunctionData('initializeCollateralCurrency', [ccDetails.name, ccDetails.symbol]),
+      '',
+      zeroAddress()
+    );
+
     await addImpl(
       ProxyTypes.COLLATERAL_FUND,
       Factories.CollateralFundV1,

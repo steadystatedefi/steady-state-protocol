@@ -115,11 +115,7 @@ export async function deployAccessControlState(deployer: SignerWithAddress): Pro
   state.approvalCatalog = await Factories.ApprovalCatalogV1.connectAndDeploy(deployer, 'approvalCatalog', [
     state.controller.address,
   ]);
-  state.cc = await Factories.CollateralCurrency.connectAndDeploy(deployer, 'cc', [
-    state.controller.address,
-    'Collateral Currency',
-    'CC',
-  ]);
+  state.cc = await Factories.CollateralCurrencyV1.connectAndDeploy(deployer, 'cc', [state.controller.address]);
   state.oracle = await Factories.OracleRouterV1.connectAndDeploy(deployer, 'oracle', [
     state.controller.address,
     state.cc.address,
