@@ -14,7 +14,7 @@ abstract contract InsuredAccessControl is GovernedHelper, PricingHelper {
   address private _governor;
   bool private _governorIsContract;
 
-  constructor(IAccessController acl, address collateral_) GovernedHelper(acl, collateral_) PricingHelper(_getPricerByAcl(acl)) {}
+  constructor(IAccessController acl, address collateral_) GovernedHelper(acl, collateral_) {}
 
   function remoteAcl() internal view override(AccessHelper, PricingHelper) returns (IAccessController pricer) {
     return AccessHelper.remoteAcl();

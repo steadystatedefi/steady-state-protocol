@@ -7,7 +7,7 @@ import { getOrDeploy } from '../../../helpers/factory-wrapper';
 import { ProxyTypes } from '../../../helpers/proxy-types';
 import { mustWaitTx, notFalsyOrZeroAddress } from '../../../helpers/runtime-utils';
 import { deployTask } from '../deploy-steps';
-import { findOrDeployProxyFromCatalog } from '../templates';
+import { findOrDeployProxyFromCatalog, getDeployedProxy } from '../templates';
 
 const catalogName = ProxyTypes.REINVESTOR;
 
@@ -16,7 +16,7 @@ deployTask(`full:deploy-reinvestor`, `Deploy ${catalogName}`, __dirname).setActi
     const cfg = loadNetworkConfig(configName as string);
     const invConfig = cfg.Reinvestor;
 
-    const cc = Factories.CollateralCurrency.get();
+    const cc = Factories.CollateralCurrencyV1.attach(getDeployedProxy(ProxyTypes.COLLATERAL_CCY));
     let found = await cc.borrowManager();
 
     const factory = Factories.ReinvestorV1;

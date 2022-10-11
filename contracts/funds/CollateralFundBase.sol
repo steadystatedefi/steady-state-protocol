@@ -27,7 +27,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     IAccessController acl,
     address collateral_,
     uint256 sourceFuses
-  ) AccessHelper(acl) PricingHelper(_getPricerByAcl(acl)) {
+  ) AccessHelper(acl) {
     _collateral = IManagedCollateralCurrency(collateral_);
     _sourceFuses = sourceFuses;
   }
