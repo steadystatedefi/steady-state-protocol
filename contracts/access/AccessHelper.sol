@@ -7,6 +7,9 @@ import './interfaces/IAccessController.sol';
 import './AccessLib.sol';
 import './AccessFlags.sol';
 
+/// @dev A template for contracts controlled by an IAccessController.
+/// @dev The controller is set as immutable to make sure it cant be overriden.
+/// @dev It also implies that implementations for proxies (and so proxies) are bound to a specific controller.
 abstract contract AccessHelper {
   using AccessLib for IAccessController;
 

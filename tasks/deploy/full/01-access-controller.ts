@@ -14,7 +14,6 @@ deployTask(`full:deploy-access-controller`, `Deploy ${factory.toString()}`, __di
   dreAction(async ({ cfg: configName }) => {
     const cfg = loadNetworkConfig(configName as string);
     const [ac, newDeploy] = await getOrDeploy(factory, '', [0]);
-    await mustWaitTx(ac.setAnyRoleMode(false));
 
     const deployer = getDefaultDeployer();
     if (newDeploy || deployer.address !== (await ac.getTemporaryAdmin()).admin) {

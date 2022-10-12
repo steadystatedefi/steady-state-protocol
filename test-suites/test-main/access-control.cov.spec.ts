@@ -6,7 +6,7 @@ import { BigNumber } from 'ethers';
 import { AccessFlags } from '../../helpers/access-flags';
 import { Factories } from '../../helpers/contract-types';
 import { currentTime, advanceBlock } from '../../helpers/runtime-utils';
-import { AccessController, IManagedAccessController, MockCaller } from '../../types';
+import { IManagedAccessController, MockAccessController, MockCaller } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
 
@@ -30,7 +30,7 @@ const SINGLET_TWO = BigNumber.from(1).shl(29);
 const MULTILET_ONE = BigNumber.from(1).shl(65);
 
 makeSuite('Access Controller', (testEnv: TestEnv) => {
-  let controller: AccessController;
+  let controller: MockAccessController;
   let admin: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
@@ -41,7 +41,7 @@ makeSuite('Access Controller', (testEnv: TestEnv) => {
     admin = testEnv.users[0];
     user1 = testEnv.users[1];
     user2 = testEnv.users[2];
-    controller = await Factories.AccessController.connectAndDeploy(admin, 'controller', [0]);
+    controller = await Factories.MockAccessController.connectAndDeploy(admin, 'controller', [0]);
     caller1 = await Factories.MockCaller.deploy();
     caller2 = await Factories.MockCaller.deploy();
   });
