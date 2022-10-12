@@ -57,7 +57,7 @@ contract MockStrategy is IReinvestStrategy {
     IERC20(token).approve(to, amount);
   }
 
-  function attachManager(address, bool) external pure returns (bool) {
+  function attachManager(address) external pure returns (bool) {
     return true;
   }
 

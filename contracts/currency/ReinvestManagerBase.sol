@@ -38,10 +38,10 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
 
   event StrategyEnabled(address indexed strategy, bool enable);
 
+  /// @dev Enables or disables use of this strategy to invest to it. Disabled strategy can only be used to divest from it.
   function enableStrategy(address strategy, bool enable) external aclHas(AccessFlags.BORROWER_ADMIN) {
-    bool ok = IReinvestStrategy(strategy).attachManager(address(this), enable);
     if (enable) {
-      Value.require(ok);
+      Value.require(IReinvestStrategy(strategy).attachManager(address(this)));
       _strategies.add(strategy);
     } else {
       _strategies.remove(strategy);
@@ -49,10 +49,12 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
     emit StrategyEnabled(strategy, enable);
   }
 
+  /// @return true when the strategy is enabled/active.
   function isStrategy(address strategy) public view returns (bool) {
     return _strategies.contains(strategy);
   }
 
+  /// @return list of enabled/active strategies
   function strategies() external view returns (address[] memory) {
     return _strategies.values();
   }
@@ -71,6 +73,7 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
   event LiquidityYieldPulled(address indexed asset, address indexed fromStrategy, address indexed viaFund, uint256 amount);
   event LiquidityLossPaid(address indexed asset, address indexed forStrategy, address indexed viaFund, uint256 amount);
 
+  /// @dev Reinvests `amount` of `asset` from the fund `fromFund` to the strategy `toStrategy`.
   function pushTo(
     address asset,
     address fromFund,
@@ -81,17 +84,24 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
     emit LiquidityInvested(asset, fromFund, toStrategy, amount);
   }
 
+  /// @dev Divests `amount` of `asset` from the strategy `fromStrategy` to the fund `toFund`.
   function pullFrom(
     address asset,
     address fromStrategy,
     address toFund,
     uint256 amount
-  ) external aclHas(AccessFlags.LIQUIDITY_MANAGER) returns (uint256) {
+  ) external returns (uint256) {
+    if (!hasAnyAcl(msg.sender, AccessFlags.LIQUIDITY_MANAGER)) {
+      _onlyBorrowOpsOf(toFund);
+    }
+
     amount = internalPullFrom(asset, fromStrategy, toFund, amount);
     emit LiquidityDivested(asset, fromStrategy, toFund, amount);
     return amount;
   }
 
+  /// @dev Converts `maxAmount` of asset's yield (an excess above the invested amount) from the strategy 'fromStrategy'
+  /// @dev Collected yield is deposited to the fund `viaFund` and the resulting collateral is made available to claim by insurers.
   function pullYieldFrom(
     address asset,
     address fromStrategy,
@@ -104,6 +114,7 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
     return maxAmount;
   }
 
+  /// @dev Repays liquidity debt incurred by value losses of `forStrategy`. TODO WIP.
   function repayLossFrom(
     address asset,
     address from,
@@ -116,6 +127,7 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
     emit LiquidityLossPaid(asset, forStrategy, viaFund, amount);
   }
 
+  /// @dev Calls a custom method of the `strategy`. Calls to methods of IReinvestStrategy are forbidden.
   function callStrategy(address strategy, bytes calldata callData) external aclHas(AccessFlags.LIQUIDITY_MANAGER) {
     Value.require(Address.isContract(strategy));
 
