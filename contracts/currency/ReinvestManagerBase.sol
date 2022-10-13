@@ -9,6 +9,9 @@ import './interfaces/ILender.sol';
 import './interfaces/IReinvestStrategy.sol';
 import '../currency/BorrowBalancesBase.sol';
 
+/// @dev An implementation of reinvestor.
+/// @dev It can borrow underlying liquidity from collateral funds and invest it to various strategies to generate yield.
+/// @dev An operator of the reinvestor is isolated from liquidity itself and can only control its distribution.
 abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBalancesBase {
   using EnumerableSet for EnumerableSet.AddressSet;
 
