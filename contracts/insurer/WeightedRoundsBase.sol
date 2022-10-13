@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
 import '../tools/math/WadRayMath.sol';
 import '../tools/math/Math.sol';
+import '../libraries/Arrays.sol';
 import '../interfaces/IInsurerPool.sol';
 import './Rounds.sol';
 
@@ -1376,6 +1377,74 @@ abstract contract WeightedRoundsBase {
       totals += uint80(b.rounds) * b.unitPerRound;
       batchNo = b.nextBatchNo;
     }
+  }
+
+  function internalGetCoveredRateBands(address insured, bool ignoreRecent) internal view returns (uint256[] memory rateBands) {
+    Rounds.Demand[] storage demands = _demands[insured];
+    uint256 demandLength = demands.length;
+    if (demandLength == 0) {
+      return rateBands;
+    }
+
+    Rounds.Coverage memory covered = _covered[insured];
+
+    if (!ignoreRecent) {
+      DemandedCoverage memory coverage;
+      Rounds.CoveragePremium memory premium;
+
+      while (covered.lastUpdateIndex < demandLength) {
+        if (!_collectCoveredDemandSlot(demands[covered.lastUpdateIndex], coverage, covered, premium)) {
+          break;
+        }
+      }
+    }
+
+    // the upper limit
+    uint256 lastIndex = covered.lastUpdateIndex;
+    uint256 unitCount = covered.lastUpdateRounds;
+    uint256 bandCount = lastIndex;
+
+    if (unitCount != 0) {
+      bandCount++;
+    } else if (lastIndex > 0) {
+      unchecked {
+        lastIndex--;
+      }
+    } else {
+      return rateBands;
+    }
+
+    rateBands = new uint256[](bandCount);
+    bandCount = 0;
+
+    uint256 lastRate = uint256(1) << Rounds.DEMAND_RATE_BITS;
+
+    Rounds.Demand memory d;
+    for (;;) {
+      d = demands[lastIndex];
+      if (unitCount == 0) {
+        unitCount = d.rounds;
+      }
+      unitCount *= d.unitPerRound;
+
+      if (lastRate != d.premiumRate) {
+        lastRate = d.premiumRate;
+        rateBands[bandCount] = (lastRate << (256 - Rounds.DEMAND_RATE_BITS)) | unitCount;
+        bandCount++;
+      } else {
+        rateBands[bandCount - 1] += unitCount;
+      }
+
+      if (lastIndex == 0) {
+        break;
+      }
+      unchecked {
+        lastIndex--;
+      }
+      unitCount = 0;
+    }
+
+    Arrays.truncateUint256(rateBands, bandCount);
   }
 
   error DemandMustBeCancelled();

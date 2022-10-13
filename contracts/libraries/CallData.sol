@@ -7,7 +7,6 @@ library CallData {
     assembly {
       calldatacopy(0, data.offset, 4)
       sig := mload(0)
-      // sig := mload(add(_data, 32))
     }
   }
 }

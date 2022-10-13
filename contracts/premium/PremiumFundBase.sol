@@ -74,7 +74,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
 
   address[] private _knownTokens;
 
-  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) PricingHelper(_getPricerByAcl(acl)) {}
+  constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
 
   function remoteAcl() internal view override(AccessHelper, PricingHelper) returns (IAccessController pricer) {
     return AccessHelper.remoteAcl();
@@ -728,11 +728,14 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
 
     for (uint256 i = 0; i < instructions.length; i++) {
       address targetToken = instructions[i].targetToken;
+      uint256 tokenAmount = tokenAmounts[i];
 
-      SafeERC20.safeTransfer(IERC20(targetToken), instructions[i].recipient, tokenAmounts[i]);
+      if (tokenAmount > 0) {
+        SafeERC20.safeTransfer(IERC20(targetToken), instructions[i].recipient, tokenAmount);
+      }
 
-      if (fees[i] > 0) {
-        _addFee(config, targetToken, fees[i]);
+      if ((tokenAmount = fees[i]) > 0) {
+        _addFee(config, targetToken, tokenAmount);
       }
     }
   }
