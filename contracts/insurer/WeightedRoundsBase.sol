@@ -252,6 +252,7 @@ abstract contract WeightedRoundsBase {
         _removeFromPullable(params.insured, params.prevPullBatch);
       }
       if (newPullBatch != 0) {
+        console.log('puullable');
         _addToPullable(params.insured, newPullBatch);
       }
     }
@@ -1612,6 +1613,8 @@ abstract contract WeightedRoundsBase {
   }
 
   function internalPullDemandCandidate(uint256 loopLimit, bool trimOnly) internal returns (address insured, uint256) {
+    console.log('pull candidate');
+    console.log('pullableBatchNo', _pullableBatchNo);
     uint64 batchNo;
     uint64 pullableBatchNo = batchNo = _pullableBatchNo;
     if (batchNo == 0) {

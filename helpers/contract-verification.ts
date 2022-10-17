@@ -94,7 +94,7 @@ export const verifyProxy = async (proxyAddr: string, implAddr: string): Promise<
 async function internalVerifyProxy(proxyAddr: string, implAddr: string) {
   const { config } = DRE;
   const apiKey = config.etherscan.apiKey as string;
-  const endpoints = await getEtherscanEndpoints(DRE.network.provider, DRE.network.name, chainConfig, []);
+  const endpoints = await getEtherscanEndpoints(DRE.network.provider, DRE.network.name, chainConfig);
   const baseUrl = `${endpoints.urls.apiURL}?module=contract`;
 
   let guid: string;

@@ -4,6 +4,8 @@ pragma solidity ^0.8.4;
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
+import 'hardhat/console.sol';
+
 /// @title Insured Join Base
 /// @notice Handles tracking and joining insurers
 abstract contract InsuredJoinBase is IInsuredPool {
@@ -58,6 +60,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     uint256 maxAmount,
     uint256 loopLimit
   ) external override returns (bool) {
+    console.log('pull called');
     uint16 status = getAccountStatus(msg.sender);
     if (status <= INDEX_MAX) {
       Access.require(status > 0);
