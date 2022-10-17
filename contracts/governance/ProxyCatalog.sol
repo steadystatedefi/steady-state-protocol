@@ -12,6 +12,7 @@ import '../access/AccessHelper.sol';
 import '../libraries/Strings.sol';
 import './interfaces/IProxyCatalog.sol';
 
+/// @dev Tracks proxies and registered (authentic) implementations.
 contract ProxyCatalog is IManagedProxyCatalog, ProxyAdminBase, AccessHelper {
   mapping(address => address) private _proxyOwners; // [proxy]
 

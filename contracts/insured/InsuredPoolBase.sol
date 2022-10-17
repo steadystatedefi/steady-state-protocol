@@ -334,7 +334,7 @@ abstract contract InsuredPoolBase is
   }
 
   function canClaimInsurance(address claimedBy) public view virtual override returns (bool) {
-    return claimedBy == governorAccount();
+    return internalHasAppliedApplication() && claimedBy == governorAccount();
   }
 
   event CoverageDemandOffered(address indexed offeredBy, uint256 offeredAmount, uint256 acceptedAmount, uint256 rate);
