@@ -143,8 +143,8 @@ abstract contract BorrowBalancesBase {
     return amount;
   }
 
-  /// @dev Moves mot more that `maxAmount` of token from a strategy `fromStrategy` to a lender `viaFund` by depositYield to the address `to`.
-  /// @dev This method will only take an amount above the amount invested by internalPushTo.
+  /// @dev Moves not more that `maxAmount` of token from a strategy `fromStrategy` to a lender `viaFund` by calling depositYield to the address `to`.
+  /// @dev This method will only take an amount above the amount invested by internalPushTo (the amount borrowed).
   /// @return amount that was set to the address `to`.
   function internalPullYieldFrom(
     address token,

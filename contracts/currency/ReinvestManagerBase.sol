@@ -41,7 +41,7 @@ abstract contract ReinvestManagerBase is AccessHelper, Collateralized, BorrowBal
 
   event StrategyEnabled(address indexed strategy, bool enable);
 
-  /// @dev Enables or disables use of this strategy to invest to it. Disabled strategy can only be used to divest from it.
+  /// @dev Enables or disables use of this strategy for investment. Disabled strategy can only be used to divest from it.
   function enableStrategy(address strategy, bool enable) external aclHas(AccessFlags.BORROWER_ADMIN) {
     if (enable) {
       Value.require(IReinvestStrategy(strategy).attachManager(address(this)));
