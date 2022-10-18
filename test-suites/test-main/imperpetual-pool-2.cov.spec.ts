@@ -207,7 +207,7 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
   it.only('Auto-pull coverage demand', async () => {
     await pool.setMaxAdvanceUnits(15000);
     await pool.setUnitsPerAutoPull(1000);
-    const demand = BigNumber.from(10000 * unitSize);
+    const demand = BigNumber.from(unitSize).mul(10000);
     const insureds: MockInsuredPool[] = [];
 
     const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
@@ -215,24 +215,15 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
     insureds.push(await joinPool(riskWeight, demand, premiumToken));
     insureds.push(await joinPool(riskWeight, demand, premiumToken));
 
-    const initialDemand = (await pool.getTotals()).coverage.totalDemand.div(3);
-    await cc.mintAndTransfer(user.address, pool.address, initialDemand.mul(3), 0);
+    const totals0 = await pool.getTotals();
 
-    // console.log(await insureds[0].receivableByReconcileWithInsurers(0,0));
-    await insureds[0].reconcileWithInsurers(0,0);
-    await insureds[1].reconcileWithInsurers(0,0);
-    await insureds[2].reconcileWithInsurers(0,0);
+    const initialDemand = totals0.coverage.totalDemand.div(3);
+    await cc.mintAndTransfer(user.address, pool.address, demand.mul(3), 0);
 
-    // console.log('---');
-    // console.log(await pool.getTotals());
-    console.log((await insureds[0].rateBands()).bands);
-
+    const totals1 = await pool.getTotals();
     await cc.mintAndTransfer(user.address, pool.address, demand.sub(initialDemand).mul(3), 0);
-    // await pool.pushCoverageExcess()
-    await insureds[0].reconcileWithInsurers(0,0);
-    console.log('---');
-    console.log(await pool.getTotals());
-    console.log((await insureds[0].rateBands()).bands);
-    // console.log(await insureds[0].receivableByReconcileWithInsurers(0,0));
+    const totals2 = await pool.getTotals();
+
+    expect(totals2.coverage.totalDemand).gt(totals1.coverage.totalDemand);
   });
 });

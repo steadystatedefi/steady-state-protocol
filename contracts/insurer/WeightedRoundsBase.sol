@@ -252,7 +252,7 @@ abstract contract WeightedRoundsBase {
         _removeFromPullable(params.insured, params.prevPullBatch);
       }
       if (newPullBatch != 0) {
-        console.log('puullable');
+        console.log('pullable', newPullBatch, params.insured);
         _addToPullable(params.insured, newPullBatch);
       }
     }
@@ -1613,7 +1613,6 @@ abstract contract WeightedRoundsBase {
   }
 
   function internalPullDemandCandidate(uint256 loopLimit, bool trimOnly) internal returns (address insured, uint256) {
-    console.log('pull candidate');
     console.log('pullableBatchNo', _pullableBatchNo);
     uint64 batchNo;
     uint64 pullableBatchNo = batchNo = _pullableBatchNo;
@@ -1625,9 +1624,6 @@ abstract contract WeightedRoundsBase {
       loopLimit--;
 
       Rounds.Batch storage batch = _batches[batchNo];
-      if (!batch.state.isFull()) {
-        break;
-      }
 
       EnumerableSet.AddressSet storage demands = _pullableDemands[batchNo];
       for (uint256 n = demands.length(); n > 0; ) {
@@ -1646,7 +1642,7 @@ abstract contract WeightedRoundsBase {
         }
         loopLimit--;
       }
-      if (insured != address(0)) {
+      if (insured != address(0) || !batch.state.isFull()) {
         break;
       }
 
