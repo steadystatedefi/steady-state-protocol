@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 
 import { AccessFlags } from '../../../helpers/access-flags';
+import { ProtocolErrors } from '../../../helpers/contract-errors';
 import { MockMinter } from '../../../types';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
@@ -48,12 +49,20 @@ makeSuite('access: Collateral Currency', (testEnv: TestEnv) => {
     await state.controller.grantRoles(deployer.address, AccessFlags.LP_DEPLOY);
     await expect(minter.mint(user2.address, 100)).reverted;
     await expect(minter.mintAndTransfer(user2.address, user3.address, 0, 0)).reverted;
+    await expect(minter.mintAndTransfer(user2.address, user2.address, 0, 0)).reverted;
     await expect(minter.burn(user2.address, 100)).reverted;
 
     await state.cc.registerLiquidityProvider(minter.address);
     await minter.mint(user2.address, 100);
-    await minter.mintAndTransfer(user2.address, user3.address, 0, 0);
     await minter.burn(user2.address, 100);
+
+    await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN);
+    await state.cc.registerInsurer(state.insurer.address);
+    await minter.mintAndTransfer(user2.address, state.insurer.address, 300, 0);
+    expect(await state.cc.balanceOf(state.insurer.address)).eq(300);
+    await expect(minter.burn(state.insurer.address, 300)).revertedWith(
+      testEnv.covReason(ProtocolErrors.BalanceOperationRestricted)
+    );
   });
 
   it('ROLE: Borrow Manager', async () => {

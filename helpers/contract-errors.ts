@@ -6,6 +6,7 @@ export const ProtocolErrors = {
   NotSupported: 'NotSupported()',
   NotImplemented: 'NotImplemented()',
   AccessDenied: 'AccessDenied()',
+  BalanceOperationRestricted: 'BalanceOperationRestricted()',
 
   ExpiredPermit: 'ExpiredPermit()',
   WrongPermitSignature: 'WrongPermitSignature()',
