@@ -11,7 +11,7 @@ import { makeSuite, TestEnv } from '../setup/make-suite';
 
 import { deployAccessControlState, State } from './setup';
 
-makeSuite('access: Oracle Router', (testEnv: TestEnv) => {
+makeSuite('access: Approval Catalog', (testEnv: TestEnv) => {
   let deployer: SignerWithAddress;
   let state: State;
   let user2: SignerWithAddress;
@@ -72,6 +72,30 @@ makeSuite('access: Oracle Router', (testEnv: TestEnv) => {
     const claimcid = formatBytes32String('claim1');
     const insured: InsuredPoolV1 = await makeInsured(cid);
 
+    {
+      const policy: IApprovalCatalog.ApprovedPolicyStruct = {
+        insured: insured.address,
+        requestCid: cid,
+        approvalCid: cid,
+        applied: false,
+        policyName: 'policy 1',
+        policySymbol: 'PL1',
+        riskLevel: 0,
+        basePremiumRate: 1,
+        premiumToken: state.premToken.address,
+        minPrepayValue: 1,
+        rollingAdvanceWindow: 1,
+        expiresAt: 2 ** 31,
+      };
+
+      await state.controller.grantRoles(deployer.address, AccessFlags.UNDERWRITER_POLICY);
+      await state.approvalCatalog.approveApplication(policy);
+
+      // NB! Insured requires an applied application to accept claims
+      await insured.applyApprovedApplication();
+      await state.controller.revokeRoles(deployer.address, AccessFlags.UNDERWRITER_POLICY);
+    }
+
     const claim: IApprovalCatalog.ApprovedClaimStruct = {
       requestCid: claimcid,
       approvalCid: claimcid,
@@ -81,11 +105,12 @@ makeSuite('access: Oracle Router', (testEnv: TestEnv) => {
 
     await expect(state.approvalCatalog.connect(user2).submitClaim(insured.address, cid, 0)).reverted;
     await expect(state.approvalCatalog.cancelLastPermit(insured.address)).reverted;
-    await state.approvalCatalog.submitClaim(insured.address, cid, 0);
 
+    await state.approvalCatalog.submitClaim(insured.address, cid, 0);
     await expect(state.approvalCatalog.approveClaim(insured.address, claim)).reverted;
 
     await state.controller.grantRoles(deployer.address, AccessFlags.UNDERWRITER_CLAIM);
+
     await state.approvalCatalog.approveClaim(insured.address, claim);
     await state.approvalCatalog.cancelLastPermit(insured.address);
   });

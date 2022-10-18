@@ -6,6 +6,7 @@ import '../../tools/Errors.sol';
 import './ReinvestStrategyBase.sol';
 import './AaveTypes.sol';
 
+/// @dev Reinvestment strategy to AAVE pool, support v2 and v3
 contract AaveStrategy is ReinvestStrategyBase {
   IAaveLendingPool private immutable _pool;
   uint8 private immutable _version;
@@ -23,6 +24,7 @@ contract AaveStrategy is ReinvestStrategyBase {
     _version = version;
   }
 
+  /// @inheritdoc IReinvestStrategy
   function connectAssetBefore(address token) external override onlyManager returns (bool) {
     address aToken;
     if (_version == 3) {
@@ -34,6 +36,7 @@ contract AaveStrategy is ReinvestStrategyBase {
     return aToken != address(0);
   }
 
+  /// @inheritdoc IReinvestStrategy
   function connectAssetAfter(address token) external override onlyManager {
     State.require(_reserveTokens[token] != address(0));
 
@@ -41,6 +44,7 @@ contract AaveStrategy is ReinvestStrategyBase {
     _pool.setUserUseReserveAsCollateral(token, false);
   }
 
+  /// @inheritdoc IReinvestStrategy
   function investFrom(
     address token,
     address from,
@@ -51,6 +55,7 @@ contract AaveStrategy is ReinvestStrategyBase {
     _pool.deposit(token, amount, address(this), 0);
   }
 
+  /// @inheritdoc IReinvestStrategy
   function approveDivest(
     address token,
     address to,
@@ -72,11 +77,13 @@ contract AaveStrategy is ReinvestStrategyBase {
     }
   }
 
+  /// @inheritdoc IReinvestStrategy
   function investedValueOf(address token) external view override returns (uint256) {
     address aToken = _reserveTokens[token];
     return aToken == address(0) ? 0 : IERC20(aToken).balanceOf(address(this));
   }
 
+  /// @inheritdoc IReinvestStrategy
   function name() external view returns (string memory) {
     if (_version == 3) {
       return 'AAVE v3';
@@ -87,10 +94,12 @@ contract AaveStrategy is ReinvestStrategyBase {
     }
   }
 
+  /// @dev Reward-related custom call to AAVE on behalf of this strategy
   function setRewardClaimer(address controller, address claimer) external onlyManager {
     IAaveRewardController(controller).setClaimer(address(this), claimer);
   }
 
+  /// @dev Reward-related custom call to AAVE on behalf of this strategy
   function claimAllRewards(
     address controller,
     address[] calldata assets,

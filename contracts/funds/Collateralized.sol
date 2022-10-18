@@ -7,6 +7,7 @@ import '../interfaces/IManagedCollateralCurrency.sol';
 import '../interfaces/ICollateralized.sol';
 import '../currency/interfaces/ISubBalance.sol';
 
+/// @dev A template for contracts operating / depending on a collateral currency
 abstract contract Collateralized is ICollateralized {
   address private immutable _collateral;
 
@@ -14,6 +15,7 @@ abstract contract Collateralized is ICollateralized {
     _collateral = collateral_;
   }
 
+  /// @return an address of a collateral currency this contract is using
   function collateral() public view virtual override returns (address) {
     return _collateral;
   }

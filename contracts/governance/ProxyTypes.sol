@@ -10,6 +10,7 @@ import '../interfaces/ICollateralCurrencyInit.sol';
 import '../interfaces/IReinvestorInit.sol';
 import '../insurer/WeightedPoolConfig.sol';
 
+/// @dev A set of proxy types and initializers.
 library ProxyTypes {
   bytes32 internal constant APPROVAL_CATALOG = 'APPROVAL_CATALOG';
   bytes32 internal constant ORACLE_ROUTER = 'ORACLE_ROUTER';

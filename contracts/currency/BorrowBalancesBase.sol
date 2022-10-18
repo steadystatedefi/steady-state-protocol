@@ -10,6 +10,7 @@ import '../tools/math/WadRayMath.sol';
 import './interfaces/ILender.sol';
 import './interfaces/IReinvestStrategy.sol';
 
+/// @dev A template that facilitates liquidity borrowing between ILender(s) and IReinvestStrategy(s)
 abstract contract BorrowBalancesBase {
   using Math for uint256;
   using WadRayMath for uint256;
@@ -42,6 +43,7 @@ abstract contract BorrowBalancesBase {
 
   error AssetIsNotSupported(address asset, address strategy);
 
+  /// @dev Moves `amount` of token from a lender `fromFund` to a strategy `toStrategy`
   function internalPushTo(
     address token,
     address fromFund,
@@ -85,6 +87,7 @@ abstract contract BorrowBalancesBase {
     }
   }
 
+  /// @dev Moves `amount` of token from a strategy `fromStrategy` to a lender `toFund`
   function internalPullFrom(
     address token,
     address fromStrategy,
@@ -140,6 +143,9 @@ abstract contract BorrowBalancesBase {
     return amount;
   }
 
+  /// @dev Moves not more that `maxAmount` of token from a strategy `fromStrategy` to a lender `viaFund` by calling depositYield to the address `to`.
+  /// @dev This method will only take an amount above the amount invested by internalPushTo (the amount borrowed).
+  /// @return amount that was set to the address `to`.
   function internalPullYieldFrom(
     address token,
     address fromStrategy,
@@ -162,6 +168,7 @@ abstract contract BorrowBalancesBase {
     Sanity.require(IERC20(token).allowance(fromStrategy, viaFund) == 0);
   }
 
+  /// @dev Repay an `amount` of a borrowed balance of a `token` for a strategy `forStrategy`
   function internalPayLoss(
     address token,
     address from,
@@ -172,13 +179,14 @@ abstract contract BorrowBalancesBase {
   ) internal {
     TokenBorrow storage borr = _borrowings[token][forStrategy];
     borr.total -= amount;
+    // TODO should it cover borrowed balance of the fund as well?
     ILender(viaFund).depositYield(token, from, amount, to);
   }
 
+  /// @return totalBorrowed amount of `token` by the `strategy`
+  /// @return totalRepayable amount of `token` owned by the `strategy`
   function balancesOf(address token, address strategy) public view returns (uint256 totalBorrowed, uint256 totalRepayable) {
     TokenBorrow storage borr = _borrowings[token][strategy];
     return (borr.total, IReinvestStrategy(strategy).investedValueOf(token));
   }
-
-  // TODO func requestLiquidity
 }

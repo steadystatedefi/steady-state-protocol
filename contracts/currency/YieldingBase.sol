@@ -4,6 +4,7 @@ pragma solidity ^0.8.10;
 import '../tools/math/WadRayMath.sol';
 import './InvestmentCurrencyBase.sol';
 
+/// @dev A template to calculate weighted distribution of non-steaming yield.
 abstract contract YieldingBase {
   using Math for uint256;
   using WadRayMath for uint256;

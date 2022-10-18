@@ -92,6 +92,11 @@ contract CollateralCurrency is YieldingCurrencyBase, IManagedCollateralCurrency 
     uint256 mintAmount,
     uint256 balanceAmount
   ) external override onlyWithFlags(FLAG_MINT) {
+    // TODO enable this check and fix tests
+    // if (onBehalf != msg.sender) {
+    //   _onlyInvestManager();
+    // }
+
     if (balanceAmount == 0) {
       _mintAndTransfer(onBehalf, recipient, mintAmount);
     } else {

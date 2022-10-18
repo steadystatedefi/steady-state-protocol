@@ -7,7 +7,6 @@ import { MAX_UINT, WAD } from '../../../helpers/constants';
 import { Events } from '../../../helpers/contract-events';
 import { Factories } from '../../../helpers/contract-types';
 import {
-  AccessController,
   ApprovalCatalog,
   CollateralCurrency,
   CollateralFundV1,
@@ -22,6 +21,7 @@ import {
   ProxyCatalog,
   ReinvestorV1,
 } from '../../../types';
+import { MockAccessController } from '../../../types/contracts/access/mocks/MockAccessController';
 import { CollateralFundV1Interface } from '../../../types/contracts/funds/CollateralFundV1';
 import { WeightedPoolParamsStruct } from '../../../types/contracts/insurer/ImperpetualPoolBase';
 import { ImperpetualPoolV1Interface } from '../../../types/contracts/insurer/ImperpetualPoolV1';
@@ -31,7 +31,7 @@ const insuredImplName = formatBytes32String('INSURED_POOL');
 const fundImplName = formatBytes32String('FUND');
 
 export type State = {
-  controller: AccessController;
+  controller: MockAccessController;
   proxyCatalog: ProxyCatalog;
   approvalCatalog: ApprovalCatalog;
   cc: CollateralCurrency;
@@ -108,7 +108,7 @@ async function populateProxyCatalog(state: State, deployer: SignerWithAddress) {
 export async function deployAccessControlState(deployer: SignerWithAddress): Promise<State> {
   const state: State = {} as State;
   state.fundFuses = 2;
-  state.controller = await Factories.AccessController.connectAndDeploy(deployer, 'controller', [0]);
+  state.controller = await Factories.MockAccessController.connectAndDeploy(deployer, 'controller', [0]);
   state.proxyCatalog = await Factories.ProxyCatalog.connectAndDeploy(deployer, 'proxyCatalog', [
     state.controller.address,
   ]);
