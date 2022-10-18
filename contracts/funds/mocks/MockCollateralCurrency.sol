@@ -22,7 +22,13 @@ contract MockCollateralCurrency is CollateralCurrency {
     return addr == _owner;
   }
 
+  bool private _ignoreAuthenticity;
+
+  function ignoreAuthenticity() external {
+    _ignoreAuthenticity = true;
+  }
+
   function internalIsAuthenticProxy(IProxyFactory pf, address c) internal view override returns (bool) {
-    return address(pf) == address(0) || super.internalIsAuthenticProxy(pf, c);
+    return address(pf) == address(0) || _ignoreAuthenticity || super.internalIsAuthenticProxy(pf, c);
   }
 }

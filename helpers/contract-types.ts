@@ -52,6 +52,7 @@ export const Factories = {
   MockStrategy: mock(types.MockStrategy__factory),
   MockAavePoolV3: mock(types.MockAavePoolV3__factory),
   MockMinter: mock(types.MockMinter__factory),
+  MockERC1363Receiver: mock(types.MockERC1363Receiver__factory),
 };
 
 loadFactories(Factories);

@@ -92,10 +92,7 @@ contract CollateralCurrency is YieldingCurrencyBase, IManagedCollateralCurrency 
     uint256 mintAmount,
     uint256 balanceAmount
   ) external override onlyWithFlags(FLAG_MINT) {
-    // TODO enable this check and fix tests
-    // if (onBehalf != msg.sender) {
-    //   _onlyInvestManager();
-    // }
+    _onlyInvestManager(recipient);
 
     if (balanceAmount == 0) {
       _mintAndTransfer(onBehalf, recipient, mintAmount);
@@ -114,12 +111,12 @@ contract CollateralCurrency is YieldingCurrencyBase, IManagedCollateralCurrency 
     _burn(account, amount);
   }
 
-  function _onlyInvestManager() private view {
-    Access.require(internalGetFlags(msg.sender) & FLAG_MANAGER != 0);
+  function _onlyInvestManager(address sender) private view {
+    Access.require(internalGetFlags(sender) & FLAG_MANAGER != 0);
   }
 
   modifier onlyInvestManager() {
-    _onlyInvestManager();
+    _onlyInvestManager(msg.sender);
     _;
   }
 
