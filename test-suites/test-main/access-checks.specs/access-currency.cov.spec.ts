@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { zeroAddress } from 'ethereumjs-util';
 
 import { AccessFlags } from '../../../helpers/access-flags';
 import { ProtocolErrors } from '../../../helpers/contract-errors';
@@ -23,24 +24,46 @@ makeSuite('access: Collateral Currency', (testEnv: TestEnv) => {
     await setInsurer(state, deployer, deployer.address);
   });
 
+  it('ROLE: Unregister without a role', async () => {
+    await expect(state.cc.unregister(state.fund.address)).to.be.reverted;
+    await expect(state.cc.unregister(state.insurer.address)).to.be.reverted;
+    await expect(state.cc.unregister(zeroAddress())).to.be.reverted;
+  });
+
   it('ROLE: LP Deploy', async () => {
     await expect(state.cc.registerLiquidityProvider(state.fund.address)).to.be.reverted;
-    await expect(state.cc.unregister(state.fund.address)).to.be.reverted;
 
     await state.controller.grantRoles(deployer.address, AccessFlags.LP_DEPLOY);
+    await state.cc.unregister(zeroAddress());
+
     await state.cc.registerLiquidityProvider(state.fund.address);
     await state.cc.unregister(state.fund.address);
-    // await state.cc.connect(user2).unregister(user2.address); // cannot test without fund implementing unregister
+    await state.cc.unregister(state.fund.address);
   });
 
   it('ROLE: Insurer Admin', async () => {
     await expect(state.cc.registerInsurer(state.insurer.address)).to.be.reverted;
-    await expect(state.cc.unregister(state.insurer.address)).to.be.reverted;
 
     await state.controller.grantRoles(deployer.address, AccessFlags.INSURER_ADMIN);
+    await state.cc.unregister(zeroAddress());
+
     await state.cc.registerInsurer(state.insurer.address);
     await state.cc.unregister(state.insurer.address);
+    await state.cc.unregister(state.insurer.address);
+  });
+
+  it('ROLE: LP + Insurer', async () => {
+    // This is not a usable combination ...
+    await state.controller.grantRoles(deployer.address, AccessFlags.LP_DEPLOY + AccessFlags.INSURER_ADMIN);
+    await state.cc.registerInsurer(state.insurer.address);
+    await state.cc.registerLiquidityProvider(state.insurer.address);
+
+    await state.controller.revokeRoles(deployer.address, AccessFlags.LP_DEPLOY);
+
     await expect(state.cc.unregister(state.insurer.address)).to.be.reverted;
+    await state.controller.grantRoles(deployer.address, AccessFlags.LP_DEPLOY);
+    await state.cc.unregister(state.insurer.address);
+    await state.cc.unregister(state.insurer.address);
   });
 
   it('ROLE: mint and burn', async () => {

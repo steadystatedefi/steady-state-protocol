@@ -35,6 +35,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   uint16 internal constant FLAG_MINT = 1 << 3;
   /// @dev Marks an account allowed to burn
   uint16 internal constant FLAG_BURN = 1 << 4;
+  uint16 internal constant FLAGS_MASK = type(uint16).max;
   /// @dev This mark is returened when an account has escrow sub-balance.
   uint256 internal constant FLAG_RESTRICTED = 1 << 16;
 
