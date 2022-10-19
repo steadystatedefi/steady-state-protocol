@@ -204,7 +204,7 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
     expect(b1).lte(b2compensated);
   });
 
-  it.only('Auto-pull coverage demand', async () => {
+  it('Auto-pull coverage demand (coverage provided)', async () => {
     await pool.setMaxAdvanceUnits(15000);
     await pool.setUnitsPerAutoPull(1000);
     const demand = BigNumber.from(unitSize).mul(10000);
@@ -218,10 +218,30 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
     const totals0 = await pool.getTotals();
 
     const initialDemand = totals0.coverage.totalDemand.div(3);
-    await cc.mintAndTransfer(user.address, pool.address, demand.mul(3), 0);
+    await cc.mintAndTransfer(user.address, pool.address, initialDemand.mul(3), 0);
 
     const totals1 = await pool.getTotals();
     await cc.mintAndTransfer(user.address, pool.address, demand.sub(initialDemand).mul(3), 0);
+    const totals2 = await pool.getTotals();
+
+    expect(totals2.coverage.totalDemand).gt(totals1.coverage.totalDemand);
+  });
+
+  it('Auto-pull coverage demand (push excess)', async () => {
+    await pool.setMaxAdvanceUnits(15000);
+    await pool.setUnitsPerAutoPull(1000);
+    const demand = BigNumber.from(unitSize).mul(10000);
+    const insureds: MockInsuredPool[] = [];
+
+    const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+
+    await cc.mintAndTransfer(user.address, pool.address, demand.mul(3), 0);
+
+    const totals1 = await pool.getTotals();
+    await pool.pushCoverageExcess();
     const totals2 = await pool.getTotals();
 
     expect(totals2.coverage.totalDemand).gt(totals1.coverage.totalDemand);
