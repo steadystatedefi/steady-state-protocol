@@ -6,6 +6,8 @@ import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
 import './interfaces/IManagedPriceRouter.sol';
 
+/// @dev A template to track dependencines and status of 'blown' price sources, i.e. sources where price was too volatile etc.
+/// @dev A price source is a member of a few groups (upto 256). A price user can check any groups and can manage (own) some of groups.
 abstract contract FuseBox {
   using WadRayMath for uint256;
   using PercentageMath for uint256;

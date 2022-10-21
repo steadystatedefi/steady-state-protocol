@@ -5,22 +5,35 @@ import '../tools/Errors.sol';
 import '../tools/math/PercentageMath.sol';
 import '../tools/math/WadRayMath.sol';
 
+/// @dev A template to work with encoded information about price sources.
 abstract contract PriceSourceBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 
-  // struct Source {
-  //   uint4 sourceType;
-  //   uint6 decimals;
-  //   uint6 internalFlags;
-  //   uint8 maxValidity; // minutes
+  // Encoding of source info uses overlapping fields in the structs, hence it is encoded manually
+  /* 
+  struct Source {
+    uint4 sourceType; // source type
+    uint6 decimals; // with offset of 18, i.e. 0 => 18, 1 => 19, 2 => 20 ... 45 => 63, 46 => 0, 47=> 1 ... 63 = 17
+    uint6 internalFlags;
+    uint8 maxValidity; // minutes
 
-  //   address source;
-  //   uint8 callFlags;
+    union {
+      [sourceType == 0]: struct {
+        uint32 updatedAt;
+        uint200 staticValue;
+      }
 
-  //   uint8 tolerance;
-  //   uint56 target;
-  // }
+      [otherwise]: struct {
+        address source;
+        uint8 callFlags;
+
+        uint8 tolerance;
+        uint56 target;
+      }
+    }     
+  } 
+  */
 
   uint8 private constant SOURCE_TYPE_OFS = 0;
   uint8 private constant SOURCE_TYPE_BIT = 4;
@@ -53,23 +66,12 @@ abstract contract PriceSourceBase {
   uint256 private constant CONFIG_MASK = CONFIG_AND_SOURCE_TYPE_MASK & ~SOURCE_TYPE_MASK;
   uint256 private constant INVERSE_CONFIG_MASK = ~CONFIG_MASK;
 
-  // struct StaticSource {
-  //   uint8 sourceType == 0;
-  //   uint6 decimals;
-  //   uint6 internalFlags;
-  //   uint8 maxValidity; // minutes
-
-  //   uint32 updatedAt;
-  //   uint200 staticValue;
-  // }
-
   struct CallHandler {
     function(uint8, address, address) internal view returns (uint256, uint32) handler;
   }
 
   mapping(address => uint256) private _encodedSources;
   mapping(address => address) private _crossTokens;
-  mapping(address => uint256) private _fuseMasks;
 
   function internalReadSource(address token) internal view returns (uint256, uint8) {
     return _readSource(token, true);

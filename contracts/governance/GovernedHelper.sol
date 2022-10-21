@@ -38,6 +38,7 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
     _onlyGovernorOrAcl(flags, false);
   }
 
+  /// @dev global ACL is checked first, then governor's one. The governor can NOT override global ACL.
   modifier onlyAclOrGovernor(uint256 flags) {
     _onlyAclOrGovernor(flags);
     _;
@@ -47,6 +48,7 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
     _onlyGovernorOrAcl(flags, true);
   }
 
+  /// @dev governor's ACL is checked first, then the global one. The governor CAN override global ACL.
   modifier onlyGovernorOr(uint256 flags) {
     _onlyGovernorOr(flags);
     _;

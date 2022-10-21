@@ -5,7 +5,9 @@ import '../tools/Errors.sol';
 import '../access/AccessHelper.sol';
 import './interfaces/IManagedPriceRouter.sol';
 
+/// @dev A template to access a pricer
 abstract contract PricingHelper {
+  /// @return address of a price oracle / router
   function priceOracle() external view returns (address) {
     return address(getPricer());
   }
