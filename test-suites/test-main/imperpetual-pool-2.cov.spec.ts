@@ -227,7 +227,7 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
     expect(totals2.coverage.totalDemand).gt(totals1.coverage.totalDemand);
   });
 
-  it.only('Auto-pull coverage demand (push excess)', async () => {
+  it('Auto-pull coverage demand (push excess)', async () => {
     await pool.setMaxAdvanceUnits(15000);
     await pool.setUnitsPerAutoPull(1000);
     const demand = BigNumber.from(unitSize).mul(10000);

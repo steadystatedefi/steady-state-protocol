@@ -216,7 +216,6 @@ abstract contract WeightedPoolBase is
     for (; loopLimit > 0; ) {
       address insured;
       (insured, loopLimit) = super.internalPullDemandCandidate(loopLimit, false);
-      console.log('candidate', insured);
       if (insured == address(0)) {
         break;
       }
