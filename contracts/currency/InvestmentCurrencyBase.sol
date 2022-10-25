@@ -6,15 +6,15 @@ import '../tools/tokens/ERC20MintableBalancelessBase.sol';
 import '../tools/tokens/IERC1363.sol';
 import './interfaces/ISubBalance.sol';
 
-/** 
-  @dev This template provides a logic to track managed balances and escrows.
-  Managed balances - are balances which are unlikely to be redeemed / swapped, i.e. balances directly or indirectly managed by an insurer. 
+/**
+  @dev This template provides logic to track managed balances and escrows.
+  Managed balances are balances which are unlikely to be redeemed / swapped, i.e. balances directly or indirectly managed by an insurer.
   Underlyings of such balances can be more-or-less safely reinvested.
   Unmanaged balances, i.e. balances of users, are considered as non-reinvestable.
 
-  The escrow sub-balances are for safety reasons. An escrow holds a portion of manager's balance reserved for an account, 
-  i.e. a portion of coverage from insurer for an insured policy. This reduces amount of collateral currency residing on the insurer. 
-  An insurer can add to the escrow or can close it, while insured can not use the escrow'ed balance until it is close.
+  The escrow sub-balances are for safety reasons. An escrow holds a portion of manager's balance reserved for an account,
+  i.e. a portion of coverage from insurer for an insured policy. This reduces amount of collateral currency residing on the insurer.
+  An insurer can add to the escrow or can close it, while insured can not use the escrow'ed balance until it is closed.
 */
 abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalancelessBase {
   using InvestAccount for InvestAccount.Balance;
@@ -25,7 +25,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   // MUST be equal to InvestAccount.FLAG_MANAGER
   uint16 internal constant FLAG_MANAGER = 1 << 0;
 
-  /// @dev Marks an account of with reinvestable balance (but neither manager nor escrow).
+  /// @dev Marks an account's balance as reinvestable (but neither manager nor escrow).
   // MUST be equal to InvestAccount.FLAG_MANAGED_BALANCE
   uint16 internal constant FLAG_MANAGED_BALANCE = 1 << 1;
 
@@ -35,6 +35,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   uint16 internal constant FLAG_MINT = 1 << 3;
   /// @dev Marks an account allowed to burn
   uint16 internal constant FLAG_BURN = 1 << 4;
+  uint16 internal constant FLAGS_MASK = type(uint16).max;
   /// @dev This mark is returened when an account has escrow sub-balance.
   uint256 internal constant FLAG_RESTRICTED = 1 << 16;
 
@@ -64,7 +65,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   }
 
   /// @return total amount of token, same as totalSupply()
-  /// @return totalManaged amount of token usables for reinvestment, hence eligible to receive yield
+  /// @return totalManaged amount of token usable for reinvestment and eligible to receive yield
   function totalAndManagedSupply() public view virtual returns (uint256 total, uint256 totalManaged) {
     total = _totalSupply;
     totalManaged = total - _totalNonManaged;
@@ -234,7 +235,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   /// @param manager controls the escrow sub-blanace. The manager can transfer to the sub-balance (NOT from it) or close it.
   /// @param account holds the escrow sub-balance. The holder can NOT spend the escrow sub-balance.
   /// @param enable is true to open the escrow sub-balance or false to close it.
-  /// @param transferAmount is a part of the escrow to be released to the `account`, the rest will be returned to `manager`. Must be zero when `enable` is true.
+  /// @param transferAmount to be released to the `account` from the escrow, the rest to be returned to `manager`. Must be zero if `enable` is true.
   function internalSubBalance(
     address manager,
     address account,

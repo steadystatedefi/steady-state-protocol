@@ -28,6 +28,7 @@ interface IPerpetualInsurerPool is IInsurerPoolBase {
 }
 
 interface IInsurerPool is IERC20, IInsurerPoolBase, ICoverageDistributor {
+  /// @return status of the address
   function statusOf(address) external view returns (MemberStatus);
 
   /// @dev returns balances of a user
