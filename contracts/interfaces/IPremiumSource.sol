@@ -5,8 +5,7 @@ import './ICollateralized.sol';
 
 /// @dev An interface of a contract responsible to provide a premium token to a premium distributor. It is implemented by insureds.
 interface IPremiumSource {
-  /// WTF
-  /// @return the premium token
+  /// @return the premium token given to the premiumd distributor by this source
   function premiumToken() external view returns (address);
 
   /// @dev Pulls premium from this source. The premium token is transferred to the caller.

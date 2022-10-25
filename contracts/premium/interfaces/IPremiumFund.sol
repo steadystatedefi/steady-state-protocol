@@ -3,7 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../../interfaces/ICollateralized.sol';
 
-/// @dev Premium fund facilitates swapping of insurers' value into insureds' tokens.
+/// @dev Premium fund facilitates swapping of insurers' value into insureds' premium payment tokens.
 interface IPremiumFund is ICollateralized {
   /// @dev Pulls the premium token from applicable sources.
   /// @param actuary is an insurer for which this operation will be performed.
@@ -16,7 +16,7 @@ interface IPremiumFund is ICollateralized {
   ) external;
 
   /// @dev Pulls premium tokens from applicable sources.
-  /// @param actuary is an insurer for which this operation will be performed .
+  /// @param actuary is an insurer for which this operation will be performed.
   /// @param sourceLimit is a maximum number of sources to be pulled.
   /// @param targetTokens is a list of premium tokens to be pulled.
   /// @return how many tokens were pulled before the limit was reached.
@@ -26,10 +26,10 @@ interface IPremiumFund is ICollateralized {
     address[] calldata targetTokens
   ) external returns (uint256);
 
-  /// @dev Swaps some value into a premiun token. The token must be supplied by at leased one insured covered by the insurer.
+  /// @dev Swaps some value into a premium token. The token must be supplied by at least one insured covered by the insurer.
   /// @param actuary is an insurer which token will be swapped (burnt).
   /// @param account to be charged. Should be the caller or should be approved for swap by the account.
-  /// @param recipient to receive the premiun token.
+  /// @param recipient to receive the premium token.
   /// @param valueToSwap is a value (not amount) of insurer's token to be swapped into the premium token.
   /// @param targetToken is the premium token to be received.
   /// @param minAmount is the minimum required amount of the premium token, if this cant be satisfied then the account will not be charged.
@@ -50,11 +50,11 @@ interface IPremiumFund is ICollateralized {
     address targetToken;
     /// @dev The minimum required amount of the premium token, if this cant be satisfied then this instruction will do nothing.
     uint256 minAmount;
-    /// @dev A recipient to receive the premiun token.
+    /// @dev A recipient to receive the premium token.
     address recipient;
   }
 
-  /// @dev Swaps some value into a set of premiun tokens. Premiun tokens must be supplied by insureds covered by the insurer.
+  /// @dev Swaps some value into a set of premium tokens. Premium tokens must be supplied by insureds covered by the insurer.
   /// @dev This method allows to avoid slippage of the total balance introduced by individual swaps, hance takes a smaller fee.
   /// @param actuary is an insurer which token will be swapped (burnt).
   /// @param account to be charged. Should be the caller or should be approved for swap by the account.

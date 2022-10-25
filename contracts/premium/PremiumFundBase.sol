@@ -238,7 +238,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     emit ActuaryTokenPaused(actuary, token, paused);
   }
 
-  /// @return true when the actuary ot the token are suspended/paused
+  /// @return true when the actuary of the token is suspended/paused
   function isPaused(address actuary, address token) public view returns (bool) {
     if (_tokens[token].flags & TS_SUSPENDED != 0) {
       return true;

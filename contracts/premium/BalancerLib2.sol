@@ -10,25 +10,26 @@ import 'hardhat/console.sol';
 
 /**
   @dev This library conains core logic to balance multiple assets.
-  There is a stream of premium value, which can be swapped into multiple assets, but each individual asset has not enough supply to cover the stream. 
-  Giving all assets to a user by small portions is not a case either due to gas costs which can exceed the given value.
+  There is a stream of premium value, which can be swapped into multiple assets, but each individual asset has not enough supply to cover the stream.
+  Giving a user their swapped value weighted across all assets is not feasible as gas costs can exceed the value of the tokens.
   So, the logic of this library allows a user to choose a subset of assets, and will either subsidize or penalize swap price based on demand vs supply.
-  I.e. when available value of an asset compared to total value is higher than the supply rate of the asset vs total premium rate. then the price will be discounted.
-  Addidionally, this library has mechanics to prevent depletion of assets by additional fees on large amount of an asset taken out or on depletion of an asset, and
-  it utilizes constant-product formula.
+  I.e When the ratio of the available value of an asset compared to the total value of all assets is GREATER THAN
+  the ratio of the supply rate of the asset vs the total premium rate of all assets, the asset is in low demand compared to the supply and the price will be discounted.
+  Additionally, this library utilizes a constant-product formula with mechanics to prevent depletion of assets by additional fees on large asset swaps or when the asset is depleted.
 
-  So, for each asset being swapped, amount of fees has 2 parts: balancing levy and volume penalty.
+  So, for each asset being swapped, the amount of fees has 2 parts: balancing levy and volume penalty.
   The balancing levy can be positive (for popular assets) or negative (for non-popular assets) and is distributed within the balancer.
-  The volume penalty is charged on large transactions (and depletions) and can be taken out.
+  The fees due to the balancing levy are an incentive to target the desired demand for tokens, and the fee benefits those that swap less popular tokens.
+  The volume penalty is charged on large transactions and depletions, and this fee can be claimed (removed from the balancer).
 
-  There is a "startvation" point - when asset's balance falls below this point then the constant-product formula is always applied. 
-  The logic will attempt to invoke replenishment (before the actual swap) if a swap operation leads to a balance below this point.
-  
-  There are 8 modes to calculate vSP (value of the starvation point of an asset). 
+  There is a "startvation" point - when asset's balance falls below this point then the constant-product formula is always applied.
+  The logic will attempt to invoke token source replenishment (before the actual swap) if a swap operation leads to a balance below this point.
+
+  There are 8 modes to calculate vSP (value of the starvation point of an asset).
   These modes are defined by a combination of BF_SPM_MAX_WITH_CONST, BF_SPM_CONSTANT, BF_SPM_GLOBAL flags set for asset's configuration.
   Also, there are 2 sets of the calculation flags per asset, and selection of a set depends on presence of BF_FINISHED.
 
-  
+
   * AssetRateMultiplier = 0
     vSP = valueRate (asset's supply rate) * asset.calcConfig.n()
 
@@ -62,7 +63,7 @@ import 'hardhat/console.sol';
   * ACTUARY is a contract providing information about premium values and rates. Pushes the data.
   * SOURCE is a contract providing an asset to be swapped. Is pulled for the asset.
 
-  NB! This logic strictly differentiate AMOUNT and VALUE of assets. 
+  NB! This logic strictly differentiate AMOUNT and VALUE of assets.
   * AMOUNT is asset.balanceOf(), so it is counted in asset's token.
   * VALUE is amount*price, and is counted in CC (Coverage Currency). All rates are values, not amounts.
 */
@@ -245,7 +246,7 @@ library BalancerLib2 {
   }
 
   /// @dev Swaps the premium value for an asset. The asset should NOT be marked as external.
-  /// @dev This call allows to avoid slippage of the total balance introduced by individual swaps, hance takes a smaller fee.
+  /// @dev This call allows to avoid slippage of the total balance introduced by individual swaps, hence takes a smaller fee.
   /// @param p is a balancer
   /// @param params for replenishment (the asset / token is defined inside it)
   /// @param value is value to be swapped
