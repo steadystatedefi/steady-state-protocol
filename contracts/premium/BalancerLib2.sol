@@ -11,15 +11,15 @@ import 'hardhat/console.sol';
 /**
   @dev This library conains core logic to balance multiple assets.
   There is a stream of premium value, which can be swapped into multiple assets, but each individual asset has not enough supply to cover the stream.
-  Giving a user their swapped value weighted across all assets is not feasible as gas costs can exceed the value of the tokens.
+  Giving a user their swapped value weighted across all assets is not feasible as gas costs can easilly exceed the value of the tokens.
   So, the logic of this library allows a user to choose a subset of assets, and will either subsidize or penalize swap price based on demand vs supply.
-  I.e When the ratio of the available value of an asset compared to the total value of all assets is GREATER THAN
-  the ratio of the supply rate of the asset vs the total premium rate of all assets, the asset is in low demand compared to the supply and the price will be discounted.
-  Additionally, this library utilizes a constant-product formula with mechanics to prevent depletion of assets by additional fees on large asset swaps or when the asset is depleted.
+  I.e When the ratio of the available value of an asset compared to the total value of all assets is GREATER THAN the ratio of the supply rate 
+  of the asset vs the total premium rate of all assets, the asset is in low demand compared to the supply and the price will be discounted.
+  Additionally, a constant-product formula is applied to prevent depletion of assets by additional fees on large or close-to-depletion swaps.
 
   So, for each asset being swapped, the amount of fees has 2 parts: balancing levy and volume penalty.
   The balancing levy can be positive (for popular assets) or negative (for non-popular assets) and is distributed within the balancer.
-  The fees due to the balancing levy are an incentive to target the desired demand for tokens, and the fee benefits those that swap less popular tokens.
+  The fees due to the balancing levy are an incentive to target the desired demand for tokens, and it benefits those that swap less popular tokens.
   The volume penalty is charged on large transactions and depletions, and this fee can be claimed (removed from the balancer).
 
   There is a "startvation" point - when asset's balance falls below this point then the constant-product formula is always applied.
@@ -125,7 +125,7 @@ library BalancerLib2 {
     address token;
     /// @dev The callback to replenish the asset. It takes this struct and requestedValue - a recommended minimum value to be replenished.
     /// @dev The callback should return replenished amount and value (i.e. should use current price), and expectedValue.
-    /// @dev The expectedValue is the value of asset expected to be returned by a source used for replenishment and considering its expected supply rate.
+    /// @dev The expectedValue is the value expected to be provided by the source for replenishment considering its expected supply rate.
     /// @dev The balancer itself doesnt track sources, but it needs to know a difference between expected supply rate and actual replenishment.
     function(
       ReplenishParams memory,
@@ -166,7 +166,7 @@ library BalancerLib2 {
     return (flags.flags(), balance.accumAmount, c.sA, c.vA, c.w, balance.rateValue, balance.applyFrom);
   }
 
-  /// @dev Swaps the premium value for CC (drawdown). This oparation is only applicable to CC (value and amount considered to be equal).
+  /// @dev Swaps the premium value for CC (drawdown). This operation only applies to CC (value and amount considered to be equal).
   /// @param p is a balancer
   /// @param token is an asset (should be marked as external)
   /// @param value is value to be swapped
@@ -186,7 +186,7 @@ library BalancerLib2 {
     return swapExternalAssetInBatch(p, token, value, minAmount, assetAmount, assetFreeAllowance, p.totalBalance);
   }
 
-  /// @dev Swaps the premium value for CC (drawdown) as a part of batch swap. This oparation is only applicable to CC (value and amount considered to be equal).
+  /// @dev Swaps the premium value for CC (drawdown) inside a batch. This operation only applies to CC (value and amount considered to be equal).
   /// @dev This call allows to avoid slippage of the total balance introduced by individual swaps, hance takes a smaller fee.
   /// @param p is a balancer
   /// @param token is an asset (should be marked as external)

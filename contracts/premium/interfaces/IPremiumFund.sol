@@ -3,7 +3,7 @@ pragma solidity ^0.8.4;
 
 import '../../interfaces/ICollateralized.sol';
 
-/// @dev Premium fund facilitates swapping of insurers' value into insureds' premium payment tokens.
+/// @dev Premium fund facilitates swapping of insurers' value into insureds' premium tokens.
 interface IPremiumFund is ICollateralized {
   /// @dev Pulls the premium token from applicable sources.
   /// @param actuary is an insurer for which this operation will be performed.

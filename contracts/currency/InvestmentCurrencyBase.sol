@@ -235,7 +235,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   /// @param manager controls the escrow sub-blanace. The manager can transfer to the sub-balance (NOT from it) or close it.
   /// @param account holds the escrow sub-balance. The holder can NOT spend the escrow sub-balance.
   /// @param enable is true to open the escrow sub-balance or false to close it.
-  /// @param transferAmount is a part of the escrow to be released to the `account`, the rest will be returned to `manager`. Must be zero when `enable` is true.
+  /// @param transferAmount to be released to the `account` from the escrow, the rest to be returned to `manager`. Must be zero if `enable` is true.
   function internalSubBalance(
     address manager,
     address account,
