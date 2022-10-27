@@ -219,12 +219,20 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
 
     const initialDemand = totals0.coverage.totalDemand.div(3);
     await cc.mintAndTransfer(user.address, pool.address, initialDemand.mul(3), 0);
+    const bands1 = (await insureds[0].rateBands()).bands[0].assignedDemand;
+    const bands2 = (await insureds[1].rateBands()).bands[0].assignedDemand;
+    const bands3 = (await insureds[2].rateBands()).bands[0].assignedDemand;
 
     const totals1 = await pool.getTotals();
     await cc.mintAndTransfer(user.address, pool.address, demand.sub(initialDemand).mul(3), 0);
     const totals2 = await pool.getTotals();
 
     expect(totals2.coverage.totalDemand).gt(totals1.coverage.totalDemand);
+    expect(
+      (await insureds[0].rateBands()).bands[0].assignedDemand > bands1 ||
+        (await insureds[1].rateBands()).bands[0].assignedDemand > bands2 ||
+        (await insureds[2].rateBands()).bands[0].assignedDemand > bands3
+    );
   });
 
   it('Auto-pull coverage demand (push excess)', async () => {
