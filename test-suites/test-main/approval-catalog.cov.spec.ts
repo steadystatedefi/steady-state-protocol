@@ -5,6 +5,7 @@ import { BytesLike, formatBytes32String } from 'ethers/lib/utils';
 
 import { AccessFlags } from '../../helpers/access-flags';
 import { MAX_UINT } from '../../helpers/constants';
+import { ProtocolErrors } from '../../helpers/contract-errors';
 import { Events } from '../../helpers/contract-events';
 import { Factories } from '../../helpers/contract-types';
 import { chainId } from '../../helpers/dre';
@@ -330,7 +331,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       {
         const { v, r, s } = await maker.signBy(user0);
         await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
-          testEnv.covReason('AccessDenied()')
+          testEnv.covReason(ProtocolErrors.AccessDenied)
         );
         await expect(approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s)).revertedWith(
           testEnv.covReason('WrongPermitSignature()')
@@ -340,7 +341,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       {
         const { v, r, s } = await maker.signBy(user1);
         await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
-          testEnv.covReason('AccessDenied()')
+          testEnv.covReason(ProtocolErrors.AccessDenied)
         );
         await expect(approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s)).revertedWith(
           testEnv.covReason('WrongPermitSignature()')
@@ -351,7 +352,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         maker.value.approver = user1.address;
         const { v, r, s } = await maker.signBy(user1);
         await expect(approvalCatalog.approveApplicationByPermit(user0.address, policy, expiry, v, r, s)).revertedWith(
-          testEnv.covReason('AccessDenied()')
+          testEnv.covReason(ProtocolErrors.AccessDenied)
         );
 
         await approvalCatalog.approveApplicationByPermit(user1.address, policy, expiry, v, r, s);
@@ -416,7 +417,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         const { v, r, s } = await maker.signBy(user0);
         await expect(
           approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
-        ).revertedWith(testEnv.covReason('AccessDenied()'));
+        ).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
         await expect(
           approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s)
         ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
@@ -426,7 +427,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         const { v, r, s } = await maker.signBy(user1);
         await expect(
           approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
-        ).revertedWith(testEnv.covReason('AccessDenied()'));
+        ).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
         await expect(
           approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s)
         ).revertedWith(testEnv.covReason('WrongPermitSignature()'));
@@ -437,7 +438,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
         const { v, r, s } = await maker.signBy(user1);
         await expect(
           approvalCatalog.approveClaimByPermit(user0.address, insured, policy, expiry, v, r, s)
-        ).revertedWith(testEnv.covReason('AccessDenied()'));
+        ).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
 
         await approvalCatalog.approveClaimByPermit(user1.address, insured, policy, expiry, v, r, s);
         expect(await approvalCatalog.hasApprovedClaim(insured)).eq(true);

@@ -8,13 +8,15 @@ import '../tools/math/PercentageMath.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../pricing/PricingHelper.sol';
 import '../access/AccessHelper.sol';
-import './interfaces/ICollateralFund.sol';
+import './interfaces/IManagedCollateralFund.sol';
 import '../currency/interfaces/ILender.sol';
 import './Collateralized.sol';
 
 // TODO:TEST tests for zero return on price lockup
 
-abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, PricingHelper {
+/// @dev An implementation of a collateral fund.
+/// @dev This implementation is simplistic and is intended to work with stable / low-volatility assets.
+abstract contract CollateralFundBase is IManagedCollateralFund, ILender, AccessHelper, PricingHelper {
   using SafeERC20 for IERC20;
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -66,6 +68,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
 
   event ApprovalFor(address indexed owner, address indexed operator, uint256 approved);
 
+  /// @inheritdoc ICollateralFund
   function setApprovalsFor(
     address operator,
     uint256 access,
@@ -84,15 +87,18 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return address(_collateral);
   }
 
+  /// @inheritdoc ICollateralFund
   function setAllApprovalsFor(address operator, uint256 access) external override {
     _approvals[msg.sender][operator] = access;
     emit ApprovalFor(msg.sender, operator, access);
   }
 
+  /// @inheritdoc ICollateralFund
   function getAllApprovalsFor(address account, address operator) public view override returns (uint256) {
     return _approvals[account][operator];
   }
 
+  /// @inheritdoc ICollateralFund
   function isApprovedFor(
     address account,
     address operator,
@@ -156,6 +162,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     }
   }
 
+  /// @inheritdoc ICollateralFund
   function deposit(
     address account,
     address token,
@@ -165,6 +172,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return _depositAndMint(msg.sender, account, token, tokenAmount);
   }
 
+  /// @inheritdoc ICollateralFund
   function invest(
     address account,
     address token,
@@ -175,6 +183,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return _depositAndInvest(msg.sender, account, 0, token, tokenAmount, investTo);
   }
 
+  /// @inheritdoc ICollateralFund
   function investIncludingDeposit(
     address account,
     uint256 depositValue,
@@ -194,6 +203,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return getPricer().pullAssetPrice(token, _sourceFuses);
   }
 
+  /// @inheritdoc ICollateralFund
   function withdraw(
     address account,
     address to,
@@ -346,6 +356,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return 0;
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function trustedDeposit(
     address operator,
     address account,
@@ -356,6 +367,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return _depositAndMint(operator, account, token, amount);
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function trustedInvest(
     address operator,
     address account,
@@ -374,6 +386,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     return _depositAndInvest(operator, account, depositValue, token, tokenAmount, investTo);
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function trustedWithdraw(
     address operator,
     address account,
@@ -387,19 +400,23 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
 
   event AssetPaused(address indexed token, bool paused);
 
+  /// @inheritdoc IManagedCollateralFund
   function setPaused(address token, bool paused) external onlyEmergencyAdmin {
     internalSetFlags(token, paused ? 0 : type(uint8).max);
     emit AssetPaused(token, paused);
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function isPaused(address token) public view returns (bool) {
     return _assets[token].assetFlags == (AF_ADDED);
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function setTrustedOperator(address token, address trustee) external aclHas(AccessFlags.LP_DEPLOY) {
     internalSetTrustee(token, trustee);
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function setSpecialRoles(address operator, uint256 accessFlags) external aclHas(AccessFlags.LP_ADMIN) {
     internalSetSpecialApprovals(operator, accessFlags);
   }
@@ -411,16 +428,19 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     }
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function addAsset(address token, address trusted) external aclHas(AccessFlags.LP_DEPLOY) {
     internalAddAsset(token, trusted);
     _attachToken(token, true);
   }
 
+  /// @inheritdoc IManagedCollateralFund
   function removeAsset(address token) external aclHas(AccessFlags.LP_DEPLOY) {
     internalRemoveAsset(token);
     _attachToken(token, false);
   }
 
+  /// @inheritdoc ICollateralFund
   function assets() external view override returns (address[] memory) {
     return _tokens.values();
   }
@@ -428,6 +448,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
   event AssetBorrowApproved(address indexed token, uint256 amount, address to);
   event AssetReplenished(address indexed token, uint256 amount);
 
+  /// @inheritdoc IManagedCollateralFund
   function resetPriceGuard() external aclHasAny(AccessFlags.LP_ADMIN) {
     getPricer().resetSourceGroup();
   }
@@ -441,6 +462,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     _;
   }
 
+  /// @inheritdoc ILender
   function approveBorrow(
     address operator,
     address token,
@@ -456,6 +478,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     emit AssetBorrowApproved(token, amount, to);
   }
 
+  /// @inheritdoc ILender
   function repayFrom(
     address token,
     address from,
@@ -468,6 +491,7 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     emit AssetReplenished(token, amount);
   }
 
+  /// @inheritdoc ILender
   function depositYield(
     address token,
     address from,
@@ -485,7 +509,8 @@ abstract contract CollateralFundBase is ICollateralFund, ILender, AccessHelper, 
     }
   }
 
-  function isBorrowOps(address operator) public view returns (bool) {
+  /// @inheritdoc ILender
+  function isBorrowOps(address operator) public view override returns (bool) {
     return hasAnyAcl(operator, AccessFlags.LP_ADMIN | AccessFlags.LIQUIDITY_MANAGER);
   }
 }

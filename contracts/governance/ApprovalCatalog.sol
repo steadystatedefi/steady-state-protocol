@@ -51,12 +51,24 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ApplicationSubmitted(address indexed insured, bytes32 indexed requestCid);
 
+  /// @dev Submits an application for a new insurance policy.
+  /// @dev The application form must be uploaded to IPFS.
+  /// @dev This method will deploy a new proxy with a default implementation of type _insuredProxyType.
+  /// @param cid is an addressable hash from IPFS for the application form.
+  /// @param collateral is an address of collateral currency for the insurance policy.
+  /// @return insured is a contract to represent the insurance policy.
   function submitApplication(bytes32 cid, address collateral) external returns (address insured) {
     Value.require(collateral != address(0));
     insured = _createInsured(msg.sender, address(0), collateral);
     _submitApplication(insured, cid);
   }
 
+  /// @dev Submits an application for a new insurance policy with a custom implementation.
+  /// @dev The application form must be uploaded to IPFS.
+  /// @dev This method will deploy a new proxy with the given implementation.
+  /// @param cid is an addressable hash from IPFS for the application form.
+  /// @param impl is an implementation for a new insured. The implementation must be authentic and has a collateral currency as context.
+  /// @return insured is a contract to represent the insurance policy.
   function submitApplicationWithImpl(bytes32 cid, address impl) external returns (address insured) {
     Value.require(impl != address(0));
     insured = _createInsured(msg.sender, impl, address(0));
@@ -82,16 +94,23 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     return pf.createProxyWithImpl(requestedBy, _insuredProxyType, impl, callData);
   }
 
+  /// @dev Submits an update for an application. The application must not be approved.
+  /// @dev The updated application form must be uploaded to IPFS.
+  /// @dev This method will update an application for the given insured.
+  /// @param insured is a draft insurance policy to be updated. Returned by submitApplication().
+  /// @param cid is an addressable hash from IPFS for the updated application form.
   function resubmitApplication(address insured, bytes32 cid) external {
     State.require(!hasApprovedApplication(insured));
 
     _submitApplication(insured, cid);
   }
 
+  /// @inheritdoc IApprovalCatalog
   function hasApprovedApplication(address insured) public view returns (bool) {
     return insured != address(0) && _approvedPolicies[insured].insured == insured;
   }
 
+  /// @inheritdoc IApprovalCatalog
   function getApprovedApplication(address insured) external view returns (ApprovedPolicy memory) {
     State.require(hasApprovedApplication(insured));
     return _approvedPolicies[insured];
@@ -99,6 +118,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ApplicationApplied(address indexed insured, bytes32 indexed requestCid);
 
+  /// @inheritdoc IApprovalCatalog
   function applyApprovedApplication() external returns (ApprovedPolicy memory data) {
     address insured = msg.sender;
     State.require(hasApprovedApplication(insured));
@@ -108,6 +128,7 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     emit ApplicationApplied(insured, data.requestCid);
   }
 
+  /// @inheritdoc IApprovalCatalog
   function getAppliedApplicationForInsurer(address insured) external view returns (bool valid, ApprovedPolicyForInsurer memory data) {
     ApprovedPolicy storage policy = _approvedPolicies[insured];
     if (policy.insured == insured && policy.applied) {
@@ -118,6 +139,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ApplicationApproved(address indexed approver, address indexed insured, bytes32 indexed requestCid, ApprovedPolicy data);
 
+  /// @dev Uploads an approved application. Only a grantee of the UNDERWRITER_POLICY role can call.
+  /// @dev The application is identified by data.insured.
+  /// @param data contains required parameters assigned/approved by the underwriter.
   function approveApplication(ApprovedPolicy calldata data) external {
     _onlyUnderwriterOfPolicy(msg.sender);
 
@@ -135,6 +159,11 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
       'T1(bytes32 requestCid,bytes32 approvalCid,address insured,uint16 riskLevel,uint80 basePremiumRate,string policyName,string policySymbol,address premiumToken,uint96 minPrepayValue,uint32 rollingAdvanceWindow,uint32 expiresAt,bool applied)'
     );
 
+  /// @dev Approves an apprication with EIP712 permit issued offline.
+  /// @param approver is an address of the underwiter, a signer of this permit.
+  /// @param data of the approval.
+  /// @param deadline is an expiry of the EIP712 permit.
+  /// @param v, r, s - are signature params of the EIP712 permit.
   function approveApplicationByPermit(
     address approver,
     ApprovedPolicy calldata data,
@@ -202,24 +231,31 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ApplicationDeclined(address indexed insured, bytes32 indexed cid, string reason);
 
+  /// @dev Declines an application. The application must not be applied yet, otherwise this call reverts.
+  /// @param insured is to identify an application
+  /// @param cid is to identify a version of an application. It prevents racing with resubmitApplication()
+  /// @return true when the application was declined, and false when the insured is unknown or cid doesnt match.
   function declineApplication(
     address insured,
     bytes32 cid,
     string calldata reason
-  ) external {
+  ) external returns (bool) {
     _onlyUnderwriterOfPolicy(msg.sender);
 
     Value.require(insured != address(0));
     ApprovedPolicy storage data = _approvedPolicies[insured];
     if (data.insured != address(0)) {
-      assert(data.insured == insured);
+      Sanity.require(data.insured == insured);
       if (data.requestCid == cid) {
         // decline of the previously approved one is only possible when is was not applied
         State.require(!data.applied);
         delete _approvedPolicies[insured];
+
+        emit ApplicationDeclined(insured, cid, reason);
+        return true;
       }
     }
-    emit ApplicationDeclined(insured, cid, reason);
+    return false;
   }
 
   struct RequestedClaim {
@@ -231,8 +267,14 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
   mapping(address => RequestedClaim[]) private _requestedClaims;
   mapping(address => ApprovedClaim) private _approvedClaims;
 
-  event ClaimSubmitted(address indexed insured, bytes32 indexed cid, uint256 payoutValue);
+  event ClaimSubmitted(address indexed insured, bytes32 indexed cid, uint256 payoutValue, uint256 claimNo);
 
+  /// @dev Reqisters a request to claim to get an insurance payment.
+  /// @dev Caller must be accepted by the insured as claimer. See IClaimAccessValidator.canClaimInsurance()
+  /// @param insured policy of the claim
+  /// @param cid of a document/form supporting the claim
+  /// @param payoutValue requested from the policy
+  /// @return a sequential number of the claim for this insured
   function submitClaim(
     address insured,
     bytes32 cid,
@@ -245,15 +287,17 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     RequestedClaim[] storage claims = _requestedClaims[insured];
     claims.push(RequestedClaim({cid: cid, requestedBy: msg.sender, payoutValue: payoutValue}));
 
-    emit ClaimSubmitted(insured, cid, payoutValue);
+    emit ClaimSubmitted(insured, cid, payoutValue, claims.length);
 
     return claims.length;
   }
 
+  /// @inheritdoc IApprovalCatalog
   function hasApprovedClaim(address insured) public view returns (bool) {
     return _approvedClaims[insured].requestCid != 0;
   }
 
+  /// @inheritdoc IApprovalCatalog
   function getApprovedClaim(address insured) public view returns (ApprovedClaim memory) {
     State.require(hasApprovedClaim(insured));
     return _approvedClaims[insured];
@@ -261,6 +305,9 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ClaimApproved(address indexed approver, address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
+  /// @dev Approves a claim payout from the given `insured` policy. A payout can be approved without submitClaim().
+  /// @param insured policy of the claim.
+  /// @param data of the approval.
   function approveClaim(address insured, ApprovedClaim calldata data) external {
     _onlyUnderwriterClaim(msg.sender);
     _approveClaim(msg.sender, insured, data);
@@ -277,6 +324,12 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
     return keccak256(abi.encode(APPROVE_CLAIM_DATA_TYPEHASH, data));
   }
 
+  /// @dev Approves a claim payout with EIP712 permit issued offline.
+  /// @param approver is an address of the underwiter, a signer of this permit.
+  /// @param insured policy of the claim.
+  /// @param data of the approval.
+  /// @param deadline is an expiry of the EIP712 permit.
+  /// @param v, r, s - are signature params of the EIP712 permit.
   function approveClaimByPermit(
     address approver,
     address insured,
@@ -318,11 +371,14 @@ contract ApprovalCatalog is IApprovalCatalog, AccessHelper {
 
   event ClaimApplied(address indexed insured, bytes32 indexed requestCid, ApprovedClaim data);
 
+  /// @inheritdoc IApprovalCatalog
   function applyApprovedClaim(address insured) external returns (ApprovedClaim memory data) {
     data = getApprovedClaim(insured);
     emit ClaimApplied(insured, data.requestCid, data);
   }
 
+  /// @dev Cancels any EIP712 permit (for either an application or a payout) currently issued for the `insured`.
+  /// @dev Caller must have any of these roles: UNDERWRITER_CLAIM, UNDERWRITER_POLICY, INSURED_ADMIN
   function cancelLastPermit(address insured)
     external
     aclHasAny(AccessFlags.UNDERWRITER_CLAIM | AccessFlags.UNDERWRITER_POLICY | AccessFlags.INSURED_ADMIN)

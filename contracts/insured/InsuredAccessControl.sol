@@ -35,8 +35,12 @@ abstract contract InsuredAccessControl is GovernedHelper, PricingHelper {
     return IInsuredGovernor(_governorIsContract ? governorAccount() : address(0));
   }
 
-  function isAllowedByGovernor(address account, uint256 flags) internal view override returns (bool) {
-    return _governorIsContract && IInsuredGovernor(governorAccount()).governerQueryAccessControlMask(account, flags) & flags != 0;
+  function internalQueryGovernorAcl(
+    address g,
+    address account,
+    uint256 flags
+  ) internal view override returns (uint256 mask, uint256 overrides) {
+    return super.internalQueryGovernorAcl(_governorIsContract ? g : address(0), account, flags);
   }
 
   event GovernorUpdated(address);

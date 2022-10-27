@@ -2,7 +2,8 @@
 pragma solidity ^0.8.4;
 
 library Strings {
-  function trimRight(bytes memory s) internal pure returns (bytes memory) {
+  /// @dev Trims bytes <=0x20 from the right
+  function trimRight(bytes memory s) internal pure {
     uint256 i = s.length;
     for (; i > 0; i--) {
       if (s[i - 1] > 0x20) {
@@ -13,14 +14,16 @@ library Strings {
     assembly {
       mstore(s, i)
     }
-    return s;
   }
 
-  function trimRight(string memory s) internal pure returns (string memory) {
-    return string(trimRight(bytes(s)));
+  /// @dev Trims bytes <=0x20 from the right
+  function trimRight(string memory s) internal pure {
+    trimRight(bytes(s));
   }
 
-  function asString(bytes32 data) internal pure returns (string memory) {
-    return string(trimRight(abi.encodePacked(data)));
+  /// @return s string of representation `data` trimmmed from right for bytes <=0x20
+  function asString(bytes32 data) internal pure returns (string memory s) {
+    s = string(abi.encodePacked(data));
+    trimRight(s);
   }
 }

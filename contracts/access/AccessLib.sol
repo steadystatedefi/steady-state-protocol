@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import './interfaces/IRemoteAccessBitmask.sol';
 
+/// @dev functions to work with IRemoteAccessBitmask
 library AccessLib {
   function getAcl(IRemoteAccessBitmask remote, address subject) internal view returns (uint256) {
     return remote.queryAccessControlMask(subject, type(uint256).max);

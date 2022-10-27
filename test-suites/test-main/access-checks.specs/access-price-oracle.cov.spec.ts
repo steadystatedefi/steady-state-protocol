@@ -4,7 +4,7 @@ import { zeroAddress } from 'ethereumjs-util';
 
 import { AccessFlags } from '../../../helpers/access-flags';
 import { WAD } from '../../../helpers/constants';
-import { PriceSourceStruct } from '../../../types/contracts/pricing/OracleRouter';
+import { PriceSourceStruct } from '../../../types/contracts/pricing/OracleRouterBase';
 import { makeSuite, TestEnv } from '../setup/make-suite';
 
 import { deployAccessControlState, State } from './setup';

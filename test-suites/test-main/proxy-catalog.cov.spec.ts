@@ -272,7 +272,7 @@ makeSuite('Proxy Catalog', (testEnv: TestEnv) => {
     expect(await contract.name()).eq(name);
     expect(await proxyCatalog.isAuthenticProxy(proxyAddr)).eq(false);
 
-    await expect(proxyCatalog.getProxyImplementation(proxyAddr)).to.be.reverted;
+    expect(await proxyCatalog.getProxyImplementation(proxyAddr)).eq(zeroAddress());
     expect(await proxyContract.connect(user1).callStatic.implementation()).eq(rev2.address);
   });
 });

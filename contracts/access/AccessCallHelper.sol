@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/utils/Address.sol';
 import '../tools/Errors.sol';
 
+/// @dev A helper contract to process batch calls by the access controller
 contract AccessCallHelper {
   address private immutable _owner;
 

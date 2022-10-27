@@ -27,6 +27,7 @@ export const Factories = {
   ReinvestorV1: wrap(types.ReinvestorV1__factory),
   AaveStrategy: wrap(types.AaveStrategy__factory),
 
+  MockAccessController: wrap(types.MockAccessController__factory),
   MockCollateralCurrency: mock(types.MockCollateralCurrency__factory),
   MockWeightedRounds: mock(types.MockWeightedRounds__factory),
   MockCollateralCurrencyStub: mock(types.MockCollateralCurrencyStub__factory),
@@ -51,6 +52,7 @@ export const Factories = {
   MockStrategy: mock(types.MockStrategy__factory),
   MockAavePoolV3: mock(types.MockAavePoolV3__factory),
   MockMinter: mock(types.MockMinter__factory),
+  MockERC1363Receiver: mock(types.MockERC1363Receiver__factory),
 };
 
 loadFactories(Factories);

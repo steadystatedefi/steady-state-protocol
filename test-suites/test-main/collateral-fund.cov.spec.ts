@@ -3,8 +3,8 @@ import { expect } from 'chai';
 import { zeroAddress } from 'ethereumjs-util';
 
 import { MAX_UINT, WAD } from '../../helpers/constants';
+import { ProtocolErrors } from '../../helpers/contract-errors';
 import { Factories } from '../../helpers/contract-types';
-import { createRandomAddress } from '../../helpers/runtime-utils';
 import { MockCollateralFund, MockCollateralCurrency } from '../../types';
 
 import { makeSuite, TestEnv } from './setup/make-suite';
@@ -87,7 +87,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     await token0.connect(user1).approve(fund.address, WAD);
 
     await expect(fund.connect(user1).deposit(user1.address, token0.address, 1000)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
 
     await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
@@ -98,7 +98,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
     await token0.connect(user2).approve(fund.address, WAD);
     await expect(fund.connect(user2).deposit(user1.address, token0.address, 1000)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
 
     await fund.connect(user1).setApprovalsFor(user2.address, APPROVED_DEPOSIT, true);
@@ -111,7 +111,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
     await fund.connect(user3).setApprovalsFor(user2.address, APPROVED_DEPOSIT, true);
     await expect(fund.connect(user2).deposit(user3.address, token0.address, 1000)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
 
     await fund.connect(user3).withdraw(user3.address, user3.address, token0.address, MAX_UINT); // does nothing
@@ -127,7 +127,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(user1.address)).eq(1500);
 
     await expect(fund.connect(user2).withdraw(user1.address, user3.address, token0.address, 500)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
 
     await fund.connect(user1).setApprovalsFor(user2.address, APPROVED_WITHDRAW, true);
@@ -147,36 +147,42 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
   });
 
   it('Invest', async () => {
-    const insurer = createRandomAddress();
+    const insurer = await Factories.MockERC1363Receiver.deploy();
+    await cc.ignoreAuthenticity();
+    await cc.registerInsurer(insurer.address);
 
     await token0.connect(user1).approve(fund.address, WAD);
-    await fund.connect(user1).invest(user1.address, token0.address, 1000, insurer);
+    await fund.connect(user1).invest(user1.address, token0.address, 1000, insurer.address);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(1000));
     expect(await cc.balanceOf(user1.address)).eq(0);
-    expect(await cc.balanceOf(insurer)).eq(1000);
+    expect(await cc.balanceOf(insurer.address)).eq(1000);
 
-    await expect(fund.connect(user1).invest(user2.address, token0.address, 1000, insurer)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+    await expect(fund.connect(user1).invest(user2.address, token0.address, 1000, insurer.address)).revertedWith(
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
     await fund.connect(user2).setAllApprovalsFor(user1.address, APPROVED_DEPOSIT);
-    await expect(fund.connect(user1).invest(user2.address, token0.address, 1000, insurer)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+    await expect(fund.connect(user1).invest(user2.address, token0.address, 1000, insurer.address)).revertedWith(
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
     await fund.connect(user2).setAllApprovalsFor(user1.address, APPROVED_INVEST);
-    await expect(fund.connect(user1).invest(user2.address, token0.address, 1000, insurer)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+    await expect(fund.connect(user1).invest(user2.address, token0.address, 1000, insurer.address)).revertedWith(
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
     await fund.connect(user2).setAllApprovalsFor(user1.address, APPROVED_DEPOSIT + APPROVED_INVEST);
 
-    await fund.connect(user1).invest(user2.address, token0.address, 1000, insurer);
+    await fund.connect(user1).invest(user2.address, token0.address, 1000, insurer.address);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(2000));
     expect(await cc.balanceOf(user2.address)).eq(0);
-    expect(await cc.balanceOf(insurer)).eq(2000);
+    expect(await cc.balanceOf(insurer.address)).eq(2000);
   });
 
   it('Invest including deposit', async () => {
+    const insurer = await Factories.MockERC1363Receiver.deploy();
+    await cc.ignoreAuthenticity();
+    await cc.registerInsurer(insurer.address);
+
     await token0.connect(user1).approve(fund.address, WAD);
     await fund.setSpecialRoles(user1.address, APPROVED_DEPOSIT);
     await fund.connect(user1).deposit(user1.address, token0.address, 1000);
@@ -184,36 +190,34 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(1000));
     expect(await cc.balanceOf(user1.address)).eq(1000);
 
-    const insurer = createRandomAddress();
-
-    await fund.connect(user1).investIncludingDeposit(user1.address, 200, token0.address, 1000, insurer);
+    await fund.connect(user1).investIncludingDeposit(user1.address, 200, token0.address, 1000, insurer.address);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(2000));
     expect(await cc.balanceOf(user1.address)).eq(800);
-    expect(await cc.balanceOf(insurer)).eq(1200);
+    expect(await cc.balanceOf(insurer.address)).eq(1200);
 
-    await fund.connect(user1).investIncludingDeposit(user1.address, MAX_UINT, token0.address, 0, insurer);
+    await fund.connect(user1).investIncludingDeposit(user1.address, MAX_UINT, token0.address, 0, insurer.address);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(2000));
     expect(await cc.balanceOf(user1.address)).eq(0);
-    expect(await cc.balanceOf(insurer)).eq(2000);
+    expect(await cc.balanceOf(insurer.address)).eq(2000);
   });
 
   it('Trusted operations', async () => {
     await token0.connect(user1).approve(fund.address, WAD);
 
     await expect(fund.connect(user3).trustedDeposit(user1.address, user2.address, token0.address, 1000)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
 
     await fund.setSpecialRoles(user2.address, APPROVED_DEPOSIT);
     await expect(fund.connect(user3).trustedDeposit(user1.address, user2.address, token0.address, 1000)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
 
     await fund.setTrustedOperator(token0.address, user3.address);
     await expect(fund.connect(user3).trustedDeposit(user1.address, user2.address, token0.address, 1000)).revertedWith(
-      testEnv.covReason('AccessDenied()')
+      testEnv.covReason(ProtocolErrors.AccessDenied)
     );
 
     await fund.connect(user2).setApprovalsFor(user1.address, APPROVED_DEPOSIT, true);
@@ -223,23 +227,25 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     expect(await cc.balanceOf(user1.address)).eq(0);
     expect(await cc.balanceOf(user2.address)).eq(1000);
 
-    const insurer = createRandomAddress();
+    const insurer = await Factories.MockERC1363Receiver.deploy();
+    await cc.ignoreAuthenticity();
+    await cc.registerInsurer(insurer.address);
 
     await expect(
-      fund.connect(user3).trustedInvest(user1.address, user2.address, 500, token0.address, 1000, insurer)
-    ).revertedWith(testEnv.covReason('AccessDenied()'));
+      fund.connect(user3).trustedInvest(user1.address, user2.address, 500, token0.address, 1000, insurer.address)
+    ).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
 
     await fund.connect(user2).setApprovalsFor(user1.address, APPROVED_INVEST, true);
-    await fund.connect(user3).trustedInvest(user1.address, user2.address, 500, token0.address, 1000, insurer);
+    await fund.connect(user3).trustedInvest(user1.address, user2.address, 500, token0.address, 1000, insurer.address);
 
     expect(await token0.balanceOf(user1.address)).eq(WAD.sub(2000));
     expect(await cc.balanceOf(user1.address)).eq(0);
     expect(await cc.balanceOf(user2.address)).eq(500);
-    expect(await cc.balanceOf(insurer)).eq(1500);
+    expect(await cc.balanceOf(insurer.address)).eq(1500);
 
     await expect(
       fund.connect(user3).trustedWithdraw(user1.address, user2.address, user0.address, token0.address, 500)
-    ).revertedWith(testEnv.covReason('AccessDenied()'));
+    ).revertedWith(testEnv.covReason(ProtocolErrors.AccessDenied));
 
     await fund.connect(user2).setApprovalsFor(user1.address, APPROVED_WITHDRAW, true);
     await fund.connect(user3).trustedWithdraw(user1.address, user2.address, user0.address, token0.address, 500);
@@ -248,7 +254,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
     expect(await token0.balanceOf(user0.address)).eq(500);
     expect(await cc.balanceOf(user1.address)).eq(0);
     expect(await cc.balanceOf(user2.address)).eq(0);
-    expect(await cc.balanceOf(insurer)).eq(1500);
+    expect(await cc.balanceOf(insurer.address)).eq(1500);
   });
 
   it('Remove asset', async () => {
@@ -280,17 +286,19 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
     await fund.setPaused(token0.address, true);
 
-    const insurer = createRandomAddress();
+    const insurer = await Factories.MockERC1363Receiver.deploy();
+    await cc.ignoreAuthenticity();
+    await cc.registerInsurer(insurer.address);
 
     expect(await fund.isPaused(token0.address)).eq(true);
     await expect(fund.connect(user1).deposit(user1.address, token0.address, 1000)).revertedWith(
-      testEnv.covReason('OperationPaused()')
+      testEnv.covReason(ProtocolErrors.OperationPaused)
     );
-    await expect(fund.connect(user1).invest(user1.address, token0.address, 1000, insurer)).revertedWith(
-      testEnv.covReason('OperationPaused()')
+    await expect(fund.connect(user1).invest(user1.address, token0.address, 1000, insurer.address)).revertedWith(
+      testEnv.covReason(ProtocolErrors.OperationPaused)
     );
     await expect(fund.connect(user1).withdraw(user1.address, user1.address, token0.address, 500)).revertedWith(
-      testEnv.covReason('OperationPaused()')
+      testEnv.covReason(ProtocolErrors.OperationPaused)
     );
 
     await fund.setPaused(token0.address, false);
@@ -298,7 +306,7 @@ makeSuite('Collateral fund', (testEnv: TestEnv) => {
 
     await fund.connect(user1).deposit(user1.address, token0.address, 1000);
     await fund.connect(user1).withdraw(user1.address, user1.address, token0.address, 500);
-    await fund.connect(user1).invest(user1.address, token0.address, 1000, insurer);
+    await fund.connect(user1).invest(user1.address, token0.address, 1000, insurer.address);
   });
 
   it.skip('Price checks', async () => {

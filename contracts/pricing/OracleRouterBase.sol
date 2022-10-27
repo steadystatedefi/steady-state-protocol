@@ -34,10 +34,12 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
 
   uint8 private constant CF_UNISWAP_V2_RESERVE = 1 << 0;
 
+  /// @inheritdoc IFallbackPriceOracle
   function getQuoteAsset() public view returns (address) {
     return _quote;
   }
 
+  /// @inheritdoc IFallbackPriceOracle
   function getAssetPrice(address asset) public view override returns (uint256) {
     if (asset == _quote) {
       return WadRayMath.WAD;
@@ -52,6 +54,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     return v;
   }
 
+  /// @inheritdoc IPriceRouter
   function getAssetPrices(address[] calldata assets) external view override returns (uint256[] memory result) {
     result = new uint256[](assets.length);
     for (uint256 i = assets.length; i > 0; ) {
@@ -139,10 +142,12 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
+  /// @inheritdoc IManagedPriceRouter
   function getPriceSource(address asset) external view returns (PriceSource memory result) {
     _getPriceSource(asset, result);
   }
 
+  /// @inheritdoc IManagedPriceRouter
   function getPriceSources(address[] calldata assets) external view returns (PriceSource[] memory result) {
     result = new PriceSource[](assets.length);
     for (uint256 i = assets.length; i > 0; ) {
@@ -151,11 +156,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
-  /// @param sources  If using a Uniswap price, the decimals field must compensate for tokens that
-  ///                 do not have the same as the quote asset decimals.
-  ///                 If the quote asset has 18 decimals:
-  ///                   If a token has 9 decimals, it must set the decimals value to (9 + 18) = 27
-  ///                   If a token has 27 decimals, it must set the decimals value to (27 - 18) = 9
+  /// @inheritdoc IManagedPriceRouter
   function setPriceSources(address[] calldata assets, PriceSource[] calldata sources) external onlyOracleAdmin {
     for (uint256 i = assets.length; i > 0; ) {
       i--;
@@ -163,7 +164,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
-  /// @dev When an asset was configured before, then this call assumes the price to have same decimals, otherwise 18
+  /// @inheritdoc IManagedPriceRouter
   function setStaticPrices(address[] calldata assets, uint256[] calldata prices) external onlyOracleAdmin {
     for (uint256 i = assets.length; i > 0; ) {
       i--;
@@ -203,6 +204,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
 
   event PriceRangeUpdated(address indexed asset, uint256 targetPrice, uint16 tolerancePct);
 
+  /// @inheritdoc IManagedPriceRouter
   function setSafePriceRanges(
     address[] calldata assets,
     uint256[] calldata targetPrices,
@@ -223,12 +225,14 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
     }
   }
 
+  /// @inheritdoc IManagedPriceRouter
   function getPriceSourceRange(address asset) external view override returns (uint256 targetPrice, uint16 tolerancePct) {
     (, , , targetPrice, tolerancePct) = internalGetSource(asset);
   }
 
   event SourceGroupResetted(address indexed account, uint256 mask);
 
+  /// @inheritdoc IManagedPriceRouter
   function resetSourceGroupByAdmin(uint256 mask) external override onlyOracleAdmin {
     internalResetGroup(mask);
     emit SourceGroupResetted(address(0), mask);
@@ -240,6 +244,7 @@ abstract contract OracleRouterBase is IManagedPriceRouter, AccessHelper, PriceSo
 
   event SourceGroupConfigured(address indexed account, uint256 mask);
 
+  /// @inheritdoc IManagedPriceRouter
   function configureSourceGroup(address account, uint256 mask) external override onlyOracleAdmin {
     Value.require(account != address(0));
     internalRegisterGroup(account, mask);

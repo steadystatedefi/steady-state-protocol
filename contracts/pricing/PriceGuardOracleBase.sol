@@ -21,6 +21,7 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
 
   event SourceTripped(address indexed asset, uint256 price);
 
+  /// @inheritdoc IPriceRouter
   function pullAssetPrice(address asset, uint256 fuseMask) external override returns (uint256) {
     if (asset == getQuoteAsset()) {
       return WadRayMath.WAD;
@@ -57,6 +58,7 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
   event SourceToGroupsAdded(address indexed asset, uint256 mask);
   event SourceFromGroupsRemoved(address indexed asset, uint256 mask);
 
+  /// @inheritdoc IManagedPriceRouter
   function attachSource(address asset, bool attach) external override {
     Value.require(asset != address(0));
 
@@ -73,6 +75,7 @@ contract PriceGuardOracleBase is OracleRouterBase, FuseBox {
     }
   }
 
+  /// @inheritdoc IManagedPriceRouter
   function resetSourceGroup() external override {
     uint256 mask = internalGetOwnedFuses(msg.sender);
     if (mask != 0) {

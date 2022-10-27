@@ -13,9 +13,11 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
   let pool: MockPerpetualPool;
   let cc: MockCollateralCurrency;
   let user: SignerWithAddress;
+  let user2: SignerWithAddress;
 
   before(async () => {
     user = testEnv.users[0];
+    user2 = testEnv.users[1];
     cc = await Factories.MockCollateralCurrency.deploy('Collateral', '$CC');
   });
 
@@ -45,20 +47,21 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
     await cc.burn(user.address, unitSize * 200);
   });
 
-  it('Mint and transfer to an unregistered insusrer', async () => {
+  it('Mint and transfer to an unregistered insurer', async () => {
     const investment = unitSize * 400;
-    // totalInvested += investment;
-    await cc.mintAndTransfer(user.address, pool.address, investment, 0, testEnv.covGas());
-
-    expect(await cc.balanceOf(pool.address)).eq(investment);
-    expect(await pool.balanceOf(user.address)).eq(0); // doesnt react
+    await expect(cc.mintAndTransfer(user.address, pool.address, investment, 0, testEnv.covGas())).revertedWith(
+      testEnv.covReason(ProtocolErrors.AccessDenied)
+    );
+    await expect(cc.mintAndTransfer(user2.address, user2.address, investment, 0, testEnv.covGas())).revertedWith(
+      testEnv.covReason(ProtocolErrors.AccessDenied)
+    );
   });
 
   it('Register an insurer', async () => {
     await cc.registerInsurer(pool.address);
   });
 
-  it('Mint and transfer to a registered insusrer', async () => {
+  it('Mint and transfer to a registered insurer', async () => {
     const before = await cc.balanceOf(pool.address);
     const investment = unitSize * 400;
     // totalInvested += investment;
@@ -68,7 +71,7 @@ makeSharedStateSuite('Collateral currency', (testEnv: TestEnv) => {
     expect(await pool.balanceOf(user.address)).eq(investment);
   });
 
-  it('Transfer to a registered insusrer', async () => {
+  it('Transfer to a registered insurer', async () => {
     const before = await cc.balanceOf(pool.address);
     const beforePool = await pool.balanceOf(user.address);
 

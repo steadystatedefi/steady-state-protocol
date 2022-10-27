@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/Errors.sol';
-import '../tools/math/PercentageMath.sol';
-import '../tools/math/WadRayMath.sol';
-import '../access/AccessHelper.sol';
-import './interfaces/IManagedPriceRouter.sol';
-import './interfaces/IPriceFeedChainlinkV3.sol';
-import './interfaces/IPriceFeedUniswapV2.sol';
-import './OracleRouterBase.sol';
+import '../../tools/Errors.sol';
+import '../../tools/math/PercentageMath.sol';
+import '../../tools/math/WadRayMath.sol';
+import '../../access/AccessHelper.sol';
+import '../interfaces/IManagedPriceRouter.sol';
+import '../interfaces/IPriceFeedChainlinkV3.sol';
+import '../interfaces/IPriceFeedUniswapV2.sol';
+import '../OracleRouterBase.sol';
 
-contract OracleRouter is OracleRouterBase {
+contract MockOracleRouter is OracleRouterBase {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
 

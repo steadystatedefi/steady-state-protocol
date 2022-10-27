@@ -97,8 +97,8 @@ makeSuite('access: Imperpetual Pool', (testEnv: TestEnv) => {
     const minter: MockMinter = await makeMockMinter(state, deployer);
     await state.cc.registerLiquidityProvider(minter.address);
 
-    await expect(state.insurer.onTransferReceived(user2.address, user2.address, 100, '')).to.be.reverted;
-    await minter.mintAndTransfer(user2.address, user2.address, 100, 100);
+    await expect(state.insurer.onTransferReceived(deployer.address, user2.address, 100, '')).to.be.reverted;
+    await minter.mintAndTransfer(user2.address, state.insurer.address, 100, 0);
   });
 
   it('ROLE: onlySelf', async () => {
