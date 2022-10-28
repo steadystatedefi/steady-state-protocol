@@ -12,9 +12,9 @@ import './InsuredAccessControl.sol';
 
 import 'hardhat/console.sol';
 
-/// @title Insured Pool Base
-/// @notice The base pool that tracks how much coverage is requested, provided and paid
-/// @dev Reconcilation must be called for the most accurate information
+/// @dev A template of a generic insured policy. Is also referred as 'pool' - because multiple insurers can cover a single policy.
+/// @dev This template provides all necessary functionality, including access control, tacking insurers, management of demand distribution collection,
+/// @dev collecting coverage and streaming of premium. The missing part is keeping a registry of demand by rate bands.
 abstract contract InsuredPoolBase is
   IInsuredPool,
   InsuredBalancesBase,
@@ -35,6 +35,7 @@ abstract contract InsuredPoolBase is
 
   constructor(IAccessController acl, address collateral_) ERC20DetailsBase('', '', DECIMALS) InsuredAccessControl(acl, collateral_) {}
 
+  /// @dev Reads and applies an approved application from the ApprovalCatalog. Can only be applied once.
   function applyApprovedApplication() external onlyGovernor {
     State.require(!internalHasAppliedApplication());
     _applyApprovedApplication();
@@ -58,6 +59,7 @@ abstract contract InsuredPoolBase is
     _initializePremiumCollector(ap.premiumToken, ap.minPrepayValue, ap.rollingAdvanceWindow);
   }
 
+  /// @inheritdoc ICollateralized
   function collateral() public view override(ICollateralized, Collateralized, PremiumCollectorBase) returns (address) {
     return Collateralized.collateral();
   }
@@ -86,7 +88,8 @@ abstract contract InsuredPoolBase is
     return InsuredJoinBase.internalIsAllowedAsHolder(status);
   }
 
-  /// @notice Attempt to join an insurer
+  /// @dev Initiates joining to an insurer.
+  /// @dev Must have an approved application in the ApprovalCatalog, and must have a sufficuent prepayment of premium token.
   function joinPool(IJoinable pool) external onlyGovernor {
     Value.require(address(pool) != address(0));
     if (!internalHasAppliedApplication()) {
@@ -98,9 +101,9 @@ abstract contract InsuredPoolBase is
     internalJoinPool(pool);
   }
 
-  /// @notice Add coverage demand to the desired insurers
-  /// @param targets The insurers to add demand to
-  /// @param amounts The amount of coverage demand to request
+  /// @dev Attemps to add coverage demands to the desired insurers. An insurer may take only a fraction of the pushed demand.
+  /// @param targets is a list of insurers to add demand to
+  /// @param amounts is a list of amount of coverage demand to push to insurers
   function pushCoverageDemandTo(ICoverageDistributor[] calldata targets, uint256[] calldata amounts)
     external
     onlyGovernorOr(AccessFlags.INSURED_OPS)
@@ -111,23 +114,23 @@ abstract contract InsuredPoolBase is
     }
   }
 
+  /// @dev Sets params of this policy. See IInsuredPool.InsuredParams
   function setInsuredParams(InsuredParams calldata params) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalSetInsuredParams(params);
   }
 
-  /// @notice Called when the insurer has process this insured
-  /// @param accepted True if this insured was accepted to the pool
+  /// @inheritdoc IInsuredPool
   function joinProcessed(bool accepted) external override {
     internalJoinProcessed(msg.sender, accepted);
   }
 
-  /// @notice Reconcile the coverage and premium with chartered insurers
-  /// @param startIndex Index to start at
-  /// @param count Max amount of insurers to reconcile with, 0 == max
-  /// @return receivedCoverage Returns the amount of coverage received
-  /// @return receivedCollateral Returns the amount of collateral received (<= receivedCoverage)
-  /// @return demandedCoverage Total amount of coverage demanded
-  /// @return providedCoverage Total coverage provided (demand satisfied)
+  /// @dev Reconciles coverage and premium with chartered insurers. Updates premium requirements, adds collateral into escrow.
+  /// @param startIndex in the chartered list to start with
+  /// @param count is max number of insurers to reconcile with, 0 == max
+  /// @return receivedCoverage is the amount of coverage added (allocated by insurers since the previous reconciliation).
+  /// @return receivedCollateral is the amount of collateral currency added into escrow (<= receivedCoverage).
+  /// @return demandedCoverage is total amount of demanded coverage
+  /// @return providedCoverage is total coverage provided (i.e. demand satisfied)
   function reconcileWithInsurers(uint256 startIndex, uint256 count)
     external
     onlyGovernorOr(AccessFlags.INSURED_OPS)
@@ -143,8 +146,6 @@ abstract contract InsuredPoolBase is
 
   event CoverageReconciled(address indexed insurer, uint256 receivedCoverage, uint256 receivedCollateral);
 
-  /// @dev Go through each insurer and reconcile with them
-  /// @dev Does NOT sync the rate
   function _reconcileWithInsurers(uint256 startIndex, uint256 count)
     private
     returns (
@@ -175,6 +176,8 @@ abstract contract InsuredPoolBase is
     }
   }
 
+  /// @dev Calculates expected changes to coverage and premium changes for the chartered `insurer` as if you call reconciliation now.
+  /// @return r is IInsuredPoo.ReceivableByReconcile with the expected changes and stats.
   function receivableByReconcileWithInsurer(address insurer) external view returns (ReceivableByReconcile memory r) {
     Balances.RateAcc memory totals = internalSyncTotals();
     (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(ICoverageDistributor(insurer), totals);
@@ -184,8 +187,6 @@ abstract contract InsuredPoolBase is
     (r.rate, r.accumulated) = (totals.rate, totals.accum);
   }
 
-  /// @dev Get the values if reconciliation were to occur with the desired Insurers
-  /// @dev DOES sync the rate (for the view)
   function _reconcileWithInsurersView(uint256 startIndex, uint256 count)
     private
     view
@@ -214,7 +215,7 @@ abstract contract InsuredPoolBase is
     (rate, accumulated) = (totals.rate, totals.accum);
   }
 
-  /// @notice Get the values if reconciliation were to occur with all insurers
+  /// @dev  Get the values if reconciliation were to occur with all insurers
   function receivableByReconcileWithInsurers(uint256 startIndex, uint256 count)
     external
     view
@@ -231,9 +232,10 @@ abstract contract InsuredPoolBase is
 
   event CoverageFullyCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
 
-  /// @notice Cancel coverage and get paid out the coverage amount
-  /// @param payoutReceiver The receiver of the collateral currency
-  /// @param expectedPayout Amount to get paid out for
+  /// @dev Cancels coverage and pays out an insurance. When payout is non-zero, it must be approved in the ApprovalCatalog.
+  /// @dev This method iterates through all insurers and takes the payout proportionally from each insurer.
+  /// @param payoutReceiver will receive the payout (collateral currency). The payout may be deducted by known debts (e.g. lack of premium).
+  /// @param expectedPayout to be paid
   function cancelCoverage(address payoutReceiver, uint256 expectedPayout) external onlyGovernorOr(AccessFlags.INSURED_OPS) {
     internalCancelRates();
 
@@ -261,9 +263,8 @@ abstract contract InsuredPoolBase is
   event CoverageCancelled(address indexed insurer, uint256 payoutRatio, uint256 actualPayout);
 
   /// @dev Goes through the insurers and cancels with the payout ratio
-  /// @param insurers The insurers to cancel with
-  /// @param payoutRatio The ratio of coverage to get paid out
-  /// @dev e.g payoutRatio = 7e26 means 30% of coverage is sent back to the insurer
+  /// @param insurers to cancel with
+  /// @param payoutRatio is a RAY-based share of coverage to be given to this insured, e.g. 7e26 means 70% to this insured and 30% to the insurer.
   /// @return totalPayout total amount of coverage paid out to this insured
   function internalCancelInsurers(address[] storage insurers, uint256 payoutRatio) private returns (uint256 totalPayout) {
     for (uint256 i = insurers.length; i > 0; ) {
@@ -287,6 +288,8 @@ abstract contract InsuredPoolBase is
     _totalReceivedCoverage += receivedCoverage;
   }
 
+  /// @return receivedCoverage is the amount of coverage allocated by all insurers. Updated by reconcilation.
+  /// @return receivedCollateral is the amount of collateral currency in the escrow (<= receivedCoverage). Updated by reconcilation.
   function totalReceived() public view returns (uint256 receivedCoverage, uint256 receivedCollateral) {
     return (_totalReceivedCoverage, totalReceivedCollateral());
   }
@@ -303,6 +306,7 @@ abstract contract InsuredPoolBase is
     return internalExpectedTotals(uint32(atTimestamp)).accum;
   }
 
+  /// @inheritdoc IPremiumSource
   function collectPremium(
     address actuary,
     address token,
@@ -320,19 +324,23 @@ abstract contract InsuredPoolBase is
 
   event PrepayWithdrawn(uint256 amount, address indexed recipient);
 
+  /// @inheritdoc IPremiumCollector
   function withdrawPrepay(address recipient, uint256 amount) external override onlyGovernor {
     amount = internalWithdrawPrepay(recipient, amount);
     emit PrepayWithdrawn(amount, recipient);
   }
 
+  /// @return address of a governor
   function governor() public view returns (address) {
     return governorAccount();
   }
 
+  /// @dev Sets a governor. When the governor is a contract it can get callbacks by declaring IInsuredGovernor support via ERC165.
   function setGovernor(address addr) external onlyGovernorOr(AccessFlags.INSURED_ADMIN) {
     internalSetGovernor(addr);
   }
 
+  /// @inheritdoc IClaimAccessValidator
   function canClaimInsurance(address claimedBy) public view virtual override returns (bool) {
     return internalHasAppliedApplication() && claimedBy == governorAccount();
   }
