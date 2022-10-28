@@ -315,11 +315,7 @@ abstract contract InsuredPoolBase is
   ) external override {
     _ensureHolder(actuary);
     Access.require(IPremiumActuary(actuary).premiumDistributor() == msg.sender);
-    internalCollectPremium(token, amount, value);
-  }
-
-  function internalReservedCollateral() internal view override returns (uint256) {
-    return totalReceivedCollateral();
+    internalCollectPremium(token, amount, value, msg.sender);
   }
 
   event PrepayWithdrawn(uint256 amount, address indexed recipient);
