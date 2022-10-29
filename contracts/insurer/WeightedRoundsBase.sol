@@ -10,8 +10,31 @@ import './Rounds.sol';
 
 import 'hardhat/console.sol';
 
-/// @title A calculator for allocating coverage
-/// @notice Coverage is demanded and provided through rounds and batches.
+/// @dev A calculator for allocating coverage and premiums.
+/// @dev Insureds add coverage demand, investors add coverage, and this contract incrementally calculates allocation of the coverage to the demand.
+/// @dev The allocation of coverage follows risk weights of insureds.
+/// @dev At any moment of time an insured will get a share of total coverage not exceeding the insured's relative risk weight.
+/// @dev To do that allocation of coverage is done with units and rounds. A unit is an atomic amount of the Collateral Currency.
+/// @dev Each round can have one or more units of demand from one or more insureds.
+/// @dev And a round can be filled in with coverage when a composition of the round satisfies risk weights.
+/// @dev Rounds with identical compositions (insureds and their demands) are organized in batches to save on storage gas costs.
+/// @dev
+/// @dev This calculator is organized as a one-way linked list of batches. This list grows with more demand and shrinks with more coverage added.
+/// @dev Additionally, each insured has an indexed list to map insured's demands to these batches (to calculate coverage and premium).
+/// @dev
+/// @dev This calculator is primarally optimized:
+/// @dev * to reduce gas cost for investors (users) when adding coverage;
+/// @dev * to avoid gas dependency on # of users and # of insureds.
+/// @dev
+/// @dev Addition of coverage depends on amount of coverage and fragmentation of batches.
+/// @dev Other operations also depend on fragmentation of batches too.
+/// @dev To keep the fragmentation of batches low - this calculator may insured's add demand partially (i.e. round it down) and
+/// @dev remove more demand (i.e. round it up) due to current batches.
+/// @dev
+/// @dev Also, addition of demand can be limited by total amount of uncovered demand to avoid preallocation of excessive amount of batches
+/// @dev which may require more gas later to reconfigure them, and will also unreasonably lock up demand with multiple chartered insureds.
+/// @dev To handle this, there is an "auto-pull" feature - an insured can provide "hasMore" flag, and next time when there will be no demand
+/// @dev for coverage, then insureds will be requested to provide additional demand.
 // solhint-disable-next-line max-states-count
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;
@@ -24,7 +47,8 @@ abstract contract WeightedRoundsBase {
   uint256 private immutable _unitSize;
 
   constructor(uint256 unitSize) {
-    Value.require(unitSize > 0);
+    // upper boundary is limited by TimeMark.coverageTW
+    Value.require(unitSize > 0 && unitSize <= type(uint128).max);
     _unitSize = unitSize;
   }
 
@@ -42,9 +66,10 @@ abstract contract WeightedRoundsBase {
 
   /// @dev total number of batches
   uint64 private _batchCount;
-  /// @dev the most recently added batch (head of the linked list)
+
+  /// @dev the most distant batch, i.e. the head of the linked list of batches
   uint64 private _latestBatchNo;
-  /// @dev points to an earliest round that is open, can not be zero
+  /// @dev points to an open batch, which is the most distant from the head of the linked list of batches
   uint64 private _firstOpenBatchNo;
   /// @dev number of open rounds starting from the partial one to _latestBatchNo
   /// @dev it is provided to the logic distribution control logic
@@ -52,6 +77,7 @@ abstract contract WeightedRoundsBase {
   /// @dev summary of total pool premium (covers all batches before the partial)
   Rounds.CoveragePremium private _poolPremium;
 
+  /// @dev Info about the partial batch - the first non-full (i.e. not fully covered) batch in the linked list of batches.
   struct PartialState {
     /// @dev amount of coverage in the partial round, must be zero when roundNo == batch size
     uint128 roundCoverage;
@@ -67,7 +93,8 @@ abstract contract WeightedRoundsBase {
 
   /// @dev segment of a coverage integral (time-weighted) for a partial or full batch
   struct TimeMark {
-    /// @dev value of integral of coverage for a batch
+    /// @dev value of integral of coverage for a batch, i.e. unitSize * roundPerBatch (24) * unitPerBatch (16) * duration (32)
+    /// @dev so, even at maximum numbers, overflow should NOT happen for unitSize upto uint120
     uint192 coverageTW;
     /// @dev last updated at
     uint32 timestamp;
@@ -112,7 +139,7 @@ abstract contract WeightedRoundsBase {
     address insured;
     uint40 premiumRate;
     bool hasMore;
-    // temporary variables
+    /// @dev temporary variables
     uint64 prevPullBatch;
     uint32 partialRounds;
     bool takeNext;
@@ -244,6 +271,7 @@ abstract contract WeightedRoundsBase {
     return unitCount;
   }
 
+  /// @return true when the remaining `unitCount` for the entry is eligible for auto-pull
   function internalIsEnoughForMore(Rounds.InsuredEntry memory entry, uint256 unitCount) internal view virtual returns (bool);
 
   function _setPullBatch(AddCoverageDemandParams memory params, uint64 newPullBatch) private {
@@ -315,6 +343,7 @@ abstract contract WeightedRoundsBase {
     return (b, thisBatchNo, thisBatchNo == firstOpen);
   }
 
+  /// @return n as number of units adjusted by the number of cancelled units. Only applies to units of full batches.
   function _adjustedTotalUnits(uint80 units) private view returns (uint80 n) {
     n = _pendingCancelledCoverageUnits;
     if (n >= units) {
@@ -325,7 +354,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
-  /// @dev adds the demand to the list of demands
+  /// @dev Adds the demand to the list of demands. Attempts to reuse an exisitng slot when the premiumRate is identical.
   function _addToSlot(
     Rounds.Demand memory demand,
     Rounds.Demand[] storage demands,
@@ -342,7 +371,7 @@ abstract contract WeightedRoundsBase {
         demand.rounds = t;
         return false;
       }
-      // overflow on amount of rounds per slot
+      // Amount of rounds is overflown, new slot is needed.
     }
 
     if (demand.unitPerRound != 0) {
@@ -409,6 +438,8 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  /// @dev This is a strategy to decide when a new demand can be added to an existing round, and when the round is ready to be covered.
+  /// @dev Large rounds are more gas efficient, but will require demand from more insureds before coverage can be allocated.
   function internalRoundLimits(
     uint80 totalUnitsBeforeBatch,
     uint24 batchRounds,
@@ -425,6 +456,8 @@ abstract contract WeightedRoundsBase {
       uint16 maxUnitsPerRound
     );
 
+  /// @dev This is a strategy to decide when an exising batch can be split to accomodate a smaller amount of demand units.
+  /// @dev Lower split threshold allows to accept smaller fractions of demand, but significantly impacts gas expenses for ALL operations.
   function internalBatchSplit(
     uint64 demandedUnits,
     uint64 minUnits,
@@ -432,6 +465,12 @@ abstract contract WeightedRoundsBase {
     uint24 remainingUnits
   ) internal virtual returns (uint24 splitRounds);
 
+  /// @dev This is a strategy to decide when a batch can be split when demand is cancelled.
+  /// @dev Lower split threshold releases demand more precisely, but significantly impacts gas expenses for ALL operations due to fragmentation.
+  function internalCanSplitBatchOnCancel(uint64 batchNo, uint24 remainingRounds) internal view virtual returns (bool) {}
+
+  /// @dev This is a strategy to decide when a new batch should be appended.
+  /// @dev It controls growth of the batch chain and of uncovered demand.
   function internalBatchAppend(uint32 openRounds, uint64 unitCount) internal virtual returns (uint24 rounds);
 
   /// @dev Reduces the current batch's rounds and adds the leftover rounds to a new batch.
@@ -798,7 +837,7 @@ abstract contract WeightedRoundsBase {
 
   struct AddCoverageParams {
     Rounds.CoveragePremium premium;
-    /// @dev != 0 also indicates that at least one round was added
+    /// @dev openBatchNo != 0 also indicates that at least one round was added
     uint64 openBatchNo;
     bool openBatchUpdated;
     bool batchUpdated;
@@ -806,7 +845,7 @@ abstract contract WeightedRoundsBase {
     // uint256 unitsCovered;
   }
 
-  /// @dev Satisfy coverage demand by adding coverage
+  /// @dev Satisfy demand by adding coverage
   function internalAddCoverage(uint256 amount, uint256 loopLimit)
     internal
     returns (
@@ -843,7 +882,7 @@ abstract contract WeightedRoundsBase {
   }
 
   /// @dev Adds coverage to the pool and stops if there are no batches left to add coverage to or
-  /// if the current batch is not ready to accept coverage
+  /// if the partial/current batch is not ready to accept coverage.
   function _addCoverage(
     uint256 amount,
     uint256 loopLimit,
@@ -862,6 +901,7 @@ abstract contract WeightedRoundsBase {
     if (part.roundCoverage > 0) {
       Sanity.require(b.isReady());
 
+      // update the integral of coverage by time for the partial batch
       _updateTimeMark(part, b.unitPerRound);
 
       uint256 maxRoundCoverage = uint256(_unitSize) * b.unitPerRound;
@@ -939,6 +979,7 @@ abstract contract WeightedRoundsBase {
           return (amount, loopLimit, b);
         }
       } else {
+        // finalize the integral of coverage by time for the partial batch
         _updateTimeMark(part, b.unitPerRound);
 
         uint256 maxRoundCoverage = uint256(_unitSize) * b.unitPerRound;
@@ -984,19 +1025,20 @@ abstract contract WeightedRoundsBase {
     );
   }
 
+  /// @dev not-zero init value allows to move some of gas costs from addCoverage to addCoverageDemand, i.e. from an investor to an insured.
+  uint32 private constant NO_TIMESTAMP = 1;
+
   function _initTimeMark(uint64 batchNo) private {
-    // NB! this moves some of gas costs from addCoverage to addCoverageDemand
-    _marks[batchNo].timestamp = 1;
+    _marks[batchNo].timestamp = NO_TIMESTAMP;
   }
 
-  /// @dev Updates the timeMark for the partial batch which calculates the "area under the curve"
-  /// of the coverage curve over time
+  /// @dev Updates the partial batch integral which calculates the "area under the curve" of the coverage over time.
   function _updateTimeMark(PartialState memory part, uint256 batchUnitPerRound) private {
     // console.log('==updateTimeMark', part.batchNo);
     Sanity.require(part.batchNo != 0);
     TimeMark memory mark = _marks[part.batchNo];
 
-    if (mark.timestamp <= 1) {
+    if (mark.timestamp <= NO_TIMESTAMP) {
       mark.coverageTW = 0;
       mark.duration = 0;
     } else {
@@ -1004,7 +1046,7 @@ abstract contract WeightedRoundsBase {
       if (duration == 0) return;
 
       uint256 coverageTW = mark.coverageTW + (uint256(_unitSize) * part.roundNo * batchUnitPerRound + part.roundCoverage) * duration;
-      Value.require(coverageTW == (mark.coverageTW = uint192(coverageTW)));
+      Arithmetic.require(coverageTW == (mark.coverageTW = uint192(coverageTW)));
 
       mark.duration += duration;
     }
@@ -1013,12 +1055,17 @@ abstract contract WeightedRoundsBase {
     _marks[part.batchNo] = mark;
   }
 
+  /// @dev Provides debug information about batches
   struct Dump {
+    /// @dev total number of batches (both full and not full)
     uint64 batchCount;
+    /// @dev the most distant batch, i.e. the head of the linked list of batches
     uint64 latestBatch;
-    /// @dev points to an earliest round that is open, can be zero when all rounds are full
+    /// @dev points to an open batch, which is the most distant from the head of the linked list of batches
     uint64 firstOpenBatch;
+    /// @dev the partial batch - the first non-full (i.e. not fully covered) batch in the linked list of batches.
     PartialState part;
+    /// @dev all non-full batches after the partial batch
     Rounds.Batch[] batches;
   }
 
@@ -1071,7 +1118,8 @@ abstract contract WeightedRoundsBase {
     uint256[] rateBands;
   }
 
-  /// @dev Try to cancel `unitCount` units of coverage demand
+  /// @dev Attempts to cancel `unitCount` units of coverage demand. Covered units and units of a partial round can not be cancelled.
+  /// @dev Can cancel more or less units than requested.
   /// @return The amount of units that were cancelled
   function internalCancelCoverageDemand(uint64 unitCount, CancelCoverageDemandParams memory params) internal returns (uint64) {
     Rounds.InsuredEntry storage entry = _insureds[params.insured];
@@ -1156,7 +1204,7 @@ abstract contract WeightedRoundsBase {
     return bandCount + 1;
   }
 
-  /// @dev Remove coverage demand from batches
+  /// @dev Remove coverage demand from batches. Goes in the direction from the head to the tail of batches, i.e. LIFO.
   function _findAndAdjustUncovered(
     uint64 unitCount,
     Rounds.Demand[] storage demands,
@@ -1286,8 +1334,10 @@ abstract contract WeightedRoundsBase {
     cancelUnits = uint64(neededRounds * demand.unitPerRound);
   }
 
-  function internalCanSplitBatchOnCancel(uint64 batchNo, uint24 remainingRounds) internal view virtual returns (bool) {}
-
+  /// @dev Does correction of uncovered batches for the uncovered demand of an insured. LIFO order for the demand.
+  /// @dev As the cancellation is unlikely to involve all uncovered batches, totalUnitsBeforeBatch of uncovered batches may become inconsistent.
+  /// @dev To indicate that _pendingCancelledDemandUnits is increased, and should be addressed by calling internalApplyAdjustmentsToTotals().
+  /// @dev This inconsistency leads to underestimation of risk weights, especially when number of remaining covered insureds is low.
   function _adjustUncoveredSlots(
     uint64 batchNo,
     uint80 totalUnitsAdjustment,
@@ -1316,6 +1366,7 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  /// @dev Does correction of an uncovered batch during cancellation of demand.
   function _adjustUncoveredBatches(
     uint64 batchNo,
     uint256 rounds,
@@ -1348,6 +1399,9 @@ abstract contract WeightedRoundsBase {
     return (batchNo, totalUnitsBeforeBatch);
   }
 
+  /// @return total is an unadjusted (includes cancelled units) number of fully covered units.
+  /// @return pendingCovered is a pending adjustment of the number of cancelled units which were fully covered.
+  /// @return pendingDemand is a pending adjustment of the number of cancelled units which were not covered.
   function internalGetUnadjustedUnits()
     internal
     view
@@ -1361,11 +1415,13 @@ abstract contract WeightedRoundsBase {
     return (uint256(b.totalUnitsBeforeBatch) + _partial.roundNo * b.unitPerRound, _pendingCancelledCoverageUnits, _pendingCancelledDemandUnits);
   }
 
+  /// @dev When there were cancellations, it walks all non-full batches to update totalUnitsBeforeBatch of each batch.
   function internalApplyAdjustmentsToTotals() internal {
     uint80 totals = _pendingCancelledCoverageUnits;
     if (totals == 0 && _pendingCancelledDemandUnits == 0) {
       return;
     }
+    // NB! _pendingCancelledDemandUnits is only a mark, actual amount is irrelevant as it will be calculated during the update.
     (_pendingCancelledCoverageUnits, _pendingCancelledDemandUnits) = (0, 0);
 
     uint64 batchNo = _partial.batchNo;
@@ -1379,6 +1435,10 @@ abstract contract WeightedRoundsBase {
     }
   }
 
+  /// @dev Collects premium rate bands for the covered demand of an `insured`.
+  /// @dev A returned value is encoded as { uint40 premiumRate; uint216 units; }.
+  /// @param ignoreRecent suppresses collection of recent updates, the returned info will be based on the latest internalUpdateCoveredDemand().
+  /// @return rateBands for each sequence of added demand with same premiumRate. The values are encoded.
   function internalGetCoveredRateBands(address insured, bool ignoreRecent) internal view returns (uint256[] memory rateBands) {
     Rounds.Demand[] storage demands = _demands[insured];
     uint256 demandLength = demands.length;
@@ -1611,7 +1671,12 @@ abstract contract WeightedRoundsBase {
     _pullableDemands[batchNo].remove(insured);
   }
 
-  function internalPullDemandCandidate(uint256 loopLimit, bool trimOnly) internal returns (address insured, uint256) {
+  /// @dev Looks for an insured to pull demand from. The insured has to be added with "hasMore" flag.
+  /// @param loopLimit how many internal loops can be made to find a suitable insured.
+  /// @param peek is true to keep the insured (next call will also return it).
+  /// @return insured found
+  /// @return remaining loop limit
+  function internalPullDemandCandidate(uint256 loopLimit, bool peek) internal returns (address insured, uint256) {
     uint64 batchNo;
     uint64 pullableBatchNo = batchNo = _pullableBatchNo;
     if (batchNo == 0) {
@@ -1631,7 +1696,7 @@ abstract contract WeightedRoundsBase {
         n--;
         insured = demands.at(n);
         if (_insureds[insured].status == MemberStatus.Accepted) {
-          if (!trimOnly) {
+          if (!peek) {
             demands.remove(insured);
           }
           break;
