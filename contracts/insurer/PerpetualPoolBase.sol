@@ -239,4 +239,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
     super.internalSetPoolParams(params);
   }
+
+  /// @dev a storage reserve for further upgrades
+  uint256[16] private _gap;
 }

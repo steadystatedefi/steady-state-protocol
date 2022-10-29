@@ -47,7 +47,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     emit WeightedPoolParamsUpdated(params);
   }
 
-  ///@return The number of rounds to initialize a new batch
+  /// @inheritdoc WeightedRoundsBase
   function internalBatchAppend(uint32 openRounds, uint64 unitCount) internal view override returns (uint24) {
     uint256 max = _params.maxUnitsPerRound;
     uint256 min = _params.minAdvanceUnits / max;
@@ -84,9 +84,10 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return uint24(min);
   }
 
+  /// @return a number of coverage units which are passive (not used for coverage), but can be considered to calculate risk weights.
   function internalGetPassiveCoverageUnits() internal view returns (uint256) {}
 
-  /// @dev Calculate the limits of the number of units that can be added to a round
+  /// @inheritdoc WeightedRoundsBase
   function internalRoundLimits(
     uint80 totalUnitsBeforeBatch,
     uint24 batchRounds,
@@ -144,6 +145,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return demandedUnits < minUnits && demandedUnits + remainingUnits >= minUnits;
   }
 
+  /// @inheritdoc WeightedRoundsBase
   function internalBatchSplit(
     uint64 demandedUnits,
     uint64 minUnits,
@@ -155,17 +157,22 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return _requiredForMinimumCoverage(demandedUnits, minUnits, remainingUnits) || (remainingUnits > batchRounds >> 2) ? remainingUnits : 0;
   }
 
+  /// @inheritdoc WeightedRoundsBase
   function internalIsEnoughForMore(Rounds.InsuredEntry memory entry, uint256 unitCount) internal view override returns (bool) {
     return _requiredForMinimumCoverage(entry.demandedUnits, entry.params.minUnits(), unitCount) || unitCount >= _params.minAdvanceUnits;
   }
 
   function setDefaultLoopLimit(LoopLimitType t, uint8 limit) internal {
-    _loopLimits = (_loopLimits & ~(uint256(0xFF) << uint8(t))) | (uint256(limit) << uint8(t));
+    _loopLimits = (_loopLimits & ~(uint256(0xFF) << (uint8(t) << 3))) | (uint256(limit) << (uint8(t) << 3));
   }
 
+  /// @dev Provides a loop limit for an operation
+  /// @param t is a type of the operation
+  /// @param limit is a custom limit, zero to reguest a default limit
+  /// @return loop limit for the operation
   function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view virtual returns (uint256) {
     if (limit == 0) {
-      limit = uint8(_loopLimits >> uint8(t));
+      limit = uint8(_loopLimits >> (uint8(t) << 3));
       if (limit == 0) {
         limit = t <= LoopLimitType.ReceivableDemandedCoverage ? type(uint8).max : (t < LoopLimitType.PullDemandAfterJoin ? 31 : 0);
       }
@@ -276,6 +283,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   }
 }
 
+/// @dev Type of operation to get a default loop limit for it
 enum LoopLimitType {
   // View ops (255 iterations by default)
   ReceivableDemandedCoverage,

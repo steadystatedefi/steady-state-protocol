@@ -5,6 +5,8 @@ import './WeightedPoolExtension.sol';
 import './PerpetualPoolBase.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
+/// @dev This is a a portion of implementation of prepetual-bond-style insurer (coverage can not be taken out).
+/// @dev This portion contains logic to handle coverage-related operations of insureds, except for add/cancel of demand.
 contract PerpetualPoolExtension is WeightedPoolExtension {
   using Math for uint256;
   using WadRayMath for uint256;

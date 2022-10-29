@@ -41,12 +41,12 @@ abstract contract WeightedPoolBase is
     _delegate(_extension);
   }
 
-  /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
-  /// @return The coverage unit size
+  /// @inheritdoc IDemandableCoverage
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
   }
 
+  /// @inheritdoc ICharterable
   function charteredDemand() external pure override returns (bool) {
     return true;
   }
@@ -57,8 +57,7 @@ abstract contract WeightedPoolBase is
     pushCoverageExcess();
   }
 
-  /// @dev initiates evaluation of the insured pool by this insurer. May involve governance activities etc.
-  /// IInsuredPool.joinProcessed will be called after the decision is made.
+  /// @inheritdoc IJoinableBase
   function requestJoin(address) external override {
     _delegate(_joinExtension);
   }
@@ -67,6 +66,7 @@ abstract contract WeightedPoolBase is
     _delegate(_joinExtension);
   }
 
+  /// @inheritdoc IJoinableBase
   function cancelJoin() external returns (MemberStatus) {
     _delegate(_joinExtension);
   }
@@ -101,6 +101,7 @@ abstract contract WeightedPoolBase is
     _;
   }
 
+  /// @inheritdoc IPremiumActuary
   function burnPremium(
     address account,
     uint256 value,
@@ -115,6 +116,7 @@ abstract contract WeightedPoolBase is
     address drawdownRecepient
   ) internal virtual;
 
+  /// @inheritdoc IPremiumActuary
   function collectDrawdownPremium() external override onlyPremiumDistributor returns (uint256 maxDrawdownValue, uint256 availableDrawdownValue) {
     return internalCollectDrawdownPremium();
   }

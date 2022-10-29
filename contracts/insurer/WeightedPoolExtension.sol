@@ -6,18 +6,20 @@ import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
-// Handles Insured pool functions, adding/cancelling demand
+/// @dev NB! MUST HAVE NO STORAGE
+/// @dev This is a template of a portion of implementation of a weighted-rounds-based insurer. It is introduced due to overcome the code size limit.
+/// @dev This portion contains logic to handle coverage-related operations of insureds, except for add/cancel of demand.
 abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
-  /// @return The coverage unit size
+  /// @inheritdoc ICancellableCoverage
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
   }
 
+  /// @inheritdoc ICancellableCoverage
   function cancelCoverage(address insured, uint256 payoutRatio)
     external
     override
@@ -131,7 +133,6 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     uint256 receivedCoverage,
     DemandedCoverage memory coverage
   ) internal virtual returns (uint256);
-
 
   function getCoveredRateBands(address insured, bool ignoreRecent) external view returns (uint256[] memory) {
     return internalGetCoveredRateBands(insured, ignoreRecent);

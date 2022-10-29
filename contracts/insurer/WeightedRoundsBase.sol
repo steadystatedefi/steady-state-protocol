@@ -458,6 +458,7 @@ abstract contract WeightedRoundsBase {
 
   /// @dev This is a strategy to decide when an exising batch can be split to accomodate a smaller amount of demand units.
   /// @dev Lower split threshold allows to accept smaller fractions of demand, but significantly impacts gas expenses for ALL operations.
+  /// @return splitRounds is a number of rounds to stay in the batch, zero to prevent splitting (hence the demand will not be added).
   function internalBatchSplit(
     uint64 demandedUnits,
     uint64 minUnits,
@@ -467,10 +468,12 @@ abstract contract WeightedRoundsBase {
 
   /// @dev This is a strategy to decide when a batch can be split when demand is cancelled.
   /// @dev Lower split threshold releases demand more precisely, but significantly impacts gas expenses for ALL operations due to fragmentation.
+  /// @return true to allow splitting. False forces more demand to be cancelled.
   function internalCanSplitBatchOnCancel(uint64 batchNo, uint24 remainingRounds) internal view virtual returns (bool) {}
 
   /// @dev This is a strategy to decide when a new batch should be appended.
   /// @dev It controls growth of the batch chain and of uncovered demand.
+  /// @return rounds is a number of rounds to add a new batch, zero to prevent it
   function internalBatchAppend(uint32 openRounds, uint64 unitCount) internal virtual returns (uint24 rounds);
 
   /// @dev Reduces the current batch's rounds and adds the leftover rounds to a new batch.

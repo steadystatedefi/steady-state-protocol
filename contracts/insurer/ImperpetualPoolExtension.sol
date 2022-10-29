@@ -5,6 +5,8 @@ import './WeightedPoolExtension.sol';
 import './ImperpetualPoolBase.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
+/// @dev This is a a portion of implementation of an insurer where coverage can be partially taken out (i.e. supports drawdown).
+/// @dev This portion contains logic to handle coverage-related operations of insureds, except for add/cancel of demand.
 contract ImperpetualPoolExtension is WeightedPoolExtension {
   using WadRayMath for uint256;
   using PercentageMath for uint256;

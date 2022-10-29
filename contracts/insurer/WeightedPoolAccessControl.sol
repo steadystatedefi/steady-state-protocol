@@ -9,27 +9,22 @@ import '../governance/interfaces/IInsurerGovernor.sol';
 import '../governance/GovernedHelper.sol';
 import './InsurerJoinBase.sol';
 
+/// @dev This template provides extends access control with a governor.
+/// @dev The governor can be either EOA or a contract.
+/// @dev Both will get access to protected functions, and a contract can also enable callbacks by declaring IInsurerGovernor support via ERC165.
 abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
   using PercentageMath for uint256;
 
   address private _governor;
   bool private _governorIsContract;
 
-  function _onlyActiveInsured(address insurer) internal view {
-    Access.require(internalGetStatus(insurer) == MemberStatus.Accepted);
+  function _onlyActiveInsured(address insured) internal view {
+    Access.require(internalGetStatus(insured) == MemberStatus.Accepted);
   }
 
-  function _onlyInsured(address insurer) private view {
-    Access.require(internalGetStatus(insurer) > MemberStatus.Unknown);
-  }
-
+  /// @dev Allows only a caller (insured) with MemberStatus.Accepted
   modifier onlyActiveInsured() {
     _onlyActiveInsured(msg.sender);
-    _;
-  }
-
-  modifier onlyInsured() {
-    _onlyInsured(msg.sender);
     _;
   }
 
@@ -40,6 +35,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     _onlyActiveInsured(insured);
   }
 
+  /// @dev Allows an insured with MemberStatus.Accepted, and a caller either the insured, or a governor, or an INSURER_OPS
   modifier onlyActiveInsuredOrOps(address insured) {
     _onlyActiveInsuredOrOps(insured);
     _;
@@ -56,6 +52,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     _setGovernor(addr);
   }
 
+  /// @return a typed/callable contract of a governor, otherwise zero.
   function governorContract() internal view virtual returns (IInsurerGovernor) {
     return IInsurerGovernor(_governorIsContract ? governorAccount() : address(0));
   }
@@ -69,6 +66,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
   }
 
   function internalInitiateJoin(address insured) internal override returns (MemberStatus) {
+    // The insured must be approved by the governor (when is it a compatible contract) or must have an approved application in the ApprovalCatalog.
     IJoinHandler jh = governorContract();
     if (address(jh) == address(0)) {
       IApprovalCatalog c = approvalCatalog();
@@ -94,6 +92,8 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     uint256 payoutRatio,
     bool enforcedCancel
   ) internal virtual returns (uint256 approvedPayoutRatio) {
+    // The claim must be approved by the governor (when is it a compatible contract) or must have an approval in the ApprovalCatalog.
+    // An enforced cancellation with zero payout skips the ApprovalCatalog check / the governor's callback.
     IInsurerGovernor g = governorContract();
     if (address(g) == address(0)) {
       IApprovalCatalog c = approvalCatalog();
@@ -101,14 +101,15 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
         return payoutRatio;
       }
 
-      if (!enforcedCancel || c.hasApprovedClaim(insured)) {
+      if (!enforcedCancel || payoutRatio != 0 || c.hasApprovedClaim(insured)) {
         IApprovalCatalog.ApprovedClaim memory info = c.applyApprovedClaim(insured);
 
         Access.require(enforcedCancel || info.since <= block.timestamp);
         approvedPayoutRatio = WadRayMath.RAY.percentMul(info.payoutRatio);
       }
       // else approvedPayoutRatio = 0 (for enfoced calls without an approved claim)
-    } else if (!enforcedCancel || payoutRatio > 0) {
+    } else if (!enforcedCancel || payoutRatio != 0) {
+      // governor is not involved for enforced cancellations with zero payout
       approvedPayoutRatio = g.verifyPayoutRatio(insured, payoutRatio);
     }
 

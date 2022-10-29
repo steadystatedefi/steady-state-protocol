@@ -9,6 +9,9 @@ import '../interfaces/IJoinable.sol';
 import './WeightedPoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
+/// @dev NB! MUST HAVE NO STORAGE
+/// @dev This is a portion of implementation of a weighted-rounds-based insurer. It is introduced due to overcome the code size limit.
+/// @dev This portion contains logic to handle joins of insureds, and to handle addition and cancellation of demand of insureds.
 contract JoinablePoolExtension is IJoinableBase, IDemandableCoverage, WeightedPoolStorage {
   constructor(
     IAccessController acl,
@@ -20,23 +23,28 @@ contract JoinablePoolExtension is IJoinableBase, IDemandableCoverage, WeightedPo
     return remoteAcl();
   }
 
+  /// @inheritdoc IJoinableBase
   function requestJoin(address insured) external override {
     Access.require(msg.sender == insured);
     internalRequestJoin(insured);
   }
 
+  /// @dev Allows a governor or an INSURER_OPS to accept or reject joining of an insured.
   function approveJoiner(address insured, bool accepted) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
     internalProcessJoin(insured, accepted);
   }
 
+  /// @inheritdoc IJoinableBase
   function cancelJoin() external returns (MemberStatus) {
     return internalCancelJoin(msg.sender);
   }
 
+  /// @inheritdoc IDemandableCoverage
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
   }
 
+  /// @inheritdoc IDemandableCoverage
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
@@ -59,6 +67,7 @@ contract JoinablePoolExtension is IJoinableBase, IDemandableCoverage, WeightedPo
     return addedCount;
   }
 
+  /// @inheritdoc IDemandableCoverage
   function cancelCoverageDemand(
     address insured,
     uint256 unitCount,
