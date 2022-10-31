@@ -5,17 +5,20 @@ import '../tools/tokens/ERC20BalancelessBase.sol';
 import '../libraries/Balances.sol';
 import './WeightedPoolBase.sol';
 
+/// @dev A storage template for a weighted-round insurer without drawdown support
 abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
 
+  /// @dev balances of premium value accumulated by users
   mapping(address => uint256) internal _userPremiums;
+  /// @dev total premium rate and total premium value accumulated by users
   Balances.RateAcc private _totalRate;
 
+  /// @dev an inverse exchange rate = 1 RAY - exchange, zero value will be = 1 RAY
   uint256 internal _inverseExchangeRate;
 
-  /// @notice The exchange rate from shares to $CC
-  /// @return The exchange rate
+  /// @return The exchange rate from shares to $CC
   function exchangeRate() public view virtual override returns (uint256) {
     return WadRayMath.RAY - _inverseExchangeRate;
   }
@@ -60,5 +63,6 @@ abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase
     return totals;
   }
 
+  /// @inheritdoc IERC20
   function totalSupply() public view virtual override(IERC20, WeightedPoolBase) returns (uint256);
 }

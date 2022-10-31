@@ -5,8 +5,9 @@ import './PerpetualPoolStorage.sol';
 import './PerpetualPoolExtension.sol';
 import './WeightedPoolBase.sol';
 
-/// @title Index Pool Base with Perpetual Index Pool Tokens
-/// @notice Handles adding coverage by users.
+/// @dev An implementation of insurer that does NOT allow release of investments / coverage.
+/// @dev It implements a dual-token model where the 2nd token represents the accumulated premium value.
+/// @dev This model is NOT suitable for the sencondary market as it will cause the premium value to be accumulated on a DEX contract.
 abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -14,8 +15,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
 
   constructor(PerpetualPoolExtension extension, JoinablePoolExtension joinExtension) WeightedPoolBase(extension, joinExtension) {}
 
-  /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  /// @dev Update the new amount of excess coverage
+  /// @inheritdoc WeightedPoolBase
   function internalMintForCoverage(address account, uint256 coverageValue) internal override {
     (UserBalance memory b, Balances.RateAcc memory totals) = _beforeBalanceUpdate(account);
 
@@ -42,6 +42,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[account] = b;
   }
 
+  /// @dev Handles loss and excess of coverage
   function internalAdjustCoverage(uint256 loss, uint256 excess) private {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
@@ -62,8 +63,11 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     internalAdjustCoverage(0, value);
   }
 
-  /// @dev Update the exchange rate and excess coverage when a policy cancellation occurs
-  /// @dev Call _afterBalanceUpdate to update the rate of the pool
+  /// @dev A callback from self (PoolExtension) to keep code parts separate.
+  /// @dev It handles cancellation of coverage, which includes recovery of premium debt and adjustments to coverage on losses.
+  /// @param valueLoss is a loss of the pool's value, e.g. payout to the policy holder.
+  /// @param excess is a value made available for coverage.
+  /// @param collateralAsPremium is value of coverage to be given out as premium because of premium debt of an insured.
   function updateCoverageOnCancel(
     uint256 valueLoss,
     uint256 excess,
@@ -84,8 +88,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     Errors.notImplemented();
   }
 
-  /// @dev Attempt to take the excess coverage and fill batches
-  /// @dev Occurs when there is excess and a new batch is ready (more demand added)
+  /// @inheritdoc WeightedPoolBase
   function pushCoverageExcess() public override {
     uint256 excessCoverage = _excessCoverage;
     if (excessCoverage == 0) {
@@ -128,10 +131,12 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return coverageValue;
   }
 
+  /// @inheritdoc IERC20
   function balanceOf(address account) public view override returns (uint256) {
     return _balances[account].balance;
   }
 
+  /// @inheritdoc IInsurerToken
   function balancesOf(address account)
     public
     view
@@ -146,17 +151,18 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     (, swappable) = interestOf(account);
   }
 
-  /// @return The $CC-equivalent value of this pool
+  /// @inheritdoc IInsurerToken
   function totalSupplyValue() public view returns (uint256) {
     DemandedCoverage memory coverage = super.internalGetPremiumTotals();
     return coverage.totalCovered + coverage.pendingCovered + _excessCoverage;
   }
 
-  /// @return The amount of tokens of this pool
+  /// @inheritdoc IERC20
   function totalSupply() public view override returns (uint256) {
     return totalSupplyValue().rayDiv(exchangeRate());
   }
 
+  /// @inheritdoc IPerpetualInsurerPool
   function interestOf(address account) public view override returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = _beforeAnyBalanceUpdate();
     UserBalance memory b = _balances[account];
@@ -174,11 +180,12 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return (0, accumulated);
   }
 
-  function exchangeRate() public view override(IInsurerPoolBase, PerpetualPoolStorage) returns (uint256) {
+  /// @inheritdoc IInsurerToken
+  function exchangeRate() public view override(IInsurerToken, PerpetualPoolStorage) returns (uint256) {
     return PerpetualPoolStorage.exchangeRate();
   }
 
-  ///@notice Transfer a balance to a recipient, syncs the balances before performing the transfer
+  ///@dev Transfer a balance to a recipient, syncs the balances before performing the transfer
   ///@param sender  The sender
   ///@param recipient The receiver
   ///@param amount  Amount to transfer
@@ -197,7 +204,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     _balances[recipient] = b;
   }
 
-  /// @dev Max amount withdrawable is the amount of excess coverage
+  /// @inheritdoc IPerpetualInsurerPool
   function withdrawable(address account) public view override returns (uint256 amount) {
     amount = _excessCoverage;
     if (amount > 0) {
@@ -208,6 +215,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     }
   }
 
+  /// @inheritdoc IPerpetualInsurerPool
   function withdrawAll() external override onlyUnpaused returns (uint256) {
     return internalBurn(msg.sender, _excessCoverage);
   }

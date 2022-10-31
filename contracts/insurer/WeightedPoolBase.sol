@@ -5,20 +5,19 @@ import '../tools/upgradeability/VersionedInitializable.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
 import '../interfaces/IPremiumActuary.sol';
-import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinable.sol';
 import './WeightedPoolExtension.sol';
 import './JoinablePoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
 abstract contract WeightedPoolBase is
+  WeightedPoolStorage,
   IJoinableBase,
-  IInsurerPoolBase,
+  IInsurerToken,
   IPremiumActuary,
   IDemandableCoverage,
   Delegator,
   ERC1363ReceiverBase,
-  WeightedPoolStorage,
   VersionedInitializable
 {
   address internal immutable _extension;
@@ -51,6 +50,7 @@ abstract contract WeightedPoolBase is
     return true;
   }
 
+  /// @dev Attempts to take the excess coverage and distribute it to insureds.
   function pushCoverageExcess() public virtual;
 
   function internalOnCoverageRecovered() internal virtual {
@@ -180,6 +180,7 @@ abstract contract WeightedPoolBase is
     internalOnCoveredUpdated();
   }
 
+  /// @dev Mints shares of this pool for the given `value` of coverage to the given `account`.
   function internalMintForCoverage(address account, uint256 value) internal virtual;
 
   event Paused(bool);

@@ -18,6 +18,7 @@ contract ImperpetualPoolExtension is WeightedPoolExtension {
     address collateral_
   ) WeightedPoolConfig(acl, unitSize, collateral_) {}
 
+  /// @inheritdoc WeightedPoolExtension
   function internalTransferCancelledCoverage(
     address insured,
     uint256 payoutValue,
@@ -25,18 +26,19 @@ contract ImperpetualPoolExtension is WeightedPoolExtension {
     uint256 recoveredValue,
     uint256 premiumDebt
   ) internal override returns (uint256) {
+    // This call avoids code to be duplicated within the PoolExtension to reduce contract size
     return ImperpetualPoolBase(address(this)).updateCoverageOnCancel(insured, payoutValue, advanceValue, recoveredValue, premiumDebt);
-    // ^^ this call avoids code to be duplicated within PoolExtension to reduce contract size
   }
 
+  /// @inheritdoc WeightedPoolExtension
   function internalTransferDemandedCoverage(
     address insured,
     uint256 receivedCoverage,
     DemandedCoverage memory coverage
   ) internal override returns (uint256) {
     if (receivedCoverage > 0) {
+      // This call avoids code to be duplicated within the PoolExtension to reduce contract size
       return ImperpetualPoolBase(address(this)).updateCoverageOnReconcile(insured, receivedCoverage, coverage.totalCovered);
-      // ^^ this call avoids code to be duplicated within PoolExtension to reduce contract size
     }
     return receivedCoverage;
   }

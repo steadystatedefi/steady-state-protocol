@@ -8,12 +8,15 @@ import '../tools/math/PercentageMath.sol';
 import './WeightedRoundsBase.sol';
 import './WeightedPoolAccessControl.sol';
 
+/// @dev This template implements configurable strategies for weighted-rounds. See WeightedPoolParams
 abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessControl {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
   using Rounds for Rounds.PackedInsuredParams;
 
+  /// @dev params for strategies
   WeightedPoolParams internal _params;
+  /// @dev compacted loop limits (one limit type is 1 byte)
   uint256 internal _loopLimits;
 
   constructor(
@@ -24,6 +27,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 
   event WeightedPoolParamsUpdated(WeightedPoolParams params);
 
+  /// @dev Validates and sets params
   function internalSetPoolParams(WeightedPoolParams memory params) internal virtual {
     Value.require(
       params.minUnitsPerRound > 0 && params.maxUnitsPerRound >= params.minUnitsPerRound && params.overUnitsPerRound >= params.maxUnitsPerRound
@@ -162,6 +166,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return _requiredForMinimumCoverage(entry.demandedUnits, entry.params.minUnits(), unitCount) || unitCount >= _params.minAdvanceUnits;
   }
 
+  /// @dev Sets a default loop limit for the given op
   function setDefaultLoopLimit(LoopLimitType t, uint8 limit) internal {
     _loopLimits = (_loopLimits & ~(uint256(0xFF) << (uint8(t) << 3))) | (uint256(limit) << (uint8(t) << 3));
   }
@@ -183,16 +188,22 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     return limit;
   }
 
-  function internalGetUnderwrittenParams(address insured) internal virtual returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
+  /// @dev Gets approved params for the insured from the ApprovalCatalog.
+  /// @return ok is true an approved policy is available for the `insured`
+  /// @return data with risk and premium data from the approved policy of the `insured`
+  function internalDefaultUnderwrittenParams(address insured) internal view returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
     IApprovalCatalog ac = approvalCatalog();
     if (address(ac) != address(0)) {
       (ok, data) = ac.getAppliedApplicationForInsurer(insured);
-    } else {
-      IInsurerGovernor g = governorContract();
-      if (address(g) != address(0)) {
-        (ok, data) = g.getApprovedPolicyForInsurer(insured);
-      }
     }
+  }
+
+  /// @dev Gets approved params for the insured from the governor, or from the ApprovalCatalog when the governor doesn support IInsurerGovernor.
+  /// @return ok is true an approved policy is available for the `insured`
+  /// @return data with risk and premium data from the approved policy of the `insured`
+  function internalGetUnderwrittenParams(address insured) internal virtual returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
+    IInsurerGovernor g = governorContract();
+    return address(g) != address(0) ? g.getApprovedPolicyForInsurer(insured) : internalDefaultUnderwrittenParams(insured);
   }
 
   /// @dev Prepare for an insured pool to join by setting the parameters
