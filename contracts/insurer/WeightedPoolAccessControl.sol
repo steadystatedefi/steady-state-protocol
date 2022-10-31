@@ -9,7 +9,7 @@ import '../governance/interfaces/IInsurerGovernor.sol';
 import '../governance/GovernedHelper.sol';
 import './InsurerJoinBase.sol';
 
-/// @dev This template provides extends access control with a governor.
+/// @dev This template extends access control with a governor.
 /// @dev The governor can be either EOA or a contract.
 /// @dev Both will get access to protected functions, and a contract can also enable callbacks by declaring IInsurerGovernor support via ERC165.
 abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
