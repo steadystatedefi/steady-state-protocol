@@ -11,7 +11,7 @@ import { getDeploySteps } from '../deploy/deploy-steps';
 
 task('deploy-dev', 'Deploy dev enviroment').setAction(
   dreAction(async () => {
-    const CONFIG_NAME = ConfigNames.Test;
+    const CONFIG_NAME = ConfigNames.Full;
 
     const deployer = await getFirstSigner();
     const startBalance: BigNumber = await deployer.getBalance();
