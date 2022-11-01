@@ -253,7 +253,7 @@ contract FrontHelper is AccessHelper {
     uint256 expectedPrepay;
   }
 
-  function getInsuredCommonInfo(address[] calldata insureds, uint32 timeDelta) external view returns (InsuredCoverageInfo[] memory totals) {
+  function getInsuredCoverageInfo(address[] calldata insureds, uint32 timeDelta) external view returns (InsuredCoverageInfo[] memory totals) {
     totals = new InsuredCoverageInfo[](insureds.length);
 
     for (uint256 i = insureds.length; i > 0; ) {
