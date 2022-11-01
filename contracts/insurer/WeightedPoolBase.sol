@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import '../tools/upgradeability/VersionedInitializable.sol';
 import '../tools/upgradeability/Delegator.sol';
 import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../interfaces/IYieldStakeAsset.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinable.sol';
@@ -16,7 +15,6 @@ abstract contract WeightedPoolBase is
   IJoinableBase,
   IInsurerPoolBase,
   IPremiumActuary,
-  IYieldStakeAsset,
   IDemandableCoverage,
   Delegator,
   ERC1363ReceiverBase,
@@ -200,9 +198,9 @@ abstract contract WeightedPoolBase is
     return totalCovered + pendingCovered;
   }
 
-  function totalSupply() public view virtual override returns (uint256);
+  function totalSupply() public view virtual returns (uint256);
 
-  function collateralSupply() public view override returns (uint256) {
+  function collateralSupply() public view returns (uint256) {
     return _coveredTotal() + _excessCoverage;
   }
 

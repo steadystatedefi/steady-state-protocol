@@ -8,6 +8,9 @@ import '../access/AccessHelper.sol';
 import './InvestmentCurrencyBase.sol';
 import './YieldingBase.sol';
 
+/// @dev A template of currency with managed and escrow balances, which also supports distribution of non-streaming yield.
+/// @dev Yield distribution is based on managed balances. Non-managed balances will not get yield, but will not be reinvested as well.
+/// @dev Aquired yield is minted to this contract itself, and then pulled by collateral managers (insurers).
 abstract contract YieldingCurrencyBase is AccessHelper, InvestmentCurrencyBase, YieldingBase {
   using Math for uint256;
   using WadRayMath for uint256;

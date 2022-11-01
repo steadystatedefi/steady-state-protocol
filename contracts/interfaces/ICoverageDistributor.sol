@@ -76,18 +76,29 @@ interface ICoverageDistributor is IDemandableCoverage, IReceivableCoverage {
 }
 
 struct DemandedCoverage {
-  uint256 totalDemand; // total demand added to insurer
-  uint256 totalCovered; // total coverage allocated by insurer (can not exceed total demand)
-  uint256 pendingCovered; // coverage that is allocated, but can not be given yet (should reach unit size)
-  uint256 premiumRate; // total premium rate accumulated accross all units filled-in with coverage
-  uint256 totalPremium; // time-cumulated of premiumRate
+  /// @dev total demand added to the insurer
+  uint256 totalDemand;
+  /// @dev total coverage allocated by the insurer (can not exceed total demand)
+  uint256 totalCovered;
+  /// @dev coverage that is allocated, but can not be reconciled yet (should reach unit size)
+  uint256 pendingCovered;
+  /// @dev total premium rate accumulated accross all units filled-in with coverage
+  uint256 premiumRate;
+  /// @dev time-cumulated of premiumRate
+  uint256 totalPremium;
+  /// @dev timestamp of totalPremium value (at which time it was calculated)
   uint32 premiumUpdatedAt;
+  /// @dev timestamp of premiumRate value (at which time it is known to be updated)
   uint32 premiumRateUpdatedAt;
 }
 
 struct TotalCoverage {
-  uint256 totalCoverable; // total demand that can be covered now (already balanced) - this value is not provided per-insured
+  /// @dev total demand that can be covered now (sufficiently balanced)
+  uint256 totalCoverable;
+  /// @dev total number of sufficiently balanced rounds (with demand that can be covered)
   uint88 usableRounds;
+  /// @dev total number of rounds added, but with demand insufficiently balanced (can not be covered)
   uint88 openRounds;
+  /// @dev total number batches not fully covered yet (including open ones).
   uint64 batchCount;
 }

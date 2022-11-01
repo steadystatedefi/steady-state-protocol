@@ -35,7 +35,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
 
   function _onlyActiveInsuredOrOps(address insured) private view {
     if (insured != msg.sender) {
-      _onlyGovernorOr(AccessFlags.INSURER_OPS);
+      _onlyGovernorOrAcl(AccessFlags.INSURER_OPS, false);
     }
     _onlyActiveInsured(insured);
   }
@@ -60,8 +60,12 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     return IInsurerGovernor(_governorIsContract ? governorAccount() : address(0));
   }
 
-  function isAllowedByGovernor(address account, uint256 flags) internal view override returns (bool) {
-    return _governorIsContract && IInsurerGovernor(governorAccount()).governerQueryAccessControlMask(account, flags) & flags != 0;
+  function internalQueryGovernorAcl(
+    address g,
+    address account,
+    uint256 flags
+  ) internal view override returns (uint256 mask, uint256 overrides) {
+    return super.internalQueryGovernorAcl(_governorIsContract ? g : address(0), account, flags);
   }
 
   function internalInitiateJoin(address insured) internal override returns (MemberStatus) {
@@ -90,8 +94,8 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     uint256 payoutRatio,
     bool enforcedCancel
   ) internal virtual returns (uint256 approvedPayoutRatio) {
-    IInsurerGovernor jh = governorContract();
-    if (address(jh) == address(0)) {
+    IInsurerGovernor g = governorContract();
+    if (address(g) == address(0)) {
       IApprovalCatalog c = approvalCatalog();
       if (address(c) == address(0)) {
         return payoutRatio;
@@ -105,7 +109,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
       }
       // else approvedPayoutRatio = 0 (for enfoced calls without an approved claim)
     } else if (!enforcedCancel || payoutRatio > 0) {
-      approvedPayoutRatio = jh.verifyPayoutRatio(insured, payoutRatio);
+      approvedPayoutRatio = g.verifyPayoutRatio(insured, payoutRatio);
     }
 
     if (payoutRatio < approvedPayoutRatio) {

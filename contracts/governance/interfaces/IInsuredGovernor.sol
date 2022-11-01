@@ -2,9 +2,10 @@
 pragma solidity ^0.8.4;
 
 import './IApprovalCatalog.sol';
+import './IGovernorAccessBitmask.sol';
 
-interface IInsuredGovernor {
-  function governerQueryAccessControlMask(address subject, uint256 filterMask) external view returns (uint256);
-
+/// @dev Callbacks to the governor for operations of insured.
+/// @dev Requires ERC165
+interface IInsuredGovernor is IGovernorAccessBitmask {
   // function getApprovedPolicyForInsurer(address insured) external returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data);
 }

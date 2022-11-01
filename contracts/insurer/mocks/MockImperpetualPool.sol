@@ -43,8 +43,8 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     return MemberStatus.Accepted;
   }
 
-  function governerQueryAccessControlMask(address, uint256 filterMask) external pure override returns (uint256) {
-    return filterMask;
+  function governorQueryAccessControlMask(address, uint256 filterMask) external pure override returns (uint256, uint256) {
+    return (filterMask, 0);
   }
 
   function getExcessCoverage() external view returns (uint256) {

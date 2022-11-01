@@ -6,21 +6,48 @@ import '../tools/tokens/ERC20MintableBalancelessBase.sol';
 import '../tools/tokens/IERC1363.sol';
 import './interfaces/ISubBalance.sol';
 
+/**
+  @dev This template provides logic to track managed balances and escrows.
+  Managed balances are balances which are unlikely to be redeemed / swapped, i.e. balances directly or indirectly managed by an insurer.
+  Underlyings of such balances can be more-or-less safely reinvested.
+  Unmanaged balances, i.e. balances of users, are considered as non-reinvestable.
+
+  The escrow sub-balances are for safety reasons. An escrow holds a portion of manager's balance reserved for an account,
+  i.e. a portion of coverage from insurer for an insured policy. This reduces amount of collateral currency residing on the insurer.
+  An insurer can add to the escrow or can close it, while insured can not use the escrow'ed balance until it is closed.
+*/
 abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalancelessBase {
   using InvestAccount for InvestAccount.Balance;
   using Math for uint256;
 
-  uint16 internal constant FLAG_MANAGER = 1 << 0; // MUST be equal to InvestAccount.FLAG_MANAGED
-  uint16 internal constant FLAG_MANAGED_BALANCE = 1 << 1; // MUST be equal to InvestAccount.FLAG_MANAGED_BALANCE
+  /// @dev Marks an account of a collateral manager, i.e. insurer.
+  /// @dev A collateral manager manages escow sub-balances of other accounts, balance of the manager is reinvestable.
+  // MUST be equal to InvestAccount.FLAG_MANAGER
+  uint16 internal constant FLAG_MANAGER = 1 << 0;
 
+  /// @dev Marks an account's balance as reinvestable (but neither manager nor escrow).
+  // MUST be equal to InvestAccount.FLAG_MANAGED_BALANCE
+  uint16 internal constant FLAG_MANAGED_BALANCE = 1 << 1;
+
+  /// @dev Marks an account that requires IERC1363 callabck
   uint16 internal constant FLAG_TRANSFER_CALLBACK = 1 << 2;
+  /// @dev Marks an account allowed to mint
   uint16 internal constant FLAG_MINT = 1 << 3;
+  /// @dev Marks an account allowed to burn
   uint16 internal constant FLAG_BURN = 1 << 4;
+  uint16 internal constant FLAGS_MASK = type(uint16).max;
+  /// @dev This mark is returened when an account has escrow sub-balance.
   uint256 internal constant FLAG_RESTRICTED = 1 << 16;
 
+  /// @dev Balance and total of sub-balances of an account.
+  /// @dev Manager's account has total of sub-balances given OUT to escrows, others - total of sub-balances given IN (received) to escrow.
   mapping(address => InvestAccount.Balance) private _accounts;
+
+  /// @dev Individual escrow sub-balances
   mapping(address => mapping(address => uint256)) private _subBalances; // [account][giver]
+
   uint128 private _totalSupply;
+  /// @dev A portion of _totalSupply which is not managed/reinvestable.
   uint128 private _totalNonManaged;
 
   function _onlyWithAnyFlags(uint256 flags) private view {
@@ -32,10 +59,13 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
     _;
   }
 
+  /// @inheritdoc IERC20
   function totalSupply() public view override returns (uint256) {
     return _totalSupply;
   }
 
+  /// @return total amount of token, same as totalSupply()
+  /// @return totalManaged amount of token usable for reinvestment and eligible to receive yield
   function totalAndManagedSupply() public view virtual returns (uint256 total, uint256 totalManaged) {
     total = _totalSupply;
     totalManaged = total - _totalNonManaged;
@@ -53,12 +83,14 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
     return _accounts[account];
   }
 
-  function balanceOf(address account) public view returns (uint256 u) {
+  /// @inheritdoc IERC20
+  function balanceOf(address account) public view override returns (uint256 u) {
     InvestAccount.Balance acc = _accounts[account];
     u = acc.ownBalance();
     return acc.isNotManager() ? u + acc.givenBalance() : u;
   }
 
+  /// @inheritdoc ISubBalance
   function balancesOf(address account)
     public
     view
@@ -80,6 +112,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
     }
   }
 
+  /// @inheritdoc ISubBalance
   function subBalanceOf(address account, address from) public view returns (uint256) {
     return _subBalances[account][from];
   }
@@ -118,10 +151,11 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
     requireSafeOp(recipient != address(this));
 
     if (to.isNotManager()) {
-      // user to user
-      // insurer to user (mcd)
-      // insurer to insured
-      // insured to user (non-given portion only)
+      // When the recipient is not a collateral manager (i.e. insurer), then the following types of transfers are acceptable:
+      // - user to user
+      // - insurer to user - coverage drawdown (mcd), reduces managed total
+      // - insurer to insured - transfer coverage to escrow
+      // - insured to user - non-escrow portion only
 
       from = from.decOwnBalance(amount);
 
@@ -132,13 +166,17 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
       } else {
         Sanity.require(from.isNotRestricted());
 
+        // given OUT balance, because `from` is Manager
         from = from.incGivenBalance(amount);
+        // given IN balance, because `to` is not Manager
         to = to.incGivenBalance(amount);
         _subBalances[recipient][sender] += amount;
       }
     } else {
-      // user to insurer
-      // !insurer to insurer (transferFrom only)
+      // When the recipient is a collateral manager (i.e. insurer), then the following types of transfers are acceptable:
+      // - user to insurer - an investment of collateral, increases managed total
+      // - not-insurer to insurer - a subrogation or an indirect investment. ONLY as transferFrom by insurer.
+      // Other types of transfers are forbidden.
 
       requireSafeOp(from.isNotManager());
       Sanity.require(to.isNotRestricted());
@@ -168,6 +206,7 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
     address onBehalf
   ) internal override {
     super._transferAndEmit(sender, recipient, amount, onBehalf);
+    // IERC1363 callabck
     _notifyRecipient(onBehalf, recipient, amount);
   }
 
@@ -187,18 +226,25 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
     uint256 amount
   ) internal override {
     super._mintAndTransfer(sender, recipient, amount);
+    // IERC1363 callabck
     _notifyRecipient(sender, recipient, amount);
   }
 
+  /// @dev Enables/disables escrow between the manager and the account.
+  /// @dev An escrow sub-balance is considered as managed, hence, it can be reinvested.
+  /// @param manager controls the escrow sub-blanace. The manager can transfer to the sub-balance (NOT from it) or close it.
+  /// @param account holds the escrow sub-balance. The holder can NOT spend the escrow sub-balance.
+  /// @param enable is true to open the escrow sub-balance or false to close it.
+  /// @param transferAmount to be released to the `account` from the escrow, the rest to be returned to `manager`. Must be zero if `enable` is true.
   function internalSubBalance(
     address manager,
     address account,
-    bool lock,
+    bool enable,
     uint256 transferAmount
   ) internal returns (uint256 releaseAmount) {
-    (InvestAccount.Balance acc, bool edge) = _accounts[account].flipRefCount(lock);
+    (InvestAccount.Balance acc, bool edge) = _accounts[account].flipRefCount(enable);
     releaseAmount = _subBalances[account][manager];
-    if (lock) {
+    if (enable) {
       Value.require(transferAmount == 0);
       Value.require(releaseAmount == 0);
     } else {
@@ -276,11 +322,6 @@ abstract contract InvestmentCurrencyBase is ISubBalance, ERC20MintableBalanceles
   }
 
   function internalBeforeManagedBalanceUpdate(address, InvestAccount.Balance) internal virtual;
-
-  // function managedBalanceOf(address account) internal view returns (uint256) {
-  //   InvestAccount.Balance acc = _accounts[account];
-  //   return acc.isNotManaged() ? 0 : acc.ownBalance() + acc.givenBalance();
-  // }
 
   function internalGetFlags(address account) internal view returns (uint256 flags) {
     InvestAccount.Balance acc = _accounts[account];

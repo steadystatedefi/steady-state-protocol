@@ -20,8 +20,11 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
 
   enum AddrMode {
     None,
+    /// @dev only one address can be assigned, supports setAddress/getAddress
     Singlet,
+    /// @dev only one address can be assigned once, supports setAddress/getAddress
     ProtectedSinglet,
+    /// @dev any number of addresses can be granted
     Multilet
   }
 
@@ -30,20 +33,22 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     AddrMode mode;
   }
 
+  /// @dev a bitmask of roles assigned to an address
   mapping(address => uint256) private _masks;
+  /// @dev singlet values by role id
   mapping(uint256 => AddrInfo) private _singlets;
+  /// @dev multlet grantees by role id
   mapping(uint256 => EnumerableSet.AddressSet) private _multilets;
 
   AccessCallHelper private immutable _callHelper;
 
+  /// @dev mask of all roles being singletons
   uint256 private _singletons;
 
+  /// @dev temporary admin
   address private _tempAdmin;
+  /// @dev temporary admin expiry
   uint32 private _expiresAt;
-
-  uint8 private constant ANY_ROLE_BLOCKED = 1;
-  uint8 private constant ANY_ROLE_ENABLED = 2;
-  uint8 private _anyRoleMode;
 
   constructor(
     uint256 singletons,
@@ -78,15 +83,18 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return super.owner();
   }
 
+  /// @inheritdoc IAccessController
   function isAdmin(address addr) public view returns (bool) {
-    return addr == owner() || (addr == _tempAdmin && _expiresAt > block.timestamp);
+    return addr != address(0) && (addr == owner() || (addr == _tempAdmin && _expiresAt > block.timestamp));
   }
 
+  /// @inheritdoc IRemoteAccessBitmask
   function queryAccessControlMask(address addr, uint256 filter) external view override returns (uint256 flags) {
     flags = _masks[addr];
     return filter == 0 ? flags : flags & filter;
   }
 
+  /// @inheritdoc IManagedAccessController
   function setTemporaryAdmin(address admin, uint256 expiryTime) external override onlyOwner {
     if (_tempAdmin != address(0)) {
       _revokeAllRoles(_tempAdmin);
@@ -100,6 +108,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     emit TemporaryAdminAssigned(admin, expiryTime);
   }
 
+  /// @inheritdoc IManagedAccessController
   function getTemporaryAdmin() external view override returns (address admin, uint256 expiresAt) {
     admin = _tempAdmin;
     if (admin != address(0)) {
@@ -108,7 +117,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return (address(0), 0);
   }
 
-  /// @dev Renouncement has no time limit and can be done either by the temporary admin at any time, or by anyone after the expiry.
+  /// @inheritdoc IManagedAccessController
   function renounceTemporaryAdmin() external override {
     address tempAdmin = _tempAdmin;
     if (tempAdmin == address(0)) {
@@ -122,31 +131,17 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     emit TemporaryAdminAssigned(address(0), 0);
   }
 
-  function setAnyRoleMode(bool blockOrEnable) external onlyOwnerOrAdmin {
-    if (blockOrEnable) {
-      State.require(_anyRoleMode != ANY_ROLE_BLOCKED);
-      _anyRoleMode = ANY_ROLE_ENABLED;
-      emit AnyRoleModeEnabled();
-    } else if (_anyRoleMode != ANY_ROLE_BLOCKED) {
-      _anyRoleMode = ANY_ROLE_BLOCKED;
-      emit AnyRoleModeBlocked();
-    }
-  }
-
+  /// @dev grants roles to the address
+  /// @param flags a role id or a combined bitmask of multiple roles, singlets are not allowed
   function grantRoles(address addr, uint256 flags) external onlyOwnerOrAdmin returns (uint256) {
     return _grantMultiRoles(addr, flags, true);
-  }
-
-  function grantAnyRoles(address addr, uint256 flags) external onlyOwnerOrAdmin returns (uint256) {
-    State.require(_anyRoleMode == ANY_ROLE_ENABLED);
-    return _grantMultiRoles(addr, flags, false);
   }
 
   function _grantMultiRoles(
     address addr,
     uint256 flags,
     bool strict
-  ) private returns (uint256) {
+  ) internal returns (uint256) {
     uint256 m = _masks[addr];
     flags &= ~m;
     if (flags == 0) {
@@ -175,10 +170,13 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return m;
   }
 
+  /// @dev revokes roles from the address
+  /// @param flags a role id or a combined bitmask of multiple roles, singlets are not allowed
   function revokeRoles(address addr, uint256 flags) external onlyOwnerOrAdmin returns (uint256) {
     return _revokeRoles(addr, flags);
   }
 
+  /// @dev revokes all roles from the address. Will revert when a protected singlet role is present
   function revokeAllRoles(address addr) external onlyOwnerOrAdmin returns (uint256) {
     return _revokeAllRoles(addr);
   }
@@ -223,7 +221,12 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return m;
   }
 
-  function revokeRolesFromAll(uint256 flags, uint256 limitMultitons) external onlyOwnerOrAdmin returns (bool all) {
+  /// @dev revokes given roles from all grantees.
+  /// @dev Singlets are always revoked, while number grantees of multi-assing roles are limited by `limitMultilets`
+  /// @param flags a role id or a combined bitmask of multiple roles, protected singlets will revert
+  /// @param limitMultilets a max number of grantees of multi-assinged roles to be revoked (to control gas requirement)
+  /// @return all is true when all grantees for the given roles were revoked
+  function revokeRolesFromAll(uint256 flags, uint256 limitMultilets) external onlyOwnerOrAdmin returns (bool all) {
     all = true;
     uint256 fullMask = flags;
 
@@ -242,11 +245,11 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
           EnumerableSet.AddressSet storage multilets = _multilets[mask];
           for (uint256 j = multilets.length(); j > 0; ) {
             j--;
-            if (limitMultitons == 0) {
+            if (limitMultilets == 0) {
               all = false;
               break;
             }
-            limitMultitons--;
+            limitMultilets--;
             _revokeRoles(multilets.at(j), fullMask);
           }
         }
@@ -258,6 +261,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     require(id.isPowerOf2nz(), 'only one role is allowed');
   }
 
+  /// @inheritdoc IAccessController
   function roleHolders(uint256 id) external view override returns (address[] memory addrList) {
     _onlyOneRole(id);
 
@@ -277,11 +281,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     }
   }
 
-  /**
-   * @dev Sets a sigleton address, replaces previous value
-   * @param id The id
-   * @param newAddress The address to set
-   */
+  /// @inheritdoc IManagedAccessController
   function setAddress(uint256 id, address newAddress) public override onlyOwnerOrAdmin {
     _internalSetAddress(id, newAddress);
     emit AddressSet(id, newAddress);
@@ -312,10 +312,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     info.addr = newAddress;
   }
 
-  /**
-   * @dev Returns a singleton address by id
-   * @return addr The address
-   */
+  /// @inheritdoc IAccessController
   function getAddress(uint256 id) public view override returns (address addr) {
     AddrInfo storage info = _singlets[id];
 
@@ -326,10 +323,14 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return addr;
   }
 
-  function isAddress(uint256 id, address addr) public view returns (bool) {
+  /// @inheritdoc IAccessController
+  function isAddress(uint256 id, address addr) public view override returns (bool) {
     return _masks[addr] & id != 0;
   }
 
+  /// @dev sets a singlet type for the given role. Reverts when the role is multilet.
+  /// @param id is an identifier of a role, must be a power of 2
+  /// @param protection when is true will cobfigure the role as a protected singlet, otherwise as a regular singlet
   function setProtection(uint256 id, bool protection) external onlyOwnerOrAdmin {
     _onlyOneRole(id);
     AddrInfo storage info = _singlets[id];
@@ -365,9 +366,13 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return _callHelper.doCall(callAddr, callData);
   }
 
+  function ensureNoSingletons() internal virtual {
+    revert('singleton should use setAddress');
+  }
+
   function _beforeCallWithRoles(uint256 flags, address addr) private returns (bool restoreMask, uint256 oldMask) {
     if (_singletons & flags != 0) {
-      require(_anyRoleMode == ANY_ROLE_ENABLED, 'singleton should use setAddress');
+      ensureNoSingletons();
     }
 
     oldMask = _masks[addr];
@@ -380,6 +385,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     }
   }
 
+  /// @inheritdoc IManagedAccessController
   function directCallWithRoles(
     uint256 flags,
     address addr,
@@ -388,6 +394,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return _callWithRoles(flags, addr, _directCall, addr, data);
   }
 
+  /// @inheritdoc IManagedAccessController
   function directCallWithRolesBatch(CallParams[] calldata params) external override onlyOwnerOrAdmin returns (bytes[] memory results) {
     results = new bytes[](params.length);
 
@@ -398,6 +405,7 @@ abstract contract AccessControllerBase is SafeOwnable, IManagedAccessController 
     return results;
   }
 
+  /// @inheritdoc IManagedAccessController
   function callWithRolesBatch(CallParams[] calldata params) external override onlyOwnerOrAdmin returns (bytes[] memory results) {
     results = new bytes[](params.length);
 

@@ -42,36 +42,52 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     Paused
   }
 
-  struct TokenInfo {
+  /// @dev Sources for token replenishment
+  struct TokenSources {
+    /// @dev sources which can provide the premium token
     EnumerableSet.AddressSet activeSources;
+    /// @dev an index of a next source to be taken from activeSources on replenishment
     uint32 nextReplenish;
   }
 
+  /// @dev Balance of a source
   struct SourceBalance {
+    /// @dev Last total premium reported by an actuary for the source
     uint128 lastPremium;
+    /// @dev Last premium rate reported by an actuary for the source
     uint96 rate;
+    /// @dev Since when the rate applies.
     uint32 updatedAt;
   }
 
+  /// @dev Indicates that the token was added. See TokenState.flags
   uint8 private constant TS_PRESENT = 1 << 0;
+  /// @dev Indicates that the token is suspended / paused. See TokenState.flags
   uint8 private constant TS_SUSPENDED = 1 << 1;
 
+  /// @dev Info about the token
   struct TokenState {
     uint8 flags;
+    /// @dev Total amount of fees (swap penalties) which can be taken out.
     uint128 collectedFees;
   }
 
+  /// @dev Info about an actuary
   struct ActuaryConfig {
     ActuaryState state;
-    mapping(address => TokenInfo) tokens; // [token]
+    /// @dev Sources for replenishment
+    mapping(address => TokenSources) tokenSources; // [token]
+    /// @dev Source to token mapping
     mapping(address => address) sourceToken; // [source] => token
-    mapping(address => SourceBalance) sourceBalances; // [source] - to support shared tokens among different sources
+    /// @dev Per-source balances to allow multiple sources to pay with same premium token
+    mapping(address => SourceBalance) sourceBalances; // [source]
   }
 
   mapping(address => ActuaryConfig) internal _configs; // [actuary]
   mapping(address => TokenState) private _tokens; // [token]
   mapping(address => EnumerableSet.AddressSet) private _tokenActuaries; // [token]
 
+  /// @dev Tokens (ever known)
   address[] private _knownTokens;
 
   constructor(IAccessController acl, address collateral_) AccessHelper(acl) Collateralized(collateral_) {}
@@ -93,6 +109,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     );
   }
 
+  /// @dev Registers/unregisters an actuary. Only for INSURER_ADMIN.
   function registerPremiumActuary(address actuary, bool register) external virtual aclHas(AccessFlags.INSURER_ADMIN) {
     ActuaryConfig storage config = _configs[actuary];
     address cc = collateral();
@@ -127,6 +144,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     _balancers[actuary].configs[token] = ac;
   }
 
+  /// @dev Sets global balancer params for the actuary
   function setActuaryGlobals(
     address actuary,
     uint160 spConst,
@@ -137,11 +155,16 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     balancer.spFactor = spFactor;
   }
 
-  function getActuaryGlobals(address actuary) external view returns (uint256, uint32) {
+  /// @dev Gets global balancer params for the actuary
+  function getActuaryGlobals(address actuary) external view returns (uint256 spConst, uint32 spFactor) {
     BalancerLib2.AssetBalancer storage balancer = _balancers[actuary];
     return (balancer.spConst, balancer.spFactor);
   }
 
+  /// @dev Sets balancing configuration for both active assets and defaults. Only for INSURER_ADMIN.
+  /// @param actuary use zero to set default asset config for new actuaries (the the asset can be zero or CC).
+  /// @param asset use zero to set default asset config for new assets.
+  /// @param ac is an asset config. Must have zero price. When `asset` is CC, the config must have BF_EXTERNAL, and no BF_EXTERNAL if not.
   function setAssetConfig(
     address actuary,
     address asset,
@@ -172,16 +195,22 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     _balancers[actuary].configs[asset] = ac;
   }
 
+  /// @return config for the given actuaty and asset
   function getAssetConfig(address actuary, address asset) external view returns (BalancerLib2.AssetConfig memory) {
     return _balancers[actuary].configs[asset];
   }
 
+  /// @return state of the actuary
   function getActuaryState(address actuary) external view returns (ActuaryState) {
     return _configs[actuary].state;
   }
 
   event ActuaryTokenPaused(address indexed actuary, address indexed token, bool paused);
 
+  /// @dev Pauses/unpauses premium operations for an actuary, a token, or a token of an actuary.
+  /// @param actuary can be zero when a token has to be paused (for all actuaries)
+  /// @param token can be zero when an actuary has to be paused
+  /// @param paused is true to pause
   function setPaused(
     address actuary,
     address token,
@@ -190,6 +219,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     if (actuary == address(0)) {
       TokenState storage state = _tokens[token];
       uint8 flags = state.flags;
+      State.require(flags != 0);
       state.flags = paused ? flags | TS_SUSPENDED : flags & ~TS_SUSPENDED;
     } else {
       ActuaryConfig storage config = _configs[actuary];
@@ -208,6 +238,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     emit ActuaryTokenPaused(actuary, token, paused);
   }
 
+  /// @return true when the actuary of the token is suspended/paused
   function isPaused(address actuary, address token) public view returns (bool) {
     if (_tokens[token].flags & TS_SUSPENDED != 0) {
       return true;
@@ -220,6 +251,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
   event ActuarySourceAdded(address indexed actuary, address indexed source, address indexed token);
   event ActuarySourceRemoved(address indexed actuary, address indexed source, address indexed token);
 
+  /// @inheritdoc IPremiumDistributor
   function registerPremiumSource(address source, bool register) external override {
     address actuary = msg.sender;
 
@@ -276,7 +308,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     address targetToken,
     address source
   ) private {
-    EnumerableSet.AddressSet storage activeSources = config.tokens[targetToken].activeSources;
+    EnumerableSet.AddressSet storage activeSources = config.tokenSources[targetToken].activeSources;
 
     if (activeSources.add(source) && activeSources.length() == 1) {
       BalancerLib2.AssetBalance storage balance = balancer.balances[source];
@@ -291,7 +323,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     address targetToken
   ) private returns (bool allRemoved) {
     delete config.sourceToken[source];
-    EnumerableSet.AddressSet storage activeSources = config.tokens[targetToken].activeSources;
+    EnumerableSet.AddressSet storage activeSources = config.tokenSources[targetToken].activeSources;
 
     if (activeSources.remove(source)) {
       BalancerLib2.AssetConfig storage balancerConfig = balancer.configs[targetToken];
@@ -388,6 +420,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     sBalance.updatedAt = uint32(block.timestamp); // not needed
   }
 
+  /// @inheritdoc IPremiumDistributor
   function premiumAllocationUpdated(
     address source,
     uint256 totalPremium,
@@ -399,6 +432,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     _premiumAllocationUpdated(config, msg.sender, source, address(0), totalPremium, rate, false);
   }
 
+  /// @inheritdoc IPremiumDistributor
   function premiumAllocationFinished(address source, uint256 totalPremium) external override returns (uint256 premiumDebt) {
     ActuaryConfig storage config = _ensureActuary(msg.sender);
     Value.require(source != address(0));
@@ -420,6 +454,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     emit ActuarySourceRemoved(msg.sender, source, targetToken);
   }
 
+  /// @dev A callback for the balancer logic. See BalancerLib2.ReplenishParams
   function _replenishFn(BalancerLib2.ReplenishParams memory params, uint256 requiredValue)
     private
     returns (
@@ -473,7 +508,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
   }
 
   function _sourceForReplenish(ActuaryConfig storage config, address token) private returns (address) {
-    TokenInfo storage tokenInfo = config.tokens[token];
+    TokenSources storage tokenInfo = config.tokenSources[token];
 
     uint32 index = tokenInfo.nextReplenish;
     EnumerableSet.AddressSet storage activeSources = tokenInfo.activeSources;
@@ -522,10 +557,6 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     return 0;
   }
 
-  function priceOf(address token) public view returns (uint256) {
-    return internalPriceOf(token);
-  }
-
   function internalPriceOf(address token) internal view virtual returns (uint256) {
     return getPricer().getAssetPrice(token);
   }
@@ -552,12 +583,12 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
       return sourceLimit == 0 ? 0 : sourceLimit - 1;
     }
 
-    TokenInfo storage tokenInfo = config.tokens[token];
-    EnumerableSet.AddressSet storage activeSources = tokenInfo.activeSources;
+    TokenSources storage tokenSources = config.tokenSources[token];
+    EnumerableSet.AddressSet storage activeSources = tokenSources.activeSources;
     uint256 length = activeSources.length();
 
     if (length > 0) {
-      uint32 index = tokenInfo.nextReplenish;
+      uint32 index = tokenSources.nextReplenish;
       if (index >= length) {
         index = 0;
       }
@@ -574,12 +605,13 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
         }
       }
 
-      tokenInfo.nextReplenish = index;
+      tokenSources.nextReplenish = index;
     }
 
     return sourceLimit;
   }
 
+  /// @inheritdoc IPremiumFund
   function syncAsset(
     address actuary,
     uint256 sourceLimit,
@@ -593,6 +625,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     _syncAsset(config, actuary, targetToken, sourceLimit);
   }
 
+  /// @inheritdoc IPremiumFund
   function syncAssets(
     address actuary,
     uint256 sourceLimit,
@@ -612,7 +645,8 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     }
   }
 
-  function assetBalance(address actuary, address asset) external view returns (AssetBalanceInfo memory r) {
+  /// @inheritdoc IPremiumFund
+  function assetBalance(address actuary, address asset) external view override returns (AssetBalanceInfo memory r) {
     ActuaryConfig storage config = _configs[actuary];
     if (config.state > ActuaryState.Unknown) {
       (, r.amount, r.stravation, r.price, r.feeFactor, r.valueRate, r.since) = _balancers[actuary].assetState(asset);
@@ -628,6 +662,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     return total == 0 ? maxDrawdown : (maxDrawdown * IERC20(actuary).balanceOf(account)).divUp(total);
   }
 
+  /// @inheritdoc IPremiumFund
   function swapAsset(
     address actuary,
     address account,
@@ -683,10 +718,16 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     emit FeeCollected(targetToken, fee);
   }
 
+  /// @return amount fees of `targetToken` available for collection
   function availableFee(address targetToken) external view returns (uint256) {
     return _tokens[targetToken].collectedFees;
   }
 
+  /// @dev Collects swap fees. Only for TREASURY role.
+  /// @param tokens to be collected.
+  /// @param minAmount of a token to execute transfer.
+  /// @param recipient for fee transfers.
+  /// @return fees are amount of tokens transferred.
   function collectFees(
     address[] calldata tokens,
     uint256 minAmount,
@@ -710,6 +751,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     }
   }
 
+  /// @inheritdoc IPremiumFund
   function swapAssets(
     address actuary,
     address account,
@@ -890,22 +932,30 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     tokenAmounts[0] = swapAsset(actuary, account, instruction.recipient, instruction.valueToSwap, instruction.targetToken, instruction.minAmount);
   }
 
+  /// @inheritdoc IPremiumFund
   function knownTokens() external view returns (address[] memory) {
     return _knownTokens;
   }
 
+  /// @inheritdoc IPremiumFund
   function actuariesOfToken(address token) public view returns (address[] memory) {
     return _tokenActuaries[token].values();
   }
 
+  /// @inheritdoc IPremiumFund
   function actuaries() external view returns (address[] memory) {
     return actuariesOfToken(collateral());
   }
 
+  /// @inheritdoc IPremiumFund
   function activeSourcesOf(address actuary, address token) external view returns (address[] memory) {
-    return _configs[actuary].tokens[token].activeSources.values();
+    return _configs[actuary].tokenSources[token].activeSources.values();
   }
 
+  /// @dev Sets or unsets approvals granted by msg.sender to `operator`
+  /// @param operator to be get granted or revoked approvals
+  /// @param access is a bitmask of approvals to be granted or revoked. See CollateralFundLib.
+  /// @param approved is true to grant approvals, false to revoke
   function setApprovalsFor(
     address operator,
     uint256 access,
@@ -919,6 +969,7 @@ contract PremiumFundBase is IPremiumDistributor, IPremiumFund, AccessHelper, Pri
     }
   }
 
+  /// @return true when all approvals defined by `access` are granted by `account` to `operator`
   function isApprovedFor(
     address account,
     address operator,

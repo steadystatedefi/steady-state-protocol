@@ -8,41 +8,125 @@ import '../libraries/Balances.sol';
 
 import 'hardhat/console.sol';
 
+/**
+  @dev This library conains core logic to balance multiple assets.
+  There is a stream of premium value, which can be swapped into multiple assets, but each individual asset has not enough supply to cover the stream.
+  Giving a user their swapped value weighted across all assets is not feasible as gas costs can easilly exceed the value of the tokens.
+  So, the logic of this library allows a user to choose a subset of assets, and will either subsidize or penalize swap price based on demand vs supply.
+  I.e When the ratio of the available value of an asset compared to the total value of all assets is GREATER THAN the ratio of the supply rate 
+  of the asset vs the total premium rate of all assets, the asset is in low demand compared to the supply and the price will be discounted.
+  Additionally, a constant-product formula is applied to prevent depletion of assets by additional fees on large or close-to-depletion swaps.
+
+  So, for each asset being swapped, the amount of fees has 2 parts: balancing levy and volume penalty.
+  The balancing levy can be positive (for popular assets) or negative (for non-popular assets) and is distributed within the balancer.
+  The fees due to the balancing levy are an incentive to target the desired demand for tokens, and it benefits those that swap less popular tokens.
+  The volume penalty is charged on large transactions and depletions, and this fee can be claimed (removed from the balancer).
+
+  There is a "startvation" point - when asset's balance falls below this point then the constant-product formula is always applied.
+  The logic will attempt to invoke token source replenishment (before the actual swap) if a swap operation leads to a balance below this point.
+
+  There are 8 modes to calculate vSP (value of the starvation point of an asset).
+  These modes are defined by a combination of BF_SPM_MAX_WITH_CONST, BF_SPM_CONSTANT, BF_SPM_GLOBAL flags set for asset's configuration.
+  Also, there are 2 sets of the calculation flags per asset, and selection of a set depends on presence of BF_FINISHED.
+
+
+  * AssetRateMultiplier = 0
+    vSP = valueRate (asset's supply rate) * asset.calcConfig.n()
+
+  * GlobalRateMultiplier = BF_SPM_GLOBAL
+    vSP = valueRate (asset's supply rate) * assetBalanacer.spFactor
+
+  * AssetConstant = BF_SPM_CONSTANT,
+    vSP = asset.calcConfig.spConst
+
+  * GlobalConstant = BF_SPM_CONSTANT | BF_SPM_GLOBAL,
+    vSP = assetBalanacer.spConst
+
+  * MaxOfAssetConstantAndGlobalRateMultiplier = BF_SPM_MAX_WITH_CONST,
+    vSP = MAX(asset.calcConfig.spConst, valueRate * assetBalanacer.spFactor)
+
+  * MaxOfGlobalConstantAndAssetRateMultiplier = BF_SPM_MAX_WITH_CONST | BF_SPM_GLOBAL,
+    vSP = MAX(assetBalanacer.spConst, valueRate * asset.calcConfig.spFactor)
+
+  * MaxOfAssetConstantAndAssetRateMultiplier = BF_SPM_MAX_WITH_CONST | BF_SPM_CONSTANT,
+    vSP = MAX(asset.calcConfig.spConst, valueRate * asset.calcConfig.n())
+
+  * MaxOfGlobalConstantAndGlobalRateMultiplier = BF_SPM_MAX_WITH_CONST | BF_SPM_CONSTANT | BF_SPM_GLOBAL,
+    vSP = MAX(assetBalanacer.spConst, valueRate * assetBalanacer.spFactor)
+
+
+  There are 2 types of assets
+  * Normal asset
+  * External asset - this one is tracked externally and is not cross-balanced with other assets. It is applied for drawdown of CC.
+
+  This logic uses following terminology:
+  * ACTUARY is a contract providing information about premium values and rates. Pushes the data.
+  * SOURCE is a contract providing an asset to be swapped. Is pulled for the asset.
+
+  NB! This logic strictly differentiate AMOUNT and VALUE of assets.
+  * AMOUNT is asset.balanceOf(), so it is counted in asset's token.
+  * VALUE is amount*price, and is counted in CC (Coverage Currency). All rates are values, not amounts.
+*/
 library BalancerLib2 {
   using Math for uint256;
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
   using CalcConfig for CalcConfigValue;
 
+  /// @dev Balance of an asset within an AssetBalancer
   struct AssetBalance {
-    uint128 accumAmount; // amount of asset
-    uint96 rateValue; // value per second
+    /// @dev amount of the asset token
+    uint128 accumAmount;
+    /// @dev supply rate of the asset, as value per second
+    uint96 rateValue;
+    /// @dev timestamp since the rateValue applies
     uint32 applyFrom;
   }
 
+  /// @dev Balancer itself. It has a set of assets (balances and rates) and provides balancing across them.
   struct AssetBalancer {
-    Balances.RateAcc totalBalance; // total VALUE balance and VALUE rate of all sources
-    mapping(address => AssetBalance) balances; // [token] total balance and rate of all sources using this token
-    mapping(address => AssetConfig) configs; // [token] token balancing configuration
-    uint160 spConst; // value, for (BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
-    uint32 spFactor; // rate multiplier, for (BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
+    /// @dev total VALUE balance and total VALUE rate of all sources
+    Balances.RateAcc totalBalance;
+    /// @dev asset balance and rate of all sources using this asset
+    mapping(address => AssetBalance) balances; // [token]
+    /// @dev asset balancing configuration
+    mapping(address => AssetConfig) configs; // [token]
+    /// @dev a global starvation value, for starvation point mode(s)
+    uint160 spConst;
+    /// @dev a global rate multiplier, for starvation point modes
+    uint32 spFactor;
   }
 
+  /// @dev Asset's balancing configuration
   struct AssetConfig {
+    /// @dev balancing flags
     CalcConfigValue calc;
-    uint160 spConst; // value, for (!BF_SPM_GLOBAL | BF_SPM_CONSTANT) starvation point mode
+    /// @dev per asset starvation value, for starvation point mode(s)
+    uint160 spConst;
   }
 
+  /// @dev Set of im-memory value for calculations
   struct CalcParams {
-    uint256 sA; // amount of an asset at starvation
-    uint256 vA; // target price, wad-multiplier, uint192
-    uint256 w; // [0..1] wad, controls fees, uint64
+    /// @dev amount of the asset at its starvation point
+    uint256 sA;
+    /// @dev target price of the asset, wad-based, actual type is uint192
+    uint256 vA;
+    /// @dev fee scaling factor for above-starvation values, [0..1], wad-based, actual type is uint64
+    uint256 w;
   }
 
+  /// @dev Parameters for replenishment callback to be called when the asset was depleted down to its starvation point.
   struct ReplenishParams {
+    /// @dev An actuary for the replenishment. This field is not in use by the balacer, it is only for the callback.
     address actuary;
+    /// @dev A source for the replenishment. This field is not in use by the balacer, it is only for the callback.
     address source;
+    /// @dev An asset token to be replenished. Must be a valid and known asset.
     address token;
+    /// @dev The callback to replenish the asset. It takes this struct and requestedValue - a recommended minimum value to be replenished.
+    /// @dev The callback should return replenished amount and value (i.e. should use current price), and expectedValue.
+    /// @dev The expectedValue is the value expected to be provided by the source for replenishment considering its expected supply rate.
+    /// @dev The balancer itself doesnt track sources, but it needs to know a difference between expected supply rate and actual replenishment.
     function(
       ReplenishParams memory,
       uint256 /* requestedValue */
@@ -54,6 +138,43 @@ library BalancerLib2 {
       ) replenishFn;
   }
 
+  /// @dev Provides information about the asset
+  /// @param p is a balancer
+  /// @param token is an asset
+  /// @return rawFlags x
+  /// @return accum is amount of the asset belongs to the balancer
+  /// @return stravation is amount of the asset at the starvation point
+  /// @return price is a weighted price of the asset's balance
+  /// @return w is a fee control factor
+  /// @return valueRate is a supply rate of the asset
+  /// @return since is a timestamp since the valueRate is applied
+  function assetState(AssetBalancer storage p, address token)
+    internal
+    view
+    returns (
+      uint256 rawFlags,
+      uint256 accum,
+      uint256 stravation,
+      uint256 price,
+      uint256 w,
+      uint256 valueRate,
+      uint32 since
+    )
+  {
+    AssetBalance memory balance = p.balances[token];
+    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, token, balance.rateValue, false);
+    return (flags.flags(), balance.accumAmount, c.sA, c.vA, c.w, balance.rateValue, balance.applyFrom);
+  }
+
+  /// @dev Swaps the premium value for CC (drawdown). This operation only applies to CC (value and amount considered to be equal).
+  /// @param p is a balancer
+  /// @param token is an asset (should be marked as external)
+  /// @param value is value to be swapped
+  /// @param minAmount is a miminum allowed amount of the asset to be returned, otherwise swap will not be performed (will return zero).
+  /// @param assetAmount is an amount of the asset available externally
+  /// @param assetFreeAllowance is an amount of the asset which can be redeemed with a minimal fee or without it.
+  /// @return amount of the asset to be given out (when zero, `value` should not be taken)
+  /// @return fee (the penalty part) to taken from the value
   function swapExternalAsset(
     AssetBalancer storage p,
     address token,
@@ -65,24 +186,35 @@ library BalancerLib2 {
     return swapExternalAssetInBatch(p, token, value, minAmount, assetAmount, assetFreeAllowance, p.totalBalance);
   }
 
+  /// @dev Swaps the premium value for CC (drawdown) inside a batch. This operation only applies to CC (value and amount considered to be equal).
+  /// @dev This call allows to avoid slippage of the total balance introduced by individual swaps, hance takes a smaller fee.
+  /// @param p is a balancer
+  /// @param token is an asset (should be marked as external)
+  /// @param value is value to be swapped
+  /// @param minAmount is a miminum allowed amount of the asset to be returned, otherwise swap will not be performed (will return zero).
+  /// @param assetAmount is an amount of the asset available externally
+  /// @param assetFreeAllowance is an amount of the asset which can be redeemed with a minimal fee or without it.
+  /// @param total is the total balance of values and supply rates of all assets of the balancer
+  /// @return amount of the asset to be given out (when zero, `value` should not be taken)
+  /// @return fee (the penalty part) to taken from the value
   function swapExternalAssetInBatch(
     AssetBalancer storage p,
     address token,
     uint256 value,
     uint256 minAmount,
     uint256 assetAmount,
-    uint256 assetLimit,
+    uint256 assetFreeAllowance,
     Balances.RateAcc memory total
   ) internal view returns (uint256 amount, uint256 fee) {
     total.sync(uint32(block.timestamp));
 
     Arithmetic.require((total.accum += uint128(assetAmount)) >= assetAmount);
-    if (assetLimit > assetAmount) {
-      assetLimit = assetAmount;
+    if (assetFreeAllowance > assetAmount) {
+      assetFreeAllowance = assetAmount;
     }
 
     // amount EQUALS value
-    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, assetLimit, true, p.configs[token], WadRayMath.WAD, assetAmount);
+    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, assetFreeAllowance, true, p.configs[token], WadRayMath.WAD, assetAmount);
     State.require(flags.isExternal());
 
     AssetBalance memory balance;
@@ -91,6 +223,13 @@ library BalancerLib2 {
     (amount, fee) = _swapAsset(value, minAmount, c, balance, total);
   }
 
+  /// @dev Swaps the premium value for an asset. The asset should NOT be marked as external.
+  /// @param p is a balancer
+  /// @param params for replenishment (the asset / token is defined inside it)
+  /// @param value is value to be swapped
+  /// @param minAmount is a miminum allowed amount of the asset to be returned, otherwise swap will not be performed (will return zero).
+  /// @return amount of the asset to be given out (when zero, `value` should not be taken)
+  /// @return fee (the penalty part) to taken from the value
   function swapAsset(
     AssetBalancer storage p,
     ReplenishParams memory params,
@@ -106,24 +245,16 @@ library BalancerLib2 {
     }
   }
 
-  function assetState(AssetBalancer storage p, address token)
-    internal
-    view
-    returns (
-      uint256,
-      uint256 accum,
-      uint256 stravation,
-      uint256 price,
-      uint256 w,
-      uint256 valueRate,
-      uint32 since
-    )
-  {
-    AssetBalance memory balance = p.balances[token];
-    (CalcParams memory c, CalcConfigValue flags) = _calcParams(p, token, balance.rateValue, false);
-    return (flags.flags(), balance.accumAmount, c.sA, c.vA, c.w, balance.rateValue, balance.applyFrom);
-  }
-
+  /// @dev Swaps the premium value for an asset. The asset should NOT be marked as external.
+  /// @dev This call allows to avoid slippage of the total balance introduced by individual swaps, hence takes a smaller fee.
+  /// @param p is a balancer
+  /// @param params for replenishment (the asset / token is defined inside it)
+  /// @param value is value to be swapped
+  /// @param minAmount is a miminum allowed amount of the asset to be returned, otherwise swap will not be performed (will return zero).
+  /// @param total is the total balance of values and supply rates of all assets of the balancer
+  /// @return amount of the asset to be given out (when zero, `value` should not be taken)
+  /// @return fee (the penalty part) to taken from the value
+  /// @return updateTotal is true when the total was updated and should be stored.
   function swapAssetInBatch(
     AssetBalancer storage p,
     ReplenishParams memory params,
@@ -155,6 +286,7 @@ library BalancerLib2 {
     }
   }
 
+  /// @dev Checks assets state and prepares calculation params
   function _calcParams(
     AssetBalancer storage p,
     address token,
@@ -250,6 +382,7 @@ library BalancerLib2 {
     }
   }
 
+  /// @dev Calculates cross-asset balancing factor
   function _calcScale(
     CalcParams memory c,
     AssetBalance memory balance,
@@ -265,6 +398,7 @@ library BalancerLib2 {
           ) * total.rate).divUp(balance.rateValue);
   }
 
+  /// @dev Calculates asset amount to be given for value `dV` at the current amount `a` (point on the curve)
   function _calcAmount(
     CalcParams memory c,
     uint256 a,
@@ -284,6 +418,7 @@ library BalancerLib2 {
     }
   }
 
+  /// @dev Calculates asset amount (single CP curve) to be given for value `dV` at the current amount `a` (point on the curve)
   function _calcCurve(
     CalcParams memory c,
     uint256 a,
@@ -292,6 +427,7 @@ library BalancerLib2 {
     return _calc(a, dV, a, a.wadMul(c.vA));
   }
 
+  /// @dev Calculates asset amount (dual CP curve) to be given for value `dV` at the current amount `a` (point on the curve)
   function _calcCurveW(
     CalcParams memory c,
     uint256 a,
@@ -311,6 +447,7 @@ library BalancerLib2 {
     return a - (wA - a1);
   }
 
+  /// @dev Calculates asset amount (flat then CP curve) to be given for value `dV` at the current amount `a` (point on the curve)
   function _calcFlat(
     CalcParams memory c,
     uint256 a,
@@ -327,6 +464,7 @@ library BalancerLib2 {
     }
   }
 
+  /// @dev Calculates asset amount (single CP curve starting at starvation) to be given for value `dV` at the current amount `a`.
   function _calcStarvation(
     CalcParams memory c,
     uint256 a,
@@ -335,6 +473,7 @@ library BalancerLib2 {
     a1 = _calc(a, dV, c.sA, c.sA.wadMul(c.vA));
   }
 
+  /// @dev Higher-resolution implementation of the CP function. cA and cV are the "constant" components.
   function _calc(
     uint256 a,
     uint256 dV,
@@ -353,6 +492,14 @@ library BalancerLib2 {
     return cV.mulDiv(cA, dV * WadRayMath.RAY + cV.mulDiv(cA, a));
   }
 
+  /// @dev Performs replenishment and update of the supply rate of an asset.
+  /// @dev When the source will not be able to provide the requred replenishment value, then its supply rate will be forced to zero.
+  /// @param p is a balancer
+  /// @param params for replenishment (the asset / token is defined inside it)
+  /// @param incrementValue is value expected to be replenished
+  /// @param newRate is the new rate for the source being replenished
+  /// @param lastRate is the last known rate for the source being replenished
+  /// @return fully is true the source has provided asset of value at least equal to `incrementValue`
   function replenishAsset(
     AssetBalancer storage p,
     ReplenishParams memory params,
@@ -492,6 +639,11 @@ library BalancerLib2 {
     return d >= current ? 1 : uint32(current - d);
   }
 
+  /// @dev Decrements asset's supply rate. This function is applied when a source is removed.
+  /// @param p is a balancer
+  /// @param targetToken is an asset
+  /// @param lastRate is the last known rate for the source being removed
+  /// @return rate of supply for the asset after this update
   function decRate(
     AssetBalancer storage p,
     address targetToken,
@@ -512,51 +664,68 @@ library BalancerLib2 {
   }
 }
 
+/** @dev Packed configuration of balancer for an asset. It is an equivalent of
+    struct CalcConfigValue {
+      uint144 price;
+      uint64 w;
+      uint32 n;
+      uint16 flags;
+    }
+
+    NB! This configuartion has 2 sets of flags - for an active asset, and for a "finished" asset - an asset without supply.
+*/
 type CalcConfigValue is uint256;
 
 library CalcConfig {
+  /// @dev An offset for flags when BF_FINISHED is present.
   uint8 private constant FINISHED_OFFSET = 8;
 
   uint16 internal constant BF_SPM_GLOBAL = 1 << 0;
   uint16 internal constant BF_SPM_CONSTANT = 1 << 1;
   uint16 internal constant BF_SPM_MAX_WITH_CONST = 1 << 2;
 
-  uint16 internal constant BF_AUTO_REPLENISH = 1 << 6; // pull a source at every swap
-  uint16 internal constant BF_FINISHED = 1 << 7; // no more sources for this token
+  /// @dev A source will be pulled at every swap (not by reaching the starvation point)
+  uint16 internal constant BF_AUTO_REPLENISH = 1 << 6;
+  /// @dev There are no sources for this asset
+  uint16 internal constant BF_FINISHED = 1 << 7;
 
   uint16 private constant BF_SPM_MASK = BF_SPM_GLOBAL | BF_SPM_CONSTANT | BF_SPM_MAX_WITH_CONST;
 
+  /// @dev This is a base applied to N when the asset is external.
   uint32 internal constant SP_EXTERNAL_N_BASE = 1_00_00;
 
+  /// @dev This asset is external
   uint16 internal constant BF_EXTERNAL = 1 << 14;
-  uint16 internal constant BF_SUSPENDED = 1 << 15; // token is suspended
+  /// @dev This asset is suspended / paused
+  uint16 internal constant BF_SUSPENDED = 1 << 15;
 
-  // target price, wad-multiplier
+  /// @return target asset price, wad-based
   function price(CalcConfigValue v) internal pure returns (uint144) {
     return uint144(CalcConfigValue.unwrap(v));
   }
 
   uint8 private constant OFS_W = 144;
 
-  // [0..1] wad, fee control, uint64
+  /// @return [0..1] wad-based, fee control factor
   function w(CalcConfigValue v) internal pure returns (uint64) {
     return uint64(CalcConfigValue.unwrap(v) >> OFS_W);
   }
 
   uint8 private constant OFS_N = OFS_W + 64;
 
-  // rate multiplier, for (!BF_SPM_GLOBAL | !BF_SPM_CONSTANT) starvation point mode
+  /// @return pre-asset rate multiplier, for starvation point modes
   function n(CalcConfigValue v) internal pure returns (uint32) {
     return uint32(CalcConfigValue.unwrap(v) >> OFS_N);
   }
 
   uint8 private constant OFS_FLAGS = OFS_N + 32;
 
-  // starvation point modes and asset states
+  /// @return all flags
   function flags(CalcConfigValue v) internal pure returns (uint16) {
     return uint16(CalcConfigValue.unwrap(v) >> OFS_FLAGS);
   }
 
+  /// @return calculation flags (starvation point mode) based on asset's 'finished' state
   function calcFlags(CalcConfigValue v) internal pure returns (uint8) {
     uint256 u = flags(v);
     if (u & BF_FINISHED != 0) {
