@@ -62,7 +62,7 @@ export const FullConfig: IConfiguration<ENetwork> = {
   goerli: {
     ...configTemplate,
     Assets: {
-      USDC: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F',
+      USDC: '0xa789c94fbca6aA712bc6F1F8fD0382816F7284BC',
     },
     PriceFeeds: {
       USDC: {
@@ -80,7 +80,7 @@ export const FullConfig: IConfiguration<ENetwork> = {
   hardhat: {
     ...configTemplate,
     Assets: {
-      USDC: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F',
+      USDC: '0xa789c94fbca6aA712bc6F1F8fD0382816F7284BC',
     },
     PriceFeeds: {
       USDC: {
