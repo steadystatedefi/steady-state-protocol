@@ -244,7 +244,7 @@ contract FrontHelper is AccessHelper {
     return getSwapInfo(premiumFund, actuary, assets);
   }
 
-  struct CommonInfo {
+  struct InsuredCoverageInfo {
     uint256 receivableCoverage;
     uint256 demandedCoverage;
     uint256 providedCoverage;
@@ -253,8 +253,8 @@ contract FrontHelper is AccessHelper {
     uint256 expectedPrepay;
   }
 
-  function getInsuredCommonInfo(address[] calldata insureds) external returns (uint256[] memory expectedPrepays, CommonInfo[] memory totals) {
-    totals = new CommonInfo[](insureds.length);
+  function getInsuredCommonInfo(address[] calldata insureds, uint32 timeDelta) external view returns (InsuredCoverageInfo[] memory totals) {
+    totals = new InsuredCoverageInfo[](insureds.length);
 
     for (uint256 i = insureds.length; i > 0; ) {
       i--;
@@ -265,7 +265,7 @@ contract FrontHelper is AccessHelper {
       ).receivableByReconcileWithInsurers(0, 0);
 
       // slither-disable-next-line calls-loop
-      totals[i].expectedPrepay = IPremiumCollector(insureds[i]).expectedPrepayAfter(0);
+      totals[i].expectedPrepay = IPremiumCollector(insureds[i]).expectedPrepayAfter(timeDelta);
       totals[i].receivableCoverage = receivableCoverage;
       totals[i].demandedCoverage = demandedCoverage;
       totals[i].providedCoverage = providedCoverage;
