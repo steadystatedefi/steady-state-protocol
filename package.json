@@ -114,6 +114,7 @@
     "test-yield": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/yield-distributor.cov.spec.ts",
     "test-mcd": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/mcd.cov.spec.ts",
     "test-reinvest": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/reinvestment.cov.spec.ts",
+    "test-layout": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/storage-layout.spec.ts",
     "test-access-checks": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/access-checks.specs/*.spec.ts",
     "bench-weighted": "hardhat test test-suites/test-main/__setup.cov.spec.ts test-suites/test-main/weighted-pool.bench.ts",
     "coverage": "TS_NODE_TRANSPILE_ONLY=1 SKIP_LOAD=true hardhat compile --force && TS_NODE_TRANSPILE_ONLY=1 SKIP_LOAD=true hardhat coverage --network coverage --testfiles \"test-suites/test-main/{,*.specs/}*.cov.spec.ts\" ",

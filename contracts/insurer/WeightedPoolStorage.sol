@@ -5,11 +5,7 @@ import '../tools/math/PercentageMath.sol';
 import '../interfaces/IPremiumDistributor.sol';
 import './WeightedPoolConfig.sol';
 
-// Contains all variables for both base and extension contract. Allows for upgrades without corruption
-
-/// @dev
-/// @dev WARNING! This contract MUST NOT be extended with new fields after deployment
-/// @dev
+/// @dev A storage template for the basic insurer operations.
 abstract contract WeightedPoolStorage is WeightedPoolConfig {
   using PercentageMath for uint256;
   using WadRayMath for uint256;
@@ -22,7 +18,7 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
 
   IPremiumDistributor internal _premiumDistributor;
 
-  /// @dev Amount of coverage provided to the pool that is not satisfying demand
+  /// @dev Amount of coverage provided to this pool but is not satisfying demand
   uint192 internal _excessCoverage;
   bool internal _paused;
 
@@ -38,7 +34,7 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
     _;
   }
 
-  ///@dev Return if an account has a balance or premium earned
+  ///@return true when the `account` has a non-zero balance or premium
   function internalIsInvestor(address account) internal view override returns (bool) {
     UserBalance memory b = _balances[account];
     return b.extra != 0 || b.balance != 0;
@@ -57,4 +53,7 @@ abstract contract WeightedPoolStorage is WeightedPoolConfig {
     }
     super.internalAfterJoinOrLeave(insured, status);
   }
+
+  /// @dev a storage reserve for further upgrades
+  uint256[16] private _gap;
 }

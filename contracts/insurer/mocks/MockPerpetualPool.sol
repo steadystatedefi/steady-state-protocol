@@ -73,13 +73,16 @@ contract MockPerpetualPool is IInsurerGovernor, PerpetualPoolBase {
     return payoutRatio;
   }
 
-  function getApprovedPolicyForInsurer(address) external override returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
-    data.riskLevel = _riskWeightValue;
-    if (data.riskLevel > 0) {
-      _riskWeightValue = 0;
-      data.riskLevel--;
-      data.premiumToken = _expectedPremiumToken;
-      ok = true;
+  function getApprovedPolicyForInsurer(address insured) external override returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
+    (ok, data) = internalDefaultUnderwrittenParams(insured);
+    if (!ok) {
+      data.riskLevel = _riskWeightValue;
+      if (data.riskLevel > 0) {
+        _riskWeightValue = 0;
+        data.riskLevel--;
+        data.premiumToken = _expectedPremiumToken;
+        ok = true;
+      }
     }
   }
 

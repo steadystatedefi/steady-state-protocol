@@ -11,10 +11,12 @@ import '../funds/Collateralized.sol';
 
 import 'hardhat/console.sol';
 
-/// @title Insured Balances Base
-/// @notice Holds balances of how much Insured owes to each Insurer in terms of rate
-/// @dev Calculates retroactive premium paid by Insured to Insurer over-time.
-/// @dev Insured pool tokens = investment * premium rate (e.g $1000 @ 5% premium = 50 tokens)
+/// @dev A template to track how much premium this insured has to pay to each insurer (both total balance and rate).
+/// @dev The premium balances and rates are calculated as streaming and denominated in CC-value.
+/// @dev Also rates here are based on the *requested* demand, not on provided coverage (which is less).
+/// @dev This ensures that prepayment will always be sufficient, but it is excessive.
+/// @dev To correct (release) the excessive prepayment by actual coverage, reconciliation should be done.
+/// @dev This contract is an ERC20 and a balance represents a RATE (i.e. a holder of 10 tokens will accumulate premium at rate of 10 CC per second).
 abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
@@ -49,7 +51,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     _totalAllocatedDemand = totals;
   }
 
-  /// @dev Mint the correct amount of tokens for the account (investor)
+  /// @dev Mints to the account (insurer) tokens equivalent to the premium rate this insured has to pay based on demanded coverage.
   /// @param account Account to mint to
   /// @param rateAmount Amount of rate
   // slither-disable-next-line costly-loop
@@ -73,6 +75,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     emit Transfer(address(account), address(0), rateAmount);
   }
 
+  /// @dev NB! This doesnt transfer an accumulated premium value, only a premium rate.
   function transferBalance(
     address sender,
     address recipient,
@@ -89,60 +92,53 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
 
   function internalIsAllowedAsHolder(uint16 status) internal view virtual returns (bool);
 
-  /// @dev Cancel this policy
+  /// @dev stops streaming of premium values to holder of tokens. Applied on cancellation of insurance.
   function internalCancelRates() internal {
     State.require(_cancelledAt == 0);
     _cancelledAt = uint32(block.timestamp);
   }
 
-  /// @dev Return timestamp or time that the cancelled state occurred
   function _syncTimestamp() private view returns (uint32) {
     uint32 ts = _cancelledAt;
     return ts > 0 ? ts : uint32(block.timestamp);
   }
 
-  /// @dev Update premium paid of entire pool
+  /// @return total rate and balance adjusted by the given timestamp `at`
   function internalExpectedTotals(uint32 at) internal view returns (Balances.RateAcc memory) {
     Value.require(at >= block.timestamp);
     uint32 ts = _cancelledAt;
     return _totalAllocatedDemand.sync(ts > 0 && ts <= at ? ts : at);
   }
 
-  /// @dev Update premium paid of entire pool
+  /// @return total rate and balance adjusted by the current timestamp
   function internalSyncTotals() internal view returns (Balances.RateAcc memory) {
     return _totalAllocatedDemand.sync(_syncTimestamp());
   }
 
-  /// @dev Update premium paid to an account
-  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory b) {
+  /// @return total rate and balance of the account adjusted by the current timestamp
+  function _syncBalance(address account) private view returns (Balances.RateAccWithUint16 memory) {
     return _balances[account].sync(_syncTimestamp());
   }
 
-  /// @notice Balance of the account, which is the rate paid to it
-  /// @param account The account to query
-  /// @return Rate paid to this account
+  /// @return premium rate allocated to this account
   function balanceOf(address account) public view override returns (uint256) {
     return _balances[account].rate;
   }
 
-  /// @notice Balance and total accumulated of the account
-  /// @param account The account to query
-  /// @return rate The rate paid to this account
-  /// @return premium The total premium paid to this account
+  /// @return rate (premium) allocated to this account
+  /// @return premium value accumulated by this account, this value may be reduced after reconciliation(s)
   function balancesOf(address account) public view returns (uint256 rate, uint256 premium) {
     Balances.RateAccWithUint16 memory b = _syncBalance(account);
     return (b.rate, b.accum);
   }
 
-  /// @notice Total Supply - also the current premium rate
-  /// @return The total premium rate
+  /// @return total premium rate of this insured based on demanded coverage
   function totalSupply() public view override returns (uint256) {
     return _totalAllocatedDemand.rate;
   }
 
-  /// @notice Total Premium rate and accumulated
-  /// @return rate The current rate paid by the insured
-  /// @return accumulated The total amount of premium to be paid for the policy
+  /// @return rate is total premium rate of this insured based on demanded coverage
+  /// @return accumulated is total amount of premium to be pre-paid by the policy. It can be reduced after reconciliation(s)
   function totalPremium() public view returns (uint256 rate, uint256 accumulated) {
     Balances.RateAcc memory totals = internalSyncTotals();
     return (totals.rate, totals.accum);
@@ -160,9 +156,9 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     return _balances[account].extra;
   }
 
-  /// @dev Reconcile the amount of collected premium and current premium rate with the Insurer
-  /// @param insurer The insurer to reconcile with
-  /// @param updateRate Whether the total rate of this Insured pool should be updated
+  /// @dev Reconciles the amount of pre-paid premium value and actual premium value requested by the insurer
+  /// @param insurer to reconcile with
+  /// @param updateRate is true to always adjust rate, otherwise rate will only be update when it is higher on insurer's side.
   /// @return receivedCoverage Amount of new coverage provided since the last reconcilation
   /// @return receivedCollateral Amount of collateral currency received during this reconcilation (<= receivedCoverage)
   /// @return coverage The new information on coverage demanded, provided and premium paid
@@ -235,7 +231,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     return (totals, diff != 0);
   }
 
-  /// @dev Do the same as `internalReconcileWithInsurer` but only as a view, don't make changes
+  /// @dev Do the same as `internalReconcileWithInsurer` but only as a view with no state changes
   function internalReconcileWithInsurerView(ICoverageDistributor insurer, Balances.RateAcc memory totals)
     internal
     view

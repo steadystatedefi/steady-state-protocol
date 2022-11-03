@@ -68,6 +68,7 @@ abstract contract GovernedHelper is AccessHelper, Collateralized {
     _;
   }
 
+  /// @return an address of a governor, irrelevant of its type (can be EOA etc)
   function governorAccount() internal view virtual returns (address);
 
   function approvalCatalog() internal view returns (IApprovalCatalog) {

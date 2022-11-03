@@ -5,6 +5,8 @@ import './WeightedPoolExtension.sol';
 import './PerpetualPoolBase.sol';
 
 /// @dev NB! MUST HAVE NO STORAGE
+/// @dev This is a a portion of implementation of prepetual-bond-style insurer (coverage can not be taken out).
+/// @dev This portion contains logic to handle coverage-related operations of insureds, except for add/cancel of demand.
 contract PerpetualPoolExtension is WeightedPoolExtension {
   using Math for uint256;
   using WadRayMath for uint256;
@@ -17,6 +19,7 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     address collateral_
   ) WeightedPoolConfig(acl, unitSize, collateral_) {}
 
+  /// @inheritdoc WeightedPoolExtension
   function internalTransferCancelledCoverage(
     address insured,
     uint256 payoutValue,
@@ -25,20 +28,20 @@ contract PerpetualPoolExtension is WeightedPoolExtension {
     uint256 premiumDebt
   ) internal override returns (uint256) {
     uint256 givenOutValue = subBalanceOfCollateral(insured);
-    Value.require(givenOutValue == advanceValue);
+    Sanity.require(givenOutValue == advanceValue);
 
     (payoutValue, premiumDebt) = payoutValue.boundedXSub(premiumDebt);
     recoveredValue += advanceValue.boundedSub(payoutValue);
 
     closeCollateralSubBalance(insured, payoutValue);
 
-    // this call is to consider / reinvest the released funds
+    // This call avoids code to be duplicated within the PoolExtension to reduce contract size
     PerpetualPoolBase(address(this)).updateCoverageOnCancel(payoutValue + premiumDebt, recoveredValue, 0);
-    // ^^ avoids code to be duplicated within WeightedPoolExtension to reduce contract size
 
     return payoutValue;
   }
 
+  /// @inheritdoc WeightedPoolExtension
   function internalTransferDemandedCoverage(
     address insured,
     uint256 receivedCoverage,

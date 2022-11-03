@@ -5,6 +5,7 @@ import '../tools/math/WadRayMath.sol';
 import '../tools/math/Math.sol';
 import './InsuredPoolBase.sol';
 
+/// @dev An implementation of an insurance policy which pays same premium rate per unit for any amount of coverage, i.e. has only one rate band.
 contract InsuredPoolMonoRateBase is InsuredPoolBase {
   using WadRayMath for uint256;
   using Math for uint256;
@@ -17,6 +18,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
 
   event CoverageDemandUpdated(uint256 requiredCoverage, uint256 demandedCoverage, uint256 premiumRate);
 
+  /// @dev Can change premium rate only when demanded coverage is zero.
   function _initializeCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) internal {
     Value.require(premiumRate != 0);
     if (_premiumRate != premiumRate) {
@@ -32,7 +34,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     emit CoverageDemandUpdated(_requiredCoverage, _demandedCoverage, _premiumRate);
   }
 
-  /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
+  /// @dev When coverage demand is added to an insurer, the required coverage is reduced and total demanded coverage increased
   /// @dev Mints to the appropriate insurer
   // slither-disable-next-line costly-loop
   function internalCoverageDemandAdded(
@@ -58,6 +60,9 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     premiumRate = _premiumRate;
   }
 
+  /// @dev Sets required demand of coverage and premium rate for coverage.
+  /// @param requiredCoverage which can be given (pushed) to insurers.
+  /// @param premiumRate can only be changed when demanded coverage is zero. When an application is approved, it must be >= basePremiumRate.
   function setCoverageDemand(uint256 requiredCoverage, uint256 premiumRate) external onlyGovernor {
     if (internalHasAppliedApplication()) {
       IApprovalCatalog.ApprovedPolicy memory ap = internalGetApprovedPolicy();
@@ -79,6 +84,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     InsuredBalancesBase.internalMintForDemandedCoverage(account, acceptedAmount.wadMul(rate));
   }
 
+  /// @inheritdoc IInsuredPool
   function rateBands() external view override returns (InsuredRateBand[] memory bands, uint256) {
     uint256 v = _premiumRate;
     if (v > 0) {
@@ -90,6 +96,11 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     return (bands, 1);
   }
 
+  /// @dev Cancels uncovered demand.
+  /// @dev Actual cancelled demand can be less than requested (e.g. covered already) or more (due to insurer's internal optimizations).
+  /// @param targets is a list of insurers to cancel demand, which was pushed earlier.
+  /// @param amounts is a list max demand to be cancelled.
+  /// @return cancelledDemand summed up by all targets.
   function cancelCoverageDemand(address[] calldata targets, uint256[] calldata amounts)
     external
     onlyGovernorOr(AccessFlags.INSURED_OPS)
@@ -101,6 +112,8 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     }
   }
 
+  /// @dev Cancels all uncovered demand.
+  /// @return cancelledDemand summed up by all targets.
   function cancelAllCoverageDemand() external onlyGovernorOr(AccessFlags.INSURED_OPS) returns (uint256 cancelledDemand) {
     address[] storage targets = getCharteredInsurers();
     for (uint256 i = targets.length; i > 0; ) {

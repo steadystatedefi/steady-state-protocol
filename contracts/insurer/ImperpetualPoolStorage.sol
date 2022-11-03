@@ -6,13 +6,18 @@ import '../tools/Errors.sol';
 import '../libraries/Balances.sol';
 import './WeightedPoolBase.sol';
 
+/// @dev A storage template for a weighted-round insurer with drawdown support
 abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase {
   using Math for uint256;
   using WadRayMath for uint256;
 
+  /// @dev total number of pool shares
   uint128 private _totalSupply;
+  /// @dev total value of shares burnt for premium tokens
   uint128 internal _burntPremium;
+  /// @dev value of premium debt recovered from payouts. Increases value available for drawdown and is deducted by drawdown.
   uint128 internal _boostDrawdown;
+  /// @dev total value of shares burnt for drawdown
   uint128 internal _burntDrawdown;
 
   function totalSupply() public view override(IERC20, WeightedPoolBase) returns (uint256) {

@@ -6,18 +6,20 @@ import './WeightedPoolStorage.sol';
 import './WeightedPoolBase.sol';
 import './InsurerJoinBase.sol';
 
-// Handles Insured pool functions, adding/cancelling demand
-abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStorage {
+/// @dev NB! MUST HAVE NO STORAGE
+/// @dev This is a template of a portion of implementation of a weighted-rounds-based insurer. It is introduced due to overcome the code size limit.
+/// @dev This portion contains logic to handle coverage-related operations of insureds, except for add/cancel of demand.
+abstract contract WeightedPoolExtension is WeightedPoolStorage, IReceivableCoverage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
   using Balances for Balances.RateAcc;
 
-  /// @notice Coverage Unit Size is the minimum amount of coverage that can be demanded/provided
-  /// @return The coverage unit size
+  /// @inheritdoc ICancellableCoverage
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
   }
 
+  /// @inheritdoc ICancellableCoverage
   function cancelCoverage(address insured, uint256 payoutRatio)
     external
     override
@@ -73,6 +75,13 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     );
   }
 
+  /// @dev A strategy to handle cancellation of the insured policy.
+  /// @param insured is the cancelled policy.
+  /// @param payoutValue value expected (approved) to be paid out as CC to the policy holder.
+  /// @param advanceValue is value of coverage eligible to be escrowed considering the most recent state before the cancellation.
+  /// @param recoveredValue is value of coverage allocated, but was not eligible to be escrowed, i.e. this coverage stays with the insurer now.
+  /// @param premiumDebt is value of premium which was not pre-paid by the insured. It will be deducted from the payout.
+  /// @return the value of coverage actually given to the insured from this insurer.
   function internalTransferCancelledCoverage(
     address insured,
     uint256 payoutValue,
@@ -126,6 +135,11 @@ abstract contract WeightedPoolExtension is IReceivableCoverage, WeightedPoolStor
     return (params.receivedCoverage, receivedCollateral, coverage);
   }
 
+  /// @dev A strategy to handle reconcilation of the insured policy.
+  /// @param insured is the reconciled policy.
+  /// @param receivedCoverage is a value of coverage allocated to the insured since the last reconcile (i.e. incremental).
+  /// @param coverage is a total stats of coverage allocated to the insured.
+  /// @return the value/amount of collateral escrowed for the insured by this insurer.
   function internalTransferDemandedCoverage(
     address insured,
     uint256 receivedCoverage,
