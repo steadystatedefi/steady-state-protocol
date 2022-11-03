@@ -6,7 +6,7 @@ import './ImperpetualPoolExtension.sol';
 import './WeightedPoolBase.sol';
 
 /// @dev An implementation of insurer that allows partial release of investments / coverage (aka drawdown).
-/// @dev It also implements a single-token model for its shares which allows the sencondary market (i.e. trading via DEX etc).
+/// @dev It also implements a single-token model (no separate collectable premium) for its shares which allows secondary market trading (i.e a DEX)
 /// @dev The token of this pool does not change quantity, but gets higher value (exchange rate into CC) from premium flow.
 abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using Math for uint256;
@@ -278,14 +278,14 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     avail = max.boundedSub(_burntDrawdown);
   }
 
-  /// @return maxAvail is a drawdown available in total
+  /// @return maxAvail is drawdown available in total
   function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256 maxAvail) {
     uint256 total = extra + _coveredTotal() + _excessCoverage;
     (, maxAvail) = _coverageDrawdown(total, PercentageMath.ONE - _params.coverageForepayPct);
   }
 
-  /// @return max is a total drawdown allowed to users, it includes drawdown given out already.
-  /// @return avail is a drawdown available to users now.
+  /// @return max is total drawdown allowed to users, it includes drawdown given out already.
+  /// @return avail is drawdown available to users now.
   function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256 max, uint256 avail) {
     (max, avail) = _coverageDrawdown(totalCovered + _excessCoverage, _params.maxUserDrawdownPct);
     max += totalCovered = _boostDrawdown;

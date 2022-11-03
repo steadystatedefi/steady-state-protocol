@@ -7,7 +7,7 @@ import './WeightedPoolBase.sol';
 
 /// @dev An implementation of insurer that does NOT allow release of investments / coverage.
 /// @dev It implements a dual-token model where the 2nd token represents the accumulated premium value.
-/// @dev This model is NOT suitable for the sencondary market as it will cause the premium value to be accumulated on a DEX contract.
+/// @dev This model is NOT suitable for the sencondary market as it will cause the premium value to be accumulated on a non-compliant contract.
 abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStorage {
   using WadRayMath for uint256;
   using PercentageMath for uint256;
@@ -185,7 +185,7 @@ abstract contract PerpetualPoolBase is IPerpetualInsurerPool, PerpetualPoolStora
     return PerpetualPoolStorage.exchangeRate();
   }
 
-  ///@dev Transfer a balance to a recipient, syncs the balances before performing the transfer
+  ///@dev Transfer an amount to a recipient, syncs the balances before performing the transfer
   ///@param sender  The sender
   ///@param recipient The receiver
   ///@param amount  Amount to transfer

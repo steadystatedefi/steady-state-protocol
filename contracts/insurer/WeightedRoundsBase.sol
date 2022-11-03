@@ -14,27 +14,27 @@ import 'hardhat/console.sol';
 /// @dev Insureds add coverage demand, investors add coverage, and this contract incrementally calculates allocation of the coverage to the demand.
 /// @dev The allocation of coverage follows risk weights of insureds.
 /// @dev At any moment of time an insured will get a share of total coverage not exceeding the insured's relative risk weight.
-/// @dev To do that allocation of coverage is done with units and rounds. A unit is an atomic amount of the Collateral Currency.
+/// @dev The allocation of coverage is done with units and rounds. A unit is an atomic amount of the Collateral Currency.
 /// @dev Each round can have one or more units of demand from one or more insureds.
-/// @dev And a round can be filled in with coverage when a composition of the round satisfies risk weights.
+/// @dev And a round can be filled in with coverage when the composition of the round satisfies risk weights.
 /// @dev Rounds with identical compositions (insureds and their demands) are organized in batches to save on storage gas costs.
 /// @dev
 /// @dev This calculator is organized as a one-way linked list of batches. This list grows with more demand and shrinks with more coverage added.
 /// @dev Additionally, each insured has an indexed list to map insured's demands to these batches (to calculate coverage and premium).
 /// @dev
 /// @dev This calculator is primarally optimized:
-/// @dev * to reduce gas cost for investors (users) when adding coverage;
+/// @dev * to reduce gas cost for investors (users) when adding coverage.
 /// @dev * to avoid gas dependency on # of users and # of insureds.
 /// @dev
 /// @dev Addition of coverage depends on amount of coverage and fragmentation of batches.
-/// @dev Other operations also depend on fragmentation of batches too.
-/// @dev To keep the fragmentation of batches low - this calculator may insured's add demand partially (i.e. round it down) and
+/// @dev Other operations also depend on fragmentation of batches.
+/// @dev To keep the fragmentation of batches low - this calculator may add an insured's demand partially (i.e. round it down) and
 /// @dev remove more demand (i.e. round it up) due to current batches.
 /// @dev
-/// @dev Also, addition of demand can be limited by total amount of uncovered demand to avoid preallocation of excessive amount of batches
-/// @dev which may require more gas later to reconfigure them, and will also unreasonably lock up demand with multiple chartered insureds.
-/// @dev To handle this, there is an "auto-pull" feature - an insured can provide "hasMore" flag, and next time when there will be no demand
-/// @dev for coverage, then insureds will be requested to provide additional demand.
+/// @dev Also, addition of demand can be limited by total amount of uncovered demand to avoid preallocation of an excessive amount of batches
+/// @dev which may require more gas later to reconfigure them, and also will unreasonably lock up demand with multiple chartered insureds.
+/// @dev To handle this, there is an "auto-pull" feature - an insured can provide "hasMore" flag. The next time when there will be no demand
+/// @dev for coverage the insureds will be requested to provide additional demand.
 // solhint-disable-next-line max-states-count
 abstract contract WeightedRoundsBase {
   using Rounds for Rounds.Batch;
@@ -456,8 +456,8 @@ abstract contract WeightedRoundsBase {
       uint16 maxUnitsPerRound
     );
 
-  /// @dev This is a strategy to decide when an exising batch can be split to accomodate a smaller amount of demand units.
-  /// @dev Lower split threshold allows to accept smaller fractions of demand, but significantly impacts gas expenses for ALL operations.
+  /// @dev This is a strategy to decide when an exising batch can be split to accommodate a smaller amount of demand units.
+  /// @dev Lower split threshold allows batches to accept smaller fractions of demand, but significantly impacts gas expenses for ALL operations.
   /// @return splitRounds is a number of rounds to stay in the batch, zero to prevent splitting (hence the demand will not be added).
   function internalBatchSplit(
     uint64 demandedUnits,
@@ -1676,7 +1676,7 @@ abstract contract WeightedRoundsBase {
 
   /// @dev Looks for an insured to pull demand from. The insured has to be added with "hasMore" flag.
   /// @param loopLimit how many internal loops can be made to find a suitable insured.
-  /// @param peek is true to keep the insured (next call will also return it).
+  /// @param peek is true to keep the insured in the list of pullable (next call will also return it).
   /// @return insured found
   /// @return remaining loop limit
   function internalPullDemandCandidate(uint256 loopLimit, bool peek) internal returns (address insured, uint256) {

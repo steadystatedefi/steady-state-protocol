@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
-/// @dev A template to track status (and listings) of insurers, this insured has joined.
+/// @dev A template to track status and address of insurers that this insured has joined.
 abstract contract InsuredJoinBase is IInsuredPool {
   address[] private _genericInsurers; // ICoverageDistributor[]
   address[] private _charteredInsurers;
@@ -39,7 +39,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return _charteredInsurers;
   }
 
-  ///@dev Invoked when this one is joining (after acceptance) or is leaving the insurer
+  ///@dev Invoked when this insured is joining (after acceptance) or is leaving the insurer
   function internalJoinProcessed(address insurer, bool accepted) internal {
     Access.require(getAccountStatus(insurer) == STATUS_PENDING);
 
@@ -75,7 +75,7 @@ abstract contract InsuredJoinBase is IInsuredPool {
     _addCoverageDemandTo(target, 0, maxAmount, 0);
   }
 
-  /// @dev Adds coverage demand to the `insurer`
+  /// @dev Adds coverage demand to the insurer
   /// @param target is the insurer to add demand to
   /// @param minAmount is the min amount of demand to add (soft limit)
   /// @param maxAmount is the max amount of demand to add (hard limit)

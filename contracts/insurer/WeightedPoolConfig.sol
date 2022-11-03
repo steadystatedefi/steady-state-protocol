@@ -173,7 +173,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
 
   /// @dev Provides a loop limit for an operation
   /// @param t is a type of the operation
-  /// @param limit is a custom limit, zero to reguest a default limit
+  /// @param limit is a custom limit, zero to request a default limit
   /// @return loop limit for the operation
   function defaultLoopLimit(LoopLimitType t, uint256 limit) internal view virtual returns (uint256) {
     if (limit == 0) {
@@ -189,7 +189,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   }
 
   /// @dev Gets approved params for the insured from the ApprovalCatalog.
-  /// @return ok is true an approved policy is available for the `insured`
+  /// @return ok is true when an approved policy is available for the `insured`
   /// @return data with risk and premium data from the approved policy of the `insured`
   function internalDefaultUnderwrittenParams(address insured) internal view returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
     IApprovalCatalog ac = approvalCatalog();
@@ -198,8 +198,8 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
     }
   }
 
-  /// @dev Gets approved params for the insured from the governor, or from the ApprovalCatalog when the governor doesn support IInsurerGovernor.
-  /// @return ok is true an approved policy is available for the `insured`
+  /// @dev Gets approved params for the insured from the governor, or from the ApprovalCatalog when the governor doesn't support IInsurerGovernor.
+  /// @return ok is true when an approved policy is available for the `insured`
   /// @return data with risk and premium data from the approved policy of the `insured`
   function internalGetUnderwrittenParams(address insured) internal virtual returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data) {
     IInsurerGovernor g = governorContract();
@@ -294,7 +294,7 @@ abstract contract WeightedPoolConfig is WeightedRoundsBase, WeightedPoolAccessCo
   }
 }
 
-/// @dev Type of operation to get a default loop limit for it
+/// @dev Type of operation to get the default loop limit for
 enum LoopLimitType {
   // View ops (255 iterations by default)
   ReceivableDemandedCoverage,

@@ -12,9 +12,9 @@ import './InsuredAccessControl.sol';
 
 import 'hardhat/console.sol';
 
-/// @dev A template of a generic insured policy. Is also referred as 'pool' - because multiple insurers can cover a single policy.
-/// @dev This template provides all necessary functionality, including access control, tacking insurers, management of demand distribution collection,
-/// @dev collecting coverage and streaming of premium. The missing part is keeping a registry of demand by rate bands.
+/// @dev A template of a generic insured policy. Is also referred to as 'pool' - because multiple insurers can cover a single policy.
+/// @dev This template provides all necessary functionality: Access control, tracking insurers, management of demand distribution collection,
+/// @dev collecting coverage, and streaming of premium. The missing part is keeping a registry of demand by rate bands.
 abstract contract InsuredPoolBase is
   IInsuredPool,
   InsuredBalancesBase,
@@ -89,7 +89,7 @@ abstract contract InsuredPoolBase is
   }
 
   /// @dev Initiates joining to an insurer.
-  /// @dev Must have an approved application in the ApprovalCatalog, and must have a sufficuent prepayment of premium token.
+  /// @dev Must have an approved application in the ApprovalCatalog, and must have a sufficient prepayment of premium token.
   function joinPool(IJoinable pool) external onlyGovernor {
     Value.require(address(pool) != address(0));
     if (!internalHasAppliedApplication()) {
@@ -101,7 +101,7 @@ abstract contract InsuredPoolBase is
     internalJoinPool(pool);
   }
 
-  /// @dev Attemps to add coverage demands to the desired insurers. An insurer may take only a fraction of the pushed demand.
+  /// @dev Attemps to add coverage demands to the desired insurers. An insurer might take only a fraction of the pushed demand.
   /// @param targets is a list of insurers to add demand to
   /// @param amounts is a list of amount of coverage demand to push to insurers
   function pushCoverageDemandTo(ICoverageDistributor[] calldata targets, uint256[] calldata amounts)
@@ -177,7 +177,7 @@ abstract contract InsuredPoolBase is
   }
 
   /// @dev Calculates expected changes to coverage and premium changes for the chartered `insurer` as if you call reconciliation now.
-  /// @return r is IInsuredPoo.ReceivableByReconcile with the expected changes and stats.
+  /// @return r is IInsuredPool.ReceivableByReconcile with the expected changes and stats.
   function receivableByReconcileWithInsurer(address insurer) external view returns (ReceivableByReconcile memory r) {
     Balances.RateAcc memory totals = internalSyncTotals();
     (uint256 c, DemandedCoverage memory cov, ) = internalReconcileWithInsurerView(ICoverageDistributor(insurer), totals);
@@ -232,7 +232,7 @@ abstract contract InsuredPoolBase is
 
   event CoverageFullyCancelled(uint256 expectedPayout, uint256 actualPayout, address indexed payoutReceiver);
 
-  /// @dev Cancels coverage and pays out an insurance. When payout is non-zero, it must be approved in the ApprovalCatalog.
+  /// @dev Cancels coverage and pays out an insurance claim. When payout is non-zero, it must be approved in the ApprovalCatalog.
   /// @dev This method iterates through all insurers and takes the payout proportionally from each insurer.
   /// @param payoutReceiver will receive the payout (collateral currency). The payout may be deducted by known debts (e.g. lack of premium).
   /// @param expectedPayout to be paid

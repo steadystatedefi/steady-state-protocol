@@ -15,7 +15,7 @@ abstract contract ImperpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBa
   uint128 private _totalSupply;
   /// @dev total value of shares burnt for premium tokens
   uint128 internal _burntPremium;
-  /// @dev value of premium debt recovered from payouts. Increases value available for drawdown, deducted by drawdown.
+  /// @dev value of premium debt recovered from payouts. Increases value available for drawdown and is deducted by drawdown.
   uint128 internal _boostDrawdown;
   /// @dev total value of shares burnt for drawdown
   uint128 internal _burntDrawdown;

@@ -34,7 +34,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
     emit CoverageDemandUpdated(_requiredCoverage, _demandedCoverage, _premiumRate);
   }
 
-  /// @dev When coverage demand is added, the required coverage is reduced and total demanded coverage increased
+  /// @dev When coverage demand is added to an insurer, the required coverage is reduced and total demanded coverage increased
   /// @dev Mints to the appropriate insurer
   // slither-disable-next-line costly-loop
   function internalCoverageDemandAdded(
@@ -97,7 +97,7 @@ contract InsuredPoolMonoRateBase is InsuredPoolBase {
   }
 
   /// @dev Cancels uncovered demand.
-  /// @dev Cancelled demand can be less than requested (e.g. covered already) or more (due to insurer's internal optimizations).
+  /// @dev Actual cancelled demand can be less than requested (e.g. covered already) or more (due to insurer's internal optimizations).
   /// @param targets is a list of insurers to cancel demand, which was pushed earlier.
   /// @param amounts is a list max demand to be cancelled.
   /// @return cancelledDemand summed up by all targets.

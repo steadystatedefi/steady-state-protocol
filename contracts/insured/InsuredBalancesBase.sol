@@ -11,12 +11,12 @@ import '../funds/Collateralized.sol';
 
 import 'hardhat/console.sol';
 
-/// @dev A template to track of how much premium this insured has to pay to each insurer (both balance and rate).
-/// @dev The premium balances and rates are calculated as streaming and a nominated as CC-value.
+/// @dev A template to track how much premium this insured has to pay to each insurer (both total balance and rate).
+/// @dev The premium balances and rates are calculated as streaming and denominated in CC-value.
 /// @dev Also rates here are based on the *requested* demand, not on provided coverage (which is less).
 /// @dev This ensures that prepayment will always be sufficient, but it is excessive.
-/// @dev To correct (release) the excessive prepayment by actual coverage, reconciliation shoud be done.
-/// @dev This one is ERC20 and a balance represents a RATE, i.e. a holder of 10 tokens will accumulate a premium value at rate of 10 CC per second.
+/// @dev To correct (release) the excessive prepayment by actual coverage, reconciliation should be done.
+/// @dev This contract is an ERC20 and a balance represents a RATE (i.e. a holder of 10 tokens will accumulate premium at rate of 10 CC per second).
 abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
   using WadRayMath for uint256;
   using Balances for Balances.RateAcc;
@@ -51,7 +51,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     _totalAllocatedDemand = totals;
   }
 
-  /// @dev Mints to the account (insurer) amount of tokens equivalent to the rate of premium, this insured has to pay based on demanded coverage.
+  /// @dev Mints to the account (insurer) tokens equivalent to the premium rate this insured has to pay based on demanded coverage.
   /// @param account Account to mint to
   /// @param rateAmount Amount of rate
   // slither-disable-next-line costly-loop
@@ -231,7 +231,7 @@ abstract contract InsuredBalancesBase is Collateralized, ERC20BalancelessBase {
     return (totals, diff != 0);
   }
 
-  /// @dev Do the same as `internalReconcileWithInsurer` but only as a view, no state changes
+  /// @dev Do the same as `internalReconcileWithInsurer` but only as a view with no state changes
   function internalReconcileWithInsurerView(ICoverageDistributor insurer, Balances.RateAcc memory totals)
     internal
     view

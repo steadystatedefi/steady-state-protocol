@@ -3,9 +3,9 @@ pragma solidity ^0.8.10;
 
 /** @dev Set of types for WeightedRoundsBase
 
-Reasonong for bit sizes of different values:
+Reasoning for bit sizes of different values:
 
-Let: UnitPremiumRate per sec * 366 days <= 1 WAD (i.e. 1 WAD = 100% of coverage p.a.), 
+Let: UnitPremiumRate per sec * 366 days <= 1 WAD (i.e. 1 WAD = 100% of coverage p.a.),
 Then: 1 WAD / (366 * 24 * 60 * 60) < 3.2e10 < 2^35
 =>> UnitPremiumRate is uint40
 
@@ -22,13 +22,13 @@ library Rounds {
   /// @dev must be equal to bit size of Demand.premiumRate
   uint8 internal constant DEMAND_RATE_BITS = 40;
 
-  /// @dev demand log entry, related to a single insurd pool
+  /// @dev demand log entry, related to a single insured pool
   struct Demand {
     /// @dev first batch that includes this demand
     uint64 startBatchNo;
     /// @dev premiumRate for this demand. See DEMAND_RATE_BITS
     uint40 premiumRate;
-    /// @dev number of rounds accross all batches where this demand was added
+    /// @dev number of rounds across all batches where this demand was added
     uint24 rounds;
     /// @dev number of units added to each round by this demand
     uint16 unitPerRound;

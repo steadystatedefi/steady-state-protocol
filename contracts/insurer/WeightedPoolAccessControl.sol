@@ -35,7 +35,7 @@ abstract contract WeightedPoolAccessControl is GovernedHelper, InsurerJoinBase {
     _onlyActiveInsured(insured);
   }
 
-  /// @dev Allows an insured with MemberStatus.Accepted, and a caller either the insured, or a governor, or an INSURER_OPS
+  /// @dev Allows a caller that is either the insured in question, a governor, or an INSURER_OPS. Insured must have MemberStatus.Accepted
   modifier onlyActiveInsuredOrOps(address insured) {
     _onlyActiveInsuredOrOps(insured);
     _;

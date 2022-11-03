@@ -23,7 +23,7 @@ abstract contract PerpetualPoolStorage is WeightedPoolBase, ERC20BalancelessBase
     return WadRayMath.RAY - _inverseExchangeRate;
   }
 
-  /// @dev Performed before all balance updates. The total rate accum by the pool is updated
+  /// @dev Performed before all balance updates. The total rate accumulated by the pool is updated
   /// @return totals The new totals of the pool
   function _beforeAnyBalanceUpdate() internal view returns (Balances.RateAcc memory totals) {
     totals = _totalRate.sync(uint32(block.timestamp));
