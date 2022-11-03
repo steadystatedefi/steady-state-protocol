@@ -12,8 +12,7 @@ import '../interfaces/IInsuredPool.sol';
 import '../funds/Collateralized.sol';
 import './InsurerJoinBase.sol';
 
-/// @title Direct Pool Base
-/// @notice Handles capital providing actions involving adding coverage DIRECTLY to an insured
+/// @dev A template of an insurer with manual allocation of coverage to insureds. Incomplete.
 abstract contract DirectPoolBase is
   ICancellableCoverage,
   IPerpetualInsurerPool,

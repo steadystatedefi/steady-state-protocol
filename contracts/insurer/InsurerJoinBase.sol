@@ -9,8 +9,8 @@ import '../insurer/Rounds.sol';
 
 import 'hardhat/console.sol';
 
-/// @title InsurerJoinBase
-/// @notice Handles Insured's requests on joining this Insurer
+/// @dev A template to handle joining of insureds.
+/// @dev When an insured requests to join, this template calls a governor (if one is set that supports IInsurerGovernor) and emits an event.
 abstract contract InsurerJoinBase is IJoinEvents {
   function internalGetStatus(address) internal view virtual returns (MemberStatus);
 
@@ -82,7 +82,7 @@ abstract contract InsurerJoinBase is IJoinEvents {
       }
       emit JoinProcessed(insured, accepted);
     } else {
-      Value.require(status != MemberStatus.Accepted);
+      Value.require(status != MemberStatus.Accepted && status != MemberStatus.JoinRejected);
       State.require(currentStatus != MemberStatus.Banned);
       internalSetStatus(insured, status);
     }

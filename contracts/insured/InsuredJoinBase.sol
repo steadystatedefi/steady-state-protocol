@@ -4,8 +4,7 @@ pragma solidity ^0.8.4;
 import '../interfaces/IJoinable.sol';
 import './InsuredBalancesBase.sol';
 
-/// @title Insured Join Base
-/// @notice Handles tracking and joining insurers
+/// @dev A template to track status and address of insurers that this insured has joined.
 abstract contract InsuredJoinBase is IInsuredPool {
   address[] private _genericInsurers; // ICoverageDistributor[]
   address[] private _charteredInsurers;
@@ -25,24 +24,28 @@ abstract contract InsuredJoinBase is IInsuredPool {
     pool.requestJoin(address(this));
   }
 
+  /// @return lists of non-chartered and chartered insurers accordingly. See ICharterable
   function getInsurers() public view returns (address[] memory, address[] memory) {
     return (_genericInsurers, _charteredInsurers);
   }
 
+  /// @return a list of non-chartered insurers. See ICharterable
   function getGenericInsurers() internal view returns (address[] storage) {
     return _genericInsurers;
   }
 
+  /// @return a list of chartered insurers. See ICharterable
   function getCharteredInsurers() internal view returns (address[] storage) {
     return _charteredInsurers;
   }
 
-  ///@dev Add the Insurer pool if accepted, and set the status of it
+  ///@dev Invoked when this insured is joining (after acceptance) or is leaving the insurer
   function internalJoinProcessed(address insurer, bool accepted) internal {
     Access.require(getAccountStatus(insurer) == STATUS_PENDING);
 
     if (accepted) {
       bool chartered = IJoinable(insurer).charteredDemand();
+      // index is encoded as odd for a chartered insurer, and as even for a non-chartered insurer
       uint256 index = chartered ? (_charteredInsurers.length << 1) + 1 : (_genericInsurers.length + 1) << 1;
       State.require(index < INDEX_MAX);
       (chartered ? _charteredInsurers : _genericInsurers).push(insurer);
@@ -72,11 +75,11 @@ abstract contract InsuredJoinBase is IInsuredPool {
     _addCoverageDemandTo(target, 0, maxAmount, 0);
   }
 
-  /// @dev Add coverage demand to the Insurer and
-  /// @param target The insurer to add demand to
-  /// @param minAmount The desired min amount of demand to add (soft limit)
-  /// @param maxAmount The max amount of demand to add (hard limit)
-  /// @return True if there is more demand that can be added
+  /// @dev Adds coverage demand to the insurer
+  /// @param target is the insurer to add demand to
+  /// @param minAmount is the min amount of demand to add (soft limit)
+  /// @param maxAmount is the max amount of demand to add (hard limit)
+  /// @return true if there is more demand that can be added
   // slither-disable-next-line calls-loop
   function _addCoverageDemandTo(
     ICoverageDistributor target,
@@ -98,13 +101,13 @@ abstract contract InsuredJoinBase is IInsuredPool {
     return true;
   }
 
-  /// @dev Calculate how much coverage demand to add
-  /// @param target The insurer demand is being added to
-  /// @param minAmount The desired min amount of demand to add (soft limit)
-  /// @param maxAmount The max amount of demand to add (hard limit)
-  /// @param unitSize The unit size of the insurer
-  /// @return amount Amount of coverage demand to add
-  /// @return premiumRate The rate to pay for the coverage to add
+  /// @dev Calculates how much coverage demand to add
+  /// @param target is the insurer demand is being added to
+  /// @param minAmount is the min amount of demand to add (soft limit)
+  /// @param maxAmount is the max amount of demand to add (hard limit)
+  /// @param unitSize of the insurer
+  /// @return amount of coverage demand to add
+  /// @return premiumRate to be paid for the coverage
   function internalAllocateCoverageDemand(
     address target,
     uint256 minAmount,

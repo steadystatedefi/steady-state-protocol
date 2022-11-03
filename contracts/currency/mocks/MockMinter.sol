@@ -16,11 +16,12 @@ contract MockMinter is VersionedInitializable {
     return CONTRACT_REVISION;
   }
 
-  function mint(address to, uint amount) external {
+  function mint(address to, uint256 amount) external {
     _collateral.mint(to, amount);
   }
 
-  function mintAndTransfer(address onBehalf,
+  function mintAndTransfer(
+    address onBehalf,
     address recepient,
     uint256 mintAmount,
     uint256 balanceAmount
@@ -28,7 +29,7 @@ contract MockMinter is VersionedInitializable {
     _collateral.mintAndTransfer(onBehalf, recepient, mintAmount, balanceAmount);
   }
 
-  function burn(address from, uint amount) external {
+  function burn(address from, uint256 amount) external {
     _collateral.burn(from, amount);
   }
 }

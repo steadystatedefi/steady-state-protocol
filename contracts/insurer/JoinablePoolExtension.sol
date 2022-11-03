@@ -1,42 +1,47 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity ^0.8.4;
 
-import '../tools/upgradeability/Delegator.sol';
-import '../tools/tokens/ERC1363ReceiverBase.sol';
-import '../interfaces/IPremiumActuary.sol';
-import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IJoinable.sol';
 import './WeightedPoolExtension.sol';
 import './WeightedPoolStorage.sol';
 
-contract JoinablePoolExtension is IJoinableBase, IDemandableCoverage, WeightedPoolStorage {
+/// @dev NB! MUST HAVE NO STORAGE
+/// @dev This is a portion of implementation of a weighted-rounds-based insurer. It is introduced due to overcome the code size limit.
+/// @dev This portion contains logic to handle joins of insureds, and to handle addition and cancellation of demand of insureds.
+contract JoinablePoolExtension is WeightedPoolStorage, IJoinableBase, IDemandableCoverage {
   constructor(
     IAccessController acl,
     uint256 unitSize,
     address collateral_
   ) WeightedPoolConfig(acl, unitSize, collateral_) {}
 
+  /// @return an access controller of this insurer
   function accessController() external view returns (IAccessController) {
     return remoteAcl();
   }
 
+  /// @inheritdoc IJoinableBase
   function requestJoin(address insured) external override {
     Access.require(msg.sender == insured);
     internalRequestJoin(insured);
   }
 
+  /// @dev Allows a governor or an INSURER_OPS to accept or reject joining of an insured.
   function approveJoiner(address insured, bool accepted) external onlyGovernorOr(AccessFlags.INSURER_OPS) {
     internalProcessJoin(insured, accepted);
   }
 
+  /// @inheritdoc IJoinableBase
   function cancelJoin() external returns (MemberStatus) {
     return internalCancelJoin(msg.sender);
   }
 
+  /// @inheritdoc IDemandableCoverage
   function coverageUnitSize() external view override returns (uint256) {
     return internalUnitSize();
   }
 
+  /// @inheritdoc IDemandableCoverage
   function addCoverageDemand(
     uint256 unitCount,
     uint256 premiumRate,
@@ -59,6 +64,7 @@ contract JoinablePoolExtension is IJoinableBase, IDemandableCoverage, WeightedPo
     return addedCount;
   }
 
+  /// @inheritdoc IDemandableCoverage
   function cancelCoverageDemand(
     address insured,
     uint256 unitCount,

@@ -8,11 +8,13 @@ import '../interfaces/IInsuredPool.sol';
 import '../interfaces/IInsurerPool.sol';
 import '../interfaces/IPremiumActuary.sol';
 import '../interfaces/IPremiumSource.sol';
+import '../interfaces/IPremiumCollector.sol';
 import '../interfaces/IManagedCollateralCurrency.sol';
 import '../funds/interfaces/ICollateralFund.sol';
 import '../premium/interfaces/IPremiumFund.sol';
 import '../access/AccessHelper.sol';
 import '../governance/interfaces/IApprovalCatalog.sol';
+import '../insured/InsuredPoolBase.sol';
 
 contract FrontHelper is AccessHelper {
   constructor(IAccessController acl) AccessHelper(acl) {}
@@ -240,5 +242,35 @@ contract FrontHelper is AccessHelper {
   ) external returns (IPremiumFund.AssetBalanceInfo[] memory) {
     IPremiumFund(premiumFund).syncAssets(actuary, 0, assets);
     return getSwapInfo(premiumFund, actuary, assets);
+  }
+
+  struct InsuredCoverageInfo {
+    uint256 receivableCoverage;
+    uint256 demandedCoverage;
+    uint256 providedCoverage;
+    uint256 rate;
+    uint256 accumulated;
+    uint256 expectedPrepay;
+  }
+
+  function getInsuredCoverageInfo(address[] calldata insureds, uint32 timeDelta) external view returns (InsuredCoverageInfo[] memory totals) {
+    totals = new InsuredCoverageInfo[](insureds.length);
+
+    for (uint256 i = insureds.length; i > 0; ) {
+      i--;
+
+      // slither-disable-next-line calls-loop
+      (uint256 receivableCoverage, uint256 demandedCoverage, uint256 providedCoverage, uint256 rate, uint256 accumulated) = InsuredPoolBase(
+        insureds[i]
+      ).receivableByReconcileWithInsurers(0, 0);
+
+      // slither-disable-next-line calls-loop
+      totals[i].expectedPrepay = IPremiumCollector(insureds[i]).expectedPrepayAfter(timeDelta);
+      totals[i].receivableCoverage = receivableCoverage;
+      totals[i].demandedCoverage = demandedCoverage;
+      totals[i].providedCoverage = providedCoverage;
+      totals[i].rate = rate;
+      totals[i].accumulated = accumulated;
+    }
   }
 }

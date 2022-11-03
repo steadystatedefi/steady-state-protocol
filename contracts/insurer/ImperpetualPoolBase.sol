@@ -5,8 +5,9 @@ import './ImperpetualPoolStorage.sol';
 import './ImperpetualPoolExtension.sol';
 import './WeightedPoolBase.sol';
 
-/// @title Index Pool Base with Perpetual Index Pool Tokens
-/// @notice Handles adding coverage by users.
+/// @dev An implementation of insurer that allows partial release of investments / coverage (aka drawdown).
+/// @dev It also implements a single-token model (no separate collectable premium) for its shares which allows secondary market trading (i.e a DEX)
+/// @dev The token of this pool does not change quantity, but gets higher value (exchange rate into CC) from premium flow.
 abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
   using Math for uint256;
   using Math for uint128;
@@ -40,19 +41,27 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
   }
 
-  /// @dev Updates the user's balance based upon the current exchange rate of $CC to $Pool_Coverage
-  /// @dev Update the new amount of excess coverage
+  /// @inheritdoc WeightedPoolBase
   function internalMintForCoverage(address account, uint256 value) internal override {
     (bool done, AddCoverageParams memory params, PartialState memory part) = _addCoverage(value);
 
-    // TODO:TEST test adding coverage to an empty pool
     _mint(account, done ? value.rayDiv(exchangeRate(super.internalGetPremiumTotals(part, params.premium), value)) : 0, value);
   }
 
+  /// @dev Adds subrogation as an excess to reduce gas cost of the operation.
   function internalSubrogated(uint256 value) internal override {
     internalSetExcess(_excessCoverage + value);
   }
 
+  /// @dev A callback from self (PoolExtension) to keep code parts separate.
+  /// @dev It handles cancellation of coverage, which includes termination of premium streaming, recovery of premium debt,
+  /// @dev and split of the coverage escrow between this pool and the insured.
+  /// @param insured is the cancelled policy.
+  /// @param payoutValue value expected (approved) to be paid out as CC to the policy holder.
+  /// @param advanceValue is value of coverage eligible to be escrowed considering the most recent state before the cancellation.
+  /// @param recoveredValue is value of coverage allocated, but was not eligible to be escrowed, i.e. this coverage stays with the insurer now.
+  /// @param premiumDebt is value of premium which was not pre-paid by the insured. It will be deducted from the payout.
+  /// @return the value of coverage given to the insured from this insurer.
   function updateCoverageOnCancel(
     address insured,
     uint256 payoutValue,
@@ -118,6 +127,12 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     return payoutValue;
   }
 
+  /// @dev A callback from self (PoolExtension) to keep code parts separate.
+  /// @dev It handles coverage on reconciliation - adds a portion of collateral into escrow for the insured.
+  /// @param insured is the reconciled policy.
+  /// @param receivedCoverage is a value of coverage allocated to the insured since the last reconcile (i.e. incremental).
+  /// @param totalCovered is a total value of coverage allocated to the insured.
+  /// @return the value/amount of collateral escrowed for the insured by this insurer.
   function updateCoverageOnReconcile(
     address insured,
     uint256 receivedCoverage,
@@ -145,8 +160,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     return receivedCoverage;
   }
 
-  /// @dev Attempt to take the excess coverage and fill batches
-  /// @dev Occurs when there is excess and a new batch is ready (more demand added)
+  /// @inheritdoc WeightedPoolBase
   function pushCoverageExcess() public override {
     _addCoverage(0);
   }
@@ -158,6 +172,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     v += coverage.totalPremium - _burntPremium;
   }
 
+  /// @inheritdoc IInsurerToken
   function totalSupplyValue() public view returns (uint256) {
     return totalSupplyValue(super.internalGetPremiumTotals(), 0);
   }
@@ -170,14 +185,17 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
   }
 
-  function exchangeRate() public view override returns (uint256 v) {
+  /// @inheritdoc IInsurerToken
+  function exchangeRate() public view override returns (uint256) {
     return exchangeRate(super.internalGetPremiumTotals(), 0);
   }
 
+  /// @inheritdoc IERC20
   function balanceOf(address account) public view override returns (uint256) {
     return _balances[account].balance;
   }
 
+  /// @inheritdoc IInsurerToken
   function balancesOf(address account)
     public
     view
@@ -260,11 +278,14 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     avail = max.boundedSub(_burntDrawdown);
   }
 
+  /// @return maxAvail is drawdown available in total
   function _calcAvailableDrawdownReserve(uint256 extra) internal view returns (uint256 maxAvail) {
     uint256 total = extra + _coveredTotal() + _excessCoverage;
     (, maxAvail) = _coverageDrawdown(total, PercentageMath.ONE - _params.coverageForepayPct);
   }
 
+  /// @return max is total drawdown allowed to users, it includes drawdown given out already.
+  /// @return avail is drawdown available to users now.
   function _calcAvailableUserDrawdown(uint256 totalCovered) internal view returns (uint256 max, uint256 avail) {
     (max, avail) = _coverageDrawdown(totalCovered + _excessCoverage, _params.maxUserDrawdownPct);
     max += totalCovered = _boostDrawdown;
@@ -278,4 +299,7 @@ abstract contract ImperpetualPoolBase is ImperpetualPoolStorage {
     }
     return _calcAvailableUserDrawdown(_coveredTotal());
   }
+
+  /// @dev a storage reserve for further upgrades
+  uint256[16] private _gap;
 }

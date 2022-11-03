@@ -12,8 +12,8 @@ import 'hardhat/console.sol';
   @dev This library conains core logic to balance multiple assets.
   There is a stream of premium value, which can be swapped into multiple assets, but each individual asset has not enough supply to cover the stream.
   Giving a user their swapped value weighted across all assets is not feasible as gas costs can easilly exceed the value of the tokens.
-  So, the logic of this library allows a user to choose a subset of assets, and will either subsidize or penalize swap price based on demand vs supply.
-  I.e When the ratio of the available value of an asset compared to the total value of all assets is GREATER THAN the ratio of the supply rate 
+  So, this library allows a user to choose a subset of assets, and will either subsidize or penalize swap price based on demand vs supply.
+  I.e. when the ratio of the available value of an asset compared to the total value of all assets is GREATER THAN the ratio of the supply rate 
   of the asset vs the total premium rate of all assets, the asset is in low demand compared to the supply and the price will be discounted.
   Additionally, a constant-product formula is applied to prevent depletion of assets by additional fees on large or close-to-depletion swaps.
 

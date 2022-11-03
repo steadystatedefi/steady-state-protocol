@@ -7,5 +7,5 @@ import './IGovernorAccessBitmask.sol';
 /// @dev Callbacks to the governor for operations of insured.
 /// @dev Requires ERC165
 interface IInsuredGovernor is IGovernorAccessBitmask {
-  // function getApprovedPolicyForInsurer(address insured) external returns (bool ok, IApprovalCatalog.ApprovedPolicyForInsurer memory data);
+
 }

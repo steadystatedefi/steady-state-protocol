@@ -8,6 +8,9 @@ import '../governance/interfaces/IInsuredGovernor.sol';
 import '../governance/GovernedHelper.sol';
 import '../pricing/PricingHelper.sol';
 
+/// @dev This template provides access control with a governor.
+/// @dev The governor can be either an EOA or a contract.
+/// @dev Both will get access to protected functions, and a contract can also enable callbacks by declaring IInsuredGovernor support via ERC165.
 abstract contract InsuredAccessControl is GovernedHelper, PricingHelper {
   using PercentageMath for uint256;
 
@@ -31,6 +34,7 @@ abstract contract InsuredAccessControl is GovernedHelper, PricingHelper {
     _setGovernor(addr);
   }
 
+  /// @return a typed/callable contract of a governor, otherwise zero.
   function governorContract() internal view virtual returns (IInsuredGovernor) {
     return IInsuredGovernor(_governorIsContract ? governorAccount() : address(0));
   }
