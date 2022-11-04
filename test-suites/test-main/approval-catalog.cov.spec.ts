@@ -298,7 +298,7 @@ makeSuite('Approval Catalog', (testEnv: TestEnv) => {
       applied: false,
     };
 
-    policy.insured = await submitApplication(policy.requestCid);
+    policy.insured = await submitApplication(await policy.requestCid);
     expect(await approvalCatalog.hasApprovedApplication(policy.insured)).eq(false);
 
     {
