@@ -203,4 +203,68 @@ makeSuite('Imperpetual Index Pool (2)', (testEnv: TestEnv) => {
     b2compensated = b2.add(ratePerInsured.mul(t[1] - t[0] + 20));
     expect(b1).lte(b2compensated);
   });
+
+  it('Auto-pull coverage demand (coverage provided)', async () => {
+    await pool.setMaxAdvanceUnits(15000);
+    await pool.setUnitsPerAutoPull(1000);
+    const demand = BigNumber.from(unitSize).mul(10000);
+    const insureds: MockInsuredPool[] = [];
+
+    const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+
+    const totals0 = await pool.getTotals();
+
+    const initialDemand = totals0.coverage.totalDemand.div(3);
+    await cc.mintAndTransfer(user.address, pool.address, initialDemand.mul(3), 0);
+    const bands1 = (await insureds[0].rateBands()).bands[0].assignedDemand;
+    const bands2 = (await insureds[1].rateBands()).bands[0].assignedDemand;
+    const bands3 = (await insureds[2].rateBands()).bands[0].assignedDemand;
+
+    const totals1 = await pool.getTotals();
+    await cc.mintAndTransfer(user.address, pool.address, demand.sub(initialDemand).mul(3), 0);
+    const totals2 = await pool.getTotals();
+
+    expect(totals2.coverage.totalDemand).gt(totals1.coverage.totalDemand);
+    expect(
+      (await insureds[0].rateBands()).bands[0].assignedDemand > bands1 ||
+        (await insureds[1].rateBands()).bands[0].assignedDemand > bands2 ||
+        (await insureds[2].rateBands()).bands[0].assignedDemand > bands3
+    );
+  });
+
+  it('Auto-pull coverage demand (push excess)', async () => {
+    await pool.setMaxAdvanceUnits(15000);
+    await pool.setUnitsPerAutoPull(1000);
+    const demand = BigNumber.from(unitSize).mul(10000);
+    const insureds: MockInsuredPool[] = [];
+
+    const premiumToken = await Factories.MockERC20.deploy('PremiumToken', 'PT', 18);
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+    insureds.push(await joinPool(riskWeight, demand, premiumToken));
+
+    await cc.mintAndTransfer(user.address, pool.address, demand.mul(3), 0);
+    const bands1 = (await insureds[0].rateBands()).bands[0].assignedDemand;
+    const bands2 = (await insureds[1].rateBands()).bands[0].assignedDemand;
+    const bands3 = (await insureds[2].rateBands()).bands[0].assignedDemand;
+
+    const totals1 = await pool.getTotals();
+    await pool.pushCoverageExcess();
+    const totals2 = await pool.getTotals();
+
+    expect(totals2.coverage.totalDemand).gt(totals1.coverage.totalDemand);
+    await pool.pushCoverageExcess();
+    await pool.pushCoverageExcess();
+    const totals3 = await pool.getTotals();
+
+    expect(totals3.coverage.totalDemand).gt(totals2.coverage.totalDemand);
+    expect(
+      (await insureds[0].rateBands()).bands[0].assignedDemand > bands1 ||
+        (await insureds[1].rateBands()).bands[0].assignedDemand > bands2 ||
+        (await insureds[2].rateBands()).bands[0].assignedDemand > bands3
+    );
+  });
 });

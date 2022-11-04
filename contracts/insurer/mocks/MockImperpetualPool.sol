@@ -37,6 +37,14 @@ contract MockImperpetualPool is IInsurerGovernor, ImperpetualPoolBase {
     _params.maxInsuredSharePct = pct;
   }
 
+  function setMaxAdvanceUnits(uint32 adv) external {
+    _params.maxAdvanceUnits = adv;
+  }
+
+  function setUnitsPerAutoPull(uint16 x) external {
+    _params.unitsPerAutoPull = x;
+  }
+
   function getRevision() internal pure override returns (uint256) {}
 
   function handleJoinRequest(address) external pure virtual override returns (MemberStatus) {

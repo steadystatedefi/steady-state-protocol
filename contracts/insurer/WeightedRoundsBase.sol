@@ -1690,9 +1690,6 @@ abstract contract WeightedRoundsBase {
       loopLimit--;
 
       Rounds.Batch storage batch = _batches[batchNo];
-      if (!batch.state.isFull()) {
-        break;
-      }
 
       EnumerableSet.AddressSet storage demands = _pullableDemands[batchNo];
       for (uint256 n = demands.length(); n > 0; ) {
@@ -1711,7 +1708,7 @@ abstract contract WeightedRoundsBase {
         }
         loopLimit--;
       }
-      if (insured != address(0)) {
+      if (insured != address(0) || !batch.state.isFull()) {
         break;
       }
 
